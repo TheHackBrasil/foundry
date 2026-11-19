@@ -17,9 +17,10 @@ Como se escreve neste repo. Aplica a `docs/`, `specs/`, `DECISIONS.md`,
 
 ## Proibido: sinais de texto gerado
 
-- **Travessão (U+2014) como pontuação.** O guard falha em qualquer
-  travessão em `.md`. Para aposto ou explicação: dois-pontos, vírgula,
-  parênteses ou ponto. En-dash de intervalo (15–20) segue valendo.
+- **Travessão (U+2014) e meia-risca (U+2013) como pontuação.** O guard
+  falha em qualquer um dos dois em `.md`. Para aposto ou explicação:
+  dois-pontos, vírgula, parênteses ou ponto. Intervalo vai com "a":
+  "A1 a A10", "15 a 20".
 - Conectivos automáticos: "no entanto", "contudo", "além disso",
   "ademais": preferir "mas", "e", "também" ou nada.
 - Infladores: "é importante notar/ressaltar/destacar", "vale mencionar",
@@ -72,5 +73,7 @@ Antislop é tirar padrão, não tirar voz. Passam direto:
 1. Skill `humanizer` (ou `antislop-copywriting` para copy) rodada ou
    guia aplicado à mão.
 2. `node scripts/repo-guard.mjs` verde: inclui o check `prose`.
-3. Releitura caçando: conectivo automático, inflador, tríade, frase que
+3. `node scripts/prose-evals.mjs` limpo: ocorrência dura reprova, leve
+   é só para revisar.
+4. Releitura caçando: conectivo automático, inflador, tríade, frase que
    soaria estranha falada em voz alta.

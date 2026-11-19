@@ -183,7 +183,7 @@ const inHead = (p) => headFiles !== null && headFiles.includes(p);
     }
   }
   const slopChars = [
-    ['—', 'travessão'], ['“', 'aspa curva'], ['”', 'aspa curva'], ['‘', 'aspa curva'], ['’', 'aspa curva'],
+    ['—', 'travessão'], ['–', 'meia-risca'], ['“', 'aspa curva'], ['”', 'aspa curva'], ['‘', 'aspa curva'], ['’', 'aspa curva'],
   ];
   const emojiRe = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u;
   const errs = [];
@@ -197,7 +197,7 @@ const inHead = (p) => headFiles !== null && headFiles.includes(p);
   }
   check('prose', errs.length === 0,
     errs.slice(0, 8).join('; ') + (errs.length > 8 ? ` (+${errs.length - 8})` : '')
-      || 'sem travessão/aspa curva/emoji em markdown');
+      || 'sem travessão/meia-risca/aspa curva/emoji em markdown');
 }
 
 // --- 4b. assets referenciados em HTML/SVG -------------------------------------

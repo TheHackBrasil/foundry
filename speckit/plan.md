@@ -6,7 +6,7 @@
 
 ## Procedimento
 
-1. Constitution Check A1–A10 **artigo por artigo**, com evidência: "n/a"
+1. Constitution Check A1 a A10 **artigo por artigo**, com evidência: "n/a"
    precisa de justificativa de uma linha, não só a sigla.
 2. Caminhos reais: verifique no repo que os arquivos/pastas citados
    existem ou serão criados; nunca cite comando ou path inventado.

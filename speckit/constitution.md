@@ -15,7 +15,7 @@
    ou inspeção nomeada. Artigo sem verificação é texto morto.
 5. Proibido na constituição: número de teste, contagem de migration,
    referência a ambiente, estado de sprint: só o durável.
-6. Numeração de artigos é estável: emendar não reordena A1–A10; artigo
+6. Numeração de artigos é estável: emendar não reordena A1 a A10; artigo
    revogado fica `~~riscado~~` com ponteiro, não some (histórico).
 
 ## Gate de saída

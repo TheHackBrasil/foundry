@@ -2,7 +2,7 @@
 
 ## Ordem de leitura
 
-1. `.specify/memory/constitution.md`: regras máximas (A1–A10).
+1. `.specify/memory/constitution.md`: regras máximas (A1 a A10).
 2. Este arquivo.
 3. `PRODUCT.md` + `docs/`, o que o produto é e o que a pesquisa provou.
 4. `specs/` vigente → `BACKLOG.md` → `README.md`.
@@ -28,8 +28,8 @@ Conflito resolve-se a favor do primeiro da lista.
 - Prosa segue `STYLE.md` (antislop). Antes de escrever ou editar texto
   para humanos: invocar a skill `humanizer` (docs/prosa) ou
   `antislop-copywriting` (copy do site/pitch) quando disponíveis no
-  harness; sem a skill, aplicar o guia à mão. Travessão é proibido em
-  `.md` (o guard falha).
+  harness; sem a skill, aplicar o guia à mão. Travessão e meia-risca
+  são proibidos em `.md` (o guard falha).
 - Commits: atômicos, `<tipo>: <resumo>` (docs|feat|fix|spec|chore),
   `user.name=thisux1`,
   `user.email=125291983+thisux1@users.noreply.github.com`, sem trailers.
@@ -38,7 +38,7 @@ Conflito resolve-se a favor do primeiro da lista.
 
 ```bash
 node --check scripts/repo-guard.mjs
-node scripts/repo-guard.mjs    # exit 0
+node scripts/repo-guard.mjs && node scripts/prose-evals.mjs   # ambos exit 0
 ```
 
 Mais, quando aplicável: critérios da spec item a item com evidência;
@@ -46,7 +46,7 @@ os 4 itens de A6 (contraste, foco/teclado, reduced-motion, alt text)
 em mudança de UI. Cole a saída real no commit/PR.
 
 Hook git opcional (não instalado): `.git/hooks/pre-commit` →
-`node scripts/repo-guard.mjs`.
+`node scripts/repo-guard.mjs` e `node scripts/prose-evals.mjs`.
 
 ## Não faça
 

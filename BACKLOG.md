@@ -16,7 +16,7 @@ _(nenhum)_
 | 2 | Release `pitch-v9` com `pitch-v9-share.mp4` + seção/embed no site | todo | asset fora do repo: `/home/thiago/hackbrasil/projects/pitch-inicial/out/` |
 | 3 | README definitivo: SVG animado da marca, OG/Twitter, LICENSE, links | todo | depende do #1 para o visual |
 | 4 | Publicar `slides/` do deck de descoberta Enviagora | todo | arquivos já portados, aguardam Pages |
-| 5 | GitHub Pages ativo + verificação do site live | todo | destrava #1–#4 publicamente |
+| 5 | GitHub Pages ativo + verificação do site live | todo | destrava #1 a #4 publicamente |
 | 6 | Capítulo pós-call Enviagora no diário | blocked | call remarcada sem data: escrever só com resultado real |
 | 7 | Definir fluxo único do MVP | blocked | depende de #6 + resposta TOTVS (`docs/escopo.md`) |
 | 8 | Integrar Liz (4ª integrante) no site/docs quando confirmada | blocked | confirmação pendente |

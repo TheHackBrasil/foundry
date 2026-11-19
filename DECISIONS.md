@@ -33,6 +33,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-008 | 19/11 | Identidade pública = Foundry dark + laranja (`PRODUCT.md`); site reconstruído do zero nela, repo antigo só como referência de conteúdo | decidido | Família única com o pitch v9 |
 | D-009 | 19/11 | Convenção DECISIONS/RULES/post-mortem do `worcap-hackathon` adotada | decidido | Auditabilidade + narrativa build-in-public |
 | D-010 | 19/11 | Prosa antislop: `STYLE.md` + skills `humanizer`/`antislop-copywriting` antes de escrever + check `prose` no guard banindo travessão | decidido | Texto do repo não pode soar gerado |
+| D-011 | 19/11 | `scripts/prose-evals.mjs`: evals de prosa (duro reprova, leve avisa, `--strict` reprova leve); meia-risca (U+2013) também banida, sem exceção de intervalo; registro dos docs = sóbrio, coloquialismo só em citação | decidido | Evals acharam meia-risca que o guard não pegava; voz informal rejeitada pelo time |
 
 ## Pendências
 
@@ -75,3 +76,14 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   guard, imutabilidade A9 derivada do HEAD (adulterar Status no worktree
   não anula a proteção: testado), links em code fence ignorados, assets de
   HTML checados, `node --check` em todo `.js` versionado.
+
+### Sessão 3: antislop + evals de prosa (19/11)
+
+- `STYLE.md` criado + check `prose` no guard; ~200 travessões limpos dos
+  docs mutáveis. Artefatos A9 fora da regra (história congelada).
+- `scripts/prose-evals.mjs`: primeira rodada achou 4 meia-risca (U+2013,
+  `A1 a A10`) que o guard não cobria: guard e STYLE.md estendidos, ban
+  virou total. Também um falso positivo ("de ponta a ponta"), corrigido
+  no regex.
+- `humanizer` rodado em `docs/escopo.md`: trocou metáfora de estoque e
+  auto-elogio por linguagem direta; registro ajustado para sóbrio.

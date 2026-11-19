@@ -17,8 +17,9 @@ invariante nova nascer (via spec) ou uma proteção mudar.
 | Todo `.js`/`.mjs`/`.cjs` versionado é sintaticamente válido | `repo-guard.mjs` → check `scripts` (`node --check`) | comando |
 | Todo JSON versionado é válido | `repo-guard.mjs` → check `json` | comando |
 | Versão de runtime coerente entre config e docs (quando houver) | `repo-guard.mjs` → check `runtime` (dormente sem `.nvmrc`/`engines`) | comando |
-| Nenhum travessão (U+2014) em markdown | `repo-guard.mjs` → check `prose` (pula artefatos A9) + `STYLE.md` | comando |
-| Prosa sem padrão de IA (conectivos, infladores, tríades) | `STYLE.md` + skill `humanizer`/`antislop-copywriting` + revisão | revisão |
+| Nenhum travessão/meia-risca, aspa curva ou emoji em markdown | `repo-guard.mjs` → check `prose` + `prose-evals.mjs` (pula artefatos A9) | comando |
+| Prosa sem padrão de IA detectável (conectivos automáticos, infladores, burocratês, fechos de chatbot) | `prose-evals.mjs` (duro reprova; `--strict` reprova leve) | comando |
+| Prosa sem padrão de IA sutil (tríades, voz, metáfora de estoque) | `STYLE.md` + skill `humanizer`/`antislop-copywriting` + revisão | revisão |
 | Pessoa citada consta no inventário público | `docs/fontes-e-contatos.md` + revisão em PRs de `docs/` (A5) | revisão |
 | Conteúdo ilustrativo sempre rotulado | templates spec/checklist + revisão (A7) | revisão |
 | Fatos publicados têm fonte | `docs/` exige fonte inline + revisão (A7) | revisão |
