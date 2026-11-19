@@ -100,7 +100,7 @@ if (!REDUCED) {
 }
 
 /* ---------- photos: a full-colour copy fades in on hover, so filter never animates ---------- */
-$$<HTMLImageElement>('.print img, .portrait img').forEach((img) => {
+$$<HTMLImageElement>('.print img, .portrait img, .avatar img').forEach((img) => {
   const c = img.cloneNode() as HTMLImageElement;
   c.className = 'colour';
   c.alt = '';
