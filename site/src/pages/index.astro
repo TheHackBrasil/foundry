@@ -1,27 +1,64 @@
 ---
 import Base from '../layouts/Base.astro';
 import Domino from '../components/domino/Domino';
+
+const ticker = [
+  ['SERENA', 'O ENCONTRO NA NEWHACK'],
+  ['05 NOV', 'LANÇAMENTO NA FIAP PAULISTA'],
+  ['09 A 13 NOV', 'CAMPO NA FENATRAN'],
+  ['16 NOV', 'DIREÇÃO ESCOLHIDA'],
+  ['18 NOV', 'CALL COM A ENVIAGORA REMARCADA SEM NOVA DATA'],
+  ['30/11', 'ENTREGA'],
+];
 ---
 
 <Base>
   <main id="topo">
 
     <!-- ============ HERO ============ -->
-    <section class="hero">
-      <div class="hero-meta mono rv">DIÁRIO DE CONSTRUÇÃO · THE FOUNDRY × HACKBRASIL 2026</div>
-      <h1 class="rv">UM PEDIDO.<br>CINCO SISTEMAS.<br><em>NENHUMA</em> VERDADE.</h1>
+    <section class="hero" id="hero">
+      <div class="hero-meta mono rv">
+        <span class="sq" aria-hidden="true"></span>DIÁRIO DE CONSTRUÇÃO · THE FOUNDRY × HACKBRASIL 2026
+      </div>
+      <h1 class="hero-title">
+        <span class="ln"><span>UM PEDIDO.</span></span>
+        <span class="ln"><span>CINCO SISTEMAS.</span></span>
+        <span class="ln"><span><em>NENHUMA</em> VERDADE.</span></span>
+      </h1>
       <p class="hero-sub rv">Somos três pessoas investigando por que empresas que trabalham juntas
         não enxergam a mesma operação. Esta página é o registro público do processo:
         o que encontramos, o que decidimos e o que ainda não sabemos.</p>
+      <div class="hero-hint mono" aria-hidden="true">
+        <span class="hint-fine">PASSE O CURSOR NA PEÇA PARA AQUECER · CLIQUE PARA BATER</span>
+        <span class="hint-coarse">TOQUE PARA BATER O MARTELO</span>
+      </div>
       <div class="hero-foot mono rv">
         <span>SÃO PAULO · BRASIL</span>
         <span>TRILHA: LOGÍSTICA E AUTOMAÇÃO</span>
         <span>ATUALIZADO 19 NOV 2026</span>
+        <a class="hero-down" href="#materia">ROLE PARA A FORJA <i aria-hidden="true">↓</i></a>
+      </div>
+      <div class="hero-frame" aria-hidden="true">
+        <span class="fc tl"></span><span class="fc tr"></span><span class="fc bl"></span><span class="fc br"></span>
+        <span class="frame-tag mono">PEÇA EM TRABALHO · BIGORNA DA MARCA</span>
       </div>
     </section>
 
+    <!-- ============ TICKER ============ -->
+    <div class="ticker mono" role="region" aria-label="Linha do tempo resumida">
+      <div class="ticker-track">
+        <ul class="ticker-set">
+          {ticker.map(([d, t]) => <li><b>{d}</b>{t}</li>)}
+        </ul>
+        <ul class="ticker-set" aria-hidden="true">
+          {ticker.map(([d, t]) => <li><b>{d}</b>{t}</li>)}
+        </ul>
+      </div>
+    </div>
+
     <!-- ============ CAP.01 · MATÉRIA-PRIMA ============ -->
-    <section class="chapter" id="materia">
+    <section class="chapter" id="materia" data-chap="01">
+      <div class="chap-giant" aria-hidden="true"><span>MATÉRIA-PRIMA</span></div>
       <div class="chap-tag mono"><span class="num">CAP.01</span><span class="name">MATÉRIA-PRIMA</span><span class="temp">AMBIENTE · 25°C</span></div>
       <div class="chap-grid">
         <div class="chap-copy rv">
@@ -33,14 +70,21 @@ import Domino from '../components/domino/Domino';
             conferência manual. Foi o que ouvimos na FENATRAN e nas conversas
             com quem opera isso todos os dias.</p>
         </div>
-        <div class="rv" id="domino-slot">
+        <div class="bench rv" id="domino-slot">
+          <div class="bench-head mono" aria-hidden="true">
+            <span><i class="led"></i>BANCADA 01</span>
+            <span>MEXA NO ATRASO DO FORNECEDOR</span>
+          </div>
           <Domino client:visible />
+          <span class="fc tl" aria-hidden="true"></span><span class="fc tr" aria-hidden="true"></span>
+          <span class="fc bl" aria-hidden="true"></span><span class="fc br" aria-hidden="true"></span>
         </div>
       </div>
     </section>
 
     <!-- ============ CAP.02 · FOGO ============ -->
-    <section class="chapter" id="fogo">
+    <section class="chapter" id="fogo" data-chap="02">
+      <div class="chap-giant" aria-hidden="true"><span>FOGO</span></div>
       <div class="chap-tag mono"><span class="num">CAP.02</span><span class="name">FOGO</span><span class="temp">FORJA · 1200°C</span></div>
       <div class="chap-copy wide rv">
         <h2>A investigação não coube<br>numa <em>planilha.</em></h2>
@@ -48,28 +92,38 @@ import Domino from '../components/domino/Domino';
           O que segue é o registro datado do que realmente aconteceu.</p>
       </div>
 
+      <div class="rail mono" aria-hidden="true">
+        <span class="rail-line"><i class="rail-fill"></i></span>
+        <ol>
+          <li>SERENA</li><li>05 NOV</li><li>09 A 13 NOV</li><li>NOV</li><li>16 NOV</li><li>18 NOV</li>
+        </ol>
+      </div>
+
       <div class="evidence">
         <article class="ev rv">
+          <span class="ev-no mono" aria-hidden="true">01</span>
           <span class="ev-date mono">SERENA · NOV</span>
-          <figure><img src="./assets/serena.webp" alt="Fachada do Serena, sede do encontro da comunidade NewHack" loading="lazy"></figure>
+          <figure class="heatimg"><img src="./assets/serena.webp" alt="Fachada do Serena, sede do encontro da comunidade NewHack" loading="lazy"></figure>
           <h3>O encontro</h3>
           <p>Três caminhos se cruzaram num encontro da NewHack. Saímos de lá com um
             combinado: construir algo juntos.</p>
         </article>
 
         <article class="ev rv">
+          <span class="ev-no mono" aria-hidden="true">02</span>
           <span class="ev-date mono">05 NOV · FIAP</span>
-          <figure><img src="./assets/fiap.webp" alt="Registro do lançamento presencial do HackBrasil na FIAP Paulista" loading="lazy"></figure>
+          <figure class="heatimg"><img src="./assets/fiap.webp" alt="Registro do lançamento presencial do HackBrasil na FIAP Paulista" loading="lazy"></figure>
           <h3>O desafio</h3>
           <p>Lançamento presencial do HackBrasil 2026. Escolhemos a trilha de
             Logística e Automação: um setor onde problema não falta.</p>
         </article>
 
         <article class="ev rv">
+          <span class="ev-no mono" aria-hidden="true">03</span>
           <span class="ev-date mono">09 A 13 NOV · FENATRAN</span>
           <figure class="ev-duo">
-            <img src="./assets/fenatran-pavilhao.webp" alt="Pavilhão da FENATRAN com caminhões e público" loading="lazy">
-            <img src="./assets/fenatran-entrada.webp" alt="Entrada da FENATRAN" loading="lazy">
+            <span class="heatimg"><img src="./assets/fenatran-pavilhao.webp" alt="Pavilhão da FENATRAN com caminhões e público" loading="lazy"></span>
+            <span class="heatimg"><img src="./assets/fenatran-entrada.webp" alt="Entrada da FENATRAN" loading="lazy"></span>
           </figure>
           <h3>O campo</h3>
           <p>Conversamos com operadores, transportadoras e fábricas. A mesma dor
@@ -77,13 +131,14 @@ import Domino from '../components/domino/Domino';
         </article>
 
         <article class="ev rv">
+          <span class="ev-no mono" aria-hidden="true">04</span>
           <span class="ev-date mono">NOV · LINKEDIN</span>
           <div class="ev-people">
-            <a href="https://www.linkedin.com/in/isabela-claro-sanches-96857b12/" target="_blank" rel="noopener noreferrer"><img src="./assets/isabela.webp" alt="Isabela Claro Sanches" loading="lazy"><span>ISABELA<br><b>1ª RESPOSTA</b></span></a>
+            <a href="https://www.linkedin.com/in/isabela-claro-sanches-96857b12/" target="_blank" rel="noopener noreferrer"><span class="heatimg"><img src="./assets/isabela.webp" alt="Isabela Claro Sanches" loading="lazy"></span><span class="who">ISABELA<br><b>1ª RESPOSTA</b></span></a>
             <i class="arr" aria-hidden="true">→</i>
-            <a href="https://www.linkedin.com/in/vivianne-moreira-leite/" target="_blank" rel="noopener noreferrer"><img src="./assets/vivianne.webp" alt="Vivianne Moreira Leite" loading="lazy"><span>VIVIANNE<br><b>INDICAÇÃO</b></span></a>
+            <a href="https://www.linkedin.com/in/vivianne-moreira-leite/" target="_blank" rel="noopener noreferrer"><span class="heatimg"><img src="./assets/vivianne.webp" alt="Vivianne Moreira Leite" loading="lazy"></span><span class="who">VIVIANNE<br><b>INDICAÇÃO</b></span></a>
             <i class="arr" aria-hidden="true">→</i>
-            <a href="https://www.linkedin.com/in/rafael-alberto-born-03886bba/" target="_blank" rel="noopener noreferrer"><img src="./assets/rafael.webp" alt="Rafael Alberto Born, CEO da Enviagora" loading="lazy"><span>RAFAEL<br><b>CEO ENVIAGORA</b></span></a>
+            <a href="https://www.linkedin.com/in/rafael-alberto-born-03886bba/" target="_blank" rel="noopener noreferrer"><span class="heatimg"><img src="./assets/rafael.webp" alt="Rafael Alberto Born, CEO da Enviagora" loading="lazy"></span><span class="who">RAFAEL<br><b>CEO ENVIAGORA</b></span></a>
           </div>
           <h3>Os contatos</h3>
           <p>Isabela respondeu primeiro e indicou Vivianne, especialista em
@@ -92,11 +147,13 @@ import Domino from '../components/domino/Domino';
         </article>
 
         <article class="ev rv">
+          <span class="ev-no mono" aria-hidden="true">05</span>
           <span class="ev-date mono">16 NOV · CALL 1H43</span>
           <div class="ev-call mono">
             <span>ALINHAMENTO DO TIME</span>
             <b>DIREÇÃO ESCOLHIDA</b>
             <span class="dim">~41 MIN NA GRAVAÇÃO</span>
+            <span class="wave" aria-hidden="true">{Array.from({ length: 28 }, (_, i) => <i style={`--i:${i}`}></i>)}</span>
           </div>
           <h3>A decisão</h3>
           <p>Depois de descartar a roteirização interna, o time bateu o martelo na
@@ -104,11 +161,13 @@ import Domino from '../components/domino/Domino';
         </article>
 
         <article class="ev warn rv">
+          <span class="ev-no mono" aria-hidden="true">06</span>
           <span class="ev-date mono">18 NOV · ENVIAGORA</span>
           <div class="ev-call mono">
             <span>CALL COM O CEO</span>
             <b>REMARCADA</b>
             <span class="dim">SEM NOVA DATA</span>
+            <span class="stamp" aria-hidden="true">PENDENTE</span>
           </div>
           <h3>O que não aconteceu</h3>
           <p>A call que poderia fechar a escolha do primeiro fluxo foi remarcada
@@ -118,7 +177,8 @@ import Domino from '../components/domino/Domino';
     </section>
 
     <!-- ============ CAP.03 · FORMA ============ -->
-    <section class="chapter" id="forma">
+    <section class="chapter" id="forma" data-chap="03">
+      <div class="chap-giant" aria-hidden="true"><span>FORMA</span></div>
       <div class="chap-tag mono"><span class="num">CAP.03</span><span class="name">FORMA</span><span class="temp">BIGORNA · 800°C</span></div>
       <div class="chap-grid">
         <div class="chap-copy rv">
@@ -135,13 +195,11 @@ import Domino from '../components/domino/Domino';
             <li><b>DADO</b> capacidade ociosa (doca, retorno, estoque) viaja na mesma camada</li>
           </ul>
         </div>
-        <div class="layer-art rv" aria-hidden="true">
+        <div class="layer-art" aria-hidden="true">
           <svg viewBox="0 0 460 300" class="layer-svg">
-            <g class="lnodes">
-              <rect x="20"  y="190" width="96" height="52" rx="4"/>
-              <rect x="132" y="190" width="96" height="52" rx="4"/>
-              <rect x="244" y="190" width="96" height="52" rx="4"/>
-              <rect x="356" y="190" width="88" height="52" rx="4"/>
+            <g class="lgrid">
+              {Array.from({ length: 12 }, (_, i) => <line x1={i * 40 + 10} y1="0" x2={i * 40 + 10} y2="300" />)}
+              {Array.from({ length: 8 }, (_, i) => <line x1="0" y1={i * 40 + 10} x2="460" y2={i * 40 + 10} />)}
             </g>
             <g class="lwires">
               <path d="M68 190 C68 130, 90 118, 120 110"/>
@@ -149,15 +207,15 @@ import Domino from '../components/domino/Domino';
               <path d="M292 190 C292 140, 282 122, 262 112"/>
               <path d="M400 190 C400 130, 380 118, 350 110"/>
             </g>
-            <rect class="lbar" x="60" y="84" width="340" height="26" rx="4"/>
-            <text class="lbar-txt" x="230" y="101" text-anchor="middle">CAMADA COMPARTILHADA</text>
-            <g class="llabels">
-              <text x="68"  y="221" text-anchor="middle">FORN.</text>
-              <text x="180" y="221" text-anchor="middle">TRANSP.</text>
-              <text x="292" y="221" text-anchor="middle">C.D.</text>
-              <text x="400" y="221" text-anchor="middle">FIN.</text>
+            <g class="lbar-g">
+              <rect class="lbar" x="60" y="84" width="340" height="26" rx="4"/>
+              <text class="lbar-txt" x="230" y="101" text-anchor="middle">CAMADA COMPARTILHADA</text>
+              <circle class="lpulse" cx="64" cy="97" r="4"/>
             </g>
-            <g class="lpulse"><circle r="4" cy="97"><animateMotion dur="3.2s" repeatCount="indefinite" path="M60 0 H340"/></circle></g>
+            <g class="lnode"><rect x="20" y="190" width="96" height="52" rx="4"/><text x="68" y="221" text-anchor="middle">FORN.</text></g>
+            <g class="lnode"><rect x="132" y="190" width="96" height="52" rx="4"/><text x="180" y="221" text-anchor="middle">TRANSP.</text></g>
+            <g class="lnode"><rect x="244" y="190" width="96" height="52" rx="4"/><text x="292" y="221" text-anchor="middle">C.D.</text></g>
+            <g class="lnode"><rect x="356" y="190" width="88" height="52" rx="4"/><text x="400" y="221" text-anchor="middle">FIN.</text></g>
           </svg>
           <p class="layer-cap mono">ESQUEMÁTICO · NÃO É PRODUTO</p>
         </div>
@@ -165,7 +223,8 @@ import Domino from '../components/domino/Domino';
     </section>
 
     <!-- ============ CAP.04 · TÊMPERA ============ -->
-    <section class="chapter" id="tempera">
+    <section class="chapter" id="tempera" data-chap="04">
+      <div class="chap-giant" aria-hidden="true"><span>TÊMPERA</span></div>
       <div class="chap-tag mono"><span class="num">CAP.04</span><span class="name">TÊMPERA</span><span class="temp">RESFRIANDO · 400°C</span></div>
       <div class="chap-copy wide rv">
         <h2>O que ainda está<br><em>em teste.</em></h2>
@@ -173,31 +232,32 @@ import Domino from '../components/domino/Domino';
           Aqui, é a lista honesta do que pode quebrar a tese.</p>
       </div>
       <div class="open">
-        <div class="open-item rv"><span class="mono">P.01</span><b>Qual é o único fluxo do MVP?</b><p>Atraso propagado, documentos fiscais, etiquetas ou contratos: cada resposta vira um produto. Pergunta em aberto com o contato da TOTVS.</p></div>
-        <div class="open-item rv"><span class="mono">P.02</span><b>A call da Enviagora</b><p>Remarcada sem nova data. O retorno do CEO do maior 3PL de e-commerce da América Latina pesa na escolha acima.</p></div>
-        <div class="open-item rv"><span class="mono">P.03</span><b>Diferenciação vs. Emiteaí</b><p>Eles emitem documento de rota em minutos e também tocam gestão. Onde a linha entre os produtos passa ainda é investigação.</p></div>
-        <div class="open-item rv"><span class="mono">P.04</span><b>O quarto integrante</b><p>Liz ainda não confirmou entrada no time. O site e os docs assumem três pessoas até lá.</p></div>
-        <div class="open-item rv"><span class="mono">P.05</span><b>O relógio</b><p>Entrega em 30/11. Avaliação do próprio time: MVP rodando numa indústria real antes disso não é promessa que a gente faz.</p></div>
+        <div class="open-item rv"><i class="heat" aria-hidden="true"></i><span class="mono">P.01</span><b>Qual é o único fluxo do MVP?</b><p>Atraso propagado, documentos fiscais, etiquetas ou contratos: cada resposta vira um produto. Pergunta em aberto com o contato da TOTVS.</p></div>
+        <div class="open-item rv"><i class="heat" aria-hidden="true"></i><span class="mono">P.02</span><b>A call da Enviagora</b><p>Remarcada sem nova data. O retorno do CEO do maior 3PL de e-commerce da América Latina pesa na escolha acima.</p></div>
+        <div class="open-item rv"><i class="heat" aria-hidden="true"></i><span class="mono">P.03</span><b>Diferenciação vs. Emiteaí</b><p>Eles emitem documento de rota em minutos e também tocam gestão. Onde a linha entre os produtos passa ainda é investigação.</p></div>
+        <div class="open-item rv"><i class="heat" aria-hidden="true"></i><span class="mono">P.04</span><b>O quarto integrante</b><p>Liz ainda não confirmou entrada no time. O site e os docs assumem três pessoas até lá.</p></div>
+        <div class="open-item rv"><i class="heat" aria-hidden="true"></i><span class="mono">P.05</span><b>O relógio</b><p>Entrega em 30/11. Avaliação do próprio time: MVP rodando numa indústria real antes disso não é promessa que a gente faz.</p></div>
       </div>
     </section>
 
     <!-- ============ CAP.05 · A FORJA ============ -->
-    <section class="chapter" id="forja">
+    <section class="chapter" id="forja" data-chap="05">
+      <div class="chap-giant" aria-hidden="true"><span>A FORJA</span></div>
       <div class="chap-tag mono"><span class="num">CAP.05</span><span class="name">A FORJA</span><span class="temp">OFICINA ABERTA</span></div>
       <div class="chap-copy wide rv">
         <h2>Quem está batendo<br>o <em>martelo.</em></h2>
       </div>
       <div class="team">
         <a class="member rv" href="https://www.linkedin.com/in/gabriel-sacilotto-819343365/" target="_blank" rel="noopener noreferrer">
-          <img src="./assets/gabriel.webp" alt="Gabriel Sacilotto" loading="lazy">
+          <span class="heatimg"><img src="./assets/gabriel.webp" alt="Gabriel Sacilotto" loading="lazy"></span>
           <b>GABRIEL SACILOTTO</b><span class="mono">PRODUTO &amp; PESQUISA</span>
         </a>
         <a class="member rv" href="https://www.linkedin.com/in/guilherme-barreto-mendes/" target="_blank" rel="noopener noreferrer">
-          <img src="./assets/guilherme.webp" alt="Guilherme Barreto Mendes" loading="lazy">
+          <span class="heatimg"><img src="./assets/guilherme.webp" alt="Guilherme Barreto Mendes" loading="lazy"></span>
           <b>GUILHERME BARRETO</b><span class="mono">ENGENHARIA &amp; SISTEMAS</span>
         </a>
         <a class="member rv" href="https://www.linkedin.com/in/thisux/" target="_blank" rel="noopener noreferrer">
-          <img src="./assets/thiago.webp" alt="Thiago Araujo" loading="lazy">
+          <span class="heatimg"><img src="./assets/thiago.webp" alt="Thiago Araujo" loading="lazy"></span>
           <b>THIAGO ARAUJO</b><span class="mono">EXPERIÊNCIA &amp; DESIGN</span>
         </a>
         <div class="member pending rv" aria-label="Quarta integrante a confirmar">

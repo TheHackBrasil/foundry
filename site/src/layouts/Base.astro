@@ -40,7 +40,20 @@ import '../styles/global.css';
 </head>
 <body>
   <div class="progress" aria-hidden="true"><span id="progress"></span></div>
-  <canvas class="embers" id="embers" aria-hidden="true"></canvas>
+  <div class="backdrop" aria-hidden="true"></div>
+  <canvas class="forge" id="forge" aria-hidden="true"></canvas>
+  <aside class="thermo mono" aria-hidden="true">
+    <div class="thermo-scale">
+      <span style="--v:1">1200</span><span style="--v:0.6667">800</span><span style="--v:0.3333">400</span><span style="--v:0.0208">25</span>
+      <i class="thermo-fill"></i>
+      <i class="thermo-track"><i class="thermo-needle"></i></i>
+    </div>
+    <div class="thermo-read">
+      <span class="thermo-chap">CAP.01</span>
+      <b class="thermo-val">25°C</b>
+      <span class="thermo-name">MATÉRIA-PRIMA</span>
+    </div>
+  </aside>
 
   <header class="top">
     <a class="brand" href="#topo" aria-label="The Foundry, voltar ao topo">
