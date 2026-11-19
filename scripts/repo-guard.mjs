@@ -182,15 +182,22 @@ const inHead = (p) => headFiles !== null && headFiles.includes(p);
       } catch { /* ignora */ }
     }
   }
+  const slopChars = [
+    ['—', 'travessão'], ['“', 'aspa curva'], ['”', 'aspa curva'], ['‘', 'aspa curva'], ['’', 'aspa curva'],
+  ];
+  const emojiRe = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u;
   const errs = [];
   for (const f of present.filter((f) => f.endsWith('.md') && !frozen.has(f))) {
-    const hits = read(f).split('\n')
-      .flatMap((line, i) => (line.includes('—') ? [`${f}:${i + 1}`] : []));
+    const hits = read(f).split('\n').flatMap((line, i) => {
+      const tags = slopChars.filter(([c]) => line.includes(c)).map(([, n]) => n);
+      if (emojiRe.test(line)) tags.push('emoji');
+      return tags.length ? [`${f}:${i + 1} (${[...new Set(tags)].join(', ')})`] : [];
+    });
     errs.push(...hits);
   }
   check('prose', errs.length === 0,
     errs.slice(0, 8).join('; ') + (errs.length > 8 ? ` (+${errs.length - 8})` : '')
-      || 'sem travessão em markdown');
+      || 'sem travessão/aspa curva/emoji em markdown');
 }
 
 // --- 4b. assets referenciados em HTML/SVG -------------------------------------

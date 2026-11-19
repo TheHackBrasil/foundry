@@ -9,9 +9,11 @@ Como se escreve neste repo. Aplica a `docs/`, `specs/`, `DECISIONS.md`,
 
 - **Invocar as skills de prosa quando disponíveis no harness:**
   `humanizer` para prosa/documentos, `antislop-copywriting` para copy do
-  site e pitch. Sem a skill instalada, aplicar este guia à mão.
-- Escrever como o time falaria numa apresentação séria: direto, concreto,
-  com data e fonte.
+  site e pitch, `better-writing` para strings de interface (botões,
+  erros, labels). Sem a skill instalada, aplicar este guia à mão.
+- A voz do time é informal-direta; amostra real: a transcrição da call e
+  o Discord. Escrever como o time falaria numa apresentação séria:
+  direto, concreto, com data e fonte.
 
 ## Proibido: sinais de texto gerado
 
@@ -49,6 +51,20 @@ Como se escreve neste repo. Aplica a `docs/`, `specs/`, `DECISIONS.md`,
   (commit, deploy, backlog); natural quando é (validação, entrega).
 - Hipótese rotulada como hipótese. O que não se sabe fica como pergunta
   aberta, não como certeza disfarçada.
+
+## O que NÃO marcar (falsos positivos)
+
+Antislop é tirar padrão, não tirar voz. Passam direto:
+
+- "a gente", "mano", expressão do time registrada em fala ou citação.
+- Frase curta depois de frase longa, ritmo irregular, parágrafo
+  imperfeito: é o que diferencia texto de pessoa de texto de modelo.
+- Termo coloquial do domínio ("cavalo" = cavalo mecânico, "achismo").
+- Travessão em citação fiel de terceiro ou fala direta: nesses casos
+  prefira «aspas» ou transcrição entre aspas; se ainda assim o travessão
+  for necessário, o trecho vai para arquivo protegido (A9), que o check
+  `prose` ignora.
+- Doc curto sem floreio: a ausência de enfeite não é defeito.
 
 ## Checklist antes de publicar prosa
 

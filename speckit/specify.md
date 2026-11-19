@@ -18,6 +18,8 @@
    `BACKLOG.md`.
 6. Nomeie pessoas novas? Atualize `docs/fontes-e-contatos.md` na mesma
    mudança (A5).
+7. Prosa da spec segue `STYLE.md`: sem travessão, sem inflador, fatos com
+   fonte. Antes de escrever, invocar `humanizer` se disponível.
 
 ## Gate de saída
 

@@ -19,6 +19,7 @@ evidência.
    índice de qualquer pasta tocada (A4).
 5. Validação em segunda instância: quem integrou revisa o diff inteiro e
    os critérios: não confie só no relatório de quem implementou.
+   Relatório e seção `## Entrega` seguem `STYLE.md`.
 6. Commit/PR referenciando `specs/NNNN` com as saídas reais coladas.
    Merge e publicação são manuais e fora deste fluxo.
 
