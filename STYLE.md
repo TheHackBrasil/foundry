@@ -11,9 +11,9 @@ Como se escreve neste repo. Aplica a `docs/`, `specs/`, `DECISIONS.md`,
   `humanizer` para prosa/documentos, `antislop-copywriting` para copy do
   site e pitch, `better-writing` para strings de interface (botões,
   erros, labels). Sem a skill instalada, aplicar este guia à mão.
-- A voz do time é informal-direta; amostra real: a transcrição da call e
-  o Discord. Escrever como o time falaria numa apresentação séria:
-  direto, concreto, com data e fonte.
+- O tom é direto e sóbrio, de documento lido por banca e parceiros: sem
+  coloquialismos na voz do texto. A transcrição e o Discord são fonte de
+  fatos e decisões, não de registro.
 
 ## Proibido: sinais de texto gerado
 
@@ -56,7 +56,8 @@ Como se escreve neste repo. Aplica a `docs/`, `specs/`, `DECISIONS.md`,
 
 Antislop é tirar padrão, não tirar voz. Passam direto:
 
-- "a gente", "mano", expressão do time registrada em fala ou citação.
+- Citação fiel e transcrição de fala podem conter coloquialismo ("a
+  gente", "morre na gaveta"): é a voz da fonte. Na voz do documento, não.
 - Frase curta depois de frase longa, ritmo irregular, parágrafo
   imperfeito: é o que diferencia texto de pessoa de texto de modelo.
 - Termo coloquial do domínio ("cavalo" = cavalo mecânico, "achismo").

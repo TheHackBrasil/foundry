@@ -1,8 +1,8 @@
 # Escopo: documento de trabalho
 
 Síntese do que já foi decidido e do que ainda está aberto, compilada da call de
-alinhamento (16/11), do resumo e da conversa no Discord. Não é um documento
-final: serve para o time discutir em cima do mesmo mapa.
+alinhamento (16/11), do resumo executivo e da conversa no Discord. Documento de
+trabalho, não final: existe para o time discutir em cima da mesma base de fatos.
 
 ## O que já está decidido
 
@@ -20,7 +20,7 @@ final: serve para o time discutir em cima do mesmo mapa.
   letrado digitalmente: solução que exige mudança de rotina morre na gaveta
   (aprendizado direto da TOTVS). Integração precisa ser trivial: API aberta,
   documentação à prova de leigo.
-- **Sem promessa de implantação real antes de 30/11.** Avaliação honesta do
+- **Sem promessa de implantação real antes de 30/11.** Avaliação do próprio
   time na call.
 
 ## A pergunta que define o MVP
@@ -39,15 +39,16 @@ Pergunta pendente para o contato da TOTVS e para a call da Enviagora.
 
 ## Leitura candidata de escopo (em discussão)
 
-> Uma camada sobre os sistemas que já existem, que cria uma verdade
-> compartilhada entre fornecedores, operadores e financeiro: flagrando
-> desvios antes que propaguem, e já carrega a capacidade ociosa como dado,
-> pra orquestrá-la quando a rede estiver falando a mesma língua.
+> Uma camada sobre os sistemas que já existem, que mantém um registro
+> compartilhado entre fornecedores, operadores e financeiro: sinaliza
+> desvios antes que se propaguem e já carrega a capacidade ociosa como
+> dado, para orquestrá-la quando a rede operar sobre esse registro.
 
 Ou seja: MVP = coordenação; capacidade/oferta entra como **tipo de dado** na
 camada (doca livre, espaço de retorno, posição de estoque), não como
 marketplace. O "Physical Capacity Orchestrator" do dossiê fica como visão de
-arco: orquestrar capacidade é a consequência de a rede já enxergar.
+arco: a orquestração vem depois, quando a rede já enxerga a capacidade
+disponível.
 
 ## Riscos já mapeados (dossiê)
 
