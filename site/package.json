@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
+    "@primer/octicons": "^19.42.0",
     "@types/three": "^0.187.0",
     "typescript": "^6.0.3"
   }
