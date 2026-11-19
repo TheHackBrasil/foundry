@@ -100,8 +100,7 @@ time, .num { font-variant-numeric: tabular-nums; }
 .top nav a:hover::after, .top nav a:focus-visible::after, .top nav a[aria-current]::after { transform: scaleX(1); }
 .top nav a[aria-current] { color: var(--ink); }
 .top-status { justify-self: end; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-dim); }
-.pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); animation: pulse 2.4s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); }
 
 /* ---- hero ---- */
 .hero {
@@ -111,7 +110,7 @@ time, .num { font-variant-numeric: tabular-nums; }
   width: var(--w); margin: 0 auto;
   padding: 120px 0 36px;
 }
-.hero-copy { max-width: min(820px, 62%); }
+.hero-copy { max-width: min(820px, 58%); }
 .hero-title {
   font-size: clamp(44px, 5.9vw, 88px);
   font-weight: 700; line-height: 0.94; letter-spacing: -0.035em;
@@ -195,6 +194,11 @@ time, .num { font-variant-numeric: tabular-nums; }
   box-shadow: var(--shadow), inset 0 0 0 1px var(--line), inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
+/* The island keeps its own styles; the bench only drops the HUD corner and the
+   double frame so it sits flush in the panel. */
+#domino-slot [class^="_dom_"] { border: 0; background: transparent; }
+#domino-slot [class^="_dom_"]::before { display: none; }
+
 /* ---- campo: the date spine (borrowed from the reference's blue rail) ---- */
 .spine { list-style: none; position: relative; display: flex; flex-direction: column; gap: 120px; }
 .spine::before {
@@ -217,12 +221,15 @@ time, .num { font-variant-numeric: tabular-nums; }
   display: flex; flex-direction: column; align-items: center;
   padding: 14px 0; background: var(--bg);
 }
-.stop-date b { font-size: clamp(52px, 5vw, 76px); font-weight: 700; line-height: 0.85; letter-spacing: -0.04em; color: var(--ink); font-variant-numeric: tabular-nums; }
-.stop-date span { margin-top: 10px; font-family: var(--font-m); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ember-hi); }
+.stop-date time { display: contents; }
+.stop-date b { display: block; text-align: center; font-size: clamp(52px, 5vw, 76px); font-weight: 700; line-height: 0.85; letter-spacing: -0.04em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.stop-date span { display: block; text-align: center; margin-top: 10px; font-family: var(--font-m); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ember-hi); }
 .stop-date.warn b { color: var(--ember); }
-.stop-when { font-family: var(--font-m); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ember-hi); }
-.stop-copy h3 { margin-top: 10px; font-size: clamp(26px, 2.6vw, 36px); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; text-transform: uppercase; }
-.stop-copy p:not(.stop-when) { margin-top: 14px; color: var(--ink-dim); font-weight: 300; font-size: 16.5px; }
+.stop-copy h3 { font-size: clamp(26px, 2.6vw, 36px); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; text-transform: uppercase; }
+.stop-copy p { margin-top: 14px; color: var(--ink-dim); font-weight: 300; font-size: 16.5px; }
+.more { color: var(--ember-hi); text-decoration: underline; }
+.more::after { content: ' ↗'; }
+.more:hover { color: var(--ink); }
 .stop-copy .fine { font-size: 13px !important; color: var(--ink-faint) !important; }
 
 /* Photos as objects: a print on a dark mount, slightly turned, real depth. */
@@ -298,12 +305,10 @@ time, .num { font-variant-numeric: tabular-nums; }
 .wave { display: flex; align-items: center; gap: 3px; height: 44px; margin-top: 22px; }
 .wave i {
   flex: 1; height: 100%; border-radius: 1px; background: var(--line-hi);
-  transform: scaleY(calc(0.18 + 0.82 * (0.5 + 0.5 * sin(var(--i) * 1.7))));
-  animation: wave 1.8s var(--ease) infinite alternate; animation-delay: calc(var(--i) * -0.09s);
+  transform: scaleY(calc(0.18 + 0.82 * (0.5 + 0.5 * sin(var(--i) * 1.7)) * (0.6 + 0.4 * sin(var(--i) * 0.53))));
 }
 .wave i:nth-child(n + 17) { background: var(--ember-dim); }
-.wave i.mark { background: var(--ember-hi); transform: none; animation: none; }
-@keyframes wave { from { transform: scaleY(0.14); } to { transform: scaleY(calc(0.3 + 0.7 * (0.5 + 0.5 * sin(var(--i) * 2.3)))); } }
+.wave i.mark { background: var(--ember-hi); transform: none; }
 .call.pending { box-shadow: var(--shadow), inset 0 0 0 1px var(--ember-dim); }
 .call.pending .call-title { color: var(--ember-hi); }
 .stamp {
@@ -411,7 +416,6 @@ time, .num { font-variant-numeric: tabular-nums; }
   .top nav { display: none; }
   .split { grid-template-columns: 1fr; gap: 48px; }
   .hero-anvil { display: none; }
-  .hero-copy { max-width: 720px; }
   .hero-facts { grid-template-columns: repeat(2, auto); justify-content: start; column-gap: 48px; }
   .stop { grid-template-columns: 96px minmax(0, 1fr); row-gap: 28px; align-items: start; }
   .spine::before, .spine::after { left: 48px; }
@@ -419,7 +423,8 @@ time, .num { font-variant-numeric: tabular-nums; }
   .stop-copy, .stop:nth-child(even) .stop-copy { grid-column: 2; grid-row: 1; justify-self: start; }
   .stop-media, .stop:nth-child(even) .stop-media { grid-column: 2; grid-row: 2; }
   .stop-media .print, .hack-card, .pair, .chain, .call { margin-inline: 0; }
-  .stop-date b { font-size: 48px; }
+  .stop-date time { display: contents; }
+.stop-date b { display: block; text-align: center; font-size: 48px; }
   .parties { grid-template-columns: repeat(2, 1fr); row-gap: 8px; }
   .layer-bar { display: none; }
   .team { grid-template-columns: repeat(2, 1fr); }
@@ -435,11 +440,10 @@ time, .num { font-variant-numeric: tabular-nums; }
   .stop { grid-template-columns: 64px minmax(0, 1fr); }
   .spine { gap: 88px; }
   .spine::before, .spine::after { left: 32px; }
-  .stop-date b { font-size: 28px; }
+  .stop-date time { display: contents; }
+.stop-date b { display: block; text-align: center; font-size: 28px; }
   .stop-date span { font-size: 10px; text-align: center; }
   .hero-copy { max-width: none; }
-  .gl-on .hero { padding-top: 330px; }
-  .hero-hint { position: static; margin-top: 18px; }
   .print.overlap { margin-top: -40px; max-width: 170px; }
   .person-row:nth-of-type(2), .person-row:nth-of-type(3) { margin-left: 0; }
   .chain-link, .chain-link + .person-row + .chain-link { margin-left: 36px; }
@@ -450,9 +454,16 @@ time, .num { font-variant-numeric: tabular-nums; }
   .closing { margin-top: 140px; padding-top: 72px; }
 }
 
+/* The forge frames the anvil above the headline on any screen taller than wide. */
+@media (max-aspect-ratio: 105/100) {
+  .gl-on .hero { padding-top: clamp(300px, 40svh, 460px); }
+  .hero-copy { max-width: 720px; }
+  .hero-hint { position: static; margin-top: 18px; }
+}
+
 /* ---- reduced motion: Tier-1 off, Tier-2 still ---- */
 html.reduce { scroll-behavior: auto; }
-.reduce .pulse, .reduce .wave i, .reduce .layer-pulse, .reduce .ticker-track { animation: none; }
+.reduce .layer-pulse, .reduce .ticker-track { animation: none; }
 .reduce .layer-pulse { display: none; }
 .reduce .print, .reduce .member, .reduce .person-row, .reduce .portrait img { transition: none; }
 .reduce .print:hover, .reduce .member:hover, .reduce .person-row:hover { transform: none; }
@@ -461,7 +472,7 @@ html.reduce { scroll-behavior: auto; }
 .reduce .forge { display: none; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .pulse, .wave i, .layer-pulse, .ticker-track { animation: none; }
+  .layer-pulse, .ticker-track { animation: none; }
   .layer-pulse { display: none; }
   .forge { display: none; }
 }

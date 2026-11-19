@@ -87,15 +87,14 @@ const ticker = [
 
       <ol class="spine">
         <li class="stop">
-          <div class="stop-date" aria-hidden="true"><b>NOV</b><span>Serena</span></div>
-          <div class="stop-media rv">
+          <p class="stop-date"><b>NOV</b><span>Serena</span></p>
+          <div class="stop-media rv"><div class="drift">
             <figure class="print tilt-r">
               <img src="./assets/serena.webp" alt="Fachada do Serena, sede do encontro da comunidade NewHack" loading="lazy">
               <figcaption>Serena, São Paulo</figcaption>
             </figure>
-          </div>
+          </div></div>
           <div class="stop-copy rv">
-            <p class="stop-when">Serena · novembro</p>
             <h3>O encontro</h3>
             <p>Três caminhos se cruzaram num encontro da NewHack. Saímos de lá com um
               combinado: construir algo juntos.</p>
@@ -103,8 +102,8 @@ const ticker = [
         </li>
 
         <li class="stop">
-          <div class="stop-date" aria-hidden="true"><b>05</b><span>nov</span></div>
-          <div class="stop-media rv">
+          <p class="stop-date"><time datetime="2026-11-05"><b>05</b><span>nov · FIAP</span></time></p>
+          <div class="stop-media rv"><div class="drift">
             <div class="hack-card">
               <canvas class="ascii-map" aria-hidden="true"></canvas>
               <p class="hack-word" aria-hidden="true">HACK<br>BRASIL</p>
@@ -113,18 +112,18 @@ const ticker = [
               <img src="./assets/fiap.webp" alt="Registro do lançamento presencial do HackBrasil na FIAP Paulista" loading="lazy">
               <figcaption>FIAP Paulista</figcaption>
             </figure>
-          </div>
+          </div></div>
           <div class="stop-copy rv">
-            <p class="stop-when"><time datetime="2026-11-05">05 nov</time> · FIAP</p>
             <h3>O desafio</h3>
             <p>Lançamento presencial do HackBrasil 2026. Escolhemos a trilha de
               Logística e Automação: um setor onde problema não falta.</p>
+            <p><a class="more" href="https://hackbrasil.com/" target="_blank" rel="noopener noreferrer">Conhecer o HackBrasil</a></p>
           </div>
         </li>
 
         <li class="stop">
-          <div class="stop-date" aria-hidden="true"><b>09</b><span>a 13 nov</span></div>
-          <div class="stop-media rv">
+          <p class="stop-date"><time datetime="2026-11-09"><b>09</b><span>a 13 nov</span></time></p>
+          <div class="stop-media rv"><div class="drift">
             <div class="pair">
               <figure class="print tilt-l">
                 <img src="./assets/fenatran-pavilhao.webp" alt="Pavilhão da FENATRAN com caminhões e público" loading="lazy">
@@ -134,9 +133,8 @@ const ticker = [
               </figure>
               <span class="tag">FENATRAN · São Paulo Expo</span>
             </div>
-          </div>
+          </div></div>
           <div class="stop-copy rv">
-            <p class="stop-when"><time datetime="2026-11-09">09 a 13 nov</time> · FENATRAN</p>
             <h3>O campo</h3>
             <p>Conversamos com operadores, transportadoras e fábricas. A mesma dor
               voltou em formas diferentes: ninguém enxerga a mesma operação.</p>
@@ -144,8 +142,8 @@ const ticker = [
         </li>
 
         <li class="stop">
-          <div class="stop-date" aria-hidden="true"><b>NOV</b><span>LinkedIn</span></div>
-          <div class="stop-media rv">
+          <p class="stop-date"><b>NOV</b><span>LinkedIn</span></p>
+          <div class="stop-media rv"><div class="drift">
             <div class="chain">
               <a class="person-row" href="https://www.linkedin.com/in/isabela-claro-sanches-96857b12/" target="_blank" rel="noopener noreferrer">
                 <img src="./assets/isabela.webp" alt="Isabela Claro Sanches" loading="lazy">
@@ -162,9 +160,8 @@ const ticker = [
                 <span><small>CEO da Enviagora</small><b>Rafael Alberto Born</b></span>
               </a>
             </div>
-          </div>
+          </div></div>
           <div class="stop-copy rv">
-            <p class="stop-when">Novembro · LinkedIn</p>
             <h3>Os contatos</h3>
             <p>Isabela respondeu primeiro e indicou Vivianne, especialista em
               armazéns. A conversa com Rafael, CEO da Enviagora, veio pelo mesmo
@@ -174,17 +171,16 @@ const ticker = [
         </li>
 
         <li class="stop">
-          <div class="stop-date" aria-hidden="true"><b>16</b><span>nov</span></div>
-          <div class="stop-media rv">
+          <p class="stop-date"><time datetime="2026-11-16"><b>16</b><span>nov · 1h43</span></time></p>
+          <div class="stop-media rv"><div class="drift">
             <div class="call">
               <p class="call-head"><span>Alinhamento do time</span><span>1h43</span></p>
               <p class="call-title">Direção escolhida</p>
               <span class="wave" aria-hidden="true">{Array.from({ length: 40 }, (_, i) => <i style={`--i:${i}`} class={i === 16 ? 'mark' : undefined}></i>)}</span>
               <p class="call-foot"><span>0:00</span><span class="hot">~41 min: a decisão</span><span>1:43</span></p>
             </div>
-          </div>
+          </div></div>
           <div class="stop-copy rv">
-            <p class="stop-when"><time datetime="2026-11-16">16 nov</time> · call de 1h43</p>
             <h3>A decisão</h3>
             <p>Depois de descartar a roteirização interna, o time bateu o martelo na
               camada de coordenação entre parceiros. Registrado na transcrição.</p>
@@ -192,17 +188,16 @@ const ticker = [
         </li>
 
         <li class="stop">
-          <div class="stop-date warn" aria-hidden="true"><b>18</b><span>nov</span></div>
-          <div class="stop-media rv">
+          <p class="stop-date warn"><time datetime="2026-11-18"><b>18</b><span>nov · Enviagora</span></time></p>
+          <div class="stop-media rv"><div class="drift">
             <div class="call pending">
               <p class="call-head"><span>Call com o CEO da Enviagora</span><span>18 nov</span></p>
               <p class="call-title">Remarcada</p>
               <p class="call-sub">Sem nova data.</p>
               <span class="stamp" aria-hidden="true">Pendente</span>
             </div>
-          </div>
+          </div></div>
           <div class="stop-copy rv">
-            <p class="stop-when"><time datetime="2026-11-18">18 nov</time> · Enviagora</p>
             <h3>O que não aconteceu</h3>
             <p>A call que poderia fechar a escolha do primeiro fluxo foi remarcada
               sem data. Segue no registro porque processo também é isso.</p>
@@ -282,9 +277,9 @@ const ticker = [
     <!-- FECHO -->
     <section class="closing" id="fecho" data-heat="0.9">
       <h2 class="rv">Não estamos vendendo uma <em>resposta pronta.</em></h2>
-      <p class="rv">A hipótese é uma camada que ajude empresas diferentes a compartilhar
-        eventos logísticos e coordenar a resolução de problemas. A arquitetura
-        final segue aberta, inclusive se blockchain agrega algo.</p>
+      <p class="rv">Nossa hipótese: uma camada em que empresas diferentes compartilham
+        eventos logísticos e coordenam a resposta quando algo sai do plano. A
+        arquitetura final segue aberta, inclusive a pergunta se blockchain agrega algo.</p>
       <dl class="next rv">
         <div><dt>Próximo registro</dt><dd>Conversa com a Enviagora, quando houver data</dd></div>
         <div><dt>Entrega do hackathon</dt><dd><time datetime="2026-11-30">30 nov 2026</time></dd></div>

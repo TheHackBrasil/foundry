@@ -126,7 +126,8 @@ if (!REDUCED) {
   }
 
   // Prints drift a little against the scroll, each at its own rate.
-  $$('.stop-media').forEach((el, i) =>
+  // On an inner wrapper: .stop-media itself carries the reveal tween on y.
+  $$('.stop-media .drift').forEach((el, i) =>
     gsap.fromTo(el, { y: 40 + (i % 3) * 12 }, {
       y: -40 - (i % 3) * 12,
       ease: 'none',
