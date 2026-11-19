@@ -35,6 +35,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-010 | 19/11 | Prosa antislop: `STYLE.md` + skills `humanizer`/`antislop-copywriting` antes de escrever + check `prose` no guard banindo travessão | decidido | Texto do repo não pode soar gerado |
 | D-011 | 19/11 | `scripts/prose-evals.mjs`: evals de prosa (duro reprova, leve avisa, `--strict` reprova leve); meia-risca (U+2013) também banida, sem exceção de intervalo; registro dos docs = sóbrio, coloquialismo só em citação | decidido | Evals acharam meia-risca que o guard não pegava; voz informal rejeitada pelo time |
 | D-012 | 19/11 | Site em `site/` = Astro + TypeScript + ilha React (dominó) + GSAP/Lenis; vanilla descartado a pedido ("usa frameworks modernos"). Narrativa "A Forja" em 5 estações; dominó do atraso é a peça central; isométricos substituídos por cenas em código | decidido | Escolhas do usuário nas clarifications da spec 0002 |
+| D-013 | 19/11 | Redesign do site (spec 0003): estrutura editorial da referência em preto e laranja; logo oficial F+bigorna; bigorna 3D do path do logo com MSAA; stickers isométricos animados no lugar do diagrama esquemático; termômetro e temperaturas removidos | decidido | Usuário avaliou a 0002 como genérica; pediu acabamento e reaproveitar elementos da referência |
 
 ## Pendências
 
@@ -88,3 +89,11 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   no regex.
 - `humanizer` rodado em `docs/escopo.md`: trocou metáfora de estoque e
   auto-elogio por linguagem direta; registro ajustado para sóbrio.
+
+### Sessão 4: redesign do site (19/11)
+
+- Feedback do usuário: a 0002 parece template gerado. Spec 0003 criada
+  e decisão D-013 registrada.
+- Escopo: estrutura editorial, logo oficial, bigorna com MSAA, stickers
+  isométricos e mapa ASCII; termômetro, palavras vazadas e HUD saem.
+- Deploy, release do pitch e capítulo pós-call seguem fora.

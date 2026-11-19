@@ -9,8 +9,9 @@ imutável (A9).
 |---|---|---|---|
 | [0001](0001-publicacao-docs-pesquisa/spec.md) | Publicação dos docs de pesquisa | entregue | 2026-11-19 |
 | [0002](0002-site-foundry/spec.md) | Site público na identidade Foundry | aprovada | 2026-11-19 |
+| [0003](0003-site-redesign/spec.md) | Redesign do site: estrutura editorial, logo oficial, stickers | aprovada | 2026-11-19 |
 
-**Próximo número livre:** `0003`
+**Próximo número livre:** `0004`
 
 ## Lacunas conhecidas
 
