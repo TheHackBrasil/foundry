@@ -1,4 +1,4 @@
-# Spec NNNN — <título curto>
+# Spec NNNN: <título curto>
 
 **Status:** rascunho · aprovada · implementada · entregue · supersedida
 **Origem:** `BACKLOG.md` item / decisão registrada em <doc>
@@ -14,28 +14,28 @@
 
 ## Histórias
 
-### US1 — <persona> quer <ação> para <resultado>
+### US1: <persona> quer <ação> para <resultado>
 
 - **Dado** <contexto> **Quando** <ação> **Então** <resultado observável>
 - **Dado** ... **Quando** ... **Então** ...
 
 ## Casos de borda
 
-- <vazio, erro, dados faltantes, mobile, reduced-motion — o que puder quebrar>
+- <vazio, erro, dados faltantes, mobile, reduced-motion, o que puder quebrar>
 
 ## Requisitos funcionais
 
-- **RF1** — <verificável, singular>
-- **RF2** — ...
+- **RF1**: <verificável, singular>
+- **RF2**: ...
 
 ## Requisitos não-funcionais
 
-- **NFR-dados:** <o que entra/sai do repo; fontes primárias intocadas — A9>
-- **NFR-autorização/publicação:** <o que pode ser público — A2; Pages torna tudo público>
-- **NFR-privacidade:** <pessoas citadas no inventário `docs/fontes-e-contatos.md` — A5>
-- **NFR-demo:** <rótulos "simulação"/"dados fictícios" onde aplicável — A7>
-- **NFR-a11y:** <contraste, foco, reduced-motion, alt text — A6>
-- **NFR-idioma:** <pt-BR no produto; identificadores técnicos em inglês — A6>
+- **NFR-dados:** <o que entra/sai do repo; fontes primárias intocadas, A9>
+- **NFR-autorização/publicação:** <o que pode ser público, A2; Pages torna tudo público>
+- **NFR-privacidade:** <pessoas citadas no inventário `docs/fontes-e-contatos.md`, A5>
+- **NFR-demo:** <rótulos "simulação"/"dados fictícios" onde aplicável, A7>
+- **NFR-a11y:** <contraste, foco, reduced-motion, alt text, A6>
+- **NFR-idioma:** <pt-BR no produto; identificadores técnicos em inglês, A6>
 
 ## Entidades e invariantes
 

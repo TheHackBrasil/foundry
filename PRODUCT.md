@@ -8,14 +8,14 @@ web
 
 ## Stack
 
-delegated: static HTML/CSS/JS served by GitHub Pages — consistent with the
+delegated: static HTML/CSS/JS served by GitHub Pages: consistent with the
 reference projects (`build-in-public`, `slides-enviagora`), zero build step,
 works on free org Pages.
 
 ## Users
 
 - Banca do HackBrasil 2026 (juízes e mentores) avaliando maturidade de processo
-  e escopo — lê rápido, julga dezenas de times.
+  e escopo: lê rápido, julga dezenas de times.
 - Contatos e mentores do setor logístico (TOTVS, Schulz Tech, Kaufmann, CAP
   Logística, Enviagora) que podem virar referência ou validação.
 - O próprio time, como registro público do processo ("build in public").
@@ -23,8 +23,8 @@ works on free org Pages.
 ## Product Purpose
 
 Site-diário público do time The Foundry no HackBrasil 2026: provar que a
-investigação veio antes do produto — encontros reais, FENATRAN, contatos de
-mercado — e hospedar os artefatos do processo (pitch em vídeo, slides de
+investigação veio antes do produto, encontros reais, FENATRAN, contatos de
+mercado, e hospedar os artefatos do processo (pitch em vídeo, slides de
 descoberta, documentos de pesquisa). Sucesso = a banca reconhecer método e
 domínio do problema, não promessa inflada.
 
@@ -32,7 +32,7 @@ domínio do problema, não promessa inflada.
 
 Enquanto outros times apresentam uma ideia, a The Foundry mostra um processo:
 campo (FENATRAN), escuta (mentores nomeados), hipóteses marcadas como
-hipóteses. O diferencial é evidência real e honestidade de validação — nada é
+hipóteses. O diferencial é evidência real e honestidade de validação: nada é
 apresentado como provado antes de ser.
 
 ## Operating Context
@@ -51,7 +51,7 @@ apresentado como provado antes de ser.
 - Hipótese de produto em exploração: camada de eventos compartilhados entre
   fornecedores/operadores/financeiro-fiscal, sem exigir troca de sistemas.
   Blockchain é alternativa sob avaliação, não decisão.
-- Conteúdo sensível: nomes e fotos de contatos reais — sempre com disclaimer
+- Conteúdo sensível: nomes e fotos de contatos reais: sempre com disclaimer
   ("não são depoimentos nem endossos"). Nunca inventar claims comerciais.
 - Setor não-letrado digitalmente: simplicidade de adoção é requisito de tese,
   refletido também no tom do site (sem jargão de venda).

@@ -1,4 +1,4 @@
-# speckit/ — comandos do fluxo SDD
+# speckit/: comandos do fluxo SDD
 
 Comandos agnósticos de harness: para executar um comando, leia o `.md`
 correspondente e siga o procedimento. Cada arquivo define entrada, saída,
@@ -23,6 +23,6 @@ passos e gate de saída.
 
 - Nunca pule `analyze` antes de `implement`.
 - Gate local a cada fase: `node scripts/repo-guard.mjs` exit 0.
-- Evidência real (saída de comando, `arquivo:linha`) — nunca "verificado".
+- Evidência real (saída de comando, `arquivo:linha`): nunca "verificado".
 - Mudança trivial não passa por aqui: veja `.specify/README.md` § "Quando a
   spec é obrigatória".

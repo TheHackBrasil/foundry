@@ -1,4 +1,4 @@
-# /speckit tasks — decompor em trabalho executável
+# /speckit tasks: decompor em trabalho executável
 
 **Entrada:** `specs/NNNN/plan.md`.
 **Saída:** `specs/NNNN/tasks.md` a partir de `.specify/templates/tasks.md`.
@@ -8,7 +8,7 @@
 1. Fases na ordem: contrato → fundação → histórias por prioridade →
    polimento → gates.
 2. Formato obrigatório por task:
-   `- [ ] TNNN [P?] [USn?] descrição — path — verificação`.
+   `- [ ] TNNN [P?] [USn?] descrição: path: verificação`.
    Sem path e sem verificação = task inválida, reescreva.
 3. `[P]` só em task que não toca arquivo de outra task da mesma onda.
 4. Numeração contínua T001…T999; faixas livres por fase são permitidas.

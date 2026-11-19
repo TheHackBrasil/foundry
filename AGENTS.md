@@ -1,10 +1,10 @@
-# AGENTS.md — contrato operacional
+# AGENTS.md: contrato operacional
 
 ## Ordem de leitura
 
-1. `.specify/memory/constitution.md` — regras máximas (A1–A10).
+1. `.specify/memory/constitution.md`: regras máximas (A1–A10).
 2. Este arquivo.
-3. `PRODUCT.md` + `docs/` — o que o produto é e o que a pesquisa provou.
+3. `PRODUCT.md` + `docs/`, o que o produto é e o que a pesquisa provou.
 4. `specs/` vigente → `BACKLOG.md` → `README.md`.
 Conflito resolve-se a favor do primeiro da lista.
 
@@ -17,7 +17,7 @@ Conflito resolve-se a favor do primeiro da lista.
   artefato novo ou errata datada.
 - Nunca commitar `.env*`, credencial, fonte primária não-revisada ou
   afirmação sem fonte (A5/A7).
-- Tudo neste repo é tratado como público (Pages expõe tudo — A2).
+- Tudo neste repo é tratado como público (Pages expõe tudo, A2).
 - Fluxo SDD: `speckit/` (specify → clarify → checklist se risco → plan →
   tasks → analyze → implement → converge). Agnóstico: leia e execute.
 - Frentes paralelas: 1 worktree + branch `wt/<nome>` + brief por frente;
@@ -25,6 +25,11 @@ Conflito resolve-se a favor do primeiro da lista.
   `speckit/frentes.md`.
 - Decisão do dia entra em `DECISIONS.md` no mesmo commit (D/R/P);
   bloco de trabalho vira `## Sessão N`.
+- Prosa segue `STYLE.md` (antislop). Antes de escrever ou editar texto
+  para humanos: invocar a skill `humanizer` (docs/prosa) ou
+  `antislop-copywriting` (copy do site/pitch) quando disponíveis no
+  harness; sem a skill, aplicar o guia à mão. Travessão é proibido em
+  `.md` (o guard falha).
 - Commits: atômicos, `<tipo>: <resumo>` (docs|feat|fix|spec|chore),
   `user.name=thisux1`,
   `user.email=125291983+thisux1@users.noreply.github.com`, sem trailers.
@@ -46,9 +51,9 @@ Hook git opcional (não instalado): `.git/hooks/pre-commit` →
 ## Não faça
 
 - Não crie CI, workflow, deploy, preview, branch protection nem tracker
-  externo — a fila é `BACKLOG.md`, a validação é local.
+  externo, a fila é `BACKLOG.md`, a validação é local.
 - Não crie segunda constituição nem checklist duplicado fora de `specs/`.
-- Não invente comando, script, path ou framework — descubra o real.
+- Não invente comando, script, path ou framework: descubra o real.
 - Não edite a constituição fora de PR próprio (`speckit/constitution.md`).
 - Não apresente simulação/mock como dado medido ou validado (A7).
 - Não trabalhe em duas frentes sobre o mesmo arquivo; não integre branch

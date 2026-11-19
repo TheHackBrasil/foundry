@@ -1,4 +1,4 @@
-# /speckit clarify — resolver clarificações
+# /speckit clarify: resolver clarificações
 
 **Entrada:** `specs/NNNN/spec.md` com `[NEEDS CLARIFICATION]`.
 **Saída:** spec sem marcadores pendentes, ou lista curta de perguntas
@@ -12,7 +12,7 @@ para o usuário quando a resposta não está no repo.
    referenciado. Pergunta que o repo responde não vai para o usuário.
 3. Respondeu? Substitua o marcador pelo conteúdo e registre a fonte.
 4. Não respondeu? Agrupe em no máximo 4 perguntas objetivas com opções
-   quando fizer sentido — e pergunte ao usuário de uma vez só.
+   quando fizer sentido, e pergunte ao usuário de uma vez só.
 5. Atualize Status para `aprovada` quando não restar marcador.
 
 ## Gate de saída

@@ -166,6 +166,33 @@ const inHead = (p) => headFiles !== null && headFiles.includes(p);
     errs.slice(0, 8).join('; ') + (errs.length > 8 ? ` (+${errs.length - 8})` : '') || 'todos resolvem');
 }
 
+// --- 4c. prosa: travessão (U+2014) proibido em markdown — STYLE.md --------------
+// Artefatos protegidos (A9) são história congelada: ficam fora da regra.
+{
+  const manifest = existsSync(join(ROOT, '.specify/immutable.txt'))
+    ? read('.specify/immutable.txt').split('\n')
+        .map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
+    : [];
+  const frozen = new Set(manifest);
+  if (headFiles) {
+    for (const f of headFiles.filter((f) => /^specs\/\d{4}-[^/]+\/spec\.md$/.test(f))) {
+      try {
+        if (/\*{0,2}Status:?\*{0,2}:?\s*\**entregue\b/i.test(git(['show', `HEAD:${f}`])))
+          frozen.add(f);
+      } catch { /* ignora */ }
+    }
+  }
+  const errs = [];
+  for (const f of present.filter((f) => f.endsWith('.md') && !frozen.has(f))) {
+    const hits = read(f).split('\n')
+      .flatMap((line, i) => (line.includes('—') ? [`${f}:${i + 1}`] : []));
+    errs.push(...hits);
+  }
+  check('prose', errs.length === 0,
+    errs.slice(0, 8).join('; ') + (errs.length > 8 ? ` (+${errs.length - 8})` : '')
+      || 'sem travessão em markdown');
+}
+
 // --- 4b. assets referenciados em HTML/SVG -------------------------------------
 {
   const errs = [];

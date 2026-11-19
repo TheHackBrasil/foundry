@@ -1,4 +1,4 @@
-# Plano — Spec NNNN — <título>
+# Plano: Spec NNNN: <título>
 
 **Spec:** `specs/NNNN-nome/spec.md` · **Data:** AAAA-MM-DD
 
@@ -24,15 +24,15 @@
 ## Estrutura e caminhos reais
 
 ```
-<arvore de arquivos tocados — caminhos que existem ou serão criados>
+<arvore de arquivos tocados · caminhos que existem ou serão criados>
 ```
 
 ## Dados e artefatos
 
 - Artefatos novos: <lista>
-- Artefatos aplicados/imediatos afetados: <nenhum deve ser editado — A9;
+- Artefatos aplicados/imediatos afetados: <nenhum deve ser editado, A9;
   correção via artefato novo>
-- Migrations (quando houver backend): número, retroativo?, rollback — n/a hoje
+- Migrations (quando houver backend): número, retroativo?, rollback: n/a hoje
 
 ## Matriz de autorização / publicação
 
@@ -44,14 +44,14 @@
 
 - Guard: `node scripts/repo-guard.mjs` exit 0
 - Scripts: `node --check` em cada arquivo tocado
-- Manual: <inspeções que não têm comando — a11y, copy, render>
+- Manual: <inspeções que não têm comando, a11y, copy, render>
 - Aceite: critérios da spec verificados item a item com evidência
 
 ## Rollout manual
 
 <ordem de aplicação local; o que verificar depois de cada passo; como
-reverter (revert de commit — nunca editar artefato aplicado)>
+reverter (revert de commit: nunca editar artefato aplicado)>
 
 ## Desvios de complexidade
 
-<todo desvio de simplicidade justificado em 1 linha — ou "nenhum">
+<todo desvio de simplicidade justificado em 1 linha, ou "nenhum">

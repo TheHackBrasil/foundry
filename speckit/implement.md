@@ -1,4 +1,4 @@
-# /speckit implement — executar as tasks
+# /speckit implement, executar as tasks
 
 **Entrada:** `specs/NNNN/tasks.md` com `analyze` verde.
 **Saída:** mudança implementada fase a fase, com gates locais.
@@ -6,12 +6,12 @@
 ## Procedimento
 
 1. Trabalhe por fase, na ordem do tasks.md. Marque `- [x]` só quando a
-   verificação da task passou de verdade (rode ou inspecione — nunca
+   verificação da task passou de verdade (rode ou inspecione: nunca
    assuma).
 2. Gate a cada fase concluída: `node scripts/repo-guard.mjs` exit 0.
    Vermelho = pare e conserte antes da próxima fase.
 3. Descobriu que a spec/plan está errada ou incompleta? Pare, corrija a
-   spec (clarify/plan), refaça analyze — não "improvise no código".
+   spec (clarify/plan), refaça analyze: não "improvise no código".
 4. Tasks `[P]` da mesma fase podem rodar em paralelo; nunca duas tasks
    no mesmo arquivo.
 5. Proibido nesta fase: editar artefato de `.specify/immutable.txt` ou

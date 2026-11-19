@@ -1,4 +1,4 @@
-# /speckit analyze — auditoria de coerência pré-implementação
+# /speckit analyze, auditoria de coerência pré-implementação
 
 **Entrada:** `specs/NNNN/{spec,plan,tasks}.md`.
 **Saída:** relatório de inconsistências + correções aplicadas (ou
@@ -13,7 +13,7 @@ para corrigir o que encontrar.
    que existe ou será criado pelo plano?
 3. **tasks ↔ spec:** união das tasks cobre todos os RFs e critérios de
    sucesso? Marque cobertura por RF.
-4. **Constituição:** releia os 10 artigos contra a spec — reporte
+4. **Constituição:** releia os 10 artigos contra a spec: reporte
    violação por artigo, não por sensação.
 5. **Fatos:** toda afirmação factual na spec tem fonte (`docs/`, link)?
    Número sem fonte = violação A7.
@@ -22,4 +22,4 @@ para corrigir o que encontrar.
 ## Gate de saída
 
 - Tabela de cobertura RF → tasks completa.
-- Zero inconsistência aberta — ou a spec volta para `clarify`.
+- Zero inconsistência aberta, ou a spec volta para `clarify`.

@@ -1,4 +1,4 @@
-# specs/ — índice
+# specs/: índice
 
 Specs de mudanças não-triviais (regra de obrigatoriedade em
 `.specify/README.md`). Diretório `NNNN-nome-curto/`, numeração de

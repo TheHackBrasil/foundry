@@ -1,20 +1,20 @@
-# /speckit constitution — emendar a constituição
+# /speckit constitution, emendar a constituição
 
 **Entrada:** proposta de mudança em `.specify/memory/constitution.md`.
 **Saída:** emenda aplicada em PR próprio, com efeitos propagados.
 
 ## Procedimento
 
-1. A emenda é sempre um PR **dedicado** — nunca embutida em outra
+1. A emenda é sempre um PR **dedicado**: nunca embutida em outra
    entrega. Título: `constituição: <o que muda>`.
 2. Justificativa no corpo: qual problema real motivou (violou? ficou
    ambíguo? ficou impossível de verificar?).
-3. Propague efeitos na mesma PR: `AGENTS.md`, templates, guard, docs —
+3. Propague efeitos na mesma PR: `AGENTS.md`, templates, guard, docs:
    tudo que referencia o artigo tocado.
-4. Artigo novo ou alterado precisa de "Verificação" executável — comando
+4. Artigo novo ou alterado precisa de "Verificação" executável: comando
    ou inspeção nomeada. Artigo sem verificação é texto morto.
 5. Proibido na constituição: número de teste, contagem de migration,
-   referência a ambiente, estado de sprint — só o durável.
+   referência a ambiente, estado de sprint: só o durável.
 6. Numeração de artigos é estável: emendar não reordena A1–A10; artigo
    revogado fica `~~riscado~~` com ponteiro, não some (histórico).
 

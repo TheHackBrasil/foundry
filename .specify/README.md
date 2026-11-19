@@ -1,4 +1,4 @@
-# .specify — Spec-Driven Development local
+# .specify: Spec-Driven Development local
 
 Pipeline de qualidade **local e manual**: sem CI, sem deploy automático, sem
 tracker externo. A fila é `BACKLOG.md`; a validação é `node scripts/repo-guard.mjs`
@@ -10,7 +10,7 @@ mais os comandos do DoD em `AGENTS.md`.
 constitution.md > AGENTS.md > PRODUCT.md + RULES.md + docs/ > spec vigente > BACKLOG.md > README.md
 ```
 
-`DECISIONS.md` é log cronológico (história), não norma — decisões vigentes
+`DECISIONS.md` é log cronológico (história), não norma: decisões vigentes
 dele são promovidas para os documentos acima quando viram regra.
 
 ## Quando a spec é obrigatória
@@ -18,15 +18,15 @@ dele são promovidas para os documentos acima quando viram regra.
 Abra spec (`specs/NNNN-nome/`) quando a mudança for **não-trivial**, ou seja,
 qualquer uma das condições:
 
-- nova página, seção ou documento indexado (superfície pública — A4);
+- nova página, seção ou documento indexado (superfície pública, A4);
 - altera fato publicado: escopo, decisão, status, pessoa citada, número;
 - adiciona código executável ou script novo;
 - muda estrutura de pastas, convenção ou o próprio pipeline;
-- toca dados pessoais ou fonte primária (A5/A9 — só via artefato novo).
+- toca dados pessoais ou fonte primária (A5/A9: só via artefato novo).
 
 **Dispensam spec** (guard verde basta): typo, formatação, link quebrado,
-alt text, renomear arquivo interno — nunca caminho de `.specify/immutable.txt`
-— atualizando referências no mesmo commit.
+alt text, renomear arquivo interno: nunca caminho de `.specify/immutable.txt`
+atualizando referências no mesmo commit.
 
 ## Fluxo por mudança
 
@@ -35,7 +35,7 @@ BACKLOG.md → specify → clarify → checklist (só se área de risco) → pla
            → tasks → analyze → implement (gates por fase) → converge → commit/PR
 ```
 
-`checklist` avalia a qualidade dos requisitos da **spec** — roda antes do
+`checklist` avalia a qualidade dos requisitos da **spec**: roda antes do
 `plan` e só quando a spec toca área de risco (`speckit/checklist.md`).
 
 Os comandos vivem em `speckit/` e são agnósticos de harness: leia o `.md`

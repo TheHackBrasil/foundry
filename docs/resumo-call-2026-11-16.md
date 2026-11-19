@@ -42,8 +42,8 @@ para demonstrar valor.
 
 ## Próximos passos
 
-1. Conversar com o CEO da Enviagora — inicialmente agendada para 18/11, 11h30,
-   depois remarcada sem nova data — para conhecer a operação e testar as
+1. Conversar com o CEO da Enviagora: inicialmente agendada para 18/11, 11h30,
+   depois remarcada sem nova data: para conhecer a operação e testar as
    hipóteses.
 2. Retomar contato com TOTVS, Schulz Tech e a especialista em armazéns;
    aprofundar o problema e buscar referências.
