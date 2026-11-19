@@ -4,9 +4,8 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 
-const REDUCED =
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-  new URLSearchParams(location.search).get('reduce') === '1';
+// Base.astro decides once, before paint; this file only reads the class.
+const REDUCED = document.documentElement.classList.contains('reduce');
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -52,6 +51,7 @@ if (!REDUCED) {
       );
     });
   }
+  document.documentElement.classList.add('motion-ok');
 }
 
 /* ---------- ember particles ---------- */

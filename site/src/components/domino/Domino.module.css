@@ -1,4 +1,4 @@
-/* Domino island — dark industrial panel.
+/* Domino island: dark industrial panel.
    Tokens come from global.css (:root). Motion budget: transform/opacity only.
    Stagger: --i is set per element; transition-delay does the cascade. */
 

@@ -26,7 +26,17 @@ import '../styles/global.css';
   <meta name="twitter:image" content="https://thehackbrasil.github.io/foundry/assets/og.png">
   <title>The Foundry · Diário de construção · HackBrasil 2026</title>
   <link rel="icon" type="image/svg+xml" href="./assets/foundry-mark.svg">
-  <script is:inline>document.documentElement.classList.replace('no-js', 'js')</script>
+  <script is:inline>
+    (function (d) {
+      var c = d.classList;
+      c.replace('no-js', 'js');
+      // Single source of truth for reduced motion: CSS and motion.ts read .reduce.
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches ||
+          new URLSearchParams(location.search).get('reduce') === '1') c.add('reduce');
+      // If motion.ts never boots, nothing may stay hidden behind .rv.
+      setTimeout(function () { if (!c.contains('motion-ok')) c.add('rv-safe'); }, 2500);
+    })(document.documentElement);
+  </script>
 </head>
 <body>
   <div class="progress" aria-hidden="true"><span id="progress"></span></div>

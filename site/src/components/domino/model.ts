@@ -1,4 +1,4 @@
-// Domino island — propagation model (specs/0002, brief-domino).
+// Domino island: propagation model (specs/0002, brief-domino).
 // Pure functions: no DOM access, safe to run during SSR.
 
 export type Scenario = 'bare' | 'layer'; // 01 sem camada / 02 com camada
