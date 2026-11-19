@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="552" viewBox="0 0 1200 552" role="img" aria-labelledby="t d">
+  <title id="t">Como a camada funciona (hipótese)</title>
+  <desc id="d">Cinco parceiros, Fornecedor, Transportadora, CD, Fiscal e Financeiro, ligados a um registro único do pedido. O fornecedor registra um atraso; a camada compara as versões e avisa os outros quatro. Abaixo, as fontes que a camada lê: ERP, XML de NF-e e planilha.</desc>
+  <defs>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.1" fill="#ece9e3" fill-opacity=".06"/>
+    </pattern>
+    <marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#7a3410" stroke-width="1.6"/>
+    </marker>
+    <style>
+      text{font-family:'Space Grotesk','Segoe UI',Helvetica,Arial,sans-serif}
+      .mono{font-family:'JetBrains Mono','SFMono-Regular',Menlo,Consolas,monospace;letter-spacing:2px}
+      .card{fill:#111417;stroke:#2b2f34;stroke-width:1.2}
+      .icon{fill:none;stroke:#ece9e3;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+      .link{fill:none;stroke:#7a3410;stroke-width:1.4}
+      .pulse{fill:none;stroke:#ff8a3d;stroke-width:4;stroke-linecap:round;stroke-dasharray:40 2000;stroke-dashoffset:40}
+      .p1{animation:r1 6s linear infinite}.p2{animation:r2 6s linear infinite}
+      .p3{animation:r3 6s linear infinite}.p4{animation:r4 6s linear infinite}
+      .flash{fill:none;stroke:#EA5808;stroke-width:2;opacity:.55}
+      .f1{animation:k1 6s ease-out infinite}.f2{animation:k2 6s ease-out infinite}
+      .f3{animation:k3 6s ease-out infinite}.f4{animation:k4 6s ease-out infinite}
+      .ring{fill:none;stroke:#EA5808;stroke-width:2;transform-box:fill-box;transform-origin:center;animation:ring 6s ease-out infinite}
+      .bus{animation:bus 6s ease-in-out infinite}
+      .feed{stroke-dasharray:4 6;animation:feed 1.6s linear infinite}
+      @keyframes r1{0%,10%{stroke-dashoffset:40}27%,100%{stroke-dashoffset:-362}}
+      @keyframes r2{0%,10%{stroke-dashoffset:40}38%,100%{stroke-dashoffset:-592}}
+      @keyframes r3{0%,10%{stroke-dashoffset:40}49%,100%{stroke-dashoffset:-822}}
+      @keyframes r4{0%,10%{stroke-dashoffset:40}60%,100%{stroke-dashoffset:-1052}}
+      @keyframes k1{0%,25%{opacity:.12}29%{opacity:1}55%,100%{opacity:.12}}
+      @keyframes k2{0%,36%{opacity:.12}40%{opacity:1}66%,100%{opacity:.12}}
+      @keyframes k3{0%,47%{opacity:.12}51%{opacity:1}77%,100%{opacity:.12}}
+      @keyframes k4{0%,58%{opacity:.12}62%{opacity:1}88%,100%{opacity:.12}}
+      @keyframes ring{0%{transform:scale(1);opacity:.9}14%,100%{transform:scale(1.08,1.3);opacity:0}}
+      @keyframes bus{0%,10%,70%,100%{stroke-opacity:.35}20%,55%{stroke-opacity:1}}
+      @keyframes feed{to{stroke-dashoffset:-20}}
+      @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+    </style>
+  </defs>
+
+  <rect width="1200" height="552" rx="20" fill="#0a0c0e"/>
+  <rect width="1200" height="552" rx="20" fill="url(#dots)"/>
+  <rect x=".5" y=".5" width="1199" height="551" rx="20" fill="none" stroke="#1f2327"/>
+
+  <text class="mono" x="42" y="52" fill="#EA5808" font-size="13">COMO FUNCIONA · HIPÓTESE</text>
+  <text class="mono" x="1158" y="52" fill="#ece9e3" fill-opacity=".5" font-size="13" text-anchor="end">EXEMPLO: ATRASO NO FORNECEDOR</text>
+
+  <!-- ligações cartão → camada -->
+  <g class="link">
+    <path d="M140 186V236" marker-end="url(#ah)"/><path d="M370 236V186" marker-end="url(#ah)"/><path d="M600 236V186" marker-end="url(#ah)"/><path d="M830 236V186" marker-end="url(#ah)"/><path d="M1060 236V186" marker-end="url(#ah)"/>
+  </g>
+
+  <!-- camada compartilhada -->
+  <rect x="42" y="236" width="1116" height="96" rx="14" fill="#140c07" stroke="#EA5808" stroke-width="1.6"/>
+  <line class="bus" x1="140" y1="252" x2="1060" y2="252" stroke="#EA5808" stroke-width="1.2" stroke-opacity=".35"/>
+  <text class="mono" x="600" y="282" fill="#ff8a3d" font-size="14" font-weight="700" text-anchor="middle">REGISTRO ÚNICO DO PEDIDO</text>
+  <text x="600" y="312" fill="#ece9e3" font-size="18" text-anchor="middle">Compara a versão de cada parceiro e avisa quando elas divergem.</text>
+
+  <!-- pulsos do atraso viajando -->
+  <path class="pulse p1" d="M140 186V252H370V186"/>
+  <path class="pulse p2" d="M140 186V252H600V186"/>
+  <path class="pulse p3" d="M140 186V252H830V186"/>
+  <path class="pulse p4" d="M140 186V252H1060V186"/>
+
+  <!-- cartões -->
+  <g>
+    <rect x="42" y="86" width="196" height="100" rx="12" fill="#1a0f08" stroke="#EA5808" stroke-width="1.6"/>
+    <rect class="ring" x="42" y="86" width="196" height="100" rx="12"/>
+    <g class="icon" stroke="#ff8a3d" transform="translate(126 98)"><path d="M2 26V12l8 5V12l8 5V4h8v22Z"/><path d="M7 26v-4M14 26v-4"/></g>
+    <text x="140" y="150" fill="#ece9e3" font-size="19" font-weight="600" text-anchor="middle">Fornecedor</text>
+    <rect x="104" y="160" width="72" height="18" rx="9" fill="#EA5808"/>
+    <text class="mono" x="140" y="173" fill="#0a0c0e" font-size="11" font-weight="700" text-anchor="middle">ATRASO</text>
+  </g>
+  <g>
+    <rect class="card" x="272" y="86" width="196" height="100" rx="12"/>
+    <rect class="flash f1" x="272" y="86" width="196" height="100" rx="12"/>
+    <g class="icon" transform="translate(354 99)"><path d="M1 4h18v16H1Z"/><path d="M19 9h6l5 6v5h-11"/><circle cx="7" cy="22" r="2.6"/><circle cx="24" cy="22" r="2.6"/></g>
+    <text x="370" y="150" fill="#ece9e3" font-size="19" font-weight="600" text-anchor="middle">Transportadora</text>
+    <text class="mono" x="370" y="174" fill="#ff8a3d" font-size="11" text-anchor="middle">AVISADA</text>
+  </g>
+  <g>
+    <rect class="card" x="502" y="86" width="196" height="100" rx="12"/>
+    <rect class="flash f2" x="502" y="86" width="196" height="100" rx="12"/>
+    <g class="icon" transform="translate(586 98)"><path d="M1 12L14 3l13 9v14H1Z"/><path d="M8 26V16h12v10M8 20h12"/></g>
+    <text x="600" y="150" fill="#ece9e3" font-size="19" font-weight="600" text-anchor="middle">CD</text>
+    <text class="mono" x="600" y="174" fill="#ff8a3d" font-size="11" text-anchor="middle">AVISADO</text>
+  </g>
+  <g>
+    <rect class="card" x="732" y="86" width="196" height="100" rx="12"/>
+    <rect class="flash f3" x="732" y="86" width="196" height="100" rx="12"/>
+    <g class="icon" transform="translate(818 98)"><path d="M2 1h16l6 6v20H2Z"/><path d="M18 1v6h6M7 13h12M7 18h12M7 23h7"/></g>
+    <text x="830" y="150" fill="#ece9e3" font-size="19" font-weight="600" text-anchor="middle">Fiscal</text>
+    <text class="mono" x="830" y="174" fill="#ff8a3d" font-size="11" text-anchor="middle">AVISADO</text>
+  </g>
+  <g>
+    <rect class="card" x="962" y="86" width="196" height="100" rx="12"/>
+    <rect class="flash f4" x="962" y="86" width="196" height="100" rx="12"/>
+    <g class="icon" transform="translate(1046 98)"><circle cx="14" cy="14" r="12"/><path d="M14 6v16M18 9.5c-1-1.4-2.4-2-4-2-2.4 0-4 1.3-4 3.2 0 4.6 8.4 2.4 8.4 7.1 0 1.9-1.8 3.3-4.4 3.3-1.8 0-3.4-.7-4.4-2"/></g>
+    <text x="1060" y="150" fill="#ece9e3" font-size="19" font-weight="600" text-anchor="middle">Financeiro</text>
+    <text class="mono" x="1060" y="174" fill="#ff8a3d" font-size="11" text-anchor="middle">AVISADO</text>
+  </g>
+
+  <!-- fontes que a camada lê -->
+  <g fill="none" stroke="#7a3410" stroke-width="1.4">
+    <path class="feed" d="M370 400V332"/><path class="feed" d="M600 400V332"/><path class="feed" d="M830 400V332"/>
+  </g>
+  <g class="mono" font-size="13" text-anchor="middle">
+    <rect x="295" y="400" width="150" height="40" rx="20" fill="#111417" stroke="#2b2f34"/>
+    <text x="370" y="425" fill="#ece9e3">ERP</text>
+    <rect x="515" y="400" width="170" height="40" rx="20" fill="#111417" stroke="#2b2f34"/>
+    <text x="600" y="425" fill="#ece9e3">XML de NF-e</text>
+    <rect x="755" y="400" width="150" height="40" rx="20" fill="#111417" stroke="#2b2f34"/>
+    <text x="830" y="425" fill="#ece9e3">Planilha</text>
+  </g>
+  <text x="600" y="482" fill="#ece9e3" fill-opacity=".72" font-size="17" text-anchor="middle">Lê o que cada parceiro já produz. Ninguém precisa trocar de sistema.</text>
+  <text class="mono" x="600" y="520" fill="#ece9e3" fill-opacity=".38" font-size="11" text-anchor="middle">ILUSTRAÇÃO DA HIPÓTESE DE PRODUTO · MVP EM DEFINIÇÃO</text>
+</svg>

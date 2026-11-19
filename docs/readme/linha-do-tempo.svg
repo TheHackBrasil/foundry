@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="184" viewBox="0 0 1200 184" role="img" aria-labelledby="t d">
+  <title id="t">Linha do tempo</title>
+  <desc id="d">05/11 lançamento do HackBrasil na FIAP Paulista; novembro, FENATRAN na São Paulo Expo; 16/11 call de alinhamento e direção decidida; 19/11 repo e pitch v10, escopo do MVP em definição; 30/11 submissão.</desc>
+  <defs>
+    <style>
+      text{font-family:'Space Grotesk','Segoe UI',Helvetica,Arial,sans-serif;text-anchor:middle}
+      .mono{font-family:'JetBrains Mono','SFMono-Regular',Menlo,Consolas,monospace;letter-spacing:2px}
+      .t{fill:#ece9e3;font-size:16px;font-weight:600}
+      .s{fill:#ece9e3;fill-opacity:.55;font-size:13px}
+      .spark{stroke-dasharray:28 2000;stroke-dashoffset:28;animation:run 4.5s cubic-bezier(.5,0,.5,1) infinite}
+      .ring{transform-box:fill-box;transform-origin:center;animation:ring 2.2s ease-out infinite}
+      @keyframes run{0%{stroke-dashoffset:28}80%,100%{stroke-dashoffset:-760}}
+      @keyframes ring{0%{transform:scale(1);opacity:.9}100%{transform:scale(2.6);opacity:0}}
+      @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+    </style>
+  </defs>
+  <rect width="1200" height="184" rx="18" fill="#0a0c0e"/>
+  <rect x=".5" y=".5" width="1199" height="183" rx="18" fill="none" stroke="#1f2327"/>
+
+  <line x1="100" y1="84" x2="860" y2="84" stroke="#EA5808" stroke-width="2"/>
+  <line x1="860" y1="84" x2="1100" y2="84" stroke="#7a3410" stroke-width="2" stroke-dasharray="3 7"/>
+  <path class="spark" d="M100 84H860" stroke="#ffd2a8" stroke-width="3" stroke-linecap="round"/>
+
+  <g fill="#EA5808">
+    <circle cx="100" cy="84" r="6"/><circle cx="340" cy="84" r="6"/><circle cx="600" cy="84" r="6"/>
+  </g>
+  <circle class="ring" cx="860" cy="84" r="8" fill="none" stroke="#ff8a3d" stroke-width="2"/>
+  <circle cx="860" cy="84" r="8" fill="#ff8a3d" stroke="#0a0c0e" stroke-width="3"/>
+  <circle cx="1100" cy="84" r="6" fill="#0a0c0e" stroke="#EA5808" stroke-width="2"/>
+
+  <g class="mono" font-size="13" fill="#EA5808">
+    <text x="100" y="58">05/11</text><text x="340" y="58">NOV</text><text x="600" y="58">16/11</text>
+    <text x="860" y="58" fill="#ff8a3d">19/11 · AGORA</text><text x="1100" y="58">30/11</text>
+  </g>
+
+  <text class="t" x="100" y="124">Lançamento</text>
+  <text class="s" x="100" y="146">HackBrasil na FIAP Paulista</text>
+  <text class="t" x="340" y="124">FENATRAN</text>
+  <text class="s" x="340" y="146">Campo na São Paulo Expo</text>
+  <text class="t" x="600" y="124">Call de alinhamento</text>
+  <text class="s" x="600" y="146">Direção de escopo decidida</text>
+  <text class="t" x="860" y="124">Repo e pitch v10</text>
+  <text class="s" x="860" y="146">Escopo do MVP em definição</text>
+  <text class="t" x="1100" y="124">Submissão</text>
+  <text class="s" x="1100" y="146">Entrega do HackBrasil 2026</text>
+</svg>

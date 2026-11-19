@@ -11,6 +11,7 @@ Documentos vivos da investigação do time. Ordem sugerida de leitura:
 | `regression-map.md` | Matriz invariante ↔ proteção (o que não pode regredir e o que o impede). |
 | `transcricao-call-2026-11-16.txt` | Transcrição integral da call (versão compartilhável, ~1h43). Fonte primária de tudo acima. |
 | `resumo-call-2026-11-16.docx` | Documento original do resumo. |
+| `readme/header.svg`, `readme/fluxo.svg`, `readme/linha-do-tempo.svg` | Ilustrações SVG animadas do README da raiz (banner, diagrama do fluxo, linha do tempo). |
 
 Regras desta pasta: fatos de pesquisa sempre linkados à fonte; hipóteses
 rotuladas como hipóteses; nada de claim comercial inventado.
