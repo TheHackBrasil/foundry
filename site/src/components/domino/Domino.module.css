@@ -1,0 +1,444 @@
+/* Domino island — dark industrial panel.
+   Tokens come from global.css (:root). Motion budget: transform/opacity only.
+   Stagger: --i is set per element; transition-delay does the cascade. */
+
+.dom {
+  position: relative;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 22px 20px 16px;
+  color: var(--ink);
+}
+
+/* cantoneira laranja, canto superior esquerdo */
+.dom::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 24px;
+  height: 24px;
+  border-top: 2px solid var(--ember);
+  border-left: 2px solid var(--ember);
+  pointer-events: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-left: 8px;
+}
+
+.headTitle {
+  font-family: var(--font-m);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.fic {
+  font-family: var(--font-m);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ember-hi);
+  border: 1px solid var(--ember-dim);
+  padding: 4px 8px;
+}
+
+/* ---- chain ---- */
+.chain {
+  list-style: none;
+}
+
+.node {
+  display: block;
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: start;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  padding: 12px 14px 12px 16px;
+  transform: translateX(0);
+  transition: transform 0.45s var(--ease);
+  transition-delay: calc(var(--i) * 160ms);
+}
+
+/* colored accent overlay: animated via opacity only */
+.acc {
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  bottom: -1px;
+  width: 3px;
+  background: var(--ember);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  transition-delay: calc(var(--i) * 160ms);
+}
+
+.node.hit .row {
+  transform: translateX(7px);
+}
+
+.node.absorbed .row {
+  transform: translateX(3px);
+}
+
+.node.hit .acc {
+  opacity: 1;
+  background: var(--ember);
+}
+
+.node.absorbed .acc {
+  opacity: 1;
+  background: var(--ok);
+}
+
+.idx {
+  font-family: var(--font-m);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+  padding-top: 2px;
+}
+
+.meta b {
+  display: block;
+  font-family: var(--font-m);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+.role {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-m);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.status {
+  display: block;
+  margin-top: 7px;
+  font-family: var(--font-m);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+
+.node.hit .status {
+  color: var(--ember-hi);
+}
+
+.node.absorbed .status {
+  color: var(--ok);
+}
+
+.time {
+  font-family: var(--font-m);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-align: right;
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.tbase {
+  display: block;
+  color: var(--ink-dim);
+}
+
+.tnew {
+  display: block;
+  margin-top: 4px;
+  color: var(--ember-hi);
+}
+
+.node.absorbed .tnew {
+  color: var(--ok);
+}
+
+/* haste conectora: base track always visible; lit overlay is the wave.
+   Color follows the upstream node (the rod carries what left it). */
+.rod {
+  height: 26px;
+  position: relative;
+}
+
+.rod span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 30px;
+  width: 2px;
+  background: var(--line);
+}
+
+.rod span::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--ember);
+  transform: scaleY(0);
+  transform-origin: top;
+  opacity: 0;
+  transition:
+    transform 0.4s var(--ease),
+    opacity 0.3s ease;
+  transition-delay: calc(var(--i) * 160ms);
+}
+
+.node.hit .rod span::before {
+  background: var(--ember);
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.node.absorbed .rod span::before {
+  background: var(--ok);
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+/* ---- controls ---- */
+.ctl {
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.sliderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.sliderLabel {
+  font-family: var(--font-m);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.out {
+  font-family: var(--font-m);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: var(--ember-hi);
+}
+
+.slider {
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+  accent-color: var(--ember);
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--line);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
+  border: none;
+  border-radius: 0;
+  background: var(--ember);
+}
+
+.slider::-moz-range-track {
+  height: 2px;
+  background: var(--line);
+}
+
+.slider::-moz-range-progress {
+  height: 2px;
+  background: var(--ember);
+}
+
+.slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 0;
+  background: var(--ember);
+}
+
+.slider:focus-visible {
+  outline: 1px solid var(--ember-hi);
+  outline-offset: 4px;
+}
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-family: var(--font-m);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+
+.toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.tbtn {
+  font-family: var(--font-m);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 10px 8px;
+  color: var(--ink-dim);
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.tbtn[aria-pressed='true'] {
+  color: var(--ember-hi);
+  border-color: var(--ember-dim);
+  background: #1a120b;
+}
+
+.tbtn:focus-visible {
+  outline: 1px solid var(--ember-hi);
+  outline-offset: 2px;
+}
+
+/* ---- verdict ---- */
+.verdict {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+}
+
+.vicon {
+  font-family: var(--font-m);
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.verdict.neutral .vicon {
+  color: var(--ink-faint);
+}
+
+.verdict.bad .vicon,
+.verdict.bad .vmain {
+  color: var(--ember-hi);
+}
+
+.verdict.ok .vicon,
+.verdict.ok .vmain {
+  color: var(--ok);
+}
+
+.vmain {
+  display: block;
+  font-family: var(--font-m);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+}
+
+.verdict.neutral .vmain {
+  color: var(--ink);
+}
+
+.vsub {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-d);
+  font-weight: 300;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+
+.note {
+  margin-top: 14px;
+  font-family: var(--font-m);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ---- small screens ---- */
+@media (max-width: 560px) {
+  .row {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+
+  .time {
+    grid-column: 2;
+    text-align: left;
+    display: flex;
+    gap: 10px;
+    padding-top: 4px;
+  }
+
+  .tnew {
+    margin-top: 0;
+  }
+}
+
+/* ---- reduced motion: stagger 0, no translateX; states snap, content intact ---- */
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .acc,
+  .rod span::before {
+    transition: none;
+    transition-delay: 0ms;
+  }
+
+  .node.hit .row,
+  .node.absorbed .row {
+    transform: none;
+  }
+}
+
+.dom[data-reduce] .row,
+.dom[data-reduce] .acc,
+.dom[data-reduce] .rod span::before {
+  transition: none;
+  transition-delay: 0ms;
+}
+
+.dom[data-reduce] .node.hit .row,
+.dom[data-reduce] .node.absorbed .row {
+  transform: none;
+}
