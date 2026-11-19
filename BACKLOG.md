@@ -13,7 +13,6 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 | # | Item | Status | Nota |
 |---|---|---|---|
 | 1 | Site build-in-public na identidade Foundry (dark + laranja, timeline portada, call remarcada) | spec (→ 0003) | redesign em `wt/site`; ref: repo `TheHackBrasil/the-foundry` (read-only) |
-| 2 | Release `pitch-v9` com `pitch-v9-share.mp4` + seção/embed no site | todo | asset fora do repo: `/home/thiago/hackbrasil/projects/pitch-inicial/out/` |
 | 3 | README definitivo: SVG animado da marca, OG/Twitter, LICENSE, links | todo | depende do #1 para o visual |
 | 4 | Publicar `slides/` do deck de descoberta Enviagora | todo | arquivos já portados, aguardam Pages |
 | 5 | GitHub Pages ativo + verificação do site live | todo | destrava #1 a #4 publicamente |
@@ -27,6 +26,7 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 | · | Publicação dos docs de pesquisa | 2026-11-19 → `specs/0001` |
 | · | Pipeline SDD local (constitution, speckit, guard, DECISIONS, RULES) | 2026-11-19 |
 | 9 | `site/assets/` + `slides/` portados e commitados | 2026-11-19 |
+| 2 | Release `pitch-v10` com `pitch-v10-share.mp4` + vídeo no site (D-014) | 2026-11-19 |
 
 ## Regras da fila
 
