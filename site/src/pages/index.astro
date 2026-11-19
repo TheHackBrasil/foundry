@@ -3,13 +3,14 @@ import Base from '../layouts/Base.astro';
 import Domino from '../components/domino/Domino';
 import Parties from '../components/stickers/Parties';
 import Progress from '../components/Progress.astro';
+import Pitch from '../components/Pitch.astro';
 
 const ticker = [
   ['SERENA', 'O ENCONTRO NA NEWHACK'],
   ['05 NOV', 'LANÇAMENTO NA FIAP PAULISTA'],
   ['09 A 13 NOV', 'CAMPO NA FENATRAN'],
   ['16 NOV', 'DIREÇÃO ESCOLHIDA'],
-  ['18 NOV', 'CALL COM A ENVIAGORA REMARCADA SEM NOVA DATA'],
+  ['18 NOV', 'CONVERSA COM A ENVIAGORA REAGENDADA'],
   ['30/11', 'ENTREGA'],
 ];
 ---
@@ -21,16 +22,16 @@ const ticker = [
     <section class="hero" id="hero" data-heat="0.6">
       <div class="hero-copy">
         <h1 class="hero-title">
-          <span class="ln"><span>Um pedido.</span></span>
-          <span class="ln"><span>Cinco sistemas.</span></span>
-          <span class="ln"><span><em>Nenhuma</em> verdade.</span></span>
+          <span class="ln"><span>Quando a carga atrasa,</span></span>
+          <span class="ln"><span>a cadeia inteira</span></span>
+          <span class="ln"><span>precisa <em>saber.</em></span></span>
         </h1>
-        <p class="hero-sub">Somos três pessoas investigando por que empresas que trabalham juntas
-          não enxergam a mesma operação. Esta página é o registro público do processo:
-          o que encontramos, o que decidimos e o que ainda não sabemos.</p>
+        <p class="hero-sub">Estamos construindo uma camada de coordenação para a logística B2B.
+          Ela conecta os sistemas que fornecedor, transportadora, centro de distribuição,
+          fiscal e financeiro já usam, e avisa todos quando um pedido muda.</p>
         <div class="hero-actions">
-          <a class="btn" href="#fogo">Ver o processo <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v11M3 8.5l5 5 5-5"/></svg></a>
-          <a class="btn ghost" href="https://github.com/TheHackBrasil/foundry" target="_blank" rel="noopener noreferrer">Repositório <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 11 11 5M6 5h5v5"/></svg></a>
+          <a class="btn" href="#pitch">Assistir ao pitch <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5z"/></svg></a>
+          <a class="btn ghost" href="#materia">Ver o problema <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v11M3 8.5l5 5 5-5"/></svg></a>
         </div>
       </div>
       <p class="hero-hint" aria-hidden="true">
@@ -38,15 +39,17 @@ const ticker = [
         <span class="hint-coarse">Toque para bater o martelo.</span>
       </p>
       <dl class="hero-facts">
-        <div><dt>Diário de construção</dt><dd>The Foundry × HackBrasil 2026</dd></div>
-        <div><dt>Trilha</dt><dd>Logística e Automação</dd></div>
-        <div><dt>Base</dt><dd>São Paulo</dd></div>
-        <div><dt>Atualizado</dt><dd><time datetime="2026-11-19">19 nov 2026</time></dd></div>
+        <div><dt>HackBrasil 2026</dt><dd>Trilha Logística e Automação</dd></div>
+        <div><dt>Para quem</dt><dd>Cadeias com vários fornecedores e operadores</dd></div>
+        <div><dt>Estágio</dt><dd>Escopo do MVP em definição</dd></div>
+        <div><dt>Entrega</dt><dd><time datetime="2026-11-30">30 nov 2026</time></dd></div>
       </dl>
       <svg class="hero-anvil" viewBox="140 318 212 140" aria-hidden="true">
         <path d="M144 323.3H348.7V344.9C312 358 278.7 376 278.7 400C278.7 418 294 429 319.1 436.5V454H172.9V436.5C198 429 211.3 418 211.3 400C211.3 376 178 358 144 344.9Z"/>
       </svg>
     </section>
+
+    <Pitch />
 
     <!-- TICKER -->
     <div class="ticker" role="region" aria-label="Linha do tempo resumida" tabindex="0">
@@ -64,13 +67,14 @@ const ticker = [
     <section class="chapter" id="materia" data-heat="0.1">
       <div class="split">
         <div class="copy rv">
-          <h2>O atraso de um vira o problema de <em>todos.</em></h2>
+          <h2>Hoje, cada empresa descobre o atraso <em>sozinha.</em></h2>
           <p>Uma operação real atravessa fornecedor, transportadora, centro de
             distribuição, fiscal e financeiro. Cada empresa registra no próprio
             sistema só aquilo que consegue ver.</p>
           <p>Quando algo muda, a informação viaja por telefone, planilha e
             conferência manual. Foi o que ouvimos na FENATRAN e nas conversas
             com quem opera isso todos os dias.</p>
+          <p class="hint">Na simulação, arraste o atraso e compare o que cada sistema mostra.</p>
         </div>
         <div class="bench rv" id="domino-slot">
           <Domino client:visible />
@@ -78,12 +82,40 @@ const ticker = [
       </div>
     </section>
 
+    <!-- DECISÃO -->
+    <section class="chapter" id="forma" data-heat="0.67">
+      <div class="split">
+        <div class="copy rv">
+          <h2>Uma camada sobre os sistemas que <em>já existem.</em></h2>
+          <p class="lead">Ninguém troca de ERP nem muda de rotina. A camada lê o que
+            cada parceiro já produz, mantém um registro único do pedido e avisa
+            quando as versões divergem.</p>
+          <ol class="steps">
+            <li><b>Lê</b><span>Dados do ERP, XML de NF-e e planilhas de cada parceiro, com onboarding leve.</span></li>
+            <li><b>Compara</b><span>Um registro compartilhado do pedido mostra onde as versões não batem.</span></li>
+            <li><b>Avisa</b><span>Transportadora, CD, fiscal e financeiro recebem o alerta antes que o atraso vire custo.</span></li>
+          </ol>
+        </div>
+        <dl class="ledger rv" aria-label="O que já decidimos">
+          <div class="ledger-head"><dt>Decidido em 16/11</dt><dd></dd></div>
+          <div><dt>Dentro</dt><dd>Camada de coordenação: alertas, registro compartilhado, divergências.</dd></div>
+          <div class="out"><dt>Fora</dt><dd>Roteirização interna: mercado saturado, exige hardware na PME.</dd></div>
+          <div><dt>Opção</dt><dd>Blockchain como registro entre desconhecidos: entra só se fizer falta.</dd></div>
+          <div><dt>Dado</dt><dd>Capacidade ociosa (doca, retorno, estoque) viaja na mesma camada.</dd></div>
+        </dl>
+      </div>
+      <div class="layer rv">
+        <Parties client:visible />
+        <div class="layer-bar" aria-hidden="true"><i class="layer-pulse"></i></div>
+      </div>
+    </section>
+
     <!-- CAMPO -->
     <section class="chapter" id="fogo" data-heat="1">
       <div class="copy intro rv">
-        <h2>A investigação não coube numa <em>planilha.</em></h2>
-        <p>Saímos para verificar o chão antes de decidir qualquer produto.
-          O que segue é o registro datado do que realmente aconteceu.</p>
+        <h2>O que ouvimos antes de <em>decidir.</em></h2>
+        <p>Fomos a campo antes de escolher o produto. Cada etapa abaixo está
+          registrada com data no repositório.</p>
       </div>
 
       <ol class="spine">
@@ -192,16 +224,16 @@ const ticker = [
           <p class="stop-date warn"><time datetime="2026-11-18"><b>18</b><span>nov · Enviagora</span></time></p>
           <div class="stop-media rv"><div class="drift">
             <div class="call pending">
-              <p class="call-head"><span>Call com o CEO da Enviagora</span><span>18 nov</span></p>
-              <p class="call-title">Remarcada</p>
-              <p class="call-sub">Sem nova data.</p>
-              <span class="stamp" aria-hidden="true">Pendente</span>
+              <p class="call-head"><span>Rafael Born, CEO da Enviagora</span><span>Enviagora</span></p>
+              <p class="call-title">Próxima conversa</p>
+              <p class="call-sub">Um caso real da operação, para escolher o primeiro fluxo do MVP.</p>
+              <span class="stamp" aria-hidden="true">Reagendada</span>
             </div>
           </div></div>
           <div class="stop-copy rv">
-            <h3>O que não aconteceu</h3>
-            <p>A call que poderia fechar a escolha do primeiro fluxo foi remarcada
-              sem data. Segue no registro porque processo também é isso.</p>
+            <h3>A próxima validação</h3>
+            <p>A conversa com Rafael Born, CEO da Enviagora, foi reagendada. É ela
+              que vai trazer um caso real para escolher o primeiro fluxo do MVP.</p>
           </div>
         </li>
         <li class="stop">
@@ -231,51 +263,24 @@ const ticker = [
       </ol>
     </section>
 
-    <!-- DECISÃO -->
-    <section class="chapter" id="forma" data-heat="0.67">
-      <div class="split">
-        <div class="copy rv">
-          <h2>O que a investigação <em>virou.</em></h2>
-          <p class="lead">Uma camada sobre os sistemas que já existem, que mantém um
-            registro compartilhado entre fornecedores, operadores e financeiro:
-            sinaliza desvios antes que se propaguem.</p>
-          <p>Ninguém troca de sistema nem muda de rotina. A camada lê o que cada
-            ponta já produz e avisa quando as versões divergem.</p>
-        </div>
-        <dl class="ledger rv">
-          <div><dt>Dentro</dt><dd>Camada de coordenação: alertas, registro compartilhado, divergências.</dd></div>
-          <div><dt>Fora</dt><dd>Roteirização interna: mercado saturado, exige hardware na PME.</dd></div>
-          <div><dt>Opção</dt><dd>Blockchain como registro entre desconhecidos: entra só se fizer falta.</dd></div>
-          <div><dt>Dado</dt><dd>Capacidade ociosa (doca, retorno, estoque) viaja na mesma camada.</dd></div>
-        </dl>
-      </div>
-      <div class="layer rv">
-        <Parties client:visible />
-        <div class="layer-bar" aria-hidden="true"><i class="layer-pulse"></i></div>
-      </div>
-    </section>
-
     <!-- ABERTO -->
     <section class="chapter" id="tempera" data-heat="0.33">
       <div class="copy intro rv">
-        <h2>O que ainda está <em>em teste.</em></h2>
-        <p>Têmpera é a parte do processo em que a peça endurece sob controle.
-          Aqui, é a lista honesta do que pode quebrar a tese.</p>
+        <h2>O que ainda define o <em>MVP.</em></h2>
+        <p>Perguntas abertas, com quem estamos validando cada uma.</p>
       </div>
       <ul class="questions">
         <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Qual é o único fluxo do MVP?</h3><p>Atraso propagado, documentos fiscais, etiquetas ou contratos: cada resposta vira um produto. Pergunta em aberto com o contato da TOTVS.</p></li>
-        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>A call da Enviagora</h3><p>Remarcada sem nova data. O retorno do CEO do maior 3PL de e-commerce da América Latina pesa na escolha acima.</p></li>
+        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>O caso real da Enviagora</h3><p>A conversa com o CEO foi reagendada. O retorno de quem opera um 3PL de e-commerce pesa na escolha acima.</p></li>
         <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Diferenciação vs. Emiteaí</h3><p>Eles emitem documento de rota em minutos e também tocam gestão. Onde a linha entre os produtos passa ainda é investigação.</p></li>
-        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>O relógio</h3><p>Entrega em 30/11. Avaliação do próprio time: MVP rodando numa indústria real antes disso não é promessa que a gente faz.</p></li>
       </ul>
     </section>
 
     <!-- PROGRESSO -->
     <section class="chapter" id="progresso" data-heat="0.8">
       <div class="copy intro rv">
-        <h2>O repositório, <em>agora.</em></h2>
-        <p>Etapas e commits lidos direto do GitHub. O que está aqui é o mesmo
-          que está no repositório público.</p>
+        <h2>A construção, <em>commit a commit.</em></h2>
+        <p>Lido direto do repositório público: arquivos, histórico e o backlog do time.</p>
       </div>
       <Progress />
     </section>
@@ -283,7 +288,7 @@ const ticker = [
     <!-- TIME -->
     <section class="chapter" id="forja" data-heat="0.5">
       <div class="copy intro rv">
-        <h2>Quem está batendo o <em>martelo.</em></h2>
+        <h2>Quem está <em>construindo.</em></h2>
       </div>
       <div class="team">
         <a class="member rv" href="https://www.linkedin.com/in/gabriel-sacilotto-819343365/" target="_blank" rel="noopener noreferrer">
@@ -303,12 +308,12 @@ const ticker = [
 
     <!-- FECHO -->
     <section class="closing" id="fecho" data-heat="0.9">
-      <h2 class="rv">Não estamos vendendo uma <em>resposta pronta.</em></h2>
-      <p class="rv">Nossa hipótese: uma camada em que empresas diferentes compartilham
-        eventos logísticos e coordenam a resposta quando algo sai do plano. A
-        arquitetura final segue aberta, inclusive a pergunta se blockchain agrega algo.</p>
+      <h2 class="rv">Até 30/11: o primeiro fluxo, <em>de ponta a ponta.</em></h2>
+      <p class="rv">O próximo passo é escolher qual dor vem primeiro (atraso propagado,
+        documento fiscal, recebimento ou conciliação) e demonstrar esse fluxo sobre a
+        camada, com arquitetura e protótipo no repositório.</p>
       <dl class="next rv">
-        <div><dt>Próximo registro</dt><dd>Conversa com a Enviagora, quando houver data</dd></div>
+        <div><dt>Próxima validação</dt><dd>Caso real com a Enviagora</dd></div>
         <div><dt>Entrega do hackathon</dt><dd><time datetime="2026-11-30">30 nov 2026</time></dd></div>
         <div><dt>Todo o processo é público</dt><dd><a href="https://github.com/TheHackBrasil/foundry" target="_blank" rel="noopener noreferrer">github.com/TheHackBrasil/foundry</a></dd></div>
       </dl>
