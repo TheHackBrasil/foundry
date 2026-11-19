@@ -69,6 +69,14 @@ if (!REDUCED) {
         }),
     });
   }
+  // Keyboard can land inside a block that has not scrolled in yet: show it now.
+  document.addEventListener('focusin', (e) => {
+    const rv = (e.target as Element).closest?.('.rv:not(.rv-in)');
+    if (!rv) return;
+    gsap.killTweensOf(rv);
+    gsap.set(rv, { opacity: 1, clearProps: 'transform' });
+    rv.classList.add('rv-in');
+  });
   root.classList.add('motion-ok');
 }
 
