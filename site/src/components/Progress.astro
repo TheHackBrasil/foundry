@@ -117,13 +117,6 @@ const fmt = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR');
   </div>
 </div>
 
-<figure class="pitch" data-pitch hidden={!state?.release?.video}>
-  {state?.release?.video && <video controls preload="metadata" playsinline src={state.release.video}></video>}
-</figure>
-{state?.release && (
-  <p class="pitch-cap">Pitch em vídeo · <a href={state.release.url} target="_blank" rel="noopener noreferrer">{state.release.name} no GitHub</a></p>
-)}
-
 <script>
   import { fetchState, renderState } from '../scripts/repo-state';
   const root = document.querySelector<HTMLElement>('[data-gh]');

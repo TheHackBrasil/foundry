@@ -6,6 +6,7 @@ export const REPO = 'TheHackBrasil/foundry';
 const API = `https://api.github.com/repos/${REPO}`;
 const RAW = `https://raw.githubusercontent.com/${REPO}/main`;
 export const PITCH_TAG = 'pitch-v10';
+export const PITCH_URL = `https://github.com/${REPO}/releases/download/${PITCH_TAG}/pitch-v10-share.mp4`;
 
 export type StageStatus = 'done' | 'doing' | 'todo' | 'spec' | 'blocked';
 export type Stage = { item: string; status: StageStatus; label: string };
@@ -185,8 +186,4 @@ export function renderState(root: HTMLElement, s: RepoState) {
   set('[data-total]', String(s.total));
   q('[data-bar]')?.style.setProperty('--v', String(s.done / Math.max(1, s.total)));
   set('[data-sync]', `Lido do GitHub agora, ${esc(s.read)}`);
-  if (s.release?.video && !q('[data-pitch] video')) {
-    set('[data-pitch]', `<video controls preload="metadata" playsinline src="${esc(s.release.video)}"></video>`);
-    q('[data-pitch]')?.removeAttribute('hidden');
-  }
 }

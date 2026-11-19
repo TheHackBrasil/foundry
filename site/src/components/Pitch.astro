@@ -1,0 +1,81 @@
+---
+// The pitch as a reel: a muted loop plays in place, the frame opens to full
+// width as it scrolls in, a play disc follows the cursor, and a click swaps in
+// the full film with sound. Without JS it is a plain <video controls>.
+import { PITCH_URL, REPO, PITCH_TAG } from '../scripts/repo-state';
+---
+
+<section class="reel-wrap" id="pitch" data-heat="0.75" aria-labelledby="pitch-title">
+  <div class="reel-head">
+    <h2 id="pitch-title">O projeto em menos de <em>3 minutos.</em></h2>
+    <p>O problema, o que ouvimos em campo e a solução que estamos construindo, contados pelo time.</p>
+  </div>
+  <div class="reel" data-reel>
+    <video class="reel-full" controls preload="none" playsinline poster="./assets/pitch/poster.webp" src={PITCH_URL}></video>
+    <button class="reel-play" type="button" aria-label="Assistir ao pitch com som, 2 minutos e 41 segundos" hidden>
+      <span class="reel-disc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg><b>Assistir</b></span>
+      <span class="reel-meta"><span>Pitch · The Foundry</span><span>2:41</span></span>
+    </button>
+  </div>
+  <p class="reel-cap">Também no GitHub: <a href={`https://github.com/${REPO}/releases/tag/${PITCH_TAG}`} target="_blank" rel="noopener noreferrer">release {PITCH_TAG}</a></p>
+</section>
+
+<script>
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  const reel = document.querySelector<HTMLElement>('[data-reel]');
+  const full = reel?.querySelector<HTMLVideoElement>('.reel-full');
+  const play = reel?.querySelector<HTMLButtonElement>('.reel-play');
+  const reduced = document.documentElement.classList.contains('reduce');
+
+  if (reel && full && play) {
+    gsap.registerPlugin(ScrollTrigger);
+    full.controls = false;
+    play.hidden = false;
+    reel.classList.add('reel-js');
+
+    // Ambient loop: a 9s, 1MB cut of the film, muted. Skipped under reduced motion.
+    let preview: HTMLVideoElement | null = null;
+    if (!reduced) {
+      preview = document.createElement('video');
+      Object.assign(preview, { muted: true, loop: true, playsInline: true, autoplay: true, preload: 'auto' });
+      preview.className = 'reel-preview';
+      preview.src = './assets/pitch/preview.mp4';
+      preview.setAttribute('aria-hidden', 'true');
+      reel.prepend(preview);
+      reel.classList.add('reel-preview-on');
+      // Only decode while visible.
+      new IntersectionObserver(([e]) => (e.isIntersecting ? preview!.play().catch(() => {}) : preview!.pause())).observe(reel);
+
+      gsap.fromTo(reel, { scale: 0.86 }, {
+        scale: 1,
+        ease: 'none',
+        scrollTrigger: { trigger: reel, start: 'top 95%', end: 'top 20%', scrub: 0.6 },
+      });
+
+      // The disc trails the pointer inside the frame, then settles back to centre.
+      if (matchMedia('(pointer: fine)').matches) {
+        const disc = play.querySelector<HTMLElement>('.reel-disc')!;
+        const x = gsap.quickTo(disc, 'x', { duration: 0.5, ease: 'power3.out' });
+        const y = gsap.quickTo(disc, 'y', { duration: 0.5, ease: 'power3.out' });
+        reel.addEventListener('pointermove', (e) => {
+          const r = reel.getBoundingClientRect();
+          x(e.clientX - r.left - r.width / 2);
+          y(e.clientY - r.top - r.height / 2);
+        });
+        reel.addEventListener('pointerleave', () => { x(0); y(0); });
+      }
+    }
+
+    play.addEventListener('click', () => {
+      reel.classList.add('reel-on');
+      play.hidden = true;
+      preview?.pause();
+      full.controls = true;
+      full.preload = 'auto';
+      full.play().catch(() => {});
+      full.focus();
+    });
+  }
+</script>
