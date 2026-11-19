@@ -107,6 +107,7 @@ if (!REDUCED) {
     const v = reading ?? lastNumeric;
     if (reading !== null) lastNumeric = reading;
     const frac = Math.min(1, v / 1200);
+    valEl?.classList.toggle('txt', reading === null);
     const paint = () => { if (valEl) valEl.textContent = reading === null ? temp.trim() : `${Math.round(shown.v)}°C`; };
     if (REDUCED) {
       shown.v = v;
