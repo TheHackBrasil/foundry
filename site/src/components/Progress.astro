@@ -1,0 +1,48 @@
+---
+// Live state of the public repo: last commits and the BACKLOG stages.
+// Snapshot at build time (works without JS), refreshed in the browser.
+import { REPO, fetchState } from '../scripts/repo-state';
+
+const state = await fetchState().catch(() => null);
+---
+
+<div class="progress-board" data-repo={REPO}>
+  <div class="pb-stages">
+    <div class="pb-meter">
+      <p class="pb-count"><b data-done>{state?.done ?? '·'}</b> de <span data-total>{state?.total ?? '·'}</span> etapas do backlog concluídas</p>
+      <span class="pb-bar" aria-hidden="true"><i data-bar style={`--v:${state ? state.done / Math.max(1, state.total) : 0}`}></i></span>
+    </div>
+    <ol class="pb-list" data-stages>
+      {state?.stages.map((s) => (
+        <li class={`st-${s.status}`}><span class="pb-chip">{s.label}</span><span class="pb-item">{s.item}</span></li>
+      ))}
+    </ol>
+  </div>
+  <div class="pb-commits">
+    <p class="pb-head">Últimos commits <a href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noopener noreferrer">ver todos</a></p>
+    <ol data-commits>
+      {state?.commits.map((c) => (
+        <li>
+          <a href={c.url} target="_blank" rel="noopener noreferrer">
+            <span class="pb-type" data-type={c.type}>{c.type}</span>
+            <span class="pb-msg">{c.msg}</span>
+            <time datetime={c.date}>{c.when}</time>
+          </a>
+        </li>
+      ))}
+    </ol>
+    <p class="pb-sync" data-sync>{state ? `Lido do GitHub em ${state.read}` : <a href={`https://github.com/${REPO}`}>Acompanhe no GitHub</a>}</p>
+  </div>
+  {state?.pitch && (
+    <figure class="pb-pitch" data-pitch>
+      <video controls preload="none" playsinline src={state.pitch}></video>
+      <figcaption>Pitch em vídeo</figcaption>
+    </figure>
+  )}
+</div>
+
+<script>
+  import { fetchState, renderState } from '../scripts/repo-state';
+  const board = document.querySelector<HTMLElement>('.progress-board');
+  if (board) fetchState().then((s) => renderState(board, s)).catch(() => {});
+</script>
