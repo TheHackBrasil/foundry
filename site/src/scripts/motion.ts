@@ -1,4 +1,4 @@
-// Motion layer: Lenis + GSAP choreography, the thermometer HUD and the
+// Motion layer: Lenis + GSAP choreography, section heat and the
 // WebGL forge boot. Base.astro sets .reduce before paint; this file only
 // reads it. Reduced motion drops Tier-1 (Lenis, WebGL, scrubbed travel)
 // and keeps only instant state changes.
@@ -24,7 +24,7 @@ if (!REDUCED) {
 }
 
 /* ---------- shared scroll state, also fed to the forge ---------- */
-const input: ForgeInput = { heat: 0.35, progress: 0, hero: 0 };
+const input: ForgeInput = { heat: 0.6, progress: 0, hero: 0 };
 const hero = $('#hero')!;
 const bar = $('#progress span');
 const onScroll = () => {
@@ -40,6 +40,7 @@ onScroll();
 /* ---------- hero entrance ---------- */
 if (!REDUCED) {
   gsap.fromTo('.hero-title .ln > span', { yPercent: 112, opacity: 1 }, { yPercent: 0, opacity: 1, duration: 1.15, ease: 'expo.out', stagger: 0.11, delay: 0.15 });
+  gsap.from('.hero-sub, .hero-actions, .hero-facts', { opacity: 0, y: 18, duration: 1, ease: 'expo.out', stagger: 0.1, delay: 0.55, clearProps: 'transform,opacity' });
   gsap.to('.hero-title', {
     yPercent: -18,
     ease: 'none',
@@ -81,125 +82,69 @@ if (!REDUCED) {
   root.classList.add('motion-ok');
 }
 
-/* ---------- chapters: readings drive the HUD and the forge heat ---------- */
+/* ---------- sections: data-heat drives the forge, the nav follows ---------- */
 {
-  const thermo = $('.thermo');
-  const chapEl = $('.thermo-chap');
-  const valEl = $('.thermo-val');
-  const nameEl = $('.thermo-name');
-  const track = $('.thermo-track');
-  const fill = $('.thermo-fill');
   const navLinks = $$<HTMLAnchorElement>('.top nav a');
-  const shown = { v: 25 };
-  let lastNumeric = 25;
-
-  const setChapter = (sec: HTMLElement) => {
-    const num = $('.chap-tag .num', sec)?.textContent ?? '';
-    const name = $('.chap-tag .name', sec)?.textContent ?? '';
-    const temp = $('.chap-tag .temp', sec)?.textContent ?? '';
-    const m = temp.match(/(\d+)\s*°C/);
-    const reading = m ? Number(m[1]) : null;
-    // No number on the page means no number on the HUD (and a warm, idle forge).
-    input.heat = reading === null ? 0.45 : Math.max(0.03, Math.min(1, reading / 1200));
-    if (chapEl) chapEl.textContent = num;
-    if (nameEl) nameEl.textContent = name;
+  const setSection = (sec: HTMLElement) => {
+    input.heat = Number(sec.dataset.heat ?? 0.4);
     navLinks.forEach((a) => (a.getAttribute('href') === `#${sec.id}` ? a.setAttribute('aria-current', 'location') : a.removeAttribute('aria-current')));
-    const v = reading ?? lastNumeric;
-    if (reading !== null) lastNumeric = reading;
-    const frac = Math.min(1, v / 1200);
-    valEl?.classList.toggle('txt', reading === null);
-    const paint = () => { if (valEl) valEl.textContent = reading === null ? temp.trim() : `${Math.round(shown.v)}°C`; };
-    if (REDUCED) {
-      shown.v = v;
-      paint();
-      if (track) track.style.transform = `translateY(${-frac * 100}%)`;
-      if (fill) fill.style.transform = `scaleY(${Math.max(0.02, frac)})`;
-    } else {
-      gsap.to(shown, { v, duration: 1.4, ease: 'power2.out', onUpdate: paint, overwrite: true });
-      gsap.to(track, { yPercent: -frac * 100, duration: 1.4, ease: 'expo.out', overwrite: true });
-      gsap.to(fill, { scaleY: Math.max(0.02, frac), duration: 1.4, ease: 'expo.out', overwrite: true });
-    }
   };
-
-  $$('.chapter').forEach((sec) =>
+  $$('[data-heat]').forEach((sec) =>
     ScrollTrigger.create({
       trigger: sec,
       start: 'top 55%',
       end: 'bottom 55%',
-      onToggle: (self) => self.isActive && setChapter(sec),
+      onToggle: (self) => self.isActive && setSection(sec),
     }),
   );
-  ScrollTrigger.create({
-    trigger: hero,
-    start: 'bottom 55%',
-    onEnter: () => thermo?.classList.add('on'),
-    onLeaveBack: () => {
-      thermo?.classList.remove('on');
-      input.heat = 0.35;
-      navLinks.forEach((a) => a.removeAttribute('aria-current'));
-    },
-  });
+}
+
+/* ---------- photos: a full-colour copy fades in on hover, so filter never animates ---------- */
+$$<HTMLImageElement>('.print img, .portrait img').forEach((img) => {
+  const c = img.cloneNode() as HTMLImageElement;
+  c.className = 'colour';
+  c.alt = '';
+  c.setAttribute('aria-hidden', 'true');
+  img.after(c);
+});
+
+/* ---------- ASCII map (Tier-2: one still frame under reduce) ---------- */
+{
+  const canvas = $<HTMLCanvasElement>('.ascii-map');
+  if (canvas) import('./ascii-map').then(({ startAsciiMap }) => startAsciiMap(canvas, { reduced: REDUCED }));
 }
 
 /* ---------- chapter art (Tier-1: scrubbed travel only without reduce) ---------- */
 if (!REDUCED) {
-  $$('.chap-giant span').forEach((el) =>
-    gsap.fromTo(el, { xPercent: 8 }, {
-      xPercent: -22,
+  const spine = $('.spine');
+  if (spine) {
+    gsap.fromTo(spine, { '--fill': 0 }, {
+      '--fill': 1,
       ease: 'none',
-      scrollTrigger: { trigger: el.closest('.chapter'), start: 'top bottom', end: 'bottom top', scrub: true },
-    }),
-  );
-
-  const rail = $('.rail-fill');
-  if (rail) {
-    gsap.fromTo(rail, { scaleX: 0 }, {
-      scaleX: 1,
-      ease: 'none',
-      scrollTrigger: { trigger: '.evidence', start: 'top 80%', end: 'bottom 70%', scrub: 0.5 },
+      scrollTrigger: { trigger: spine, start: 'top 60%', end: 'bottom 60%', scrub: 0.5 },
     });
   }
 
-  // FORMA: scattered systems settle into place, then the shared layer forms over them.
-  const art = $('.layer-art');
-  if (art) {
-    const nodes = $$('.lnode', art);
-    const tl = gsap.timeline({ scrollTrigger: { trigger: art, start: 'top 85%', end: 'center 45%', scrub: 0.6 } });
-    tl.from(nodes, {
-      x: (i) => [-40, 22, -18, 36][i] ?? 0,
-      y: (i) => [70, 110, 60, 95][i] ?? 80,
-      rotation: (i) => [-14, 9, -6, 12][i] ?? 0,
-      opacity: 0.2,
-      transformOrigin: '50% 50%',
-      stagger: 0.06,
-      ease: 'power2.out',
-    })
-      .from('.lwires path', { opacity: 0, stagger: 0.05 }, '-=0.2')
-      .from('.lbar-g', { scaleX: 0, transformOrigin: '50% 50%', opacity: 0, ease: 'power3.out' }, '-=0.1');
-  }
+  // Prints drift a little against the scroll, each at its own rate.
+  $$('.stop-media').forEach((el, i) =>
+    gsap.fromTo(el, { y: 40 + (i % 3) * 12 }, {
+      y: -40 - (i % 3) * 12,
+      ease: 'none',
+      scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: true },
+    }),
+  );
 
-  // TÊMPERA: each card starts glowing and cools as it rises through the viewport.
-  $$('.open-item .heat').forEach((el) =>
+  const bar = $('.layer-bar');
+  if (bar) gsap.fromTo(bar, { scaleX: 0 }, { scaleX: 1, ease: 'power2.out', scrollTrigger: { trigger: bar, start: 'top 85%', end: 'top 55%', scrub: 0.6 } });
+
+  // ABERTO: each row starts glowing and cools as it rises through the viewport.
+  $$('.q .heat').forEach((el) =>
     gsap.fromTo(el, { opacity: 1 }, {
       opacity: 0,
       ease: 'none',
       scrollTrigger: { trigger: el.parentElement, start: 'top 95%', end: 'top 30%', scrub: true },
     }),
   );
-
-  // A FORJA: cards tilt toward the pointer.
-  if (matchMedia('(pointer: fine)').matches) {
-    $$('.member:not(.pending)').forEach((card) => {
-      const rx = gsap.quickTo(card, 'rotationX', { duration: 0.5, ease: 'power3.out' });
-      const ry = gsap.quickTo(card, 'rotationY', { duration: 0.5, ease: 'power3.out' });
-      card.addEventListener('pointermove', (e) => {
-        const r = card.getBoundingClientRect();
-        ry(((e.clientX - r.left) / r.width - 0.5) * 12);
-        rx(-((e.clientY - r.top) / r.height - 0.5) * 12);
-      });
-      card.addEventListener('pointerleave', () => { rx(0); ry(0); });
-    });
-  }
 }
 
 /* ---------- WebGL forge (Tier-1, isolated: any failure leaves the static backdrop) ---------- */

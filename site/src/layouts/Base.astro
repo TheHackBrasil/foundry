@@ -15,6 +15,7 @@ import '../styles/global.css';
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a0c0e">
+  <meta name="color-scheme" content="dark">
   <meta name="description" content="The Foundry: três pessoas investigando em público por que empresas que trabalham juntas não enxergam a mesma operação. HackBrasil 2026, trilha Logística e Automação.">
   <meta property="og:title" content="The Foundry · Diário de construção">
   <meta property="og:description" content="Um pedido. Cinco sistemas. Nenhuma verdade. Investigação logística em público no HackBrasil 2026.">
@@ -25,12 +26,12 @@ import '../styles/global.css';
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://thehackbrasil.github.io/foundry/assets/og.png">
   <title>The Foundry · Diário de construção · HackBrasil 2026</title>
-  <link rel="icon" type="image/svg+xml" href="./assets/foundry-mark.svg">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <script is:inline>
     (function (d) {
       var c = d.classList;
       c.replace('no-js', 'js');
-      // Single source of truth for reduced motion: CSS and motion.ts read .reduce.
+      // Single source of truth for reduced motion: CSS, motion.ts and the stickers read .reduce.
       if (matchMedia('(prefers-reduced-motion: reduce)').matches ||
           new URLSearchParams(location.search).get('reduce') === '1') c.add('reduce');
       // If motion.ts never boots, nothing may stay hidden behind .rv.
@@ -39,26 +40,18 @@ import '../styles/global.css';
   </script>
 </head>
 <body>
+  <a class="skip" href="#materia">Pular para o conteúdo</a>
   <div class="progress" aria-hidden="true"><span id="progress"></span></div>
   <div class="backdrop" aria-hidden="true"></div>
   <canvas class="forge" id="forge" aria-hidden="true"></canvas>
-  <aside class="thermo mono" aria-hidden="true">
-    <div class="thermo-scale">
-      <span style="--v:1">1200</span><span style="--v:0.6667">800</span><span style="--v:0.3333">400</span><span style="--v:0.0208">25</span>
-      <i class="thermo-fill"></i>
-      <i class="thermo-track"><i class="thermo-needle"></i></i>
-    </div>
-    <div class="thermo-read">
-      <span class="thermo-chap">CAP.01</span>
-      <b class="thermo-val">25°C</b>
-      <span class="thermo-name">MATÉRIA-PRIMA</span>
-    </div>
-  </aside>
 
   <header class="top">
     <a class="brand" href="#topo" aria-label="The Foundry, voltar ao topo">
-      <svg class="anvil" viewBox="0 0 48 32" aria-hidden="true"><path d="M4 6h26l6 5-6 5h-8l4 4-2 6H10l-2-6 4-4H4V6z" fill="currentColor"/></svg>
-      <span>THE<br>FOUNDRY</span>
+      <svg class="mark" viewBox="64 42 384 428" aria-hidden="true">
+        <path d="M144 58H432.9L369.6 121.3H161.5Q140.6 121.3 140.6 142.2V206.8H383.1L314.4 272.8H178.3Q123.1 272.8 123.1 326L122.4 433.8Q112 448 80 454V122Z"/>
+        <path d="M144 323.3H348.7V344.9C312 358 278.7 376 278.7 400C278.7 418 294 429 319.1 436.5V454H172.9V436.5C198 429 211.3 418 211.3 400C211.3 376 178 358 144 344.9Z"/>
+      </svg>
+      <span class="word">The Foundry</span>
     </a>
     <nav aria-label="Seções">
       <a href="#materia">A dor</a>
@@ -67,15 +60,19 @@ import '../styles/global.css';
       <a href="#tempera">Aberto</a>
       <a href="#forja">Time</a>
     </nav>
-    <div class="top-status"><span class="pulse" aria-hidden="true"></span>BUILD IN PUBLIC</div>
+    <p class="top-status"><span class="pulse" aria-hidden="true"></span>Build in public</p>
   </header>
 
   <slot />
 
-  <footer class="foot mono">
-    <span>THE FOUNDRY · HACKBRASIL 2026</span>
-    <span>REGISTRO EM ANDAMENTO · 19 NOV 2026</span>
-    <a href="https://github.com/TheHackBrasil/foundry" target="_blank" rel="noopener noreferrer">REPOSITÓRIO ↗</a>
+  <footer class="foot">
+    <svg class="mark" viewBox="64 42 384 428" aria-hidden="true">
+      <path d="M144 58H432.9L369.6 121.3H161.5Q140.6 121.3 140.6 142.2V206.8H383.1L314.4 272.8H178.3Q123.1 272.8 123.1 326L122.4 433.8Q112 448 80 454V122Z"/>
+      <path d="M144 323.3H348.7V344.9C312 358 278.7 376 278.7 400C278.7 418 294 429 319.1 436.5V454H172.9V436.5C198 429 211.3 418 211.3 400C211.3 376 178 358 144 344.9Z"/>
+    </svg>
+    <span>The Foundry · HackBrasil 2026</span>
+    <span>Registro em andamento · <time datetime="2026-11-19">19 nov 2026</time></span>
+    <a href="#topo">Voltar ao topo</a>
   </footer>
 
   <script>
