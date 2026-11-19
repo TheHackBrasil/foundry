@@ -1,4 +1,4 @@
-// Domino island: "dominó do atraso" (specs/0002, frente wt/domino).
+// Domino island — "dominó do atraso" (specs/0002, frente wt/domino).
 // Contract: default export, no props, hydrated with client:visible.
 // SSR renders the full readable panel at rest (delay = 0).
 import { useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react';
