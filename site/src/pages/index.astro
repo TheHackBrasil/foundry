@@ -58,13 +58,13 @@ const ticker = [
     </section>
 
     <!-- ============ TICKER ============ -->
-    <div class="ticker mono" role="region" aria-label="Linha do tempo resumida">
+    <div class="ticker mono" role="region" aria-label="Linha do tempo resumida" tabindex="0">
       <div class="ticker-track">
         <ul class="ticker-set">
-          {ticker.map(([d, t]) => <li><b>{d}</b>{t}</li>)}
+          {ticker.map(([d, t]) => <li><b>{d}</b> {t}</li>)}
         </ul>
         <ul class="ticker-set" aria-hidden="true">
-          {ticker.map(([d, t]) => <li><b>{d}</b>{t}</li>)}
+          {ticker.map(([d, t]) => <li><b>{d}</b> {t}</li>)}
         </ul>
       </div>
     </div>
@@ -86,7 +86,7 @@ const ticker = [
         <div class="bench rv" id="domino-slot">
           <div class="bench-head mono" aria-hidden="true">
             <span><i class="led"></i>BANCADA 01</span>
-            <span>MEXA NO ATRASO DO FORNECEDOR</span>
+            <span>AJUSTE O ATRASO DO FORNECEDOR</span>
           </div>
           <Domino client:visible />
           <span class="fc tl" aria-hidden="true"></span><span class="fc tr" aria-hidden="true"></span>

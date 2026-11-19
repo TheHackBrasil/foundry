@@ -111,7 +111,7 @@ function wornIron() {
 export function startForge(
   canvas: HTMLCanvasElement,
   input: ForgeInput,
-  opts: { strikeZone: HTMLElement; onReady: () => void; onLost: () => void },
+  opts: { strikeZone: HTMLElement; onReady: () => void; onLost: () => void; guard: boolean },
 ): Forge {
   const small = Math.min(innerWidth, innerHeight) < 700;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !small, powerPreference: 'high-performance' });
@@ -422,12 +422,46 @@ export function startForge(
   let autoStrike = 0;
   let emitAcc = 0;
 
+  // Frame budget guard: the scene must never cost the page its frame rate.
+  // Measured over ~2s windows; first step drops resolution and bloom, second
+  // gives up and leaves the static backdrop.
+  let perfLevel = 0;
+  let winTime = 0;
+  let winFrames = 0;
+  let warm = 0;
+  const budget = (raw: number) => {
+    if (raw > 0.25) return false; // tab switch or breakpoint, not a slow GPU
+    warm += raw;
+    if (warm < 1.2) return false; // shader compilation settles first
+    winTime += raw;
+    winFrames++;
+    if (winTime < 2) return false;
+    const mean = winTime / winFrames;
+    winTime = 0;
+    winFrames = 0;
+    if (mean <= 0.022) return false;
+    perfLevel++;
+    if (perfLevel === 1) {
+      renderer.setPixelRatio(1);
+      bloom.enabled = false;
+      resize();
+      return false;
+    }
+    return true;
+  };
+
   const frame = () => {
     raf = requestAnimationFrame(frame);
     const now = performance.now();
-    const dt = Math.min((now - prev) / 1000, 1 / 20);
+    const raw = (now - prev) / 1000;
+    const dt = Math.min(raw, 1 / 20);
     prev = now;
     if (document.hidden) return;
+    if (opts.guard && budget(raw)) {
+      dispose();
+      opts.onLost();
+      return;
+    }
     t += dt;
     const k = 1 - Math.exp(-dt * 2.2);
 

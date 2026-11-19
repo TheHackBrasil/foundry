@@ -191,7 +191,7 @@ a { color: inherit; }
   color: var(--ink-dim);
 }
 .ticker-track { display: flex; width: max-content; animation: tick 46s linear infinite; }
-.ticker:hover .ticker-track { animation-play-state: paused; }
+.ticker:hover .ticker-track, .ticker:focus-within .ticker-track { animation-play-state: paused; }
 .ticker-set { list-style: none; display: flex; }
 .ticker-set li { padding: 15px 34px 15px 0; display: flex; gap: 12px; align-items: baseline; }
 .ticker-set li::after { content: '◆'; color: var(--ember-dim); margin-left: 22px; font-size: 8px; }

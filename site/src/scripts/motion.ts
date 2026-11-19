@@ -50,7 +50,8 @@ if (!REDUCED) {
 /* ---------- reveals ---------- */
 {
   const els = $$('.rv');
-  if (REDUCED) {
+  // If the safety net already showed everything (slow boot), don't hide it again.
+  if (REDUCED || root.classList.contains('rv-safe')) {
     els.forEach((el) => el.classList.add('rv-in'));
   } else {
     gsap.set(els, { y: 28 });
@@ -206,7 +207,10 @@ if (!REDUCED) {
   const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
   const lowEnd =
     (nav.hardwareConcurrency ?? 4) <= 2 || (nav.deviceMemory ?? 4) <= 2 || nav.connection?.saveData === true;
-  const off = new URLSearchParams(location.search).get('gl') === '0';
+  // ?gl=0 forces the static backdrop; ?gl=force skips the frame budget guard
+  // (software renderers in headless capture would otherwise trip it).
+  const glParam = new URLSearchParams(location.search).get('gl');
+  const off = glParam === '0';
   const hasGL = () => {
     try {
       const c = document.createElement('canvas');
@@ -215,18 +219,23 @@ if (!REDUCED) {
       return false;
     }
   };
-  if (canvas && !REDUCED && !lowEnd && !off && hasGL()) {
+  // Boot after the hero entrance has had its frames: environment and shader
+  // compilation can stall a weak GPU.
+  const idle = (fn: () => void) =>
+    'requestIdleCallback' in window ? requestIdleCallback(fn, { timeout: 1600 }) : setTimeout(fn, 1300);
+  if (canvas && !REDUCED && !lowEnd && !off && hasGL()) idle(() => {
     import('./forge')
       .then(({ startForge }) =>
         startForge(canvas, input, {
           strikeZone: hero,
           onReady: () => root.classList.add('gl-on'),
           onLost: () => root.classList.remove('gl-on'),
+          guard: glParam !== 'force',
         }),
       )
       .catch((err) => {
         root.classList.remove('gl-on');
         console.warn('forge disabled:', err);
       });
-  }
+  });
 }
