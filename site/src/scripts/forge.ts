@@ -49,7 +49,7 @@ const LOGO_ANVIL =
 function anvilShape() {
   const k = 5 / (454 - 323.3);
   const cx = (144 + 348.7) / 2;
-  const shape = new SVGLoader().parse(`<svg><path d="${LOGO_ANVIL}"/></svg>`).paths[0].toShapes(true)[0];
+  const shape = new SVGLoader().parse(`<svg><path d="${LOGO_ANVIL}"/></svg>`).paths[0].toShapes()[0];
   const flip = (v: THREE.Vector2) => v.set((v.x - cx) * k, 2.5 - (v.y - 323.3) * k);
   return new THREE.Shape(shape.extractPoints(32).shape.map(flip));
 }
@@ -455,6 +455,8 @@ export function startForge(
     perfLevel++;
     if (perfLevel === 1) {
       renderer.setPixelRatio(1);
+      // The composer keeps its own copy of the ratio; without this its targets stay at full size.
+      composer.setPixelRatio(1);
       bloom.enabled = false;
       resize();
       return false;
