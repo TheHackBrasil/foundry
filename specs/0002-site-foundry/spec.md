@@ -54,8 +54,9 @@ uma banca lembra, e serve como a URL pública do time via GitHub Pages.
 
 ## Requisitos funcionais
 
-- **RF1**: página única em `site/` (index.html + css + js + assets),
-  estática, sem build e sem dependência de CDN.
+- **RF1**: página única em `site/` como projeto Astro + TypeScript,
+  ilha React no dominó, GSAP ScrollTrigger + Lenis via npm; build
+  estático, sem backend e sem CDN em runtime.
 - **RF2**: narrativa com estrutura nova (não cronológica): a metáfora da
   forja organiza a página (matéria-prima: a dor → fogo: a investigação
   em campo → forma: a decisão de direção → têmpera: o que ainda está

@@ -2,66 +2,71 @@
 
 ## Resumo
 
-Página única estática em `site/` (HTML + CSS + JS vanilla, zero deps,
-sem build). Estrutura narrativa na metáfora da forja; peça central =
-demo "dominó do atraso" (SVG/DOM + WAAPI, transform/opacity). Fotos
-reais com tratamento dark; cenas novas desenhadas em código; fontes
-Space Grotesk + JetBrains Mono self-hosted em woff2.
+Página única em `site/` como projeto **Astro + TypeScript** (SSG, zero
+JS por padrão). Ilha **React** só no dominó do atraso (componente
+state-driven). **GSAP + ScrollTrigger** nas cenas e **Lenis** no scroll
+(gated por prefers-reduced-motion). Fontes via `@fontsource`. Assets
+reais em `site/public/assets/`. Build estático em `site/dist/`
+(gitignored; publicação Pages é item separado do BACKLOG).
 
 ## Constitution Check
 
 | Artigo | Veredito | Evidência |
 |---|---|---|
-| A1 fatia completa | passa | Página inteira funcional sem placeholder; capítulo Enviagora mostra status real "remarcada" em vez de teaser vazio |
-| A2 dados na fronteira | n/a | Sem backend/dados de usuário; página é 100% pública |
-| A3 escritas previsíveis | passa | JS sem backend: falha de asset não derruba a página; JS opcional (progressive enhancement) |
-| A4 superfície pública | passa | `site/` nova = superfície pública explícita, indexada em README e spec |
-| A5 dados pessoais | passa | Pessoas citadas já estão em `docs/fontes-e-contatos.md`; contatos externos com disclaimer de não-endosso |
-| A6 idioma/a11y | passa | pt-BR; contraste AA laranja/escuro; foco visível; reduced-motion em camadas; alt text real |
-| A7 demo honesta | passa | Dominó rotulado "simulação fictícia"; nada apresentado como validado |
-| A8 gate local | passa | DoD: guard + prose-evals + node --check + screenshots |
+| A1 fatia completa | passa | Página inteira funcional; Enviagora mostra status real "remarcada" |
+| A2 dados na fronteira | n/a | Sem backend/dados de usuário; 100% público |
+| A3 escritas previsíveis | passa | SSG: HTML completo sem JS funciona; ilhas falham isoladas |
+| A4 superfície pública | passa | `site/` = superfície explícita, indexada em README e spec |
+| A5 dados pessoais | passa | Pessoas citadas em `docs/fontes-e-contatos.md`; contatos com disclaimer |
+| A6 idioma/a11y | passa | pt-BR; AA laranja/escuro; foco; reduced-motion em camadas (gsap.matchMedia); alt real |
+| A7 demo honesta | passa | Dominó rotulado "simulação fictícia" |
+| A8 gate local | passa | DoD: guard + prose-evals + astro check + build + screenshots |
 | A9 imutável | passa | Fontes primárias não tocadas; spec 0001 congelada |
-| A10 intenção | passa | Esta spec + DECISIONS D-012 |
+| A10 intenção | passa | Esta spec + DECISIONS |
 
 ## Caminhos reais
 
 ```
-site/index.html      página única
-site/styles.css      tokens + layout + motion
-site/main.js         dominó + reveals + progress
-site/assets/         fotos webp (portadas), fonts/woff2 (novas), svg
+site/
+  astro.config.mjs, package.json, tsconfig.json
+  src/pages/index.astro        página única
+  src/layouts/Base.astro       head + header + footer
+  src/components/*.astro       seções estáticas
+  src/components/domino/**     ilha React (frente wt/domino)
+  src/styles/global.css        tokens + motion
+  src/scripts/motion.ts        GSAP + Lenis + reveals
+  public/assets/               fotos webp, svg mark
 ```
 
-Repo antigo `the-foundry/build-in-public/` = referência de conteúdo e
-assets somente (D-008).
+Frentes: `wt/site` (orquestrador: scaffold, seções, motion) +
+`wt/domino` (subagent: ilha React). Integração: domino → site → main.
+Repo antigo = referência de conteúdo/assets (D-008).
 
 ## Dados e migrations
 
-n/a: estático, sem banco.
+n/a: estático.
 
 ## Matriz de autorização
 
-n/a: sem dados de usuário. Tudo publicado é público por definição.
+n/a: sem dados de usuário; tudo publicado é público.
 
 ## Plano de testes
 
-- `node scripts/repo-guard.mjs` (html-assets cobre src/href relativos).
-- `node scripts/prose-evals.mjs` (docs novos; copy do site revisada com
-  skill `antislop-copywriting`).
-- `node --check site/main.js`.
-- Servir `site/` localmente; screenshots desktop 1440px e mobile 360px
-  em vários pontos de scroll; demo nos dois modos.
-- `prefers-reduced-motion`: checar ausência de deslocamentos Tier-1.
-- Console limpo; Lighthouse mental: fontes preload, imagens lazy.
+- `node scripts/repo-guard.mjs`, `node scripts/prose-evals.mjs`.
+- `cd site && npm run astro check` (types) e `npm run build` limpo.
+- `npm run dev`/preview local; screenshots 1440px + 360px em vários
+  scroll points; dominó nos dois modos.
+- `prefers-reduced-motion`: sem Tier-1 (Lenis nem instancia).
+- Console limpo; fontes sem CDN; imagens lazy.
 
 ## Rollout manual
 
-Fora de escopo (Pages é item separado do BACKLOG). Entrega = pasta
-`site/` servível por qualquer servidor estático.
+Fora de escopo. Entrega = `site/dist/` gerável com `npm run build`;
+publicação Pages é item próprio do BACKLOG.
 
 ## Desvios de complexidade
 
-- JS monolítico em `main.js` (sem módulos/build): justificado por zero
-  deps e Pages direto; mantido em seções comentadas.
-- Cenas em SVG/canvas em vez de vídeo/asset gerado: zero peso de
-  mídia, identidade 100% code-made.
+- Framework em vez de vanilla: pedido explícito do usuário ("usa
+  frameworks modernos"). Custo: node_modules local + build.
+- React apenas onde o estado é rico (dominó); o resto fica `.astro`
+  estático: menos JS no cliente, não mais.
