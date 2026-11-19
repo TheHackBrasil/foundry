@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import Domino from '../components/domino/Domino';
 import Parties from '../components/stickers/Parties';
+import Progress from '../components/Progress.astro';
 
 const ticker = [
   ['SERENA', 'O ENCONTRO NA NEWHACK'],
@@ -203,6 +204,30 @@ const ticker = [
               sem data. Segue no registro porque processo também é isso.</p>
           </div>
         </li>
+        <li class="stop">
+          <p class="stop-date"><time datetime="2026-11-19"><b>19</b><span>nov · repositório</span></time></p>
+          <div class="stop-media rv"><div class="drift">
+            <figure class="repo-shot">
+              <pre aria-hidden="true"><span>docs/</span>
+  escopo.md
+  fontes-e-contatos.md
+  resumo-call-2026-11-16.md
+<span>specs/</span>
+  0001-publicacao-docs-pesquisa
+  0002-site-foundry
+<span>BACKLOG.md</span>
+<span>DECISIONS.md</span></pre>
+              <figcaption>github.com/TheHackBrasil/foundry</figcaption>
+            </figure>
+          </div></div>
+          <div class="stop-copy rv">
+            <h3>Começamos a construir</h3>
+            <p>A pesquisa virou base de documentação no repositório, e o escopo do
+              MVP está em definição a partir dela. Cada decisão fica registrada
+              com data em <code>DECISIONS.md</code>.</p>
+            <p><a class="more" href="#progresso">Ver o progresso</a></p>
+          </div>
+        </li>
       </ol>
     </section>
 
@@ -227,7 +252,6 @@ const ticker = [
       <div class="layer rv">
         <Parties client:visible />
         <div class="layer-bar" aria-hidden="true"><i class="layer-pulse"></i></div>
-        <p class="layer-cap">Camada compartilhada · esquema ilustrativo, não é produto</p>
       </div>
     </section>
 
@@ -242,9 +266,18 @@ const ticker = [
         <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Qual é o único fluxo do MVP?</h3><p>Atraso propagado, documentos fiscais, etiquetas ou contratos: cada resposta vira um produto. Pergunta em aberto com o contato da TOTVS.</p></li>
         <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>A call da Enviagora</h3><p>Remarcada sem nova data. O retorno do CEO do maior 3PL de e-commerce da América Latina pesa na escolha acima.</p></li>
         <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Diferenciação vs. Emiteaí</h3><p>Eles emitem documento de rota em minutos e também tocam gestão. Onde a linha entre os produtos passa ainda é investigação.</p></li>
-        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>O quarto integrante</h3><p>Liz ainda não confirmou entrada no time. O site e os docs assumem três pessoas até lá.</p></li>
         <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>O relógio</h3><p>Entrega em 30/11. Avaliação do próprio time: MVP rodando numa indústria real antes disso não é promessa que a gente faz.</p></li>
       </ul>
+    </section>
+
+    <!-- PROGRESSO -->
+    <section class="chapter" id="progresso" data-heat="0.8">
+      <div class="copy intro rv">
+        <h2>O repositório, <em>agora.</em></h2>
+        <p>Etapas e commits lidos direto do GitHub. O que está aqui é o mesmo
+          que está no repositório público.</p>
+      </div>
+      <Progress />
     </section>
 
     <!-- TIME -->
@@ -265,12 +298,6 @@ const ticker = [
           <span class="portrait"><img src="./assets/thiago.webp" alt="Thiago Araujo" loading="lazy"></span>
           <b>Thiago Araujo</b><span class="role">Experiência e design</span>
         </a>
-        <div class="member pending rv">
-          <span class="portrait empty" aria-hidden="true">
-            <svg viewBox="0 0 100 120"><circle cx="50" cy="44" r="20"/><path d="M14 120c0-24 16-40 36-40s36 16 36 40"/></svg>
-          </span>
-          <b>Liz</b><span class="role">A confirmar</span>
-        </div>
       </div>
     </section>
 
