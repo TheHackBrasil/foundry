@@ -12,10 +12,7 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 
 | # | Item | Status | Nota |
 |---|---|---|---|
-| 1 | Site build-in-public na identidade Foundry (dark + laranja, timeline portada, call remarcada) | spec (→ 0003) | redesign em `wt/site`; ref: repo `TheHackBrasil/the-foundry` (read-only) |
-| 3 | README definitivo: SVG animado da marca, OG/Twitter, LICENSE, links | todo | depende do #1 para o visual |
-| 4 | Publicar `slides/` do deck de descoberta Enviagora | todo | arquivos já portados, aguardam Pages |
-| 5 | GitHub Pages ativo + verificação do site live | todo | destrava #1 a #4 publicamente |
+| 4 | Publicar `slides/` do deck de descoberta Enviagora | todo | arquivos já portados; subir no mesmo deploy |
 | 6 | Capítulo pós-call Enviagora no diário | blocked | call remarcada sem data: escrever só com resultado real |
 | 7 | Definir escopo do MVP | doing | começou em 19/11 sobre `docs/escopo.md`; o fluxo único ainda depende de #6 e da resposta TOTVS |
 
@@ -27,6 +24,9 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 | · | Pipeline SDD local (constitution, speckit, guard, DECISIONS, RULES) | 2026-11-19 |
 | 9 | `site/assets/` + `slides/` portados e commitados | 2026-11-19 |
 | 2 | Release `pitch-v10` com `pitch-v10-share.mp4` + vídeo no site (D-014) | 2026-11-19 |
+| 1 | Site público na identidade Foundry (specs 0002 + 0003) | 2026-11-19 |
+| 3 | README definitivo com SVG animado + OG/Twitter | 2026-11-19 |
+| 5 | Site no ar e verificado em the-foundry-alpha.vercel.app | 2026-11-19 |
 
 ## Regras da fila
 

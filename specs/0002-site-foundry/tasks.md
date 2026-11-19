@@ -28,5 +28,5 @@ Formato: `- [ ] TNNN [P] [US?] descrição · path · verificação`
 
 - [x] T014 [P] reduced-motion fim a fim + debug `?reduce=1` · `motion.ts`/`global.css` · Tier-1 some, Tier-3 fica
 - [x] T015 [P] mobile 360px revisão completa · `global.css` · screenshot sem quebra
-- [ ] T016 DoD: guard, prose-evals, astro check, build, screenshots · converge · tudo exit 0
-- [ ] T017 converge: spec → entregue, índice, BACKLOG, DECISIONS · mesmo commit
+- [x] T016 DoD: guard, prose-evals, astro check, build, screenshots · converge · tudo exit 0
+- [x] T017 converge: spec → entregue, índice, BACKLOG, DECISIONS · mesmo commit

@@ -1,6 +1,6 @@
 # Spec 0003: Redesign do site Foundry
 
-**Status:** aprovada
+**Status:** entregue
 **Origem:** feedback do usuário em 19/11 · decisão D-013
 **Data:** 2026-11-19
 

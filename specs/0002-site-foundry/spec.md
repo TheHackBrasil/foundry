@@ -1,6 +1,6 @@
 # Spec 0002: Site público na identidade Foundry
 
-**Status:** aprovada
+**Status:** entregue
 **Origem:** `BACKLOG.md` itens 1-4 · decisões D-008, D-010, D-011
 **Data:** 2026-11-19
 
