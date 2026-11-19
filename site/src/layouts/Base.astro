@@ -1,0 +1,58 @@
+---
+import '@fontsource/space-grotesk/300.css';
+import '@fontsource/space-grotesk/400.css';
+import '@fontsource/space-grotesk/500.css';
+import '@fontsource/space-grotesk/700.css';
+import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/jetbrains-mono/500.css';
+import '@fontsource/jetbrains-mono/700.css';
+import '../styles/global.css';
+---
+
+<!doctype html>
+<html lang="pt-BR" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0c0e">
+  <meta name="description" content="The Foundry: três pessoas investigando em público por que empresas que trabalham juntas não enxergam a mesma operação. HackBrasil 2026, trilha Logística e Automação.">
+  <meta property="og:title" content="The Foundry · Diário de construção">
+  <meta property="og:description" content="Um pedido. Cinco sistemas. Nenhuma verdade. Investigação logística em público no HackBrasil 2026.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>The Foundry · Diário de construção · HackBrasil 2026</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/foundry-mark.svg">
+  <script is:inline>document.documentElement.classList.replace('no-js', 'js')</script>
+</head>
+<body>
+  <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+  <canvas class="embers" id="embers" aria-hidden="true"></canvas>
+
+  <header class="top">
+    <a class="brand" href="#topo" aria-label="The Foundry, voltar ao topo">
+      <svg class="anvil" viewBox="0 0 48 32" aria-hidden="true"><path d="M4 6h26l6 5-6 5h-8l4 4-2 6H10l-2-6 4-4H4V6z" fill="currentColor"/></svg>
+      <span>THE<br>FOUNDRY</span>
+    </a>
+    <nav aria-label="Seções">
+      <a href="#materia">A dor</a>
+      <a href="#fogo">Campo</a>
+      <a href="#forma">Decisão</a>
+      <a href="#tempera">Aberto</a>
+      <a href="#forja">Time</a>
+    </nav>
+    <div class="top-status"><span class="pulse" aria-hidden="true"></span>BUILD IN PUBLIC</div>
+  </header>
+
+  <slot />
+
+  <footer class="foot mono">
+    <span>THE FOUNDRY · HACKBRASIL 2026</span>
+    <span>REGISTRO EM ANDAMENTO · 19 NOV 2026</span>
+    <a href="https://github.com/TheHackBrasil/foundry" target="_blank" rel="noopener noreferrer">REPOSITÓRIO ↗</a>
+  </footer>
+
+  <script>
+    import '../scripts/motion.ts';
+  </script>
+</body>
+</html>

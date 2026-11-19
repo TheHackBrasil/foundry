@@ -1,0 +1,215 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base>
+  <main id="topo">
+
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="hero-meta mono rv">DIÁRIO DE CONSTRUÇÃO · THE FOUNDRY × HACKBRASIL 2026</div>
+      <h1 class="rv">UM PEDIDO.<br>CINCO SISTEMAS.<br><em>NENHUMA</em> VERDADE.</h1>
+      <p class="hero-sub rv">Somos três pessoas investigando por que empresas que trabalham juntas
+        não enxergam a mesma operação. Esta página é o registro público do processo:
+        o que encontramos, o que decidimos e o que ainda não sabemos.</p>
+      <div class="hero-foot mono rv">
+        <span>SÃO PAULO · BRASIL</span>
+        <span>TRILHA: LOGÍSTICA E AUTOMAÇÃO</span>
+        <span>ATUALIZADO 19 NOV 2026</span>
+      </div>
+    </section>
+
+    <!-- ============ CAP.01 · MATÉRIA-PRIMA ============ -->
+    <section class="chapter" id="materia">
+      <div class="chap-tag mono"><span class="num">CAP.01</span><span class="name">MATÉRIA-PRIMA</span><span class="temp">AMBIENTE · 25°C</span></div>
+      <div class="chap-grid">
+        <div class="chap-copy rv">
+          <h2>O atraso de um vira<br>o problema de <em>todos.</em></h2>
+          <p>Uma operação real atravessa fornecedor, transportadora, centro de
+            distribuição, fiscal e financeiro. Cada empresa registra no próprio
+            sistema só aquilo que consegue ver.</p>
+          <p>Quando algo muda, a informação viaja por telefone, planilha e
+            conferência manual. Foi o que ouvimos na FENATRAN e nas conversas
+            com quem opera isso todos os dias.</p>
+        </div>
+        <div class="rv" id="domino-slot">
+          <!-- ilha React entra aqui via wt/domino; até lá, placeholder estático -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CAP.02 · FOGO ============ -->
+    <section class="chapter" id="fogo">
+      <div class="chap-tag mono"><span class="num">CAP.02</span><span class="name">FOGO</span><span class="temp">FORJA · 1200°C</span></div>
+      <div class="chap-copy wide rv">
+        <h2>A investigação não coube<br>numa <em>planilha.</em></h2>
+        <p>Saímos para verificar o chão antes de decidir qualquer produto.
+          O que segue é o registro datado do que realmente aconteceu.</p>
+      </div>
+
+      <div class="evidence">
+        <article class="ev rv">
+          <span class="ev-date mono">SERENA · NOV</span>
+          <figure><img src="./assets/serena.webp" alt="Fachada do Serena, sede do encontro da comunidade NewHack" loading="lazy"></figure>
+          <h3>O encontro</h3>
+          <p>Três caminhos se cruzaram num encontro da NewHack. Saímos de lá com um
+            combinado: construir algo juntos.</p>
+        </article>
+
+        <article class="ev rv">
+          <span class="ev-date mono">05 NOV · FIAP</span>
+          <figure><img src="./assets/fiap.webp" alt="Registro do lançamento presencial do HackBrasil na FIAP Paulista" loading="lazy"></figure>
+          <h3>O desafio</h3>
+          <p>Lançamento presencial do HackBrasil 2026. Escolhemos a trilha de
+            Logística e Automação: um setor onde problema não falta.</p>
+        </article>
+
+        <article class="ev rv">
+          <span class="ev-date mono">09–13 NOV · FENATRAN</span>
+          <figure class="ev-duo">
+            <img src="./assets/fenatran-pavilhao.webp" alt="Pavilhão da FENATRAN com caminhões e público" loading="lazy">
+            <img src="./assets/fenatran-entrada.webp" alt="Entrada da FENATRAN" loading="lazy">
+          </figure>
+          <h3>O campo</h3>
+          <p>Conversamos com operadores, transportadoras e fábricas. A mesma dor
+            voltou em formas diferentes: ninguém enxerga a mesma operação.</p>
+        </article>
+
+        <article class="ev rv">
+          <span class="ev-date mono">NOV · LINKEDIN</span>
+          <div class="ev-people">
+            <a href="https://www.linkedin.com/in/isabela-claro-sanches-96857b12/" target="_blank" rel="noopener noreferrer"><img src="./assets/isabela.webp" alt="Isabela Claro Sanches" loading="lazy"><span>ISABELA<br><b>1ª RESPOSTA</b></span></a>
+            <i class="arr" aria-hidden="true">→</i>
+            <a href="https://www.linkedin.com/in/vivianne-moreira-leite/" target="_blank" rel="noopener noreferrer"><img src="./assets/vivianne.webp" alt="Vivianne Moreira Leite" loading="lazy"><span>VIVIANNE<br><b>INDICAÇÃO</b></span></a>
+            <i class="arr" aria-hidden="true">→</i>
+            <a href="https://www.linkedin.com/in/rafael-alberto-born-03886bba/" target="_blank" rel="noopener noreferrer"><img src="./assets/rafael.webp" alt="Rafael Alberto Born, CEO da Enviagora" loading="lazy"><span>RAFAEL<br><b>CEO ENVIAGORA</b></span></a>
+          </div>
+          <h3>Os contatos</h3>
+          <p>Isabela respondeu primeiro e indicou Vivianne, especialista em
+            armazéns. A conversa com Rafael, CEO da Enviagora, veio pelo mesmo
+            caminho. <small>Retratos identificam contatos reais. Não são depoimentos nem endosso.</small></p>
+        </article>
+
+        <article class="ev rv">
+          <span class="ev-date mono">16 NOV · CALL 1H43</span>
+          <div class="ev-call mono">
+            <span>ALINHAMENTO DO TIME</span>
+            <b>DIREÇÃO ESCOLHIDA</b>
+            <span class="dim">~41 MIN NA GRAVAÇÃO</span>
+          </div>
+          <h3>A decisão</h3>
+          <p>Depois de descartar a roteirização interna, o time bateu o martelo na
+            camada de coordenação entre parceiros. Registrado na transcrição.</p>
+        </article>
+
+        <article class="ev warn rv">
+          <span class="ev-date mono">18 NOV · ENVIAGORA</span>
+          <div class="ev-call mono">
+            <span>CALL COM O CEO</span>
+            <b>REMARCADA</b>
+            <span class="dim">SEM NOVA DATA</span>
+          </div>
+          <h3>O que não aconteceu</h3>
+          <p>A call que poderia fechar a escolha do primeiro fluxo foi remarcada
+            sem data. Segue no registro porque processo também é isso.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ CAP.03 · FORMA ============ -->
+    <section class="chapter" id="forma">
+      <div class="chap-tag mono"><span class="num">CAP.03</span><span class="name">FORMA</span><span class="temp">BIGORNA · 800°C</span></div>
+      <div class="chap-grid">
+        <div class="chap-copy rv">
+          <h2>O que a investigação<br><em>virou.</em></h2>
+          <p class="lead">Uma camada sobre os sistemas que já existem, que mantém um
+            registro compartilhado entre fornecedores, operadores e financeiro:
+            sinaliza desvios antes que se propaguem.</p>
+          <p>Ninguém troca de sistema nem muda de rotina. A camada lê o que cada
+            ponta já produz e avisa quando as versões divergem.</p>
+          <ul class="decisions">
+            <li><b>DENTRO</b> camada de coordenação: alertas, registro compartilhado, divergências</li>
+            <li><b>FORA</b> roteirização interna: mercado saturado, exige hardware na PME</li>
+            <li><b>OPÇÃO</b> blockchain como registro entre desconhecidos: entra só se fizer falta</li>
+            <li><b>DADO</b> capacidade ociosa (doca, retorno, estoque) viaja na mesma camada</li>
+          </ul>
+        </div>
+        <div class="layer-art rv" aria-hidden="true">
+          <svg viewBox="0 0 460 300" class="layer-svg">
+            <g class="lnodes">
+              <rect x="20"  y="190" width="96" height="52" rx="4"/>
+              <rect x="132" y="190" width="96" height="52" rx="4"/>
+              <rect x="244" y="190" width="96" height="52" rx="4"/>
+              <rect x="356" y="190" width="88" height="52" rx="4"/>
+            </g>
+            <g class="lwires">
+              <path d="M68 190 C68 130, 90 118, 120 110"/>
+              <path d="M180 190 C180 140, 190 122, 210 112"/>
+              <path d="M292 190 C292 140, 282 122, 262 112"/>
+              <path d="M400 190 C400 130, 380 118, 350 110"/>
+            </g>
+            <rect class="lbar" x="60" y="84" width="340" height="26" rx="4"/>
+            <text class="lbar-txt" x="230" y="101" text-anchor="middle">CAMADA COMPARTILHADA</text>
+            <g class="llabels">
+              <text x="68"  y="221" text-anchor="middle">FORN.</text>
+              <text x="180" y="221" text-anchor="middle">TRANSP.</text>
+              <text x="292" y="221" text-anchor="middle">C.D.</text>
+              <text x="400" y="221" text-anchor="middle">FIN.</text>
+            </g>
+            <g class="lpulse"><circle r="4" cy="97"><animateMotion dur="3.2s" repeatCount="indefinite" path="M60 0 H340"/></circle></g>
+          </svg>
+          <p class="layer-cap mono">ESQUEMÁTICO · NÃO É PRODUTO</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CAP.04 · TÊMPERA ============ -->
+    <section class="chapter" id="tempera">
+      <div class="chap-tag mono"><span class="num">CAP.04</span><span class="name">TÊMPERA</span><span class="temp">RESFRIANDO · 400°C</span></div>
+      <div class="chap-copy wide rv">
+        <h2>O que ainda está<br><em>em teste.</em></h2>
+        <p>Têmpera é a parte do processo em que a peça endurece sob controle.
+          Aqui, é a lista honesta do que pode quebrar a tese.</p>
+      </div>
+      <div class="open">
+        <div class="open-item rv"><span class="mono">P.01</span><b>Qual é o único fluxo do MVP?</b><p>Atraso propagado, documentos fiscais, etiquetas ou contratos: cada resposta vira um produto. Pergunta em aberto com o contato da TOTVS.</p></div>
+        <div class="open-item rv"><span class="mono">P.02</span><b>A call da Enviagora</b><p>Remarcada sem nova data. O retorno do CEO do maior 3PL de e-commerce da América Latina pesa na escolha acima.</p></div>
+        <div class="open-item rv"><span class="mono">P.03</span><b>Diferenciação vs. Emiteaí</b><p>Eles emitem documento de rota em minutos e também tocam gestão. Onde a linha entre os produtos passa ainda é investigação.</p></div>
+        <div class="open-item rv"><span class="mono">P.04</span><b>O quarto integrante</b><p>Liz ainda não confirmou entrada no time. O site e os docs assumem três pessoas até lá.</p></div>
+        <div class="open-item rv"><span class="mono">P.05</span><b>O relógio</b><p>Entrega em 30/11. Avaliação do próprio time: MVP rodando numa indústria real antes disso não é promessa que a gente faz.</p></div>
+      </div>
+    </section>
+
+    <!-- ============ CAP.05 · A FORJA ============ -->
+    <section class="chapter" id="forja">
+      <div class="chap-tag mono"><span class="num">CAP.05</span><span class="name">A FORJA</span><span class="temp">OFICINA ABERTA</span></div>
+      <div class="chap-copy wide rv">
+        <h2>Quem está batendo<br>o <em>martelo.</em></h2>
+      </div>
+      <div class="team">
+        <a class="member rv" href="https://www.linkedin.com/in/gabriel-sacilotto-819343365/" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/gabriel.webp" alt="Gabriel Sacilotto" loading="lazy">
+          <b>GABRIEL SACILOTTO</b><span class="mono">PRODUTO &amp; PESQUISA</span>
+        </a>
+        <a class="member rv" href="https://www.linkedin.com/in/guilherme-barreto-mendes/" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/guilherme.webp" alt="Guilherme Barreto Mendes" loading="lazy">
+          <b>GUILHERME BARRETO</b><span class="mono">ENGENHARIA &amp; SISTEMAS</span>
+        </a>
+        <a class="member rv" href="https://www.linkedin.com/in/thisux/" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/thiago.webp" alt="Thiago Thisux" loading="lazy">
+          <b>THIAGO THISUX</b><span class="mono">EXPERIÊNCIA &amp; DESIGN</span>
+        </a>
+        <div class="member pending rv" aria-label="Quarta integrante a confirmar">
+          <div class="qmark" aria-hidden="true">?</div>
+          <b>LIZ</b><span class="mono">A CONFIRMAR</span>
+        </div>
+      </div>
+      <div class="repo mono rv">
+        <span>TODO O PROCESSO É PÚBLICO</span>
+        <a href="https://github.com/TheHackBrasil/foundry" target="_blank" rel="noopener noreferrer">github.com/TheHackBrasil/foundry ↗</a>
+        <span class="dim">docs · decisões · specs · backlog</span>
+      </div>
+    </section>
+
+  </main>
+</Base>
