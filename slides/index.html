@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#091923">
+  <meta name="description" content="The Foundry: roteiro visual de descoberta e validação de hipóteses para uma conversa com Rafael Born, da Enviagora.">
+  <title>The Foundry · Conversa com a Enviagora</title>
+  <link rel="icon" href="./assets/the-foundry-logo.webp" type="image/webp">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./revision.css">
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+  <div class="presentation" id="presentation" aria-label="Apresentação The Foundry, conversa com a Enviagora">
+    <main class="stage" id="stage">
+
+      <!-- 01 · Opening -->
+      <section class="slide slide-cover is-active" id="slide-1" data-title="A conversa" aria-label="Slide 1: abertura" aria-hidden="false">
+        <div class="cover-left">
+          <div class="topline"><img src="./assets/the-foundry-logo.webp" alt="The Foundry"><span>THE FOUNDRY <i>/</i> PESQUISA EM CAMPO</span></div>
+          <div class="cover-heading"><span class="mini-index"><i></i> CONVERSA EXPLORATÓRIA · 18 NOV 2026</span>
+            <h1>ANTES DE<br><em>CONSTRUIR,</em><br>ENTENDER.</h1>
+            <p>Um encontro para aprender com quem opera logística de verdade, testar nossas suposições e descobrir onde vale a pena investigar mais.</p>
+          </div>
+          <div class="cover-participants"><span>COM RAFAEL BORN</span><strong>ENVIAGORA <b>×</b> THE FOUNDRY</strong></div>
+          <div class="cover-corner" aria-hidden="true">01<span>/07</span></div>
+        </div>
+        <div class="cover-right" aria-label="Centro logístico isométrico em movimento">
+          <div class="cover-grid"></div><div class="cover-gif-wrap"><img src="./assets/centro-logistico-original.gif" alt="Animação de centro logístico isométrico com docas, ruas, caminhões e armazenamento"></div>
+          <div class="cover-floating-label"><span>OBSERVAR A OPERAÇÃO</span><b>↗</b></div>
+          <div class="cover-coordinate">23°S / 46°W<br>ESTUDO LOGÍSTICO</div>
+        </div>
+      </section>
+
+      <!-- 02 · What we already know -->
+      <section class="slide slide-read" id="slide-2" data-title="O ponto de partida" aria-label="Slide 2: ponto de partida" aria-hidden="true">
+        <header class="slide-header"><div class="slide-brand">THE FOUNDRY <span>×</span> ENVIAGORA</div><span>01 / CONTEXTO</span></header>
+        <div class="read-main">
+          <div class="read-title"><span class="eyebrow orange">O PONTO DE PARTIDA</span><h2>VOCÊS JÁ<br>CONSTRUÍRAM<br><em>MUITA COISA.</em></h2><p>Pelo material público da Enviagora, já existem integrações e visibilidade operacional. Nossa pergunta começa depois disso.</p></div>
+          <div class="read-stack">
+            <div class="read-row"><span class="read-id">01</span><div class="read-icon"><svg viewBox="0 0 60 60" aria-hidden="true"><rect x="8" y="24" width="44" height="27"/><path d="M4 23 30 9 56 23 M21 50V31H39V50"/></svg></div><div><strong>FULFILLMENT PRÓPRIO</strong><span>Entrada, estoque, separação e expedição.</span></div></div>
+            <div class="read-row"><span class="read-id">02</span><div class="read-icon"><svg viewBox="0 0 60 60" aria-hidden="true"><rect x="7" y="9" width="46" height="42" rx="3"/><path d="M8 20H52M15 30H34M15 37H42M15 44H29"/></svg></div><div><strong>WMS E VISIBILIDADE</strong><span>Gestão da operação e acompanhamento de pedidos.</span></div></div>
+            <div class="read-row"><span class="read-id">03</span><div class="read-icon"><svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="8"/><circle cx="9" cy="14" r="5"/><circle cx="51" cy="14" r="5"/><circle cx="9" cy="48" r="5"/><circle cx="51" cy="48" r="5"/><path d="m14 18 10 8m12 0 10-8M14 44l10-10m12 0 10 10"/></svg></div><div><strong>ECOSSISTEMA INTEGRADO</strong><span>Marketplaces, lojas, ERPs e transportadoras.</span></div></div>
+            <div class="read-source">FONTE: <a href="https://enviagora.com.br/" target="_blank" rel="noopener noreferrer">ENVIAGORA.COM.BR ↗</a> · CONSULTA EM 18/11/2026</div>
+          </div>
+        </div>
+        <div class="read-question"><span>O QUE QUEREMOS ENTENDER</span><strong>Onde ainda existe esforço humano, apesar de toda a tecnologia?</strong><div class="question-arrow">↗</div></div>
+        <footer class="slide-footer"><span>CONVERSA DE DESCOBERTA</span><span>THE FOUNDRY / 2026</span></footer>
+      </section>
+
+      <!-- 03 · Interview map -->
+      <section class="slide slide-discovery" id="slide-3" data-title="Perguntas de descoberta" aria-label="Slide 3: perguntas de descoberta" aria-hidden="true">
+        <header class="slide-header"><div class="slide-brand">THE FOUNDRY <span>×</span> ENVIAGORA</div><span>02 / ESCUTA</span></header>
+        <div class="discovery-heading"><span class="eyebrow orange">A PARTE MAIS IMPORTANTE DA CONVERSA</span><h2>COMO É NA<br><em>VIDA REAL?</em></h2><p>Queremos exemplos concretos, inclusive daqueles problemas que parecem pequenos, mas consomem tempo toda semana.</p></div>
+        <div class="discovery-route" aria-hidden="true"><div class="route-line"><span></span></div><div class="route-start">PEDIDO</div><div class="route-end">ENTREGA</div></div>
+        <div class="discovery-questions">
+          <article class="discovery-card"><span class="card-num">01</span><div class="card-art"><svg viewBox="0 0 100 75"><path d="M16 59V26l34-16 34 16v33H16Z"/><path d="m16 26 34 17 34-17M50 43v16M30 32v27M69 32v27"/></svg></div><h3>ONDE DÓI?</h3><p>Que etapa mais gera retrabalho, atraso ou decisão de última hora?</p></article>
+          <article class="discovery-card"><span class="card-num">02</span><div class="card-art"><svg viewBox="0 0 100 75"><rect x="15" y="10" width="70" height="50" rx="4"/><path d="M15 25h70M25 39h22M25 49h15M58 35l12 10-12 10"/></svg></div><h3>COMO DESCOBREM?</h3><p>Quem percebe um problema primeiro? Qual sistema ou pessoa dá o alerta?</p></article>
+          <article class="discovery-card"><span class="card-num">03</span><div class="card-art"><svg viewBox="0 0 100 75"><circle cx="50" cy="37" r="24"/><path d="M50 22v17l11 8M33 14l-5-7M68 14l5-7"/></svg></div><h3>QUANTO CUSTA?</h3><p>O impacto aparece em horas, frete, erro de pedido ou experiência do cliente?</p></article>
+          <article class="discovery-card"><span class="card-num">04</span><div class="card-art"><svg viewBox="0 0 100 75"><circle cx="29" cy="25" r="10"/><circle cx="71" cy="25" r="10"/><path d="M12 61c0-13 8-20 17-20s17 7 17 20M54 61c0-13 8-20 17-20s17 7 17 20M40 22h19m-5-5 5 5-5 5"/></svg></div><h3>QUEM RESOLVE?</h3><p>Quando depende de outra empresa, como vocês chegam à resposta?</p></article>
+        </div>
+        <div class="discovery-bottom">Se pudermos sair com <b>um caso real</b> bem entendido, a conversa já valeu a pena.</div>
+        <footer class="slide-footer"><span>PERGUNTAS ABERTAS · SEM RESPOSTA SUGERIDA</span><span>03 / 07</span></footer>
+      </section>
+
+      <!-- 04 · One order, different versions -->
+      <section class="slide slide-fragmentation" id="slide-4" data-title="Um pedido, várias versões" aria-label="Slide 4: hipótese de fragmentação" aria-hidden="true">
+        <header class="slide-header header-light"><div class="slide-brand">THE FOUNDRY <span>×</span> ENVIAGORA</div><span>03 / HIPÓTESE A</span></header>
+        <div class="fragV2-intro">
+          <span class="eyebrow orange">01 / TESTE DE HIPÓTESE · EXEMPLO FICTÍCIO</span>
+          <h2>UM PEDIDO.<br><em>QUATRO<br>VERSÕES.</em></h2>
+          <p>Uma única entrega. Várias empresas. Cada sistema pode contar uma parte diferente da história.</p>
+          <div class="fragV2-probe"><span>O QUE PRECISAMOS ENTENDER</span><strong>Isso ainda acontece na operação real?</strong><small>Onde a divergência aparece? Quem tem de investigar?</small></div>
+        </div>
+        <div class="fragment-board fragV2-board" id="fragment-board" data-mode="split">
+          <div class="frag-top fragV2-top">
+            <span class="fragV2-ref"><i></i> RASTREAMENTO <b>#BR-2048</b></span>
+            <div class="frag-toggle fragV2-toggle" role="group" aria-label="Visualizar versões do pedido">
+              <button class="frag-tab current" data-state="split" type="button" aria-pressed="true">VISÕES SEPARADAS</button>
+              <button class="frag-tab" data-state="shared" type="button" aria-pressed="false">EVENTOS COMPARTILHADOS</button>
+            </div>
+          </div>
+          <div class="fragV2-diagram">
+            <svg class="fragV2-wires" viewBox="0 0 660 366" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M182 92 C241 92 237 168 315 168" />
+              <path d="M478 92 C418 92 420 168 345 168" />
+              <path d="M182 277 C241 277 237 198 315 198" />
+              <path d="M478 277 C418 277 420 198 345 198" />
+            </svg>
+            <div class="fragV2-radar" aria-hidden="true"><span></span><span></span></div>
+            <div class="fragV2-centre">
+              <svg class="fragV2-parcel" viewBox="0 0 240 210" aria-hidden="true">
+                <ellipse cx="120" cy="186" rx="93" ry="14" fill="#06111c" opacity=".38"/>
+                <path d="M44 74 121 32 199 74 121 117Z" fill="#65a7ff" stroke="#071d31" stroke-width="6" stroke-linejoin="round"/>
+                <path d="M44 74 121 117 121 182 44 139Z" fill="#0751bd" stroke="#071d31" stroke-width="6" stroke-linejoin="round"/>
+                <path d="M121 117 199 74 199 140 121 182Z" fill="#f5f0e7" stroke="#071d31" stroke-width="6" stroke-linejoin="round"/>
+                <path d="M80 55 155 96 136 107 61 65Z" fill="#fb651f" stroke="#071d31" stroke-width="3" stroke-linejoin="round"/>
+                <path d="M121 117v65M160 96v65" stroke="#071d31" stroke-width="3" opacity=".48"/>
+                <rect x="134" y="128" width="48" height="29" rx="2" fill="#fff" stroke="#071d31" stroke-width="3" transform="skewY(-26)"/>
+                <path d="M149 112v21m5-24v21m4-23v21m5-24v21m4-23v21" stroke="#071d31" stroke-width="2" opacity=".75"/>
+              </svg>
+              <span class="frag-centre">?</span>
+              <span class="fragV2-centre-caption">QUAL STATUS É REAL?</span>
+            </div>
+            <div class="frag-systems fragV2-systems">
+              <div class="frag-system fragV2-system">
+                <div class="fragV2-system-head"><span>01 / LOJA</span><b>↗</b></div>
+                <strong data-split="PAGO" data-shared="PEDIDO CRIADO">PAGO</strong>
+                <small data-split="08:40 · CLIENTE" data-shared="08:40 · REGISTRADO">08:40 · CLIENTE</small><i></i>
+              </div>
+              <div class="frag-system fragV2-system">
+                <div class="fragV2-system-head"><span>02 / ERP</span><b>↗</b></div>
+                <strong data-split="A FATURAR" data-shared="NF EMITIDA">A FATURAR</strong>
+                <small data-split="08:52 · FINANCEIRO" data-shared="08:52 · REGISTRADO">08:52 · FINANCEIRO</small><i></i>
+              </div>
+              <div class="frag-system fragV2-system">
+                <div class="fragV2-system-head"><span>03 / ARMAZÉM</span><b>↗</b></div>
+                <strong data-split="EXPEDIDO" data-shared="SAÍDA CONFIRMADA">EXPEDIDO</strong>
+                <small data-split="10:16 · WMS" data-shared="10:16 · REGISTRADO">10:16 · WMS</small><i></i>
+              </div>
+              <div class="frag-system fragV2-system">
+                <div class="fragV2-system-head"><span>04 / TRANSPORTE</span><b>↗</b></div>
+                <strong data-split="SEM COLETA" data-shared="COLETA REGISTRADA">SEM COLETA</strong>
+                <small data-split="--:-- · TMS" data-shared="10:39 · REGISTRADO">--:-- · TMS</small><i></i>
+              </div>
+            </div>
+          </div>
+          <div class="frag-verdict fragV2-verdict">
+            <span>LEITURA DA OPERAÇÃO</span>
+            <b id="frag-verdict-label">QUAL É O ESTADO REAL?</b>
+            <small id="frag-verdict-copy">Visões parciais podem exigir conciliação manual.</small>
+            <strong id="frag-verdict-icon">✕</strong>
+          </div>
+        </div>
+        <div class="fragV2-caption">CENÁRIO CONCEITUAL <b>↗</b> CLIQUE PARA COMPARAR</div>
+        <footer class="slide-footer footer-light"><span>ILUSTRAÇÃO CONCEITUAL · NÃO DESCREVE A ENVIAGORA</span><span>04 / 07</span></footer>
+      </section>
+
+      <!-- 05 · Integration thesis -->
+      <section class="slide slide-events" id="slide-5" data-title="Camada compartilhada" aria-label="Slide 5: hipótese de eventos compartilhados" aria-hidden="true">
+        <header class="slide-header"><div class="slide-brand">THE FOUNDRY <span>×</span> ENVIAGORA</div><span>04 / HIPÓTESE A</span></header>
+        <div class="eventsV2-heading">
+          <span class="eyebrow orange">02 / DIREÇÃO EM EXPLORAÇÃO · NÃO É UM PRODUTO VALIDADO</span>
+          <h2>OS SISTEMAS FICAM.<br><em>A HISTÓRIA SE CONECTA.</em></h2>
+          <p>Uma hipótese: reunir os acontecimentos de cada etapa sem exigir que as empresas abandonem suas ferramentas.</p>
+        </div>
+        <div class="eventsV2-map">
+          <div class="eventsV2-grid" aria-hidden="true"></div>
+          <svg class="eventsV2-connections" viewBox="0 0 1200 335" preserveAspectRatio="none" aria-hidden="true">
+            <path class="incoming" d="M264 68 C365 68 344 162 466 162"/>
+            <path class="incoming" d="M264 135 C360 135 375 162 466 162"/>
+            <path class="incoming" d="M264 201 C360 201 375 162 466 162"/>
+            <path class="incoming" d="M264 268 C365 268 344 162 466 162"/>
+            <path class="outgoing" d="M570 162 C628 162 636 162 686 162"/>
+            <path class="outgoing ghost" d="M570 162 C628 162 636 162 686 162"/>
+          </svg>
+          <div class="eventsV2-sources">
+            <span class="eventsV2-col-label">01 / SISTEMAS DE ORIGEM</span>
+            <div class="eventsV2-source"><span class="eventsV2-glyph"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M7 20 12 8h24l5 12M8 20h32v21H8zM17 41V28h14v13M7 20c2 6 7 6 10 0 3 6 10 6 14 0 3 6 8 6 10 0"/></svg></span><div><b>SELLER</b><small>PEDIDO</small></div><i>↗</i></div>
+            <div class="eventsV2-source"><span class="eventsV2-glyph"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M11 5h18l9 9v29H11zM29 5v10h9M17 23h15M17 29h15M17 35h10"/></svg></span><div><b>ERP</b><small>NOTA FISCAL</small></div><i>↗</i></div>
+            <div class="eventsV2-source"><span class="eventsV2-glyph"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M5 20 24 7l19 13M9 20h30v22H9zM18 42V28h12v14M18 32h12M24 28v14"/></svg></span><div><b>WMS</b><small>EXPEDIÇÃO</small></div><i>↗</i></div>
+            <div class="eventsV2-source"><span class="eventsV2-glyph"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M4 13h25v24H4zM29 21h9l6 8v8H29M9 37a4 4 0 1 0 8 0M34 37a4 4 0 1 0 8 0M4 37h5M17 37h17"/></svg></span><div><b>TMS</b><small>TRANSPORTE</small></div><i>↗</i></div>
+          </div>
+          <div class="eventsV2-hub">
+            <span class="eventsV2-hub-marker">02 / CONEXÃO</span>
+            <div class="eventsV2-hub-graphic"><svg class="hub-network" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 16v27M60 76v28M16 60h27M77 60h27M28 28l18 18M74 74l18 18M92 28 74 46M46 74 28 92"/><circle cx="60" cy="13" r="6"/><circle cx="60" cy="107" r="6"/><circle cx="13" cy="60" r="6"/><circle cx="107" cy="60" r="6"/><rect x="42" y="42" width="36" height="36" rx="4"/></svg></div>
+            <b>EVENTOS</b>
+            <small>PERMISSÕES · PADRÃO · CONTEXTO</small>
+          </div>
+          <div class="eventsV2-history">
+            <div class="eventsV2-history-head"><div><span>03 / RESULTADO</span><strong>HISTÓRICO DO PEDIDO</strong></div><b>#BR-2048</b></div>
+            <div class="eventsV2-track">
+              <div class="eventsV2-step"><span class="eventsV2-time">08:40</span><i></i><div><b>PEDIDO RECEBIDO</b><small>SELLER</small></div></div>
+              <div class="eventsV2-step"><span class="eventsV2-time">08:52</span><i></i><div><b>NOTA EMITIDA</b><small>ERP</small></div></div>
+              <div class="eventsV2-step"><span class="eventsV2-time">10:16</span><i></i><div><b>SAÍDA CONFIRMADA</b><small>WMS</small></div></div>
+              <div class="eventsV2-step"><span class="eventsV2-time">10:39</span><i></i><div><b>COLETA REGISTRADA</b><small>TMS</small></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="eventsV2-bottom">
+          <div class="eventsV2-question"><span>A PERGUNTA NÃO É QUAL BLOCKCHAIN USAR.</span><strong>O DIFÍCIL É INTEGRAR, CONFIAR OU COOPERAR?</strong></div>
+          <div class="eventsV2-tech"><span>POSSÍVEIS CAMINHOS</span><div><b>APIs</b><b>WEBHOOKS</b><b>EVENT STREAMS</b><b>AUDITORIA</b><b>BLOCKCHAIN?</b></div></div>
+        </div>
+        <footer class="slide-footer"><span>AS FERRAMENTAS SÃO ALTERNATIVAS, NÃO DECISÕES TOMADAS</span><span>05 / 07</span></footer>
+      </section>
+
+      <!-- 06 · Digital twin alternative -->
+      <section class="slide slide-operations" id="slide-6" data-title="Simulação operacional" aria-label="Slide 6: hipótese alternativa de simulação operacional" aria-hidden="true">
+        <header class="slide-header"><div class="slide-brand">THE FOUNDRY <span>×</span> ENVIAGORA</div><span>05 / HIPÓTESE B</span></header>
+        <div class="operations-left"><span class="eyebrow orange">OUTRA DIREÇÃO QUE CONSIDERAMOS</span><h2>E SE O<br>GARGALO FOR<br><em>DECIDIR O TURNO?</em></h2><p>Antes da tese de integração, estudamos simular a operação de um centro de distribuição para testar alternativas diante de imprevistos.</p><div class="op-visual"><div class="op-check"><span>SIMULAÇÃO CONCEITUAL</span><span>CD / TURNO 01</span></div><video autoplay muted loop playsinline preload="metadata" poster="./assets/operation-sticker.png"><source src="./assets/operation-sticker.webm" type="video/webm"><img src="./assets/operation-sticker.png" alt="Armazém isométrico com caminhão e empilhadeira"></video></div></div>
+        <div class="operations-right"><span class="op-side-label">ESCOLHA UM IMPREVISTO <i>↘</i></span><div class="op-controls" role="group" aria-label="Escolher situação hipotética"><button type="button" class="op-case selected" data-case="truck" aria-pressed="true"><span>01</span> CAMINHÃO ATRASOU <b>↗</b></button><button type="button" class="op-case" data-case="team" aria-pressed="false"><span>02</span> FALTOU EQUIPE <b>↗</b></button><button type="button" class="op-case" data-case="urgent" aria-pressed="false"><span>03</span> PEDIDO URGENTE <b>↗</b></button></div>
+          <div class="op-decision"><span>QUESTÃO PARA O SUPERVISOR</span><strong id="op-question">O que mudar na fila de docas e na sequência de separação?</strong><small>O objetivo seria comparar alternativas com o supervisor antes da decisão.</small></div>
+          <div class="op-query">QUEREMOS SABER <b>↙</b><strong>Hoje isso se resolve por regra, sistema ou experiência de quem está no turno?</strong></div>
+        </div>
+        <footer class="slide-footer"><span>ALTERNATIVA EM EXPLORAÇÃO · SEM PRODUTO OU MODELO VALIDADO</span><span>06 / 07</span></footer>
+      </section>
+
+      <!-- 07 · Close, without pitch -->
+      <section class="slide slide-close" id="slide-7" data-title="O que estamos errando?" aria-label="Slide 7: fechamento e próximas perguntas" aria-hidden="true">
+        <header class="slide-header header-light"><div class="slide-brand">THE FOUNDRY <span>×</span> ENVIAGORA</div><span>06 / PRÓXIMOS PASSOS</span></header>
+        <div class="close-side"><span>PARA ENCERRAR</span><div class="close-index">07</div><div class="close-art"><div class="c-line a"></div><div class="c-line b"></div><div class="c-line c"></div><div class="c-line d"></div><div class="c-point">?</div></div></div>
+        <div class="close-body"><span class="eyebrow">SE PUDERMOS FAZER SÓ UMA PERGUNTA FINAL...</span><h2>O QUE VOCÊ<br>ACHA QUE<br><em>ESTAMOS<br>ERRANDO?</em></h2><div class="close-rule"></div><div class="close-probes"><span>QUAL DOR INVESTIGAR PRIMEIRO?</span><span>O QUE JÁ FOI TENTADO E NÃO RESOLVEU?</span><span>COM QUEM MAIS DEVEMOS CONVERSAR?</span></div><div class="close-thanks"><img src="./assets/the-foundry-logo.webp" alt="The Foundry"><div><b>OBRIGADO PELA CONVERSA.</b><span>Gabriel, Guilherme e Thiago · The Foundry</span></div></div></div>
+        <footer class="slide-footer footer-light"><span>O PRÓXIMO PASSO DEPENDE DO QUE APRENDERMOS</span><span>07 / 07</span></footer>
+      </section>
+
+    </main>
+
+    <nav class="presenter-controls" aria-label="Controle da apresentação"><div class="control-brand"><img src="./assets/the-foundry-logo.webp" alt=""><span>THE FOUNDRY</span><i> / CONVERSA DE DESCOBERTA</i></div><div class="slide-progress"><span id="progress-line"></span></div><div class="control-actions"><button type="button" id="overview-btn" title="Visão geral (O)" aria-label="Abrir visão geral"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button><button type="button" id="notes-btn" title="Notas (N)" aria-label="Mostrar notas">N</button><button type="button" id="fullscreen-btn" title="Tela cheia (F)" aria-label="Alternar tela cheia">⛶</button><button type="button" id="prev-btn" aria-label="Slide anterior">←</button><span class="page-counter"><b id="page-current">01</b><i>/</i><span>07</span></span><button type="button" id="next-btn" aria-label="Próximo slide">→</button></div></nav>
+    <div class="keyboard-tip">← → NAVEGAR <span>·</span> N NOTAS <span>·</span> O VISÃO GERAL <span>·</span> F TELA CHEIA</div>
+  </div>
+
+  <aside class="notes-panel" id="notes-panel" aria-hidden="true" aria-label="Notas privadas do apresentador"><div class="notes-head"><div><span>ÁREA DO APRESENTADOR</span><strong>NOTAS DA CONVERSA</strong></div><button id="notes-close" type="button" aria-label="Fechar notas">✕</button></div><div class="notes-guidance" id="notes-guidance"></div><label for="notes-input">O QUE OUVIMOS / EXEMPLOS CONCRETOS</label><textarea id="notes-input" placeholder="Anote as respostas aqui. Elas ficam apenas neste navegador."></textarea><div class="notes-footer"><button id="export-notes" type="button">↓ EXPORTAR NOTAS .MD</button><small>SALVAS LOCALMENTE</small></div></aside>
+  <div class="overview-overlay" id="overview" aria-hidden="true" role="dialog" aria-label="Visão geral dos slides"><div class="overview-head"><span>THE FOUNDRY / ROTEIRO DA CONVERSA</span><button id="overview-close" type="button">FECHAR ✕</button></div><div class="overview-grid" id="overview-grid"></div></div>
+</body>
+</html>
