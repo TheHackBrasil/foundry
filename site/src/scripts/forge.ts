@@ -7,6 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
 
 /** Written by motion.ts every frame; read here. All values 0..1. */
 export type ForgeInput = {
@@ -39,19 +40,18 @@ const BLACKBODY = /* glsl */ `
   }
 `;
 
-// Brand mark path "M4 6h26l6 5-6 5h-8l4 4-2 6H10l-2-6 4-4H4V6z", y flipped, /4.
+// The anvil path of the official mark (public/assets/foundry-logo.svg), so the
+// 3D piece and the logo share one silhouette.
+const LOGO_ANVIL =
+  'M 144.0 323.3 L 348.7 323.3 L 348.7 344.9 C 312.0 358.0, 278.7 376.0, 278.7 400.0 C 278.7 418.0, 294.0 429.0, 319.1 436.5 L 319.1 454.0 L 172.9 454.0 L 172.9 436.5 C 198.0 429.0, 211.3 418.0, 211.3 400.0 C 211.3 376.0, 178.0 358.0, 144.0 344.9 Z';
+
+// Logo units to scene units: top face at y 2.5, foot at y -2.5, centred on x.
 function anvilShape() {
-  const pts: Array<[number, number]> = [
-    [4, 6], [30, 6], [36, 11], [30, 16], [22, 16], [26, 20], [24, 26], [10, 26], [8, 20], [12, 16], [4, 16],
-  ];
-  const s = new THREE.Shape();
-  pts.forEach(([x, y], i) => {
-    const v = [(x - 20) / 4, (16 - y) / 4] as const;
-    if (i === 0) s.moveTo(v[0], v[1]);
-    else s.lineTo(v[0], v[1]);
-  });
-  s.closePath();
-  return s;
+  const k = 5 / (454 - 323.3);
+  const cx = (144 + 348.7) / 2;
+  const shape = new SVGLoader().parse(`<svg><path d="${LOGO_ANVIL}"/></svg>`).paths[0].toShapes(true)[0];
+  const flip = (v: THREE.Vector2) => v.set((v.x - cx) * k, 2.5 - (v.y - 323.3) * k);
+  return new THREE.Shape(shape.extractPoints(32).shape.map(flip));
 }
 
 // Tiny procedural environment so the metal has something to reflect:
@@ -114,8 +114,8 @@ export function startForge(
   opts: { strikeZone: HTMLElement; onReady: () => void; onLost: () => void; guard: boolean },
 ): Forge {
   const small = Math.min(innerWidth, innerHeight) < 700;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !small, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, small ? 1.25 : 1.5));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, small ? 1.5 : 2));
   renderer.setClearColor(0x000000, 1);
   // The finish pass owns tone mapping and sRGB encoding. Left at sRGB, three
   // would also encode the clear colour into the linear target and lift the black.
@@ -129,15 +129,24 @@ export function startForge(
 
   /* ---------- anvil ---------- */
   const anvilGeo = new THREE.ExtrudeGeometry(anvilShape(), {
-    depth: 2.6, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.1, bevelSegments: 3, curveSegments: 4,
+    depth: 2.4, bevelEnabled: true, bevelThickness: 0.09, bevelSize: 0.07, bevelSegments: 5,
   });
-  anvilGeo.translate(0, 0, -1.3);
+  anvilGeo.translate(0, 0, -1.2);
+  anvilGeo.computeVertexNormals();
   const wear = wornIron();
-  const anvilMat = new THREE.MeshStandardMaterial({
-    color: 0x5a6068, metalness: 0.62, roughness: 0.6, roughnessMap: wear, bumpMap: wear, bumpScale: 0.8, envMapIntensity: 1.3,
+  const anvilMat = new THREE.MeshPhysicalMaterial({
+    color: 0x5f666f, metalness: 0.55, roughness: 0.5, roughnessMap: wear, bumpMap: wear, bumpScale: 0.6,
+    clearcoat: 0.18, clearcoatRoughness: 0.5, envMapIntensity: 1.35,
   });
   const anvil = new THREE.Mesh(anvilGeo, anvilMat);
   scene.add(anvil);
+  // Hardened face: the one surface a smith keeps bright.
+  const face = new THREE.Mesh(
+    new RoundedBoxGeometry(7.5, 0.06, 2.2, 2, 0.025),
+    new THREE.MeshPhysicalMaterial({ color: 0x9aa3ad, metalness: 1, roughness: 0.22, envMapIntensity: 1.6 }),
+  );
+  face.position.set(0, 2.5 + 0.07 + 0.02, 0);
+  scene.add(face);
 
   /* ---------- billet ---------- */
   const billetU = {
@@ -195,9 +204,9 @@ export function startForge(
   /* ---------- lights ---------- */
   const glow = new THREE.PointLight(0xff6a1a, 0, 14, 2);
   glow.position.set(billet.position.x, billet.position.y + 0.9, -0.2);
-  const rim = new THREE.DirectionalLight(0x7f9fc0, 2.2);
+  const rim = new THREE.DirectionalLight(0x9fb8d4, 3.2);
   rim.position.set(-6, 8, -10);
-  const key = new THREE.DirectionalLight(0xaabbd0, 1.5);
+  const key = new THREE.DirectionalLight(0xc4cfdc, 2.1);
   key.position.set(-10, 6, 14);
   const fill = new THREE.HemisphereLight(0x2a3a4c, 0x1a0c04, 0.5);
   scene.add(glow, rim, key, fill);
@@ -307,7 +316,10 @@ export function startForge(
   scene.add(embers);
 
   /* ---------- post ---------- */
-  const composer = new EffectComposer(renderer);
+  // The scene never reaches the default framebuffer directly, so its MSAA
+  // (the `antialias` flag) would be wasted: the composer's own target carries it.
+  const msaa = new THREE.WebGLRenderTarget(1, 1, { samples: small ? 2 : 4, type: THREE.HalfFloatType });
+  const composer = new EffectComposer(renderer, msaa);
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.5, 0.82);
   composer.addPass(bloom);
@@ -557,15 +569,16 @@ export function startForge(
 
     // Frame the anvil away from the copy: right on wide screens, low on tall ones.
     const wide = W / H > 1.05;
-    if (wide) camera.setViewOffset(W, H, -W * (0.32 + 0.02 * input.hero), 0, W, H);
-    else camera.setViewOffset(W, H, -W * 0.07, -H * (0.19 + 0.05 * input.hero), W, H);
+    if (wide) camera.setViewOffset(W, H, -W * (0.27 + 0.02 * input.hero), 0, W, H);
+    // Tall screens: the anvil sits above the headline, where the hero leaves room.
+    else camera.setViewOffset(W, H, -W * 0.02, H * (0.3 - 0.05 * input.hero), W, H);
 
     screen.copy(billet.position).project(camera);
     finish.uniforms.uHot.value.set(screen.x * 0.5 + 0.5, screen.y * 0.5 + 0.5);
     finish.uniforms.uHeat.value = h;
     finish.uniforms.uTime.value = t;
     // Behind the chapters the scene steps back so copy stays readable.
-    const dim = wide ? 0.42 : 0.2;
+    const dim = wide ? 0.26 : 0.16;
     finish.uniforms.uFade.value = 1 - (1 - dim) * Math.min(1, Math.max(0, (input.hero - 0.15) / 0.75));
 
     composer.render(dt);
