@@ -1,45 +1,39 @@
-// Domino island — propagation model (specs/0002, brief-domino).
-// Pure functions: no DOM access, safe to run during SSR.
+// Domino island: one order, five systems. Pure functions, safe during SSR.
+// Every number here is fictional; the panel says so on screen.
 
-export type Scenario = 'bare' | 'layer'; // 01 sem camada / 02 com camada
-
-export interface NodeDef {
+export interface Party {
   name: string;
-  role: string;
-  /** Absolute hour anchored on SEG (Monday) 00:00. */
-  base: number;
+  /** What this company's own system tracks for the order. */
+  tracks: string;
+  /** Planned time as absolute hour, SEG 00:00 = 0. */
+  plan: number;
 }
 
-export interface NodeState {
-  status: string;
-  /** Whether a recomputed timestamp is shown next to the base one. */
-  shifted: boolean;
-  /** Absolute hour of the recomputed timestamp. */
-  abs: number;
-  cls: '' | 'hit' | 'absorbed';
-}
+export type RowState = 'ok' | 'wrong' | 'synced';
 
-export type VerdictTone = 'neutral' | 'bad' | 'ok';
+export interface Row {
+  shows: string; // what the company's own system says
+  real: string; // what actually happened
+  state: RowState;
+}
 
 export interface Model {
-  nodes: NodeState[];
-  tone: VerdictTone;
-  mark: string;
-  main: string;
-  sub: string;
+  rows: Row[];
+  wrong: number;
+  verdict: string;
 }
 
-export const NODES: NodeDef[] = [
-  { name: 'FORNECEDOR', role: 'expedição do pedido', base: 8 }, // SEG 08:00
-  { name: 'TRANSPORTADORA', role: 'coleta', base: 14 }, // SEG 14:00
-  { name: 'CENTRO DE DISTRIBUIÇÃO', role: 'janela de doca', base: 33 }, // TER 09:00
-  { name: 'FISCAL', role: 'NF e documentos', base: 34.5 }, // TER 10:30
-  { name: 'FINANCEIRO', role: 'pagamento programado', base: 40 }, // TER 16:00
+export const PARTIES: Party[] = [
+  { name: 'Fornecedor', tracks: 'Expedição', plan: 8 }, // SEG 08:00
+  { name: 'Transportadora', tracks: 'Coleta', plan: 9 }, // SEG 09:00
+  { name: 'Centro de distribuição', tracks: 'Doca reservada', plan: 33 }, // TER 09:00
+  { name: 'Fiscal', tracks: 'Saída na nota fiscal', plan: 8 }, // SEG 08:00
+  { name: 'Financeiro', tracks: 'Pagamento', plan: 40 }, // TER 16:00
 ];
 
-const DIAS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB']; // getDay order
+const DIAS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 
-/** Formats an absolute hour (SEG 00:00 = 0) as "TER 10:30". */
+/** Absolute hour (SEG 00:00 = 0) as "TER 10:30". */
 export function stamp(abs: number): string {
   const day = DIAS[(1 + Math.floor(abs / 24)) % 7];
   const rest = abs % 24;
@@ -49,66 +43,45 @@ export function stamp(abs: number): string {
 }
 
 export function computeModel(h: number, layer: boolean): Model {
+  const [forn, transp, cd, fiscal, fin] = PARTIES;
+  const leaves = forn.plan + h;
+  const arrives = cd.plan + h;
+
   if (h <= 0) {
     return {
-      nodes: NODES.map(() => ({ status: 'no trilho', shifted: false, abs: 0, cls: '' })),
-      tone: 'neutral',
-      mark: '●',
-      main: 'OPERAÇÃO NO TRILHO',
-      sub: 'Nenhum desvio registrado na simulação.',
+      rows: PARTIES.map((p) => ({ shows: stamp(p.plan), real: 'Como planejado', state: 'ok' })),
+      wrong: 0,
+      verdict: 'Sem atraso, os cinco sistemas contam a mesma história.',
     };
   }
 
-  if (!layer) {
-    const docBlocked = h >= 24;
-    const payCut = h >= 48;
-    // CD pays the delay plus 6h of dock queue once the slip passes a day.
-    const shifts = [h, h, h + (docBlocked ? 6 : 0), h, h];
-    const statuses = [
-      'atraso registrado na expedição',
-      'coleta remarcada',
-      docBlocked ? 'doca remarcada · fila de espera +6h' : 'doca remarcada',
-      docBlocked ? 'doc bloqueado · NF sem emissão' : 'NF reagendada',
-      payCut ? 'pagamento cancelado' : 'contrato em revalidação',
+  if (layer) {
+    const told = `Avisado ${stamp(forn.plan).slice(4)} pelo fornecedor`;
+    const rows: Row[] = [
+      { shows: stamp(leaves), real: 'Atraso registrado na origem', state: 'synced' },
+      { shows: stamp(Math.max(transp.plan, leaves)), real: told, state: 'synced' },
+      { shows: stamp(arrives), real: told, state: 'synced' },
+      { shows: stamp(leaves), real: told, state: 'synced' },
+      { shows: stamp(Math.max(fin.plan, arrives)), real: told, state: 'synced' },
     ];
-    const gone = [false, false, false, docBlocked, payCut];
-    return {
-      nodes: NODES.map((n, i) => ({
-        status: statuses[i],
-        shifted: !gone[i],
-        abs: n.base + shifts[i],
-        cls: 'hit',
-      })),
-      tone: 'bad',
-      mark: '✕',
-      main:
-        '4 REAGENDAMENTOS' +
-        (docBlocked ? ' · 1 DOC BLOQUEADO' : '') +
-        (payCut ? ' · PAGTO CANCELADO' : ''),
-      sub: 'Ninguém foi avisado. Cada sistema descobriu sozinho.',
-    };
+    return { rows, wrong: 0, verdict: 'Os cinco sistemas mostram o mesmo pedido, atualizado no minuto do atraso.' };
   }
 
-  // Com camada: o atraso na origem é real; a propagação é amortecida.
-  const damped = Math.round(h * 0.4);
-  const shifts = [h, damped, damped, damped, damped];
-  const statuses = [
-    'atraso registrado · alerta emitido',
-    'coleta remarcada cedo',
-    'doca realocada em tempo',
-    'NF emitida na nova data',
-    'pagamento reagendado',
+  const waits = leaves - transp.plan;
+  const paidEarly = arrives > fin.plan;
+  const rows: Row[] = [
+    { shows: stamp(leaves), real: `Saiu ${h}h depois do plano`, state: 'ok' },
+    { shows: stamp(transp.plan), real: waits > 0 ? `Caminhão parado ${waits}h na porta` : 'Coleta mantida', state: waits > 0 ? 'wrong' : 'ok' },
+    { shows: stamp(cd.plan), real: `Doca vazia; a carga chega ${stamp(arrives)}`, state: 'wrong' },
+    { shows: stamp(fiscal.plan), real: `Nota com saída errada; saiu ${stamp(leaves)}`, state: 'wrong' },
+    paidEarly
+      ? { shows: stamp(fin.plan), real: `Paga antes da carga chegar (${stamp(arrives)})`, state: 'wrong' }
+      : { shows: stamp(fin.plan), real: 'A carga chega antes do pagamento', state: 'ok' },
   ];
+  const wrong = rows.filter((r) => r.state === 'wrong').length;
   return {
-    nodes: NODES.map((n, i) => ({
-      status: statuses[i],
-      shifted: true,
-      abs: n.base + shifts[i],
-      cls: i === 0 ? 'hit' : 'absorbed',
-    })),
-    tone: 'ok',
-    mark: '✓',
-    main: '4 AVISOS ANTECIPADOS · 0 CANCELAMENTOS',
-    sub: 'O alerta saiu da origem antes do efeito chegar nas pontas.',
+    rows,
+    wrong,
+    verdict: `${wrong} de 5 sistemas mostram uma versão errada do mesmo pedido. Ninguém foi avisado.`,
   };
 }
