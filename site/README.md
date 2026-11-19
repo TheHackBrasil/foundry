@@ -1,43 +1,32 @@
-# Astro Starter Kit: Minimal
+# site/
 
-```sh
-npm create astro@latest -- --template minimal
+Site público do The Foundry: página única estática, diário de construção
+do projeto no HackBrasil 2026.
+
+## Stack
+
+- Astro 7 (SSG) + TypeScript, sem backend
+- Ilha React 19 no componente do dominó (`src/components/domino/`)
+- GSAP 3 + ScrollTrigger para reveals; Lenis para scroll suave
+- Fontes locais via `@fontsource` (sem CDN em runtime)
+- Saída estática em `dist/` (ignorada pelo git)
+
+## Comandos
+
+```bash
+npm install
+npm run dev        # desenvolvimento
+npm run build      # gera dist/
+npm run preview    # serve dist/ localmente
+npx astro check    # typecheck dos .astro
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+## Regras
 
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
-
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
-
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
-
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
-
-Any static assets, like images, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+- Copy segue `../STYLE.md` (formal-direto, sem travessão nem meia-risca).
+- Motion: só `transform`/`opacity`; `prefers-reduced-motion` desliga Lenis,
+  embers e reveals grandes (teste manual com `?reduce=1`).
+- Fatos com data e fonte: nunca apresentar simulação como validação (A7).
+  O dominó é simulação fictícia e diz isso na própria peça.
+- Spec vigente: `../specs/0002-site-foundry/`.
+- Decisões: `../DECISIONS.md`. Processo: `../docs/`.
