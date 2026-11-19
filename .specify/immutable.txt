@@ -1,0 +1,5 @@
+# Fontes primárias e artefatos aplicados — nunca editar nem apagar (A9).
+# Um caminho por linha, relativo à raiz. Correção = artefato novo ou errata.
+docs/transcricao-call-2026-11-16.txt
+docs/resumo-call-2026-11-16.docx
+docs/dossie-physical-capacity-orchestrator.pdf
