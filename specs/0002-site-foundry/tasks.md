@@ -17,7 +17,7 @@ Formato: `- [ ] TNNN [P] [US?] descrição · path · verificação`
 
 - [x] T006 [US1] hero + status bar · `index.astro` · acima da dobra
 - [x] T007 [US1] CAP.01 MATÉRIA-PRIMA + copy · `index.astro`/`components/` · prose-evals nos docs novos
-- [ ] T008 [US1] dominó do atraso (FRENTE wt/domino, subagent) · `src/components/domino/` · alterna modos, stagger, teclado, rótulo fictício
+- [x] T008 [US1] dominó do atraso (FRENTE wt/domino, subagent) · `src/components/domino/` · alterna modos, stagger, teclado, rótulo fictício
 - [x] T009 [US1] CAP.02 FOGO: evidências datadas + fotos + contatos · `index.astro` · alt real, datas certas
 - [x] T010 [US1] CAP.03 FORMA: decisão + esquema da camada · `index.astro` · fatos = `docs/escopo.md`
 - [x] T011 [US1] CAP.04 TÊMPERA: perguntas abertas · `index.astro` · nada prometido sem fonte

@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
+import Domino from '../components/domino/Domino';
 ---
 
 <Base>
@@ -33,7 +34,7 @@ import Base from '../layouts/Base.astro';
             com quem opera isso todos os dias.</p>
         </div>
         <div class="rv" id="domino-slot">
-          <!-- ilha React entra aqui via wt/domino; até lá, placeholder estático -->
+          <Domino client:visible />
         </div>
       </div>
     </section>
