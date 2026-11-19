@@ -319,7 +319,7 @@ time, .num { font-variant-numeric: tabular-nums; }
 
 .chain { display: flex; flex-direction: column; align-items: stretch; max-width: 520px; margin-inline: auto; }
 .person-row {
-  position: relative; display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: center;
+  position: relative; display: grid; grid-template-columns: 96px 1fr 18px; gap: 16px; align-items: center;
   padding: 10px; text-decoration: none; border-radius: 12px;
   background: rgba(18, 21, 25, 0.92); box-shadow: inset 0 0 0 1px var(--line);
   transition: transform 0.4s var(--ease);
@@ -335,6 +335,9 @@ time, .num { font-variant-numeric: tabular-nums; }
 .person-row b { display: block; font-size: 18px; font-weight: 500; line-height: 1.2; margin-top: 2px; }
 .person-row:nth-of-type(2) { margin-left: 28px; }
 .person-row:nth-of-type(3) { margin-left: 56px; }
+.ext { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; color: var(--ink-faint); transition: transform 0.35s var(--ease); }
+.person-row:hover .ext, .person-row:focus-visible .ext, .member:hover .ext, .member:focus-visible .ext { transform: translate(2px, -2px); color: var(--ember-hi); }
+.member .ext { position: absolute; top: 12px; right: 12px; z-index: 2; width: 30px; height: 30px; padding: 7px; border-radius: 50%; background: rgba(10, 12, 14, 0.6); color: var(--ink); }
 .chain-link { align-self: flex-start; margin: 6px 0 6px 46px; padding-left: 18px; border-left: 1px dashed var(--line-hi); font-family: var(--font-m); font-size: 11px; color: var(--ink-faint); line-height: 2.2; }
 .chain-link + .person-row + .chain-link { margin-left: 74px; }
 
@@ -631,9 +634,28 @@ code { font-family: var(--font-m); font-size: 0.88em; color: var(--ink); }
   .print.overlap { margin-top: -40px; max-width: 170px; }
   .person-row:nth-of-type(2), .person-row:nth-of-type(3) { margin-left: 0; }
   .chain-link, .chain-link + .person-row + .chain-link { margin-left: 36px; }
-  .team { gap: 18px; }
-  .member:nth-child(n) { margin-top: 0; }
-  .member:nth-child(even) { margin-top: 36px; }
+  /* Team: a snap carousel of tall portraits, names set on the photo. */
+  .team {
+    display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory;
+    margin-inline: -16px; padding: 4px 16px 12px; scroll-padding-inline: 16px; scrollbar-width: none;
+  }
+  .team::-webkit-scrollbar { display: none; }
+  .member { flex: 0 0 78%; scroll-snap-align: start; margin-top: 0 !important; }
+  .member:hover, .member:focus-visible { transform: none; }
+  .portrait { aspect-ratio: 4 / 5; border-radius: 12px; }
+  .portrait::before { content: ''; position: absolute; inset: 0; z-index: 1; background: linear-gradient(0deg, rgba(10, 12, 14, 0.94) 0%, rgba(10, 12, 14, 0.5) 30%, transparent 55%); pointer-events: none; }
+  .member b { position: absolute; left: 18px; right: 18px; bottom: 44px; z-index: 2; margin: 0; font-size: 26px; line-height: 1; }
+  .member .role { position: absolute; left: 18px; bottom: 20px; z-index: 2; margin: 0; color: var(--ember-hi); }
+  /* Contacts: bigger faces on one orange thread. */
+  .chain { position: relative; }
+  .chain::before { content: ''; position: absolute; left: 51px; top: 40px; bottom: 40px; width: 2px; background: linear-gradient(180deg, var(--ember), var(--ember-dim)); }
+  .person-row { z-index: 1; grid-template-columns: 84px 1fr 16px; gap: 14px; padding: 10px; background: rgba(18, 21, 25, 0.98); }
+  .avatar { width: 84px; height: 84px; border-radius: 10px; }
+  .person-row b { font-size: 17px; }
+  .chain-link, .chain-link + .person-row + .chain-link {
+    position: relative; z-index: 1; align-self: flex-start; margin: 10px 0 10px 32px; padding: 3px 10px; border: 0;
+    border-radius: 999px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--ember-dim); color: var(--ember-hi); line-height: 1.5;
+  }
   .q { padding-left: 28px; }
   .closing { margin-top: 140px; padding-top: 72px; }
 }
