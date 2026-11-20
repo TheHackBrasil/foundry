@@ -77,3 +77,16 @@ Integração, só na `main`: todo o resto, em especial `DECISIONS.md`,
 - O `frente-check` olha o que está staged, não o conteúdo. Arquivo gerado
   fora da pasta da frente (lockfile na raiz, por exemplo) é recusado e
   precisa ir para a pasta certa.
+
+## Evidência (20/11)
+
+- **CA1**: commit na `main` sem `FOUNDRY_INTEGRA=1` recusado pelo hook
+  ("commit direto na main é só para integração").
+- **CA2**: em `wt/demo`, `apps/core/tmp-ca2.txt` staged foi recusado; o
+  hook listou o arquivo e os paths da frente.
+- **CA3**: em `wt/core`, `apps/core/tmp-ca3.txt` staged passou pelo hook
+  completo (exit 0); arquivo de teste removido sem commit.
+- Extra: branch `wt/inexistente` recusada por não ter entrada no mapa.
+- **CA4**: `repo-guard` verde (11 checks); `prose-evals` 0 duras.
+- **CA5**: `git worktree list` com `main`, `wt/core`, `wt/demo` e
+  `wt/produto`, todos em `f0e6781`.
