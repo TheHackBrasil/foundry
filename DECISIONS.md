@@ -37,6 +37,10 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-012 | 19/11 | Site em `site/` = Astro + TypeScript + ilha React (dominó) + GSAP/Lenis; vanilla descartado a pedido ("usa frameworks modernos"). Narrativa "A Forja" em 5 estações; dominó do atraso é a peça central; isométricos substituídos por cenas em código | decidido | Escolhas do usuário nas clarifications da spec 0002 |
 | D-013 | 19/11 | Redesign do site (spec 0003): estrutura editorial da referência em preto e laranja; logo oficial F+bigorna; bigorna 3D do path do logo com MSAA; stickers isométricos animados no lugar do diagrama esquemático; termômetro e temperaturas removidos | decidido | Usuário avaliou a 0002 como genérica; pediu acabamento e reaproveitar elementos da referência |
 | D-014 | 19/11 | Pitch oficial passa a ser o v10 (`pitch-v10-share.mp4`), publicado na release `pitch-v10`; substitui o v9 de D-007 | decidido | Pedido do time; o site lê a release pela API e mostra o vídeo |
+| D-015 | 20/11 | Fluxo único do MVP = atraso propagado; demais candidatos de `docs/escopo.md` viram tipos de evento do mesmo modelo | decidido | Melhor evidência de campo (exemplo central TOTVS) e narrativa já construída (dominó, slide BR-2048); call Enviagora passa a validar produto, não ideia |
+| D-016 | 20/11 | Stack do `app/` = TypeScript ponta a ponta: Fastify, Postgres (tabela de eventos append-only, trigger anti UPDATE/DELETE), Vite + React, ethers + Hardhat, SSE | decidido | Núcleo do problema é event sourcing + integridade criptográfica; Postgres como padrão de produção desde o dia 1; toolchain on-chain TS-native |
+| D-017 | 20/11 | Blockchain no MVP = ledger hash-chained + âncora Merkle em Base Sepolia + escrow contract como peça de impacto; rede permissionada e nó por empresa fora | decidido | Prova de integridade verificável sem fricção de adoção (setor não letrado); consortium chain fica como visão de arco |
+| D-018 | 20/11 | Recorte operacional refinado: produto = pipeline de documentos reais (NF-e/CT-e/CC-e, e-mail, planilha) → divergência → propagação; atraso propagado vira cenário da demo dentro do motor de divergência; âncora on-chain fica (P1) cobrindo eventos não-fiscais; escrow sai para backlog; twin de nós rebaixado para P2 | decidido | Proposta de escopo do time (doc de trabalho 20/11) + análise: ingestão executa a tese TOTVS de adoção sem mudança de rotina; SEFAZ autentica docs fiscais mas não os eventos da camada; twin é aditivo visual (Schulz) |
 
 ## Pendências
 
@@ -98,3 +102,23 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 - Escopo: estrutura editorial, logo oficial, bigorna com MSAA, stickers
   isométricos e mapa ASCII; termômetro, palavras vazadas e HUD saem.
 - Deploy, release do pitch e capítulo pós-call seguem fora.
+
+### Sessão 5: escopo do MVP fechado e frentes abertas (20/11)
+
+- Escopo decidido sem esperar a call Enviagora nem a resposta TOTVS:
+  a evidência disponível já apontava o atraso propagado; a call passa
+  a validar produto com demo, não ideia.
+- Spec 0004 aprovada com plano, tasks e 3 briefs de frente:
+  `wt/app-core`, `wt/app-demo`, `wt/escopo-produto`. Divisão de pessoas
+  por frente fica a cargo do time.
+- Blockchain reposicionada: de "plataforma onde tudo roda" para
+  propriedade do registro (cadeia de hashes + âncora pública +
+  escrow). Justificativa: a coordenação se resolve com a camada de
+  eventos; a chain prova integridade entre empresas que não confiam
+  uma na outra.
+- Recorte refinado (D-018) a partir da proposta de escopo do time:
+  o MVP passa a ser o pipeline de documentos reais + motor de
+  divergência, com o atraso propagado como cenário da demo; âncora
+  em Base Sepolia mantida (P1) para os eventos não-fiscais; escrow e
+  twin de nós viram backlog/P2.
+- Item 7 do BACKLOG fechado; item 8 (build do MVP) abre a semana.

@@ -12,7 +12,7 @@
 sistemas que fornecedor, transportadora, centro de distribuição, fiscal e
 financeiro já usam e avisa todos quando um pedido muda.
 
-> **Estado:** hipótese em construção, MVP em definição. Time da trilha
+> **Estado:** hipótese em construção, MVP em build (`specs/0004`). Time da trilha
 > Logística & Automação do HackBrasil 2026, com submissão em 30/11. Este repo
 > registra o processo inteiro, da pesquisa de campo à entrega.
 
@@ -50,6 +50,18 @@ Ainda não medimos o retorno de uma solução.
   financeira e fiscal (D-002).
 - Simplicidade de adoção é requisito. API aberta e documentação que um leigo
   consiga seguir.
+- Recorte do MVP: pipeline de documentos reais (NF-e, CT-e, CC-e,
+  e-mail, planilha) alimentando um motor de divergência; o atraso
+  propagado é o cenário da demo (D-015 refinado em D-018,
+  `specs/0004`). Os demais candidatos entram no mesmo modelo como
+  tipos de documento/divergência:
+
+| Candidato | O que é |
+|---|---|
+| **Atraso propagado** | Um parceiro atrasa; alertar e coordenar os demais, incluindo o financeiro |
+| Documentos fiscais / NF | Registro e documentação da carga de ponta a ponta |
+| Recebimento / etiquetas | Padronizar códigos e conferência na entrada do galpão |
+| Contratos / conciliação | Revalidar contratos e pagamentos quando a operação muda |
 
 **Fora**
 
@@ -64,14 +76,6 @@ Ainda não medimos o retorno de uma solução.
 - Leitura candidata, em discussão: capacidade ociosa (doca livre, espaço de
   retorno, posição de estoque) entraria como tipo de dado na camada, não como
   marketplace.
-- Qual sub-dor vem primeiro. Cada resposta vira um MVP diferente:
-
-| Candidato | O que é |
-|---|---|
-| Atraso propagado | Um parceiro atrasa; alertar e coordenar os demais, incluindo o financeiro |
-| Documentos fiscais / NF | Registro e documentação da carga de ponta a ponta |
-| Recebimento / etiquetas | Padronizar códigos e conferência na entrada do galpão |
-| Contratos / conciliação | Revalidar contratos e pagamentos quando a operação muda |
 
 Detalhes, riscos mapeados e próximos passos em [`docs/escopo.md`](docs/escopo.md).
 
@@ -99,14 +103,16 @@ da call em [`docs/`](docs/).
 
 ## Estado atual
 
-- **Em execução:** definir o escopo do MVP (item #7 do
-  [`BACKLOG.md`](BACKLOG.md)). O fluxo único depende da call com a Enviagora e
-  da resposta do contato TOTVS.
+- **Em execução:** build do MVP da camada de coordenação
+  ([`specs/0004`](specs/0004-mvp-atraso-propagado/spec.md)) em três frentes
+  paralelas; meta de demo funcional em 23/11 e entrega em 30/11.
+  Escopo fechado em 20/11 (D-015, refinado em D-018).
 - **Pitch:** v10 publicado na
   [release `pitch-v10`](https://github.com/TheHackBrasil/foundry/releases/tag/pitch-v10)
   (D-014).
-- **Site:** redesign na identidade da marca em andamento
-  ([`specs/0003`](specs/0003-site-redesign/spec.md)).
+- **Site:** no ar na identidade da marca
+  ([the-foundry-alpha.vercel.app](https://the-foundry-alpha.vercel.app),
+  specs 0002 e 0003).
 - Decisões, achados e pendências datados em [`DECISIONS.md`](DECISIONS.md);
   specs em [`specs/`](specs/).
 
@@ -116,6 +122,7 @@ da call em [`docs/`](docs/).
 |---|---|
 | [`docs/`](docs/) | Pesquisa e escopo: resumo e transcrição da call, fontes e contatos, dossiê da visão de arco |
 | [`site/`](site/) | Site do diário (Astro + TypeScript) |
+| [`app/`](app/) | MVP da camada (spec 0004): API de eventos, ledger verificável, torre de controle, contratos |
 | [`slides/`](slides/) | Deck de descoberta preparado para a call Enviagora |
 | [`specs/`](specs/) | Specs de cada mudança não trivial |
 | [`PRODUCT.md`](PRODUCT.md) · [`DECISIONS.md`](DECISIONS.md) · [`BACKLOG.md`](BACKLOG.md) · [`RULES.md`](RULES.md) | Produto, log de decisões, fila de trabalho, regras da competição |

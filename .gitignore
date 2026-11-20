@@ -7,3 +7,6 @@
 node_modules/
 out/
 *.log
+app/dist/
+app/contracts/artifacts/
+app/contracts/cache/
