@@ -6,7 +6,8 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 
 ## Em execução
 
-- #7 Definir escopo do MVP (desde 19/11).
+- #7 Definir escopo do MVP (desde 19/11): plano consolidado em
+  `docs/plano-mvp.pdf`, aguardando aprovação do time (P-006).
 
 ## Fila
 
@@ -14,7 +15,7 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 |---|---|---|---|
 | 4 | Publicar `slides/` do deck de descoberta Enviagora | todo | arquivos já portados; subir no mesmo deploy |
 | 6 | Capítulo pós-call Enviagora no diário | blocked | call remarcada sem data: escrever só com resultado real |
-| 7 | Definir escopo do MVP | doing | começou em 19/11 sobre `docs/escopo.md`; o fluxo único ainda depende de #6 e da resposta TOTVS |
+| 7 | Definir escopo do MVP | doing | plano em `docs/plano-mvp.pdf` (20/11); falta a aprovação do time (P-006). Enviagora e TOTVS viram validação, não bloqueio |
 
 ## Feito
 

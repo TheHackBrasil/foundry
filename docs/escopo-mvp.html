@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>The Foundry · O recorte do MVP</title>
+<style>
+@font-face { font-family:'Space Grotesk'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/space-grotesk-300.woff2') format('woff2'); font-weight:300; }
+@font-face { font-family:'Space Grotesk'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/space-grotesk-400.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'Space Grotesk'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/space-grotesk-500.woff2') format('woff2'); font-weight:500; }
+@font-face { font-family:'Space Grotesk'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/space-grotesk-700.woff2') format('woff2'); font-weight:700; }
+@font-face { font-family:'JetBrains Mono'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/jetbrains-mono-400.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'JetBrains Mono'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/jetbrains-mono-500.woff2') format('woff2'); font-weight:500; }
+@font-face { font-family:'JetBrains Mono'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/jetbrains-mono-700.woff2') format('woff2'); font-weight:700; }
+
+:root {
+  --bg:#0a0c0e; --bg2:#0e1114; --panel:#121519;
+  --line:#23282e; --line-hi:#343b43;
+  --ink:#ece9e3; --ink-dim:#a3a9b0; --ink-faint:#858c94;
+  --ember:#ea5808; --ember-hi:#ff8a3d;
+}
+@page {
+  size: A4;
+  margin: 15mm 15mm 17mm 15mm;
+  background: #0a0c0e;
+  @bottom-left { content: "THE FOUNDRY · HACKBRASIL 2026 · LOGÍSTICA & AUTOMAÇÃO"; font-family:'JetBrains Mono',monospace; font-size:7.5px; letter-spacing:.14em; color:#5b626a; }
+  @bottom-right { content: counter(page); font-family:'JetBrains Mono',monospace; font-size:8px; color:#858c94; }
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { -webkit-print-color-adjust:exact; }
+body {
+  font-family:'Space Grotesk',sans-serif; font-weight:400; color:var(--ink);
+  background:
+    radial-gradient(70% 42% at 88% 4%, rgba(234,88,8,.13), transparent 60%),
+    radial-gradient(circle, rgba(236,233,227,.045) 1px, transparent 1.4px) 0 0/22px 22px,
+    linear-gradient(180deg,#0a0c0e 0%,#0b0d10 55%,#0d0b09 100%);
+  font-size:10.5pt; line-height:1.55;
+}
+.mono { font-family:'JetBrains Mono',monospace; }
+.tarja { font-family:'JetBrains Mono',monospace; font-size:8pt; letter-spacing:.16em; text-transform:uppercase; color:var(--ember); }
+.tarja.dim { color:var(--ink-faint); }
+
+.top { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line-hi); padding-bottom:4mm; margin-bottom:7mm; }
+.brand { display:flex; align-items:center; gap:3.2mm; }
+.brand svg { height:8.5mm; width:auto; }
+.brand .word { font-weight:700; font-size:15pt; letter-spacing:-.01em; }
+.top .meta { font-family:'JetBrains Mono',monospace; font-size:7.5pt; letter-spacing:.12em; color:var(--ink-dim); text-transform:uppercase; text-align:right; line-height:1.7; }
+.top .meta b { color:var(--ember-hi); font-weight:500; }
+
+h1 { font-size:32pt; font-weight:700; line-height:.98; letter-spacing:-.03em; text-transform:uppercase; max-width:150mm; }
+h1 em { font-style:normal; color:var(--ember); }
+.lede { margin-top:5mm; font-size:11.5pt; color:var(--ink-dim); max-width:150mm; line-height:1.6; }
+.lede strong { color:var(--ink); font-weight:500; }
+
+.status { display:flex; gap:0; margin-top:6mm; border:1px solid var(--line); border-radius:2px; overflow:hidden; }
+.status div { flex:1; padding:3mm 4mm; border-right:1px solid var(--line); background:rgba(18,21,25,.6); }
+.status div:last-child { border-right:none; }
+.status .k { font-family:'JetBrains Mono',monospace; font-size:7pt; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); display:block; margin-bottom:1mm; }
+.status .v { font-size:9.5pt; font-weight:500; }
+.status .v.hot { color:var(--ember-hi); }
+
+/* legend */
+.legend { display:flex; gap:4mm; margin-top:5mm; }
+.legend .cell { flex:1; background:var(--panel); border:1px solid var(--line); border-radius:3px; padding:3.6mm 4mm; position:relative; }
+.legend .cell::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--ember); border-radius:2px 0 0 2px; }
+.legend .cell p { font-size:8.8pt; color:var(--ink-dim); line-height:1.5; }
+.legend .cell p strong { color:var(--ink); font-weight:500; }
+.legend .cell .n { font-family:'JetBrains Mono',monospace; font-size:9pt; font-weight:700; margin-bottom:1.2mm; display:block; }
+.legend .cell:nth-child(1) .n { color:var(--ember-hi); }
+.legend .cell:nth-child(2) .n { color:#d8b36a; }
+.legend .cell:nth-child(3) .n { color:var(--ink-faint); }
+
+section { margin-top:8mm; }
+.sec-head { display:flex; align-items:baseline; gap:4mm; border-bottom:1px solid var(--line-hi); padding-bottom:2.4mm; margin-bottom:3.5mm; }
+.sec-num { font-family:'JetBrains Mono',monospace; font-size:12pt; font-weight:700; color:var(--ember); }
+.sec-title { font-size:14pt; font-weight:700; letter-spacing:-.01em; text-transform:uppercase; }
+.sec-sub { margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:7.5pt; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase; }
+
+table.t { width:100%; border-collapse:collapse; }
+table.t thead th { font-family:'JetBrains Mono',monospace; font-size:7pt; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); font-weight:500; text-align:left; padding:1.8mm 2.4mm; border-bottom:1px solid var(--line-hi); }
+table.t tbody td { font-size:8.6pt; color:var(--ink-dim); padding:2.4mm 2.4mm; border-bottom:1px solid var(--line); vertical-align:top; line-height:1.42; }
+table.t tbody tr { break-inside:avoid; }
+table.t tbody tr:last-child td { border-bottom:none; }
+table.t td.item { color:var(--ink); font-weight:500; }
+table.t td.n { font-family:'JetBrains Mono',monospace; font-size:8pt; color:var(--ink-dim); white-space:nowrap; }
+table.t td.who { font-family:'JetBrains Mono',monospace; font-size:7.8pt; color:var(--ink-faint); white-space:nowrap; }
+table.t td.why { min-width:52mm; }
+
+.tag { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:7pt; letter-spacing:.09em; text-transform:uppercase; padding:.6mm 1.8mm; border-radius:2px; border:1px solid var(--line-hi); color:var(--ink-dim); white-space:nowrap; }
+.tag.entra { color:var(--ember-hi); border-color:#7a3410; background:rgba(234,88,8,.08); }
+.tag.citado { color:#d8b36a; border-color:#4a3d22; }
+.tag.fila { color:var(--ink-dim); border-style:dashed; }
+.tag.fora { color:var(--ink-faint); }
+.tag.p0 { color:var(--ember-hi); border-color:#7a3410; background:rgba(234,88,8,.08); font-weight:700; }
+.tag.p1 { color:#d8b36a; border-color:#4a3d22; font-weight:700; }
+.tag.p2 { color:var(--ink-faint); border-style:dashed; }
+table.t tr.off td.item { color:var(--ink-faint); }
+table.t tr.off td { color:#6a7178; }
+
+.callout { background:var(--panel); border:1px solid var(--line); border-left:2.5px solid var(--ember); border-radius:0 3px 3px 0; padding:3.6mm 4.5mm; margin-top:3.5mm; break-inside:avoid; }
+.callout .k { font-family:'JetBrains Mono',monospace; font-size:7.3pt; letter-spacing:.14em; text-transform:uppercase; color:var(--ember); display:block; margin-bottom:1.4mm; }
+.callout p { font-size:9.3pt; color:var(--ink-dim); line-height:1.55; }
+.callout p strong { color:var(--ink); font-weight:500; }
+.callout p + p { margin-top:1.8mm; }
+
+.closing { margin-top:8mm; border-top:1px solid var(--line-hi); padding-top:4mm; display:flex; justify-content:space-between; align-items:flex-end; gap:6mm; break-inside:avoid; }
+.closing .t { font-size:10.5pt; color:var(--ink-dim); max-width:120mm; line-height:1.5; }
+.closing .t b { color:var(--ink); font-weight:500; }
+.closing .stamp { font-family:'JetBrains Mono',monospace; font-size:7.5pt; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); text-align:right; line-height:1.8; white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand">
+    <svg viewBox="64 42 384 428" fill="#EA5808" xmlns="http://www.w3.org/2000/svg"><path d="M144 58H432.9L369.6 121.3H161.5Q140.6 121.3 140.6 142.2V206.8H383.1L314.4 272.8H178.3Q123.1 272.8 123.1 326L122.4 433.8Q112 448 80 454V122Z"/><path d="M144 323.3H348.7V344.9C312 358 278.7 376 278.7 400C278.7 418 294 429 319.1 436.5V454H172.9V436.5C198 429 211.3 418 211.3 400C211.3 376 178 358 144 344.9Z"/></svg>
+    <span class="word">THE FOUNDRY</span>
+  </div>
+  <div class="meta">HackBrasil 2026<br><b>Logística &amp; Automação</b></div>
+</div>
+
+<div class="tarja" style="margin-bottom:2.5mm">Doc de trabalho · reunião do time · 20/11/2026 · proposta de escopo, não decisão tomada</div>
+<h1>O <em>recorte</em> do MVP</h1>
+<p class="lede">O que entra, o que fica fora e por quê: gêmeo digital da carga alimentado por documento fiscal real, sobre a camada de coordenação. Recorte para dez dias de calendário, base da spec 0004.</p>
+
+<div class="status">
+  <div><span class="k">Entrega</span><span class="v hot">30/11/2026</span></div>
+  <div><span class="k">P0: demo mínima</span><span class="v">~12 dias-pessoa</span></div>
+  <div><span class="k">P1: fator wow</span><span class="v">~11 dias-pessoa</span></div>
+  <div><span class="k">Formato</span><span class="v">3 devs + IA</span></div>
+</div>
+
+<div class="legend">
+  <div class="cell"><span class="n">P0</span><p><strong>O que a demo precisa para existir.</strong> Sem isto não há produto demonstrável no dia 30.</p></div>
+  <div class="cell"><span class="n">P1</span><p><strong>O fator wow.</strong> Onde a demo vira memorável; corta por último, nesta ordem inversa ao que entra.</p></div>
+  <div class="cell"><span class="n">P2</span><p><strong>Só se sobrar.</strong> Valor real mas dispensável; nunca antes de P1 fechar.</p></div>
+</div>
+
+<section>
+  <div class="sec-head"><span class="sec-num">01</span><span class="sec-title">Ingestão</span><span class="sec-sub">o que cada parceiro já produz</span></div>
+  <table class="t">
+    <colgroup><col style="width:34mm"><col style="width:15mm"><col style="width:12mm"><col style="width:13mm"><col style="width:17mm"><col></colgroup>
+    <thead><tr><th>Item</th><th>Decisão</th><th>Prior.</th><th>Esforço</th><th>Dono</th><th>Justificativa</th></tr></thead>
+    <tbody>
+      <tr><td class="item">Parser de NF-e (XML)</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">1 d</td><td class="who">Guilherme</td><td class="why">Toda carga tem uma; layout fixo e a chave de 44 dígitos já é a identidade do pedido.</td></tr>
+      <tr><td class="item">Parser de CT-e (XML)</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">1 d</td><td class="who">Guilherme</td><td class="why">Liga transportadora e frete à NF pela chave; sem ele não há cadeia, só nota solta.</td></tr>
+      <tr><td class="item">Parser de eventos (cancelamento, CC-e)</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">0,5 d</td><td class="who">Guilherme</td><td class="why">É o gatilho real do atraso; reaproveita quase todo o parser de NF-e.</td></tr>
+      <tr><td class="item">Caixa de e-mail (IMAP)</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">1 d</td><td class="who">Guilherme</td><td class="why">É o canal que o setor já usa; sustenta a tese de adoção sem mudança de rotina (TOTVS).</td></tr>
+      <tr><td class="item">Upload manual</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">0,5 d</td><td class="who">Thiago</td><td class="why">Plano B do e-mail na demo ao vivo e porta para o juiz testar com o próprio arquivo.</td></tr>
+      <tr><td class="item">Planilha CSV/XLSX</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">1 d</td><td class="who">Guilherme</td><td class="why">Faz o papel do ERP e do WMS do CD sem depender de API de terceiro.</td></tr>
+      <tr><td class="item">Extração de PDF por LLM + fila de revisão</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">1,5 d</td><td class="who">Thiago</td><td class="why">Mostra IA onde ela cabe; a revisão humana cobre o erro de extração e marca honestidade.</td></tr>
+      <tr><td class="item">Manifestação do destinatário</td><td><span class="tag citado">Citado</span></td><td><span class="tag p2">P2</span></td><td class="n">0,5 d</td><td class="who">·</td><td class="why">Fecha o ciclo fiscal da carga, mas não muda a história da demo.</td></tr>
+      <tr class="off"><td class="item">MDF-e, CIOT, NFCom</td><td><span class="tag citado">Citado</span></td><td class="n">·</td><td class="n">·</td><td class="who">·</td><td class="why">Aparecem no pitch como fluxo completo; construir não acrescenta à divergência.</td></tr>
+      <tr class="off"><td class="item">API de ERP, DF-e SEFAZ, WhatsApp</td><td><span class="tag fora">Fora</span></td><td class="n">·</td><td class="n">·</td><td class="who">·</td><td class="why">Pedem credencial, certificado A1 ou onboarding pesado por cliente.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">02</span><span class="sec-title">Motor</span><span class="sec-sub">o que transforma documento em alerta</span></div>
+  <table class="t">
+    <colgroup><col style="width:34mm"><col style="width:15mm"><col style="width:12mm"><col style="width:13mm"><col style="width:17mm"><col></colgroup>
+    <thead><tr><th>Item</th><th>Decisão</th><th>Prior.</th><th>Esforço</th><th>Dono</th><th>Justificativa</th></tr></thead>
+    <tbody>
+      <tr><td class="item">Modelo canônico Pedido/Evento</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">0,5 d</td><td class="who">Thiago</td><td class="why">É o contrato entre backend e twin; fechado cedo, as duas frentes andam em paralelo.</td></tr>
+      <tr><td class="item">Ledger versionado, hash encadeado</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">1 d</td><td class="who">Guilherme</td><td class="why">O registro único da tese; o hash dá trilha à prova de adulteração sem blockchain.</td></tr>
+      <tr><td class="item">Detecção de divergência</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">1,5 d</td><td class="who">Guilherme</td><td class="why">É o produto: duas fontes discordando sobre data, peso, volumes ou status.</td></tr>
+      <tr><td class="item">Grafo de propagação</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">1 d</td><td class="who">Guilherme</td><td class="why">Transforma divergência em alerta para CD, fiscal e financeiro; determinístico, como a Schulz recomendou.</td></tr>
+      <tr><td class="item">Simulação "e se?"</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">1 d</td><td class="who">Guilherme</td><td class="why">Reusa o grafo com entrada hipotética; é o que justifica chamar de digital twin.</td></tr>
+      <tr><td class="item">Impacto estimado em reais</td><td><span class="tag entra">Entra</span></td><td><span class="tag p2">P2</span></td><td class="n">0,5 d</td><td class="who">Gabriel</td><td class="why">Fala a língua do financeiro, mas só com rótulo de simulação (A7).</td></tr>
+      <tr class="off"><td class="item">Blockchain / anchoring</td><td><span class="tag fora">Fora</span></td><td class="n">·</td><td class="n">·</td><td class="who">·</td><td class="why">D-003: a SEFAZ já autentica os documentos; o caso TradeLens mostra o custo de exigir adesão.</td></tr>
+      <tr class="off"><td class="item">Roteirização</td><td><span class="tag fora">Fora</span></td><td class="n">·</td><td class="n">·</td><td class="who">·</td><td class="why">D-002: mercado saturado, pede OR-Tools e hardware (Schulz).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">03</span><span class="sec-title">Interface e twin</span><span class="sec-sub">o fator wow em cima do motor</span></div>
+  <table class="t">
+    <colgroup><col style="width:34mm"><col style="width:15mm"><col style="width:12mm"><col style="width:13mm"><col style="width:17mm"><col></colgroup>
+    <thead><tr><th>Item</th><th>Decisão</th><th>Prior.</th><th>Esforço</th><th>Dono</th><th>Justificativa</th></tr></thead>
+    <tbody>
+      <tr><td class="item">Painel de alertas por papel</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">1 d</td><td class="who">Thiago</td><td class="why">Sem ele o resultado do motor não aparece; funciona mesmo se o twin atrasar.</td></tr>
+      <tr><td class="item">Twin da cadeia (mapa de nós e cargas)</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">2 d</td><td class="who">Thiago</td><td class="why">O fator wow; o site já tem three.js, stickers isométricos e a identidade prontos.</td></tr>
+      <tr><td class="item">Dominó movido por evento</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">1 d</td><td class="who">Thiago</td><td class="why">Liga a peça central do site ao dado real; é a imagem que o juiz guarda.</td></tr>
+      <tr><td class="item">Linha do tempo do pedido</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">0,5 d</td><td class="who">Thiago</td><td class="why">Mostra as versões lado a lado, que é onde a divergência fica legível.</td></tr>
+      <tr><td class="item">Tela da fila de revisão</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">0,5 d</td><td class="who">Thiago</td><td class="why">Torna visível o limite da automação, o que conta a favor na banca.</td></tr>
+      <tr class="off"><td class="item">Twin de galpão (docas, sensores)</td><td><span class="tag fora">Fora</span></td><td class="n">·</td><td class="n">·</td><td class="who">·</td><td class="why">Depende de hardware; fica como visão de arco do dossiê.</td></tr>
+      <tr class="off"><td class="item">App mobile, marketplace</td><td><span class="tag fora">Fora</span></td><td class="n">·</td><td class="n">·</td><td class="who">·</td><td class="why">Outro produto; dilui o fluxo único.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">04</span><span class="sec-title">Dados, entrega e narrativa</span><span class="sec-sub">o que prova que é real</span></div>
+  <table class="t">
+    <colgroup><col style="width:34mm"><col style="width:15mm"><col style="width:12mm"><col style="width:13mm"><col style="width:17mm"><col></colgroup>
+    <thead><tr><th>Item</th><th>Decisão</th><th>Prior.</th><th>Esforço</th><th>Dono</th><th>Justificativa</th></tr></thead>
+    <tbody>
+      <tr><td class="item">Conjunto de XMLs sintéticos coerentes</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">1 d</td><td class="who">Gabriel</td><td class="why">Schema real com CNPJ fictício; quem é do setor confere chave, datas e pesos.</td></tr>
+      <tr><td class="item">Testes dos parsers e da divergência</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">contínuo</td><td class="who">Guilherme</td><td class="why">Demo ao vivo não pode quebrar; o repo é entregável auditável.</td></tr>
+      <tr><td class="item">Spec 0004 + entrada no DECISIONS.md</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">0,5 d</td><td class="who">Thiago</td><td class="why">Regra do repo; a mudança sobre digital twin precisa ficar registrada.</td></tr>
+      <tr><td class="item">Critérios oficiais de avaliação (P-005)</td><td><span class="tag entra">Entra</span></td><td><span class="tag p0">P0</span></td><td class="n">0,5 d</td><td class="who">Gabriel</td><td class="why">Sem os pesos da banca, a prioridade de tudo acima é palpite.</td></tr>
+      <tr><td class="item">Demo pública com URL</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">1 d</td><td class="who">Guilherme</td><td class="why">Deixa o juiz testar sozinho; diferencia de vídeo gravado.</td></tr>
+      <tr><td class="item">Capítulo novo no diário do site</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">0,5 d</td><td class="who">Thiago</td><td class="why">O diário é o diferencial declarado contra 200+ times.</td></tr>
+      <tr><td class="item">Pitch v11 com gravação da demo</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">1,5 d</td><td class="who">Thiago</td><td class="why">O v10 não mostra produto; a história continua a mesma.</td></tr>
+      <tr><td class="item">Call Enviagora + resposta TOTVS</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">·</td><td class="who">Gabriel</td><td class="why">Validam o wedge do embarcador; viram capítulo se acontecerem. Não bloqueiam o build.</td></tr>
+      <tr><td class="item">Comparação com a Emiteaí</td><td><span class="tag entra">Entra</span></td><td><span class="tag p1">P1</span></td><td class="n">0,5 d</td><td class="who">Gabriel</td><td class="why">A banca vai perguntar; hoje está como "investigar" (R-004).</td></tr>
+      <tr class="off"><td class="item">Piloto com empresa real</td><td><span class="tag fora">Fora</span></td><td class="n">·</td><td class="n">·</td><td class="who">·</td><td class="why">O time já decidiu não prometer implantação antes de 30/11.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">05</span><span class="sec-title">Leitura do conjunto</span><span class="sec-sub">como decidir na hora de cortar</span></div>
+  <div class="callout">
+    <div>
+      <span class="k">O que sustenta o quê</span>
+      <p><strong>P0 soma ~12 dias-pessoa e já rende uma demo honesta sozinho.</strong> Pipeline de documentos + ledger + divergência + painel simples: produto demonstrável no dia 30, mesmo sem twin.</p>
+      <p><strong>P1 soma ~11 dias-pessoa e é onde o wow mora.</strong> Se algo atrasar, corta nesta ordem: PDF por LLM, linha do tempo, pitch v11 (gravar só a demo e anexar ao v10).</p>
+      <p><strong>O item mais barato e mais decisivo é o P-005.</strong> Se a banca pesar negócio acima de técnica, a comparação com a Emiteaí e a call da Enviagora sobem para P0 e o twin encolhe.</p>
+    </div>
+  </div>
+</section>
+
+<div class="closing">
+  <div class="t"><b>Próximo passo:</b> esta mesa vira a spec 0004 (fluxo speckit) quando o time aceitar o recorte. O twin entra como <span class="mono">interface</span> da camada de coordenação, não como produto separado.</div>
+  <div class="stamp">The Foundry<br>HackBrasil 2026<br>20/11/2026</div>
+</div>
+
+</body>
+</html>

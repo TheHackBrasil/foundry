@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>The Foundry · Conexão e rede do MVP</title>
+<style>
+@font-face { font-family:'Space Grotesk'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/space-grotesk-300.woff2') format('woff2'); font-weight:300; }
+@font-face { font-family:'Space Grotesk'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/space-grotesk-400.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'Space Grotesk'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/space-grotesk-500.woff2') format('woff2'); font-weight:500; }
+@font-face { font-family:'Space Grotesk'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/space-grotesk-700.woff2') format('woff2'); font-weight:700; }
+@font-face { font-family:'JetBrains Mono'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/jetbrains-mono-400.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'JetBrains Mono'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/jetbrains-mono-500.woff2') format('woff2'); font-weight:500; }
+@font-face { font-family:'JetBrains Mono'; src:url('file:///home/thiago/hackbrasil/foundry/site/public/assets/fonts/jetbrains-mono-700.woff2') format('woff2'); font-weight:700; }
+
+:root {
+  --bg:#0a0c0e; --bg2:#0e1114; --panel:#121519;
+  --line:#23282e; --line-hi:#343b43;
+  --ink:#ece9e3; --ink-dim:#a3a9b0; --ink-faint:#858c94;
+  --ember:#ea5808; --ember-hi:#ff8a3d;
+}
+@page {
+  size: A4;
+  margin: 15mm 15mm 17mm 15mm;
+  background: #0a0c0e;
+  @bottom-left { content: "THE FOUNDRY · HACKBRASIL 2026 · LOGÍSTICA & AUTOMAÇÃO"; font-family:'JetBrains Mono',monospace; font-size:7.5px; letter-spacing:.14em; color:#5b626a; }
+  @bottom-right { content: counter(page); font-family:'JetBrains Mono',monospace; font-size:8px; color:#858c94; }
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { -webkit-print-color-adjust:exact; }
+body {
+  font-family:'Space Grotesk',sans-serif; font-weight:400; color:var(--ink);
+  background:
+    radial-gradient(70% 42% at 88% 4%, rgba(234,88,8,.13), transparent 60%),
+    radial-gradient(circle, rgba(236,233,227,.045) 1px, transparent 1.4px) 0 0/22px 22px,
+    linear-gradient(180deg,#0a0c0e 0%,#0b0d10 55%,#0d0b09 100%);
+  font-size:10.5pt; line-height:1.55;
+}
+.mono { font-family:'JetBrains Mono',monospace; }
+.tarja { font-family:'JetBrains Mono',monospace; font-size:8pt; letter-spacing:.16em; text-transform:uppercase; color:var(--ember); }
+.tarja.dim { color:var(--ink-faint); }
+
+/* ---- top bar ---- */
+.top { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line-hi); padding-bottom:4mm; margin-bottom:7mm; }
+.brand { display:flex; align-items:center; gap:3.2mm; }
+.brand svg { height:8.5mm; width:auto; }
+.brand .word { font-weight:700; font-size:15pt; letter-spacing:-.01em; }
+.top .meta { font-family:'JetBrains Mono',monospace; font-size:7.5pt; letter-spacing:.12em; color:var(--ink-dim); text-transform:uppercase; text-align:right; line-height:1.7; }
+.top .meta b { color:var(--ember-hi); font-weight:500; }
+
+/* ---- title ---- */
+h1 { font-size:30pt; font-weight:700; line-height:.98; letter-spacing:-.03em; text-transform:uppercase; max-width:150mm; }
+h1 em { font-style:normal; color:var(--ember); }
+.lede { margin-top:5mm; font-size:11.5pt; color:var(--ink-dim); max-width:140mm; line-height:1.6; }
+.lede strong { color:var(--ink); font-weight:500; }
+.status { display:flex; gap:0; margin-top:6mm; border:1px solid var(--line); border-radius:2px; overflow:hidden; }
+.status div { flex:1; padding:3mm 4mm; border-right:1px solid var(--line); background:rgba(18,21,25,.6); }
+.status div:last-child { border-right:none; }
+.status .k { font-family:'JetBrains Mono',monospace; font-size:7pt; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); display:block; margin-bottom:1mm; }
+.status .v { font-size:9.5pt; font-weight:500; }
+.status .v.hot { color:var(--ember-hi); }
+
+/* ---- sections ---- */
+section { margin-top:9mm; }
+.sec-head { display:flex; align-items:baseline; gap:4mm; border-bottom:1px solid var(--line-hi); padding-bottom:2.4mm; margin-bottom:4.5mm; }
+.sec-num { font-family:'JetBrains Mono',monospace; font-size:12pt; font-weight:700; color:var(--ember); }
+.sec-title { font-size:15pt; font-weight:700; letter-spacing:-.01em; text-transform:uppercase; }
+.sec-sub { margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:7.5pt; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase; }
+
+p.body { color:var(--ink-dim); max-width:155mm; }
+p.body + p.body { margin-top:2.6mm; }
+p.body strong { color:var(--ink); font-weight:500; }
+
+/* thesis strip */
+.thesis { display:flex; gap:4mm; margin-top:4mm; break-inside:avoid; }
+.thesis .cell { flex:1; background:var(--panel); border:1px solid var(--line); border-radius:3px; padding:4mm; position:relative; }
+.callout, .wedge, .flow, .chain, .closing { break-inside:avoid; }
+table.t tbody tr { break-inside:avoid; }
+.thesis .cell::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--ember); border-radius:2px 0 0 2px; }
+.thesis .n { font-family:'JetBrains Mono',monospace; font-size:8pt; color:var(--ember); }
+.thesis .t { font-weight:700; font-size:11pt; margin:1.6mm 0 1.2mm; }
+.thesis .d { font-size:9pt; color:var(--ink-dim); line-height:1.5; }
+
+/* pipeline */
+.flow { display:flex; align-items:stretch; gap:2mm; margin:4mm 0 2mm; }
+.fnode { flex:1; background:var(--panel); border:1px solid var(--line); border-radius:3px; padding:3mm 2.6mm; min-width:0; }
+.fnode .lbl { font-family:'JetBrains Mono',monospace; font-size:8pt; font-weight:700; letter-spacing:.08em; color:var(--ink); text-transform:uppercase; }
+.fnode .sub { font-size:7.6pt; color:var(--ink-faint); margin-top:1.4mm; line-height:1.4; }
+.fnode.hot { border-color:var(--ember-dim,#7a3410); }
+.fnode.hot .lbl { color:var(--ember-hi); }
+.farrow { align-self:center; font-family:'JetBrains Mono',monospace; color:var(--ember); font-size:11pt; flex:none; }
+
+/* tables */
+table.t { width:100%; border-collapse:collapse; margin-top:1mm; }
+table.t thead th { font-family:'JetBrains Mono',monospace; font-size:7.3pt; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); font-weight:500; text-align:left; padding:2mm 3mm; border-bottom:1px solid var(--line-hi); }
+table.t tbody td { font-size:9.3pt; color:var(--ink-dim); padding:2.8mm 3mm; border-bottom:1px solid var(--line); vertical-align:top; line-height:1.45; }
+table.t tbody tr:last-child td { border-bottom:none; }
+table.t td:first-child { color:var(--ink); font-weight:500; white-space:nowrap; }
+table.t td .mono, table.t .mono { font-size:8.3pt; }
+.tag { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:7.3pt; letter-spacing:.1em; text-transform:uppercase; padding:.8mm 2mm; border-radius:2px; border:1px solid var(--line-hi); color:var(--ink-dim); white-space:nowrap; }
+.tag.alto { color:var(--ember-hi); border-color:#7a3410; background:rgba(234,88,8,.08); }
+.tag.med { color:#d8b36a; border-color:#4a3d22; }
+.tag.fila { color:var(--ink-dim); border-style:dashed; }
+.tag.fora { color:var(--ink-faint); }
+
+/* chain */
+.chain { display:flex; align-items:stretch; gap:2mm; margin:3.5mm 0 1.5mm; }
+.cnode { flex:1; background:var(--panel); border:1px solid var(--line); border-radius:3px; padding:3mm 2.6mm; text-align:center; }
+.cnode .lbl { font-family:'JetBrains Mono',monospace; font-size:8pt; font-weight:700; letter-spacing:.06em; color:var(--ink); text-transform:uppercase; }
+.cnode .sub { font-size:7.6pt; color:var(--ink-faint); margin-top:1.2mm; line-height:1.4; }
+.cnode.dest { border-color:#4a3d22; }
+.cnode.dest .lbl { color:#d8b36a; }
+.cnote { font-size:8.6pt; color:var(--ink-faint); margin-top:1.5mm; }
+.cnote b { color:var(--ink-dim); font-weight:500; }
+
+/* callouts */
+.callout { display:flex; gap:4mm; background:var(--panel); border:1px solid var(--line); border-left:2.5px solid var(--ember); border-radius:0 3px 3px 0; padding:3.6mm 4.5mm; margin-top:3.5mm; }
+.callout .k { font-family:'JetBrains Mono',monospace; font-size:7.3pt; letter-spacing:.14em; text-transform:uppercase; color:var(--ember); display:block; margin-bottom:1.4mm; white-space:nowrap; }
+.callout p { font-size:9.3pt; color:var(--ink-dim); line-height:1.55; }
+.callout p strong { color:var(--ink); font-weight:500; }
+.cols { display:flex; gap:5mm; }
+.cols > div { flex:1; min-width:0; }
+
+/* steps */
+.steps { margin-top:3.5mm; }
+.step { display:flex; gap:4mm; padding:2.8mm 0; border-bottom:1px solid var(--line); align-items:baseline; }
+.step:last-child { border-bottom:none; }
+.step .n { font-family:'JetBrains Mono',monospace; font-size:10pt; font-weight:700; color:var(--ember); flex:none; width:8mm; }
+.step .d { font-size:9.8pt; color:var(--ink-dim); }
+.step .d b { color:var(--ink); font-weight:500; }
+.step .d .mono { font-size:8.6pt; color:var(--ink-faint); }
+
+/* wedge */
+.wedge { display:flex; gap:4mm; margin-top:3.5mm; }
+.wedge .main { flex:1.35; background:var(--panel); border:1px solid var(--line); border-radius:3px; padding:4.5mm 5mm; }
+.wedge .main .k { font-family:'JetBrains Mono',monospace; font-size:7.5pt; letter-spacing:.14em; text-transform:uppercase; color:var(--ember); }
+.wedge .main h3 { font-size:14pt; font-weight:700; letter-spacing:-.01em; text-transform:uppercase; margin:1.5mm 0 2mm; }
+.wedge .main p { font-size:9.6pt; color:var(--ink-dim); line-height:1.55; }
+.wedge .main p + p { margin-top:2mm; }
+.wedge .side { flex:1; display:flex; flex-direction:column; gap:3mm; }
+.wedge .risk { background:rgba(234,88,8,.06); border:1px solid #4a2410; border-radius:3px; padding:3.6mm 4mm; }
+.wedge .risk .k { font-family:'JetBrains Mono',monospace; font-size:7.3pt; letter-spacing:.14em; text-transform:uppercase; color:var(--ember-hi); }
+.wedge .risk p { font-size:8.8pt; color:var(--ink-dim); margin-top:1.2mm; line-height:1.5; }
+.wedge .risk p b { color:var(--ink); font-weight:500; }
+
+/* questions */
+.q { display:flex; gap:3.5mm; padding:2.6mm 0; border-bottom:1px solid var(--line); align-items:baseline; }
+.q:last-child { border-bottom:none; }
+.q .who { font-family:'JetBrains Mono',monospace; font-size:8pt; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ember-hi); width:22mm; flex:none; }
+.q .what { font-size:9.8pt; color:var(--ink-dim); }
+.q .what b { color:var(--ink); font-weight:500; }
+
+.closing { margin-top:8mm; border-top:1px solid var(--line-hi); padding-top:4mm; display:flex; justify-content:space-between; align-items:flex-end; gap:6mm; }
+.closing .t { font-size:10.5pt; color:var(--ink-dim); max-width:120mm; line-height:1.5; }
+.closing .t b { color:var(--ink); font-weight:500; }
+.closing .stamp { font-family:'JetBrains Mono',monospace; font-size:7.5pt; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); text-align:right; line-height:1.8; white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand">
+    <svg viewBox="64 42 384 428" fill="#EA5808" xmlns="http://www.w3.org/2000/svg"><path d="M144 58H432.9L369.6 121.3H161.5Q140.6 121.3 140.6 142.2V206.8H383.1L314.4 272.8H178.3Q123.1 272.8 123.1 326L122.4 433.8Q112 448 80 454V122Z"/><path d="M144 323.3H348.7V344.9C312 358 278.7 376 278.7 400C278.7 418 294 429 319.1 436.5V454H172.9V436.5C198 429 211.3 418 211.3 400C211.3 376 178 358 144 344.9Z"/></svg>
+    <span class="word">THE FOUNDRY</span>
+  </div>
+  <div class="meta">HackBrasil 2026<br><b>Logística &amp; Automação</b></div>
+</div>
+
+<div class="tarja" style="margin-bottom:2.5mm">Doc de trabalho · reunião do time · 20/11/2026 · hipótese em discussão, não decisão tomada</div>
+<h1>Conectar <em>sem</em> trocar de sistema</h1>
+<p class="lede">Como a camada da Foundry ingere o que cada parceiro já produz, quem entra na rede de uma carga e qual player faz a adoção começar. Desenho de conexão do MVP, para alinhar antes de virar spec.</p>
+
+<div class="status">
+  <div><span class="k">Entrega</span><span class="v hot">30/11/2026</span></div>
+  <div><span class="k">Escopo do MVP</span><span class="v">em definição (#7)</span></div>
+  <div><span class="k">Dependência real</span><span class="v">call Enviagora + TOTVS</span></div>
+</div>
+
+<section>
+  <div class="sec-head"><span class="sec-num">01</span><span class="sec-title">A tese em uma linha</span><span class="sec-sub">docs/escopo.md</span></div>
+  <p class="body">Uma <strong>camada de coordenação sobre os sistemas que já existem</strong>. Ela lê o que cada parceiro já produz (ERP, XML de NF-e, PDF, planilha, e-mail), mantém um registro único e versionado do pedido e <strong>avisa todos quando duas fontes divergem</strong> sobre o mesmo embarque. Adoção não pede mudança de rotina: o fornecedor continua mandando o mesmo e-mail, o galpão exporta a mesma planilha, a transportadora emite o mesmo CT-e.</p>
+  <div class="thesis">
+    <div class="cell"><span class="n">PASSO 01</span><div class="t">Lê o que já sai</div><div class="d">XML de NF-e, e-mail com anexo, planilha de ERP, PDF. Cada fonte entra por um adapter fino.</div></div>
+    <div class="cell"><span class="n">PASSO 02</span><div class="t">Registro único</div><div class="d">Um modelo canônico de Pedido/Evento, deduplicado pela chave de acesso da NF-e. Ninguém tem a versão "dele".</div></div>
+    <div class="cell"><span class="n">PASSO 03</span><div class="t">Avisa na divergência</div><div class="d">Duas fontes discordando num campo (data, peso, volumes) viram evento que se propaga para CD, fiscal e financeiro.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">02</span><span class="sec-title">Como conecta: a pipeline de ingestão</span><span class="sec-sub">tudo vira Pedido/Evento</span></div>
+  <div class="flow">
+    <div class="fnode"><div class="lbl">Fontes</div><div class="sub">ERP, XML, PDF, planilha, e-mail</div></div>
+    <span class="farrow">→</span>
+    <div class="fnode"><div class="lbl">Adapters</div><div class="sub">um parser por tipo de documento</div></div>
+    <span class="farrow">→</span>
+    <div class="fnode"><div class="lbl">Pedido</div><div class="sub">modelo canônico normalizado</div></div>
+    <span class="farrow">→</span>
+    <div class="fnode"><div class="lbl">Ledger</div><div class="sub">registro versionado por carga</div></div>
+    <span class="farrow">→</span>
+    <div class="fnode hot"><div class="lbl">Divergência</div><div class="sub">fontes discordam num campo</div></div>
+    <span class="farrow">→</span>
+    <div class="fnode hot"><div class="lbl">Alerta</div><div class="sub">CD · fiscal · financeiro</div></div>
+  </div>
+
+  <table class="t">
+    <thead><tr><th>Fonte</th><th>O que é</th><th>Canal de entrada</th><th>Viabilidade no MVP</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>XML de NF-e</td>
+        <td>Documento fiscal eletrônico, obrigatório em todo embarque. Layout fixo e público; a chave de acesso de 44 dígitos já codifica emitente, série e número: é a identidade do pedido.</td>
+        <td>Upload, anexo de e-mail. Em produção: distribuição de DF-e via webservice SEFAZ.</td>
+        <td><span class="tag alto">Real</span> <span class="mono" style="color:var(--ink-faint)">parser de verdade</span></td>
+      </tr>
+      <tr>
+        <td>E-mail</td>
+        <td>O canal real das operações: XML, PDF e planilha chegam como anexo hoje. Onboarding vira "continue mandando como sempre".</td>
+        <td>Caixa dedicada + poll IMAP; anexo roteado por tipo/MIME para o parser certo.</td>
+        <td><span class="tag alto">Real</span></td>
+      </tr>
+      <tr>
+        <td>Planilha ERP</td>
+        <td>Previsões de entrega, romaneios, pedidos em CSV/XLSX.</td>
+        <td>Upload ou anexo de e-mail. Um template de colunas por fonte.</td>
+        <td><span class="tag alto">Real</span></td>
+      </tr>
+      <tr>
+        <td>PDF</td>
+        <td>CT-e, borderô, comprovante de entrega. Sem estrutura confiável.</td>
+        <td>Extração por texto; confiança baixa cai em fila de revisão humana. Padrão de mercado, não gambiarra.</td>
+        <td><span class="tag fila">Fila de revisão</span></td>
+      </tr>
+      <tr>
+        <td>API / WhatsApp</td>
+        <td>TMS, WMS e ERP com API aberta; WhatsApp é onde a operação realmente conversa.</td>
+        <td>Roadmap. API oficial de WhatsApp tem onboarding pesado.</td>
+        <td><span class="tag fora">Fora do MVP</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">03</span><span class="sec-title">Quem conecta: a rede de uma carga</span><span class="sec-sub">a camada conecta documentos, não empresas</span></div>
+
+  <div class="chain">
+    <div class="cnode"><div class="lbl">Fornecedor</div><div class="sub">emite a NF-e</div></div>
+    <span class="farrow">→</span>
+    <div class="cnode"><div class="lbl">Transportadora</div><div class="sub">leva a carga</div></div>
+    <span class="farrow">→</span>
+    <div class="cnode"><div class="lbl">Galpão / CD</div><div class="sub">recebe e expede</div></div>
+    <span class="farrow">→</span>
+    <div class="cnode dest"><div class="lbl">Destinatário</div><div class="sub">quem recebe a carga</div></div>
+  </div>
+  <div class="cnote"><b>Fiscal e financeiro não são nós:</b> são leitores transversais do mesmo registro, em todas as empresas da cadeia.</div>
+
+  <table class="t">
+    <thead><tr><th>Player</th><th>O que produz / consome</th><th>Como entra</th><th>Fit</th></tr></thead>
+    <tbody>
+      <tr><td>Indústria / fornecedor</td><td>Emite o XML da NF-e; tem ERP e planilhas de pedido.</td><td>DF-e, e-mail com XML, API do ERP.</td><td><span class="tag alto">Alto</span></td></tr>
+      <tr><td>Embarcador</td><td>Recebe a NF, gerencia transportadoras, responde pelo prazo ao cliente final.</td><td>Já recebe os documentos de todos; puxa os demais.</td><td><span class="tag alto">Alto · âncora</span></td></tr>
+      <tr><td>Galpão / CD / 3PL</td><td>Eventos de WMS, romaneio, etiquetas, divergência de qtd/peso.</td><td>Export do WMS, planilha, e-mail.</td><td><span class="tag alto">Alto</span></td></tr>
+      <tr><td>Transportadora / frota</td><td>CT-e, borderô, ETA, comprovante de entrega.</td><td>E-mail/WhatsApp na prática; conecta passivamente.</td><td><span class="tag med">Médio</span></td></tr>
+      <tr><td>E-commerce</td><td>Pedido, promessa de entrega.</td><td>Alcançado via 3PL, não conectado direto.</td><td><span class="tag fila">Fraco</span></td></tr>
+      <tr><td>Marketplace</td><td>—</td><td>Não é nó: é o próprio sistema.</td><td><span class="tag fora">Fora</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <div>
+      <span class="k">Por que não é rede social de empresas</span>
+      <p><strong>Troca de cavalo e carreta no meio do trajeto é rotina</strong> (aprendizado de campo, FENATRAN). A versão divergente não é exceção: é a operação normal. A camada não precisa convencer a transportadora a "entrar"; ela lê o que a transportadora já emite. E-commerce de médio porte vive dentro de um 3PL (cases Enviagora: Guday, Dot Energy): o e-commerce é alcançado através do galpão.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">04</span><span class="sec-title">Quem entra primeiro</span><span class="sec-sub">o wedge do cold start</span></div>
+  <div class="wedge">
+    <div class="main">
+      <span class="k">Cliente-âncora proposto</span>
+      <h3>O embarcador</h3>
+      <p>A indústria ou distribuidor que contrata o transporte e <strong>responde pelo prazo ao cliente final</strong> é quem sente o dominó inteiro: fornecedor atrasa, transportadora remarca, CD perde janela de recebimento, fiscal erra documento, financeiro paga multa.</p>
+      <p>É também quem <strong>já recebe os documentos de todo mundo</strong> e tem alavancagem para puxar os demais ("me encaminha o XML como sempre"). Fornecedor, galpão e transportadora entram como <strong>fontes passivas de documento</strong>: a Foundry puxa o que eles já emitem, não exige adoção.</p>
+      <p>Dois candidatos alternativos a validar em campo: o <strong>3PL/CD</strong> (vive de SLA para o embarcador e pode ver a camada como torre de controle complementar) e o próprio <strong>fornecedor</strong> (começa pela NF-e, que já é o documento-âncora).</p>
+    </div>
+    <div class="side">
+      <div class="risk"><span class="k">Risco #1 do dossiê</span><p><b>Cold start multi-lado:</b> resolver fábrica + caminhão + galpão ao mesmo tempo dilui o foco. Um wedge só, hiper-estreito.</p></div>
+      <div class="risk"><span class="k">Restrição de adoção</span><p>Setor não-letrado digitalmente (TOTVS): solução que exige mudança de rotina morre na gaveta. Todo canal de entrada acima foi escolhido por não pedir mudança de hábito.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">05</span><span class="sec-title">O que o MVP prova em 10 dias</span><span class="sec-sub">slice honesto, sem promessa de implantação</span></div>
+  <div class="cols">
+    <div>
+      <div class="tarja dim" style="margin-bottom:2mm">Construir</div>
+      <div class="steps" style="margin-top:0">
+        <div class="step"><span class="n">·</span><div class="d"><b>Parser de XML de NF-e</b> <span class="mono">layout 4.00, chave de 44 dígitos</span></div></div>
+        <div class="step"><span class="n">·</span><div class="d"><b>Caixa de e-mail</b> <span class="mono">IMAP, anexo roteado por tipo</span></div></div>
+        <div class="step"><span class="n">·</span><div class="d"><b>Adapter de planilha</b> <span class="mono">CSV/XLSX, um template por fonte</span></div></div>
+        <div class="step"><span class="n">·</span><div class="d"><b>Fila de revisão</b> <span class="mono">PDF e extração de baixa confiança</span></div></div>
+        <div class="step"><span class="n">·</span><div class="d"><b>Ledger + divergência</b> <span class="mono">versionamento e propagação de alerta</span></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="tarja dim" style="margin-bottom:2mm">Roteiro da demo</div>
+      <div class="steps" style="margin-top:0">
+        <div class="step"><span class="n">01</span><div class="d">XML da NF chega <b>por e-mail</b>: pedido criado com transportadora e datas.</div></div>
+        <div class="step"><span class="n">02</span><div class="d">Planilha do CD traz a <b>previsão de entrega</b> (data Y).</div></div>
+        <div class="step"><span class="n">03</span><div class="d">Transportadora confirma por outro canal: <b>data X ≠ Y</b>.</div></div>
+        <div class="step"><span class="n">04</span><div class="d">Sistema marca a <b>divergência</b> e propaga: CD, fiscal e financeiro veem o alerta.</div></div>
+      </div>
+      <div class="callout" style="margin-top:3mm">
+        <div>
+          <span class="k">Dados e honestidade</span>
+          <p>XMLs sintéticos de NF-e (suíte pública do nfephp, CNPJs fictícios). Nada de dado real de empresa no repo. Simulação rotulada como simulação (A5/A7).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">06</span><span class="sec-title">O que a pesquisa precisa responder</span><span class="sec-sub">antes de fechar o escopo (#7)</span></div>
+  <div class="q"><span class="who">Enviagora</span><div class="what"><b>Call remarcada, sem data.</b> A dor é do embarcador ou do 3PL? A Enviagora é elo da cadeia ou controlador da rede?</div></div>
+  <div class="q"><span class="who">TOTVS</span><div class="what"><b>Pergunta pendente.</b> Na gestão multi-fornecedor, o que dói mais: atraso propagado, documento fiscal ou contrato/pagamento?</div></div>
+  <div class="q"><span class="who">CAP / GCCA</span><div class="what"><b>Visita a galpões.</b> O que o galpão emite de verdade hoje: WMS, planilha, papel?</div></div>
+  <div class="q"><span class="who">Emiteaí</span><div class="what"><b>Diferenciação.</b> O que cobrem além de emissão de documento de rota?</div></div>
+</section>
+
+<div class="closing">
+  <div class="t"><b>Próximo passo:</b> quando o escopo do MVP fechar, isto vira spec (<span class="mono">specs/0004</span>). O gargalo real não é técnico: é a resposta da Enviagora e da TOTVS.</div>
+  <div class="stamp">The Foundry<br>HackBrasil 2026<br>20/11/2026</div>
+</div>
+
+</body>
+</html>

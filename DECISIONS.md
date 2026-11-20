@@ -46,7 +46,8 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | P-002 | Pergunta ao contato TOTVS: na gestão multi-fornecedor, dói mais documento fiscal, atraso propagado ou contrato/pagamento? | Cada resposta vira um MVP diferente | aberto |
 | P-003 | Liz confirmada como 4ª integrante? | Atualiza site/docs/time | aberto |
 | P-004 | Renomear `foundry` → `the-foundry` se o Gabriel liberar o nome? | Nome mais limpo; não urgente | aberto |
-| P-005 | Regras oficiais do HackBrasil (formato de avaliação, tamanho de time, critérios) | `RULES.md` tem lacunas marcadas | aberto |
+| P-005 | Regras oficiais do HackBrasil | Regulamento oficial lido em 20/11 (R-005, `RULES.md`); restam formato da final (enviado aos finalistas) e nomes dos jurados (até 30/11) | resolvido |
+| P-006 | Aprovação do `docs/plano-mvp.pdf` pelo time como escopo do MVP | O plano consolida o v2 do time e a revisão pelo regulamento; as frentes já partem dele | aberto |
 
 ## Achados de pesquisa
 
@@ -56,6 +57,8 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | R-002 | Transcrição da call (16/11): decisão de direção já tomada aos ~41min; detalhes operacionais (etiquetas, kits, NF, cascata financeira) | Fonte primária: `docs/transcricao-call-2026-11-16.txt` | referência |
 | R-003 | Especialista em armazéns (Insper): roteirização já saturada de soluções; RFID/auto-empilhadeira caros demais p/ PME | Reforça D-002 | referência |
 | R-004 | Emiteaí: emissão de doc de rota ~5 min; também gestão financeira/operacional; sem blockchain | Concorrente/referência de comparação: diferenciação em aberto | investigar |
+| R-005 | Regulamento oficial ([hackbrasil.com/regulamento](https://hackbrasil.com/regulamento), atualizado em 18/11): quatro critérios de mesmo peso (execução técnica, implementação técnica, impacto, qualidade da comunicação); fase online julgada por repo, demo e vídeo de até 3 min do produto; top 5 por trilha com nota mínima 20/40 vai à final presencial de 12/12; congelamento de 30/11 a 12/12 | Detalhe item a item em `RULES.md`; o FAQ fala em "apresentação", o regulamento (que prevalece) diz "comunicação" | adotar |
+| R-006 | Regras fiscais do cenário de atraso: CC-e não corrige data de emissão ou de saída (Convênio SINIEF s/nº 1970, art. 7º, §1º-A); cancelamento de NF-e em regra até 24h e sem circulação da mercadoria (Ajuste SINIEF 07/05); evento de insucesso na entrega do CT-e (110190) | Fontes e consequência em `docs/plano-mvp.pdf`, seção 02; contador confirma antes de virar regra do motor | investigar |
 
 ---
 
@@ -98,3 +101,12 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 - Escopo: estrutura editorial, logo oficial, bigorna com MSAA, stickers
   isométricos e mapa ASCII; termômetro, palavras vazadas e HUD saem.
 - Deploy, release do pitch e capítulo pós-call seguem fora.
+
+### Sessão 5: escopo revisado pelo regulamento + frentes do MVP (20/11)
+
+- Regulamento oficial lido e conferido item a item (R-005, `RULES.md`).
+  Mudou prioridades: demo no ar e vídeo do produto viraram P0; o fator
+  wow ao vivo foi para a final de 12/12; o site deixou de disputar tempo.
+- `docs/plano-mvp.pdf` consolida o plano v2 do time e a revisão de escopo,
+  com errata (incluindo a CC-e, que não corrige data de saída) e a lista
+  de afirmações de subagentes que não entram sem fonte. Aprovação: P-006.
