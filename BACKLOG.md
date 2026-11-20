@@ -21,6 +21,7 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 
 | # | Item | Data |
 |---|---|---|
+| 10 | Frentes do MVP: worktrees `core`, `demo`, `produto`, dono por pasta, hook de pre-commit | 2026-11-20 → `specs/0004` |
 | · | Publicação dos docs de pesquisa | 2026-11-19 → `specs/0001` |
 | · | Pipeline SDD local (constitution, speckit, guard, DECISIONS, RULES) | 2026-11-19 |
 | 9 | `site/assets/` + `slides/` portados e commitados | 2026-11-19 |

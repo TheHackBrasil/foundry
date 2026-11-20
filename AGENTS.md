@@ -21,10 +21,14 @@ Conflito resolve-se a favor do primeiro da lista.
 - Fluxo SDD: `speckit/` (specify → clarify → checklist se risco → plan →
   tasks → analyze → implement → converge). Agnóstico: leia e execute.
 - Frentes paralelas: 1 worktree + branch `wt/<nome>` + brief por frente;
-  duas frentes nunca escrevem no mesmo arquivo. Protocolo completo em
-  `speckit/frentes.md`.
-- Decisão do dia entra em `DECISIONS.md` no mesmo commit (D/R/P);
-  bloco de trabalho vira `## Sessão N`.
+  duas frentes nunca escrevem no mesmo arquivo. Os paths de cada frente
+  estão em `speckit/frentes.json`, e o hook de pre-commit recusa commit
+  fora deles. Protocolo completo em `speckit/frentes.md`.
+- Na `main`, decisão do dia entra em `DECISIONS.md` no mesmo commit
+  (D/R/P); bloco de trabalho vira `## Sessão N`. Dentro de uma frente, a
+  decisão vai para a seção "Decisões da frente" do brief, e quem integra
+  copia para `DECISIONS.md` (só a integração escreve `DECISIONS.md` e
+  `BACKLOG.md`).
 - Prosa segue `STYLE.md` (antislop). Antes de escrever ou editar texto
   para humanos: invocar a skill `humanizer` (docs/prosa) ou
   `antislop-copywriting` (copy do site/pitch) quando disponíveis no
@@ -45,8 +49,10 @@ Mais, quando aplicável: critérios da spec item a item com evidência;
 os 4 itens de A6 (contraste, foco/teclado, reduced-motion, alt text)
 em mudança de UI. Cole a saída real no commit/PR.
 
-Hook git opcional (não instalado): `.git/hooks/pre-commit` →
-`node scripts/repo-guard.mjs` e `node scripts/prose-evals.mjs`.
+Hook versionado em `scripts/hooks/pre-commit`: roda
+`scripts/frente-check.mjs` (paths da frente; `main` só com
+`FOUNDRY_INTEGRA=1`), `repo-guard` e `prose-evals`. Ativar uma vez por
+clone: `git config core.hooksPath scripts/hooks`.
 
 ## Não faça
 

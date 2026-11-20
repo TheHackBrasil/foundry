@@ -1,0 +1,18 @@
+#!/bin/sh
+# Hook versionado (D-015, specs/0004). Ativar uma vez por clone:
+#   git config core.hooksPath scripts/hooks
+root=$(git rev-parse --show-toplevel) || exit 1
+
+node "$root/scripts/frente-check.mjs" || exit 1
+
+if ! out=$(node "$root/scripts/repo-guard.mjs" 2>&1); then
+  printf '%s\n' "$out"
+  echo "[pre-commit] repo-guard falhou"
+  exit 1
+fi
+
+if ! out=$(node "$root/scripts/prose-evals.mjs" 2>&1); then
+  printf '%s\n' "$out"
+  echo "[pre-commit] prose-evals falhou"
+  exit 1
+fi

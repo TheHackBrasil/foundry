@@ -37,6 +37,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-012 | 19/11 | Site em `site/` = Astro + TypeScript + ilha React (dominó) + GSAP/Lenis; vanilla descartado a pedido ("usa frameworks modernos"). Narrativa "A Forja" em 5 estações; dominó do atraso é a peça central; isométricos substituídos por cenas em código | decidido | Escolhas do usuário nas clarifications da spec 0002 |
 | D-013 | 19/11 | Redesign do site (spec 0003): estrutura editorial da referência em preto e laranja; logo oficial F+bigorna; bigorna 3D do path do logo com MSAA; stickers isométricos animados no lugar do diagrama esquemático; termômetro e temperaturas removidos | decidido | Usuário avaliou a 0002 como genérica; pediu acabamento e reaproveitar elementos da referência |
 | D-014 | 19/11 | Pitch oficial passa a ser o v10 (`pitch-v10-share.mp4`), publicado na release `pitch-v10`; substitui o v9 de D-007 | decidido | Pedido do time; o site lê a release pela API e mostra o vídeo |
+| D-015 | 20/11 | Execução do MVP em três frentes paralelas (`core`, `demo`, `produto`), cada uma com worktree, branch `wt/<nome>`, dono por pasta (`speckit/frentes.json`) e brief em `specs/0004`; hook de pre-commit versionado (guard, prose-evals, paths da frente, `main` protegida localmente); decisões de frente ficam no brief e só a integração escreve `DECISIONS.md` e `BACKLOG.md` | decidido | Desenvolvimento com agentes em paralelo sem conflito; o protocolo antigo se contradizia (frentes não dividem arquivo, mas todas escreviam em `DECISIONS.md`). Spec 0004 |
 
 ## Pendências
 
@@ -48,6 +49,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | P-004 | Renomear `foundry` → `the-foundry` se o Gabriel liberar o nome? | Nome mais limpo; não urgente | aberto |
 | P-005 | Regras oficiais do HackBrasil | Regulamento oficial lido em 20/11 (R-005, `RULES.md`); restam formato da final (enviado aos finalistas) e nomes dos jurados (até 30/11) | resolvido |
 | P-006 | Aprovação do `docs/plano-mvp.pdf` pelo time como escopo do MVP | O plano consolida o v2 do time e a revisão pelo regulamento; as frentes já partem dele | aberto |
+| P-007 | Quem integra as frentes na `main`, e se o GitHub passa a exigir PR para a `main` (D-005 hoje proíbe proteção de branch) | Com três pessoas e agentes em máquinas diferentes, o hook local não protege a `main` remota | aberto |
 
 ## Achados de pesquisa
 
@@ -110,3 +112,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 - `docs/plano-mvp.pdf` consolida o plano v2 do time e a revisão de escopo,
   com errata (incluindo a CC-e, que não corrige data de saída) e a lista
   de afirmações de subagentes que não entram sem fonte. Aprovação: P-006.
+- Frentes do MVP (D-015, `specs/0004`): worktrees antigos (`domino`, `fx`,
+  `site`) removidos, já mergeados; esqueleto `apps/core`, `apps/web`,
+  `packages/shared`, `corpus/`; worktrees `wt/core`, `wt/demo`,
+  `wt/produto`; hook de pre-commit versionado em `scripts/hooks/`.

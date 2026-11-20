@@ -1,0 +1,31 @@
+{
+  "_leia": "Paths que cada frente pode escrever (D-015, specs/0004). Lido por scripts/frente-check.mjs no pre-commit. Path terminado em / vale para a pasta inteira. Tudo que não está aqui é da integração, na main.",
+  "frentes": {
+    "core": {
+      "brief": "specs/0004-mvp-frentes/brief-core.md",
+      "paths": [
+        "apps/core/",
+        "packages/shared/",
+        "infra/",
+        "specs/0004-mvp-frentes/brief-core.md"
+      ]
+    },
+    "demo": {
+      "brief": "specs/0004-mvp-frentes/brief-demo.md",
+      "paths": [
+        "apps/web/",
+        "specs/0004-mvp-frentes/brief-demo.md"
+      ]
+    },
+    "produto": {
+      "brief": "specs/0004-mvp-frentes/brief-produto.md",
+      "paths": [
+        "corpus/",
+        "docs/",
+        "site/",
+        "README.md",
+        "specs/0004-mvp-frentes/brief-produto.md"
+      ]
+    }
+  }
+}
