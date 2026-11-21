@@ -77,6 +77,21 @@ critério; "feito" sem evidência não é feito.
 - **D-C11 (P)**: CORS aberto e rotas de escrita sem auth são escopo
   de demo local; endurecer (token ou bind localhost) fica para a
   integração se a demo for exposta.
+- **D-C12 (D)**: `.eml` entra como formato (RF28, D-021). `detectarTipo`
+  reconhece a extensão ou, fora de `.xml`, um `MIME-Version:` ou
+  `Content-Type: multipart/` no começo de linha nos primeiros 2 KB
+  (`app/server/ingest/detect.ts`). `extrairAnexos`
+  (`app/server/ingest/eml.ts`) devolve só anexos `.xml`, `.csv`, `.xlsx`
+  e `.pdf` (ou o content-type equivalente), no máximo 10 por e-mail e
+  5 MB cada, renomeados `anexo-N.<ext>` e com a NF-e antes do CT-e. E-mail
+  dentro de e-mail é rejeitado, sem recursão. Nenhum cabeçalho é lido,
+  devolvido nem repetido em erro (RF27); o erro do `mailparser` também
+  não é repassado, porque pode citar trecho da mensagem. Tipo de anexo
+  desconhecido derruba o e-mail antes de gravar qualquer um; um erro de
+  parser num anexo depois de outro já gravado deixa o anterior no
+  ledger, e reenviar é seguro porque a reingestão é no-op (D-C4). Em
+  `app/server/pipeline.ts` (frente app-infra) entrou só o `case 'eml'`
+  de `ingerir`, que passa cada anexo pelo mesmo caminho do upload solto.
 
 ## Evidência por critério do gate
 
