@@ -1,6 +1,5 @@
-// Store append-only (spec 0004, T011/T022/T024): a tabela `events` e o
-// ledger; trigger do banco rejeita UPDATE/DELETE, e GET /audit reconta a
-// cadeia para pegar o que a trigger nao pegou (bypass via DISABLE).
+// Store append-only (spec 0004): `events` e o ledger; triggers rejeitam
+// UPDATE/DELETE/TRUNCATE e /audit reconta a cadeia.
 
 import { GENESIS_HASH, hashEvento, verificarCadeia, type VerificacaoCadeia } from '../shared/chain.js';
 import type { Evento } from '../shared/model.js';
@@ -94,8 +93,7 @@ export class LedgerStore {
     novos: Array<{ tipo: Evento['tipo']; payload: Record<string, unknown>; ts?: string | undefined }>,
   ): Promise<Evento[]> {
     return this.db.transaction(async (tx) => {
-      // Lock por pedido: dois appends do mesmo pedido nao disputam seq.
-      // FOR UPDATE nao bastaria: tx concorrente nao enxerga a linha nova.
+      // Lock por pedido: FOR UPDATE nao enxerga linha nova de tx concorrente.
       await tx.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [pedidoId]);
       const tail = await tx.query<{ seq: number; hash: string }>(
         `SELECT seq, hash FROM events WHERE pedido_id = $1 ORDER BY seq DESC LIMIT 1`,
@@ -139,8 +137,7 @@ export class LedgerStore {
     return rows.map(paraEvento);
   }
 
-  // Idempotencia: mesmo doc reingerido nao duplica evento (mesmo
-  // pedidoId + tipo + payload ja gravado; = em jsonb ignora ordem).
+  // Idempotencia: = em jsonb ignora ordem de chaves do payload.
   async eventoExiste(pedidoId: string, tipo: Evento['tipo'], payload: Record<string, unknown>): Promise<boolean> {
     const rows = await this.db.query(
       `SELECT 1 AS n FROM events WHERE pedido_id = $1 AND tipo = $2 AND payload = $3::jsonb LIMIT 1`,

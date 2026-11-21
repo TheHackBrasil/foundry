@@ -1,6 +1,5 @@
-// Cliente de ancoragem (spec 0004, T025): Merkle root -> FoundryAnchor
-// na Base Sepolia via ethers v6. Sem RPC/chave/rede: devolve motivo
-// declarado e o ledger local segue normal (RF15 edge case).
+// Ancoragem (spec 0004): Merkle root -> FoundryAnchor na Base Sepolia.
+// Sem RPC/chave ou tx revertida: devolve motivo e o ledger segue (RF15).
 
 import { Contract, JsonRpcProvider, Wallet, isHexString } from 'ethers';
 import ABI from '../contracts/abi/FoundryAnchor.abi.json' with { type: 'json' };
@@ -59,8 +58,7 @@ export async function ancorar(
       hash: string;
       wait(): Promise<{ status: number | null } | null>;
     }>)(`0x${root}`);
-    // wait() null = tx descartada/substituida; status 0 = revertida.
-    // Em ambos nao ha ancoragem real e o evento 'ancora' nao e gravado.
+    // wait() null ou status 0: sem ancoragem real, nada e gravado.
     const recibo = await tx.wait();
     if (!recibo || recibo.status !== 1) {
       return { ok: false, motivo: 'tx revertida ou substituida na rede', root };

@@ -1,6 +1,6 @@
-// Parser de eventos fiscais NF-e (spec 0004, T023): CC-e (110110) e
-// cancelamento (110111) -> DocData. A correcao de data vira campo
-// previsaoEntrega; o cancelamento vira status 'cancelada'.
+// Eventos fiscais NF-e (spec 0004, T023): CC-e (110110) e cancelamento
+// (110111). Correcao de data vira previsaoEntrega; cancelamento vira
+// status 'cancelada'.
 
 import { XMLParser } from 'fast-xml-parser';
 import type { CamposObservados, DocData } from '../../shared/model.js';
@@ -52,7 +52,7 @@ export function parseEventoNFe(xml: string): DocData {
   const dhEvento = texto(inf['dhEvento']);
 
   if (tp === '110110') {
-    // CC-e: se o texto traz data nova, vira previsaoEntrega (atraso).
+    // CC-e com data nova vira previsaoEntrega (atraso).
     const novaData = dataNoTexto(correcao);
     const campos: CamposObservados = {};
     if (novaData) campos.previsaoEntrega = novaData;

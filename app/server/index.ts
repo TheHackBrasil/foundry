@@ -1,5 +1,4 @@
-// Fastify API (spec 0004, T010/T020/T024/T025/T032): ingest, pedidos,
-// versoes, audit, stream SSE, simulate, anchor e fila de revisao.
+// API Fastify (spec 0004): ingest, pedidos, audit, SSE, simulate, anchor, revisao.
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
@@ -9,7 +8,7 @@ import { propagarTodas } from '../shared/rules.js';
 import type { CamposObservados, Divergencia } from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
 import { ancorar } from './anchor.js';
-import { createDb } from './db.js';
+import { createDb, type Db } from './db.js';
 import { imapConfigDoEnv, iniciarPolling } from './ingest/imap.js';
 import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
 import { CanalSSE } from './sse.js';
@@ -17,12 +16,12 @@ import { LedgerStore } from './store.js';
 
 const PORTA = Number(process.env['PORT'] ?? 3000);
 
-export async function buildServer() {
+export async function buildServer(dbInjetado?: Db) {
   const app = Fastify({ logger: true });
   await app.register(cors, { origin: true });
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
-  const db = await createDb();
+  const db = dbInjetado ?? (await createDb());
   const store = new LedgerStore(db);
   await store.init();
   const canal = new CanalSSE();
@@ -74,18 +73,27 @@ export async function buildServer() {
     return { versoes: projetar(eventos).versoes };
   });
 
-  // Audit: recomputa a cadeia inteira e, havendo ancora gravada,
-  // confere o Merkle root atual contra o que foi para a rede — pega
-  // adulteracao pos-ancoragem e truncamento de cauda que a cadeia
-  // sozinha nao ve (RF15).
+  // rootConfere: Merkle root sobre os eventos que a ancora cobriu
+  // (seq < seq do evento 'ancora'). Eventos novos nao o invalidam (RF15).
   app.get<{ Params: { id: string } }>('/api/pedidos/:id/audit', async (req, reply) => {
     const eventos = await store.eventosDoPedido(req.params.id);
     if (eventos.length === 0) return reply.code(404).send({ erro: 'pedido nao encontrado' });
     const verificacao = await store.auditar(req.params.id);
     const ancora = await store.ultimoAncora(req.params.id);
     const rootAtual = raizMerkle(eventos.map((e) => e.hash));
-    const rootConfere = ancora ? rootAtual === ancora['root'] : null;
-    return { ...verificacao, ancora, rootAtual, rootConfere };
+    const seqAncora = [...eventos].reverse().find((e) => e.tipo === 'ancora')?.seq;
+    const rootHistorico = seqAncora === undefined
+      ? null
+      : raizMerkle(eventos.filter((e) => e.seq !== undefined && e.seq < seqAncora).map((e) => e.hash));
+    const rootConfere = ancora && rootHistorico !== null ? rootHistorico === ancora['root'] : null;
+    return {
+      ...verificacao,
+      ancora,
+      rootAtual,
+      rootHistorico,
+      rootConfere,
+      eventosAncorados: seqAncora === undefined ? null : seqAncora - 1,
+    };
   });
 
   // SSE: fluxo ao vivo; reconexao reidrata via GET /api/pedidos/:id.
@@ -94,8 +102,7 @@ export async function buildServer() {
     return reply;
   });
 
-  // "E se?" deterministico: hipotese de campos -> divergencias -> tarefas,
-  // sem gravar nada (RF12, T032).
+  // "E se?" deterministico: nada e gravado (RF12).
   app.post<{ Body: { pedidoId?: string; campos?: CamposObservados } }>(
     '/api/simulate',
     async (req, reply) => {
@@ -166,7 +173,7 @@ export async function buildServer() {
   return { app, store, canal };
 }
 
-// IMAP opcional: liga o polling quando configurado.
+// IMAP: polling so liga quando IMAP_HOST esta configurado.
 async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
   const cfg = imapConfigDoEnv();
   if (!cfg) return;
@@ -185,6 +192,7 @@ async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
 
 // Boot standalone (tsx server/index.ts).
 if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
+  await import('dotenv/config'); // carrega .env so no boot, nao nos testes
   const { app, store, canal } = await buildServer();
   await ligarImap(canal, store);
   try {

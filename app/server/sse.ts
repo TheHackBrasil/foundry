@@ -1,5 +1,4 @@
-// Hub SSE (spec 0004, RF13/T020): clientes registrados recebem cada
-// evento appendado. Reconexao reidrata via GET /api/pedidos (RF13).
+// Hub SSE (spec 0004, RF13): clientes recebem cada evento appendado.
 
 import type { FastifyReply } from 'fastify';
 import type { Evento } from '../shared/model.js';

@@ -1,5 +1,5 @@
-// Parser CT-e (spec 0004, T023): XML v4.00 -> DocData.
-// Vincula frete/transportadora ao pedido pela chave NF-e em infNFe.
+// Parser CT-e (spec 0004, T023): XML v4.00 -> DocData; vincula ao
+// pedido pela chave NF-e em infNFe.
 
 import { XMLParser } from 'fast-xml-parser';
 import type { CamposObservados, DocData } from '../../shared/model.js';
@@ -52,8 +52,7 @@ export function parseCTe(xml: string): DocData {
   const carga = (norm['infCarga'] ?? {}) as Record<string, unknown>;
   const infDoc = (norm['infDoc'] ?? {}) as Record<string, unknown>;
 
-  // Pedido = NF-e referenciada; se o CT-e nao referencia NF-e, usa a
-  // propria chave e o store decide (vai para revisao se pedido ausente).
+  // Sem NF-e referenciada usa a propria chave (cai na revisao).
   const nfes = lista(infDoc['infNFe']);
   const chaveNfe = nfes
     .map((n) => texto((n as Record<string, unknown>)['chave']))

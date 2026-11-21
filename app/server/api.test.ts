@@ -6,8 +6,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { GENESIS_HASH } from '../shared/chain.js';
+import { GENESIS_HASH, hashEvento } from '../shared/chain.js';
+import { raizMerkle } from '../shared/merkle.js';
 import { buildServer } from './index.js';
+import { createLiteDb } from './db.js';
 import { parseNFe } from './ingest/nfe.js';
 import { parseCTe } from './ingest/cte.js';
 import { parseEventoNFe } from './ingest/eventos.js';
@@ -68,7 +70,7 @@ describe('ledger + api (PGlite)', () => {
   let store: LedgerStore;
 
   beforeAll(async () => {
-    const r = await buildServer();
+    const r = await buildServer(await createLiteDb());
     app = r.app;
     store = r.store;
     await app.ready();
@@ -183,6 +185,59 @@ describe('ledger + api (PGlite)', () => {
   it('audit de cadeia integra retorna valida', async () => {
     const res = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/audit` });
     expect((res.json() as { valida: boolean }).valida).toBe(true);
+  });
+
+  it('eventos novos pos-ancoragem nao invalidam rootConfere', async () => {
+    const pedido = 'pedido-ancora-cresce';
+    await store.append(pedido, 'nfe', { fonte: 'nfe' });
+    await store.append(pedido, 'cte', { fonte: 'cte' });
+    const pre = await store.eventosDoPedido(pedido);
+    await store.append(pedido, 'ancora', { root: raizMerkle(pre.map((e) => e.hash)) });
+    await store.append(pedido, 'planilha', { fonte: 'planilha' });
+    const res = await app.inject({ method: 'GET', url: `/api/pedidos/${pedido}/audit` });
+    const audit = res.json() as {
+      rootConfere: boolean | null;
+      eventosAncorados: number | null;
+      rootHistorico: string | null;
+      ancora: { root: string } | null;
+    };
+    expect(audit.rootConfere).toBe(true);
+    expect(audit.eventosAncorados).toBe(2);
+    expect(audit.rootHistorico).toBe(audit.ancora?.root);
+  });
+
+  it('rescrever cadeia inteira engana o hash mas nao a ancora', async () => {
+    // O ataque que a ancora existe pra pegar: dono do banco adultera o
+    // payload E recomputa hash/prev_hash, deixando a cadeia autoconsis-
+    // tente (valida=true). rootHistorico diverge do root ancorado.
+    const pedido = 'pedido-ancora-tamper';
+    await store.append(pedido, 'nfe', { fonte: 'nfe' });
+    const pre = await store.eventosDoPedido(pedido);
+    await store.append(pedido, 'ancora', { root: raizMerkle(pre.map((e) => e.hash)) });
+    const evs = await store.eventosDoPedido(pedido);
+    const h1 = hashEvento(
+      { pedidoId: pedido, tipo: 'nfe', payload: { adulterado: true }, ts: evs[0]!.ts },
+      evs[0]!.prevHash,
+    );
+    const h2 = hashEvento(
+      { pedidoId: pedido, tipo: 'ancora', payload: evs[1]!.payload, ts: evs[1]!.ts },
+      h1,
+    );
+    const db = (store as unknown as { db: { query: (s: string) => Promise<unknown> } }).db;
+    await db.query('ALTER TABLE events DISABLE TRIGGER ALL');
+    await db.query(
+      `UPDATE events SET payload='{"adulterado":true}', hash='${h1}' WHERE pedido_id='${pedido}' AND seq=1`,
+    );
+    await db.query(
+      `UPDATE events SET prev_hash='${h1}', hash='${h2}' WHERE pedido_id='${pedido}' AND seq=2`,
+    );
+    await db.query('ALTER TABLE events ENABLE TRIGGER ALL');
+    const audit = (await app.inject({ method: 'GET', url: `/api/pedidos/${pedido}/audit` })).json() as {
+      valida: boolean;
+      rootConfere: boolean | null;
+    };
+    expect(audit.valida).toBe(true);
+    expect(audit.rootConfere).toBe(false);
   });
 
   it('POST /api/simulate devolve tarefas sem gravar', async () => {

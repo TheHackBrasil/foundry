@@ -1,6 +1,5 @@
-// Deteccao de tipo de documento (spec 0004, T012/T023/T031/T035):
-// XML pelo conteudo, CSV/XLSX/PDF pela extensao. Tipo desconhecido vira
-// erro explicito 422 na rota, nunca 500.
+// Deteccao de tipo (spec 0004): XML pelo conteudo, CSV/XLSX/PDF pela
+// extensao. Desconhecido vira 422, nunca 500.
 
 import { ErroParser } from './nfe.js';
 

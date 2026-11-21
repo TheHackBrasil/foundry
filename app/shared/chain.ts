@@ -1,14 +1,13 @@
-// Cadeia de hashes do ledger (spec 0004, RF9). Puro e testado.
-// Cada pedido tem uma cadeia propria ordenada por seq; o hash cobre o
-// conteudo do evento mais o hash do anterior (prev_hash).
+// Cadeia de hashes do ledger (spec 0004, RF9). Uma cadeia por pedido;
+// o hash cobre o conteudo do evento mais o hash do anterior.
 
 import { createHash } from 'node:crypto';
 import type { Evento } from './model.js';
 
 export const GENESIS_HASH = '0'.repeat(64);
 
-// Serializacao canonica: chaves ordenadas em qualquer profundidade.
-// Sem ela, reordenar chaves do payload mudaria o hash.
+// Chaves ordenadas em qualquer profundidade: sem isso, reordenar
+// mudaria o hash.
 export function canonico(valor: unknown): string {
   if (valor === null || typeof valor !== 'object') return JSON.stringify(valor);
   if (Array.isArray(valor)) return `[${valor.map(canonico).join(',')}]`;
@@ -45,9 +44,7 @@ export interface VerificacaoCadeia {
   hashEncontrado: string | null;
 }
 
-// Verifica elo a elo. Cadeia vazia e valida. Rejeita adulteracao de
-// conteudo (payload/ts/tipo), de sequencia (seq fora de ordem) e de elo
-// (prevHash quebrado).
+// Verifica elo a elo: rejeita adulteracao de conteudo, sequencia e elo.
 export function verificarCadeia(eventos: Evento[]): VerificacaoCadeia {
   let prev = GENESIS_HASH;
   for (let i = 0; i < eventos.length; i++) {

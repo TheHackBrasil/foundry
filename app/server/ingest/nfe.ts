@@ -1,6 +1,5 @@
-// Parser NF-e (spec 0004, T012): XML v4.00 -> DocData.
-// Sem dependencia de schema XSD: extrai o que o MVP vigia. XML invalido
-// ou fora de forma vira erro explicito de parser (RF7 edge case).
+// Parser NF-e (spec 0004, T012): XML v4.00 -> DocData. XML invalido
+// vira erro de parser explicito (RF7).
 
 import { XMLParser } from 'fast-xml-parser';
 import type { CamposObservados, DocData, ItemPedido } from '../../shared/model.js';

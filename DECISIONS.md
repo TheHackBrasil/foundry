@@ -176,3 +176,26 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   commit) e na `origin/wt/app-core` (primeira versão completa do código).
   Integrado sem force (D-022): `tsc` limpo e 38 testes passando. As
   pendências reais estão em P-010 e no cabeçalho do `tasks.md`.
+| D-023 | 21/11 | `GET /audit` compara o root ancorado contra os eventos que a âncora cobriu (`seq < seq` do evento `ancora`): expõe `rootAtual`, `rootHistorico`, `rootConfere` e `eventosAncorados` (`app/server/index.ts`) | decidido | O teste real na Base Sepolia expôs o bug: comparar contra todos os eventos flaggeava o próprio evento `ancora` e `rootConfere` ficava falso para sempre; teste do ataque de reescrita da cadeia cobre o cenário |
+| D-024 | 21/11 | Runtime exige `DATABASE_URL` (Postgres real via Docker): sem ela, `createDb` falha com erro acionável; PGlite sai do runtime e vira só infra de teste via `createLiteDb` injetada no `buildServer`; `dotenv` carrega `.env` só no boot e no seed | decidido | Pedido do usuário: um banco só no produto; PGlite em memória segue nos testes por isolar a suite sem Docker |
+
+### Sessão 8: âncora real na Base Sepolia, Postgres real e integração app-core (21/11)
+
+- Ambiente de testnet montado do zero: carteira descartável
+  `0x2151fD2DD17c8dB3914F888a322EE70F9606d64b` (chave só no `.env`
+  local), ETH de teste via faucet CDP (Alchemy/QuickNode exigiam saldo
+  na mainnet; pk910 paga só Ethereum Sepolia). Contrato `FoundryAnchor`
+  deployado em `0x5CA2F67E27257D2f67E703fe7bF81865d481FF03`.
+- Âncora real confirmada: tx
+  `0xd5691de312cb1d486304df92dee78043cef0f1eb236f957e0bb075717f683f84`
+  sobre 73 eventos do seed. O primeiro uso real da rede expôs e motivou
+  o fix de D-023.
+- Docker Desktop + WSL2 instalados; `app/docker-compose.yml` sobe
+  `postgres:17-alpine`. Validado ao vivo: 74 eventos persistidos,
+  UPDATE/DELETE/TRUNCATE rejeitados pelas triggers no psql do
+  container, dados intactos após restart do server e `rootConfere: true`.
+- Runtime passa a exigir `DATABASE_URL` (D-024); `npm start` funciona
+  com o `.env` local via `dotenv`. Suíte: 40 testes, guard e
+  prose-evals verdes na `wt/app-core` antes do merge.
+- Item de P-006 encaminhado: âncora na Base Sepolia antes de 30/11 está
+  feita e tem recibo público em `sepolia.basescan.org`.
