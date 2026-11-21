@@ -1,0 +1,23 @@
+# Postgres 17 para o ledger append-only (spec 0004).
+# Uso: docker compose up -d  ->  DATABASE_URL=postgres://foundry:foundry@localhost:5432/foundry
+# Sem DATABASE_URL o server cai para PGlite em memoria (dev/test sem Docker).
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: foundry-postgres
+    environment:
+      POSTGRES_USER: foundry
+      POSTGRES_PASSWORD: foundry
+      POSTGRES_DB: foundry
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foundry -d foundry"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
