@@ -17,6 +17,20 @@ import type { LedgerStore } from './store.js';
 const FIX = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const ler = (f: string): string => readFileSync(join(FIX, f), 'utf8');
 const CHAVE = '35260123456789000123550010000000011000000019';
+const TEXTO_CCE = 'Correcao da razao social da transportadora: onde consta Transportadora Ficticia, leia-se Transportadora Ficticia Ltda';
+// Texto que o parser antigo transformava em atraso: tem data e a palavra "atraso".
+const TEXTO_CCE_COM_DATA = 'Nova previsao de entrega: 25/01/2026 em razao de atraso na expedicao';
+
+// A CC-e do corpus tem texto sem data; este helper troca o texto da correcao.
+const cceComTexto = (texto: string): string =>
+  ler('cce-correcao.xml').replace(/<xCorrecao>.*<\/xCorrecao>/, `<xCorrecao>${texto}</xCorrecao>`);
+
+interface Projecao {
+  pedido: { campos: Record<string, unknown> };
+  versoes: Array<{ fonte: string }>;
+  divergencias: Array<{ campo: string; fonteA: string; fonteB: string; valorA: unknown; valorB: unknown }>;
+  tarefas: Array<{ parte: string; titulo: string; detalhe: string; divergencia: { campo: string } }>;
+}
 
 describe('parsers', () => {
   it('NF-e -> chave 44, emitente, destinatario, itens, peso, data', () => {
@@ -36,12 +50,25 @@ describe('parsers', () => {
     expect(d.campos.volumes).toBe(12);
   });
 
-  it('CC-e vira evento de atraso com nova data', () => {
-    const d = parseEventoNFe(ler('cce-atraso.xml'));
+  it('CC-e vira evento informativo: texto da correcao no payload, nenhum campo', () => {
+    const d = parseEventoNFe(ler('cce-correcao.xml'));
+    expect(d.fonte).toBe('cce');
     expect(d.docTipo).toBe('cce');
     expect(d.pedidoId).toBe(CHAVE);
-    expect(d.campos.previsaoEntrega).toBe('2026-01-25');
-    expect(d.campos.status).toBe('atrasada');
+    expect(d.campos).toEqual({});
+    expect(d.dados['correcao']).toBe(TEXTO_CCE);
+  });
+
+  it.each([
+    ['data DD/MM/AAAA e palavra atraso', TEXTO_CCE_COM_DATA],
+    ['data ISO', 'Previsao de entrega corrigida para 2026-01-25'],
+    ['adiamento', 'Entrega adiada por reagendamento da doca'],
+    ['postergacao', 'Coleta postergada a pedido do cliente'],
+  ])('CC-e com texto de %s nao produz previsaoEntrega nem status', (_nome, texto) => {
+    const d = parseEventoNFe(cceComTexto(texto));
+    expect(d.campos).toEqual({});
+    expect(d.dados['correcao']).toBe(texto);
+    expect(d.dados).not.toHaveProperty('novaData');
   });
 
   it('cancelamento vira status cancelada', () => {
@@ -107,19 +134,64 @@ describe('ledger + api (PGlite)', () => {
     expect(new Set(proj.tarefas.map((t) => t.parte))).toContain('transportadora');
   });
 
-  it('CC-e propaga tarefa para as 5 partes no atraso', async () => {
-    await app.inject({
+  it('CC-e entra no ledger como evento informativo, sem divergencia nem tarefa', async () => {
+    const antes = await store.eventosDoPedido(CHAVE);
+    const res = await app.inject({
       method: 'POST',
       url: '/api/ingest',
-      payload: { nome: 'cce-atraso.xml', conteudo: ler('cce-atraso.xml') },
+      payload: { nome: 'cce-correcao.xml', conteudo: ler('cce-correcao.xml') },
     });
-    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as {
-      tarefas: Array<{ parte: string; divergencia: { campo: string } }>;
-      versoes: unknown[];
-    };
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { eventos: number }).eventos).toBe(1); // so o doc
+
+    const depois = await store.eventosDoPedido(CHAVE);
+    expect(depois).toHaveLength(antes.length + 1);
+    const ev = depois.at(-1)!;
+    expect(ev.tipo).toBe('cce');
+    expect(ev.payload['campos']).toEqual({});
+    expect((ev.payload['dados'] as { correcao: string }).correcao).toBe(TEXTO_CCE);
+
+    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
+    expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cte', 'cce']);
+    expect(proj.divergencias.filter((d) => d.campo === 'previsaoEntrega')).toEqual([]);
+    expect(proj.tarefas.filter((t) => t.divergencia.campo === 'previsaoEntrega')).toEqual([]);
+    expect(proj.pedido.campos['previsaoEntrega']).toBe('2026-01-20'); // a da NF-e, intacta
+    expect(proj.pedido.campos['status']).toBe('em_transito'); // nao virou atrasada
+  });
+
+  it('planilha com data nova gera a divergencia de data e as 5 tarefas, uma por parte', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'planilha.csv', conteudo: ler('planilha.csv') },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
+    // A planilha tambem diverge em peso, volumes e status: filtra pelo campo de data.
+    expect(proj.divergencias.filter((d) => d.campo === 'previsaoEntrega')).toEqual([
+      { campo: 'previsaoEntrega', fonteA: 'nfe', fonteB: 'planilha', valorA: '2026-01-20', valorB: '2026-01-25' },
+    ]);
     const deData = proj.tarefas.filter((t) => t.divergencia.campo === 'previsaoEntrega');
-    expect(new Set(deData.map((t) => t.parte)).size).toBe(5);
-    expect(proj.versoes.length).toBe(3); // nfe, cte, cce
+    expect(deData.map((t) => t.parte)).toEqual(['transportadora', 'cd', 'fiscal', 'financeiro', 'fornecedor']);
+    expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cte', 'cce', 'planilha']);
+
+    const fiscal = deData.find((t) => t.parte === 'fiscal')!;
+    expect(fiscal.titulo).toBe('Conferir se o atraso exige ação fiscal');
+    expect(fiscal.detalhe).toBe(
+      'A previsão passou de 20/01/2026 para 25/01/2026. O cancelamento da NF-e só cabe em até 24 h e sem circulação da mercadoria, e a CC-e não corrige data de saída.',
+    );
+  });
+
+  it('detalhes das tarefas saem com data brasileira, status legivel e acentos', async () => {
+    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
+    const detalhes = proj.tarefas.map((t) => t.detalhe);
+    expect(detalhes).toContain('Previsão divergente: NF-e diz 20/01/2026, planilha diz 25/01/2026.');
+    expect(detalhes).toContain('Status divergente: NF-e diz Emitida, CT-e diz Em trânsito.');
+    expect(detalhes).toContain('Status divergente: CT-e diz Em trânsito, planilha diz Atrasada.');
+    for (const t of proj.tarefas) {
+      expect(t.detalhe).not.toMatch(/\d{4}-\d{2}-\d{2}|\w_\w|\b(nfe|cte|cce)\b/);
+    }
   });
 
   it('reingestao identica e no-op (idempotente)', async () => {
@@ -221,5 +293,43 @@ describe('ledger + api (PGlite)', () => {
   it('GET /api/versoes devolve linha do tempo', async () => {
     const res = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/versoes` });
     expect((res.json() as { versoes: unknown[] }).versoes.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('CC-e com texto de data nao vira atraso (R-006, D-020)', () => {
+  let app: Awaited<ReturnType<typeof buildServer>>['app'];
+
+  beforeAll(async () => {
+    app = (await buildServer()).app;
+    await app.ready();
+  });
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('data e palavra atraso no texto: so o evento informativo, sem divergencia, tarefa nem status atrasada', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'nfe-ok.xml', conteudo: ler('nfe-ok.xml') },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'cce-com-data.xml', conteudo: cceComTexto(TEXTO_CCE_COM_DATA) },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { eventos: number }).eventos).toBe(1); // so o doc
+
+    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
+    expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cce']);
+    expect(proj.divergencias).toEqual([]);
+    expect(proj.tarefas).toEqual([]);
+    expect(proj.pedido.campos).toEqual({
+      previsaoEntrega: '2026-01-20',
+      pesoTotal: 510,
+      volumes: 10,
+      status: 'emitida',
+    });
   });
 });

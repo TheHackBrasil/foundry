@@ -1,9 +1,13 @@
 // Parser de eventos fiscais NF-e (spec 0004, T023): CC-e (110110) e
-// cancelamento (110111) -> DocData. A correcao de data vira campo
-// previsaoEntrega; o cancelamento vira status 'cancelada'.
+// cancelamento (110111) -> DocData. A CC-e e evento informativo: entra no
+// ledger com o texto da correcao e sem campo observado, porque ela nao
+// corrige data de emissao nem de saida (R-006, D-020; Convenio SINIEF s/n
+// de 1970, art. 7, par. 1-A, III). O atraso entra pela planilha do
+// fornecedor (e, no futuro, por OCOREN). O cancelamento vira status
+// 'cancelada'.
 
 import { XMLParser } from 'fast-xml-parser';
-import type { CamposObservados, DocData } from '../../shared/model.js';
+import type { DocData } from '../../shared/model.js';
 import { ErroParser } from './nfe.js';
 
 const parser = new XMLParser({
@@ -17,15 +21,6 @@ const parser = new XMLParser({
 function texto(v: unknown): string | undefined {
   if (v === undefined || v === null) return undefined;
   return String(v).trim();
-}
-
-// Extrai data DD/MM/AAAA (ou AAAA-MM-DD) de texto livre da correcao.
-function dataNoTexto(s: string): string | undefined {
-  const br = s.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
-  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
-  const iso = s.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
-  if (iso) return iso[0];
-  return undefined;
 }
 
 export function parseEventoNFe(xml: string): DocData {
@@ -52,17 +47,14 @@ export function parseEventoNFe(xml: string): DocData {
   const dhEvento = texto(inf['dhEvento']);
 
   if (tp === '110110') {
-    // CC-e: se o texto traz data nova, vira previsaoEntrega (atraso).
-    const novaData = dataNoTexto(correcao);
-    const campos: CamposObservados = {};
-    if (novaData) campos.previsaoEntrega = novaData;
-    if (/atras|posterg|adiad|reagend/i.test(correcao)) campos.status = 'atrasada';
+    // Texto livre da correcao nunca vira campo: mesmo com data ou a palavra
+    // "atraso" no texto, campos fica vazio.
     return {
       fonte: 'cce',
       docTipo: 'cce',
       pedidoId: chNFe,
-      campos,
-      dados: { chNFe, descricao, correcao, dhEvento, novaData: novaData ?? null },
+      campos: {},
+      dados: { chNFe, descricao, correcao, dhEvento },
     };
   }
 

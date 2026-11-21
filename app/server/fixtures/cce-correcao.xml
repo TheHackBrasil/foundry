@@ -12,7 +12,7 @@
       <verEvento>1.00</verEvento>
       <detEvento versao="1.00">
         <descEvento>Carta de Correcao</descEvento>
-        <xCorrecao>Nova previsao de entrega: 25/01/2026 em razao de atraso na expedicao</xCorrecao>
+        <xCorrecao>Correcao da razao social da transportadora: onde consta Transportadora Ficticia, leia-se Transportadora Ficticia Ltda</xCorrecao>
       </detEvento>
     </infEvento>
   </evento>
