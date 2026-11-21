@@ -1,5 +1,4 @@
-// Fastify API (spec 0004, T010/T020/T024/T025/T032): ingest, pedidos,
-// versoes, audit, stream SSE, simulate, anchor e fila de revisao.
+// API Fastify (spec 0004): ingest, pedidos, audit, SSE, simulate, anchor, revisao.
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
@@ -22,8 +21,6 @@ export async function buildServer(dbInjetado?: Db) {
   await app.register(cors, { origin: true });
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
-  // Sem injecao: exige DATABASE_URL (createDb falha claro sem ela).
-  // Testes injetam createLiteDb() — PGlite nao e modo do produto.
   const db = dbInjetado ?? (await createDb());
   const store = new LedgerStore(db);
   await store.init();
@@ -76,11 +73,8 @@ export async function buildServer(dbInjetado?: Db) {
     return { versoes: projetar(eventos).versoes };
   });
 
-  // Audit: recomputa a cadeia inteira e, havendo ancora gravada,
-  // recomputa o Merkle root sobre os eventos que a ancora cobriu
-  // (seq < seq do evento 'ancora', que entra no ledger depois dela).
-  // rootConfere = "o historico ancorado segue intacto": eventos novos
-  // legitimos nao o invalidam, adulteracao pre-ancoragem sim (RF15).
+  // rootConfere: Merkle root sobre os eventos que a ancora cobriu
+  // (seq < seq do evento 'ancora'). Eventos novos nao o invalidam (RF15).
   app.get<{ Params: { id: string } }>('/api/pedidos/:id/audit', async (req, reply) => {
     const eventos = await store.eventosDoPedido(req.params.id);
     if (eventos.length === 0) return reply.code(404).send({ erro: 'pedido nao encontrado' });
@@ -108,8 +102,7 @@ export async function buildServer(dbInjetado?: Db) {
     return reply;
   });
 
-  // "E se?" deterministico: hipotese de campos -> divergencias -> tarefas,
-  // sem gravar nada (RF12, T032).
+  // "E se?" deterministico: nada e gravado (RF12).
   app.post<{ Body: { pedidoId?: string; campos?: CamposObservados } }>(
     '/api/simulate',
     async (req, reply) => {
@@ -180,7 +173,7 @@ export async function buildServer(dbInjetado?: Db) {
   return { app, store, canal };
 }
 
-// IMAP opcional: liga o polling quando configurado.
+// IMAP: polling so liga quando IMAP_HOST esta configurado.
 async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
   const cfg = imapConfigDoEnv();
   if (!cfg) return;

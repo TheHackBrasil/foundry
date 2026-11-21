@@ -1,5 +1,4 @@
-// Modelo canonico da camada de coordenacao (spec 0004, RF8).
-// Contrato unico server x web: a web consome estes tipos via caminho relativo.
+// Modelo canonico (spec 0004, RF8): contrato unico server x web.
 
 export type Parte = 'fornecedor' | 'transportadora' | 'cd' | 'fiscal' | 'financeiro';
 

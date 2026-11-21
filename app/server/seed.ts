@@ -1,6 +1,5 @@
-// Seed do cenario canonico (spec 0004, T041 + onda 4): ingere
-// app/seed/** (corpus da frente escopo-produto) e app/server/fixtures
-// (fallback interno do core). Idempotente: pedido ja existente e pulado.
+// Seed (spec 0004, T041): ingere app/seed/** e app/server/fixtures.
+// Idempotente: pedido ja existente e pulado.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -25,11 +24,11 @@ const PRIORIDADE_TIPO: Record<string, number> = {
 };
 
 async function main(): Promise<void> {
-  await import('dotenv/config'); // mesma convencao do boot do server
+  await import('dotenv/config');
   const db = await createDb();
   const store = new LedgerStore(db);
   await store.init();
-  const canal = new CanalSSE(); // seed nao tem clientes SSE; broadcast e no-op
+  const canal = new CanalSSE();
 
   let ingeridos = 0;
   let pulados = 0;
@@ -58,7 +57,7 @@ async function main(): Promise<void> {
           console.log(`seed: ${arq} -> pedido ${r.pedidoId ?? '(revisao)'}, ${r.eventos.length} eventos`);
         }
       } catch (e) {
-        // Doc invalido no corpus nao derruba o seed: vai como rejeitado.
+        // Doc invalido vai como rejeitado, nao derruba o seed.
         pulados += 1;
         console.log(`seed: ${arq} rejeitado (${(e as Error).message})`);
       }

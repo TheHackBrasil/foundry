@@ -1,6 +1,5 @@
-// Ingestao por e-mail (spec 0004, T030): IMAP polling de anexos
-// .xml/.csv/.xlsx/.pdf para o mesmo pipeline. So sobe se IMAP_HOST
-// estiver configurado; ausente = funcionalidade desligada, nao quebrada.
+// IMAP polling de anexos (spec 0004, T030): so sobe com IMAP_HOST
+// configurado; ausente = desligado, nao quebrado.
 
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
@@ -31,10 +30,8 @@ export function imapConfigDoEnv(): ImapConfig | null {
 
 const ANEXO_OK = /\.(xml|csv|xlsx|pdf)$/i;
 
-// Um ciclo de coleta: ingere cada anexo elegivel e so marca a mensagem
-// como lida depois do processamento. Erro de parser vai para revisao
-// (doc nao se perde); erro de infra (banco fora) deixa a mensagem nao
-// lida para o proximo ciclo tentar de novo.
+// Marca a mensagem como lida so depois de processar: erro de parser vai
+// para revisao; erro de infra deixa nao lida para o proximo ciclo.
 async function coletarEIngerir(
   cfg: ImapConfig,
   ingerir: (nome: string, conteudo: Buffer) => Promise<unknown>,
@@ -86,7 +83,7 @@ async function coletarEIngerir(
   return processados;
 }
 
-// Loop de polling: chama ingerir(nome, conteudo) para cada anexo.
+// Loop de polling.
 export function iniciarPolling(
   cfg: ImapConfig,
   ingerir: (nome: string, conteudo: Buffer) => Promise<unknown>,

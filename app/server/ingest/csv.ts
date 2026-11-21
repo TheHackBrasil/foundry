@@ -1,5 +1,5 @@
-// Parser CSV/XLSX de planilhas (spec 0004, T031): uma linha = um doc
-// 'planilha'. Headers tolerados em PT-BR (chave_nf, data_prevista...).
+// Parser CSV/XLSX (spec 0004, T031): uma linha = um doc 'planilha';
+// headers tolerados em PT-BR (chave_nf, data_prevista...).
 
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';

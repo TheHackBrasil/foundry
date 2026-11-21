@@ -1,6 +1,5 @@
-// Pipeline de ingestao (spec 0004, RF9/RF10/RF11): documento -> DocData
-// -> evento no ledger -> divergencias -> tarefas -> SSE. Tambem usada
-// pelo IMAP e pelo seed para um so caminho de entrada.
+// Pipeline de ingestao (spec 0004): doc -> DocData -> evento no ledger
+// -> divergencias -> tarefas -> SSE. Entrada unica: rota, IMAP e seed.
 
 import { compararFontes, divergenciasDaNovaFonte } from '../shared/divergence.js';
 import { propagarTodas } from '../shared/rules.js';
@@ -23,8 +22,7 @@ export interface ResultadoIngest {
   erro?: never;
 }
 
-// Doc sem pedido correspondente (chave desconhecida): vai para a fila de
-// revisao, nao para excecao (RF7 edge case).
+// Doc sem pedido correspondente vai para a fila de revisao (RF7).
 async function paraRevisao(store: LedgerStore, doc: DocData, motivo: string): Promise<number> {
   return store.enfileirarRevisao(doc.fonte, motivo, {
     pedidoId: doc.pedidoId,
@@ -35,9 +33,7 @@ async function paraRevisao(store: LedgerStore, doc: DocData, motivo: string): Pr
   });
 }
 
-// Processa um DocData ja parseado: append doc, diverge, propaga, avisa.
-// Doc + divergencias + tarefas numa unica tx (atomico): uma falha no
-// meio nao deixa doc sem tarefa nem divergencia duplicada por corrida.
+// Doc + divergencias + tarefas numa unica tx.
 async function processarDoc(
   store: LedgerStore,
   canal: CanalSSE,
@@ -61,7 +57,7 @@ async function processarDoc(
     const docEvento = await tx.append(doc.pedidoId, doc.docTipo, payloadDoc);
     inseridos.push(docEvento);
 
-    // Divergencia incremental: fonte nova x ultima declaracao de cada outra.
+    // Fonte nova x ultima declaracao de cada outra fonte.
     const historico = await tx.eventosDoPedido(doc.pedidoId);
     const porFonte = camposPorFonte(historico.slice(0, -1)); // exclui a doc nova
     const existentes = [...porFonte.entries()].map(([fonte, campos]) => ({ fonte, campos }));
@@ -80,8 +76,7 @@ async function processarDoc(
   return { eventos, revisaoId: null };
 }
 
-// Aprovacao na fila de revisao: o doc guardado volta ao pipeline como se
-// tivesse acabado de chegar (forca aceite mesmo sem pedido existente).
+// Aprovacao na revisao: o doc volta ao pipeline com aceite forcado.
 export async function aprovarRevisao(
   store: LedgerStore,
   canal: CanalSSE,
@@ -109,7 +104,7 @@ export async function aprovarRevisao(
   return r;
 }
 
-// Entrada unica: nome+conteudo -> detecta -> parse -> DocData(s) -> store.
+// Entrada unica: nome+conteudo -> detecta -> parse -> store.
 export async function ingerir(
   store: LedgerStore,
   canal: CanalSSE,

@@ -1,7 +1,4 @@
-// Adaptador de banco. O produto roda so em Postgres real via
-// DATABASE_URL (pg); createDb falha claro sem ela — nao ha fallback
-// silencioso. PGlite existe apenas para os testes via createLiteDb
-// (Postgres real em memoria, zero Docker, isolamento por suite).
+// Adaptador de banco (spec 0004): Postgres real via DATABASE_URL.
 
 import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
@@ -36,8 +33,7 @@ class PgDb implements Db {
     await this.query(sql);
   }
 
-  // Tx aninhada junta a tx externa (queries no mesmo client): o pipeline
-  // abre uma tx e os appends internos rodam nela.
+  // Tx aninhada junta a tx externa (mesmo client).
   async transaction<T>(fn: (db: Db) => Promise<T>): Promise<T> {
     if (this.client) return fn(this);
     const client = await this.pool.connect();
@@ -73,14 +69,12 @@ class LiteDb implements Db {
     return r.rows;
   }
 
-  // exec aceita lote multi-statement (DDL com $$ que o modo query nao parseia).
+  // exec aceita lote multi-statement (DDL com $$).
   async exec(sql: string): Promise<void> {
     await this.lite.exec(sql);
   }
 
-  // Queries dentro do tx rodam pelo handle da transacao (tx), nao por
-  // this.lite — PGlite serializa numa conexao so e deadlockaria. O
-  // handle de tx nao tem .transaction: tx aninhada junta a externa.
+  // PGlite serializa numa conexao: dentro da tx usa o handle (tx).
   async transaction<T>(fn: (db: Db) => Promise<T>): Promise<T> {
     if (this.inTx) return fn(this);
     return this.lite.transaction(
@@ -104,7 +98,7 @@ export async function createDb(url?: string): Promise<Db> {
   return new PgDb(connection);
 }
 
-// Somente para testes: Postgres real em memoria, sem Docker nem volume.
+// Usado so pelos testes (memoria).
 export async function createLiteDb(): Promise<Db> {
   return new LiteDb(new PGlite());
 }

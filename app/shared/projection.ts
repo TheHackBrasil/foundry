@@ -1,6 +1,5 @@
-// Projecao do ledger (spec 0004, T024): fold dos eventos do pedido em
-// versoes, divergencias, tarefas e o pedido consolidado. Puro: mesma
-// lista de eventos, mesma projecao, sem banco.
+// Projecao do ledger (spec 0004, T024): fold dos eventos em versoes,
+// divergencias, tarefas e pedido consolidado. Puro, sem banco.
 
 import type {
   CamposObservados,
@@ -94,8 +93,7 @@ export function projetar(eventos: Evento[]): ProjecaoPedido {
   return { pedido, versoes, divergencias, tarefas, totalEventos: eventos.length };
 }
 
-// Extrai os campos por fonte do historico: base do calculo de divergencia
-// incremental no ingest (a fonte nova compara com o que ja existe).
+// Campos por fonte do historico: base do calculo incremental no ingest.
 export function camposPorFonte(eventos: Evento[]): Map<FonteDocumento, CamposObservados> {
   const map = new Map<FonteDocumento, CamposObservados>();
   for (const ev of eventos) {
