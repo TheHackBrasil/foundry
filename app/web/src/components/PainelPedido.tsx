@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ProjecaoPedido, RespostaAuditoria } from '../../../shared/model.ts';
+import { chaveCurta } from '../format.ts';
 import { FILTRO_TODAS, montarMatriz, type FiltroParte } from '../matriz.ts';
 import type { Carga } from '../useTorre.ts';
 import { MatrizFontes } from './MatrizFontes.tsx';
@@ -44,7 +45,7 @@ function Conteudo({ dados, auditoria, novas, aoVerificar }: Omit<Props, 'id' | '
 export function PainelPedido({ id, projecao, auditoria, novas, aoVerificar }: Props) {
   return (
     <article aria-labelledby="pedido-titulo">
-      <h2 id="pedido-titulo">Pedido</h2>
+      <h2 id="pedido-titulo">Pedido {chaveCurta(id)}</h2>
       <p className="chave mono">{id}</p>
       {projecao.estado === 'carregando' && <p className="dica">Carregando o pedido…</p>}
       {projecao.estado === 'erro' && (

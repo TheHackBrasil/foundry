@@ -10,7 +10,14 @@ export function App() {
 
   return (
     <>
-      <a className="pular" href="#conteudo">
+      <a
+        className="pular"
+        href="#conteudo"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById('conteudo')?.focus();
+        }}
+      >
         Ir para o conteúdo
       </a>
       <Cabecalho stream={torre.estadoStream} />

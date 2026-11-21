@@ -35,7 +35,7 @@ export function EnvioArquivos({ aoEnviar }: { aoEnviar: (pedidoId: string) => vo
   const ajuda = useId();
 
   async function enviar(arquivos: File[]) {
-    if (arquivos.length === 0) return;
+    if (arquivos.length === 0 || enviando) return;
     setEnviando(true);
     setResultados([]);
     for (const arquivo of arquivos) {
@@ -82,7 +82,6 @@ export function EnvioArquivos({ aoEnviar }: { aoEnviar: (pedidoId: string) => vo
           multiple
           accept=".xml,.csv,.xlsx,.xls,.pdf"
           onChange={aoEscolher}
-          disabled={enviando}
           aria-describedby={ajuda}
         />
         <IconeEnvio />
@@ -103,6 +102,7 @@ export function EnvioArquivos({ aoEnviar }: { aoEnviar: (pedidoId: string) => vo
         ))}
         .
       </p>
+      <div role="status" aria-live="polite">
       {resultados.length > 0 && (
         <ul className="resultados" aria-label="Resultado dos envios">
           {resultados.map((r, i) => (
@@ -115,6 +115,7 @@ export function EnvioArquivos({ aoEnviar }: { aoEnviar: (pedidoId: string) => vo
           ))}
         </ul>
       )}
+      </div>
     </section>
   );
 }

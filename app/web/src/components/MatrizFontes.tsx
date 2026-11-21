@@ -24,7 +24,7 @@ export function MatrizFontes({ matriz }: { matriz: Matriz }) {
           {matriz.linhas.map((linha) => (
             <tr key={linha.campo} className={linha.divergente ? 'linha-diverge' : undefined}>
               <th scope="row">
-                {ROTULO_CAMPO[linha.campo]}
+                {ROTULO_CAMPO[linha.campo]}{' '}
                 {linha.divergente && (
                   <span className="etiqueta">
                     <IconeAlerta /> Diverge

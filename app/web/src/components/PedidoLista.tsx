@@ -25,7 +25,7 @@ export function PedidoLista({ pedidos, selecionado, aoTentarDeNovo }: Props) {
         <p className="dica">Nenhum pedido ainda. Envie uma NF-e em XML para criar o primeiro.</p>
       )}
       {pedidos.estado === 'ok' && pedidos.dados.length > 0 && (
-        <nav aria-label="Pedidos">
+        <nav aria-label="Lista de pedidos">
           <ul className="lista-itens">
             {pedidos.dados.map((p) => (
               <li key={p.pedidoId}>
@@ -35,6 +35,7 @@ export function PedidoLista({ pedidos, selecionado, aoTentarDeNovo }: Props) {
                   title={p.pedidoId}
                 >
                   <span className="mono">{chaveCurta(p.pedidoId)}</span>
+                  {p.pedidoId === selecionado && <span className="etiqueta etiqueta-atual">Aberto</span>}
                   <span className="meta">
                     {p.totalEventos} {p.totalEventos === 1 ? 'evento' : 'eventos'}, atualizado {formatarMomento(p.ultimoEm)}
                   </span>

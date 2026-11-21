@@ -1,6 +1,13 @@
 import { PARTES, type Parte, type Tarefa } from '../../../shared/model.ts';
 import { ROTULO_CAMPO, ROTULO_FONTE, ROTULO_PARTE, formatarValor } from '../format.ts';
-import { FILTRO_TODAS, agruparTarefas, chaveTarefa, tarefasDaParte, type FiltroParte, type GrupoTarefa } from '../matriz.ts';
+import {
+  FILTRO_TODAS,
+  agruparTarefas,
+  chaveTarefa,
+  tarefasDaParte,
+  type FiltroParte,
+  type GrupoTarefa,
+} from '../matriz.ts';
 
 interface Props {
   tarefas: readonly Tarefa[];
@@ -20,7 +27,7 @@ function Item({ grupo, novas }: { grupo: GrupoTarefa; novas: ReadonlySet<string>
   return (
     <li className={nova ? 'tarefa tarefa-nova' : 'tarefa'}>
       <p className="tarefa-titulo">
-        {grupo.titulo}
+        {grupo.titulo}{' '}
         {!unica && <span className="etiqueta">{grupo.ocorrencias.length} divergências</span>}
         {nova && <span className="etiqueta etiqueta-nova">Nova</span>}
       </p>
@@ -43,6 +50,12 @@ function Item({ grupo, novas }: { grupo: GrupoTarefa; novas: ReadonlySet<string>
 export function TarefasPorParte({ tarefas, filtro, aoFiltrar, novas }: Props) {
   const visiveis = tarefasDaParte(tarefas, filtro);
   const partes: Parte[] = filtro === FILTRO_TODAS ? PARTES.filter((p) => visiveis.some((t) => t.parte === p)) : [filtro];
+  const grupos = partes.map((parte) => ({
+    parte,
+    itens: agruparTarefas(visiveis.filter((t) => t.parte === parte)),
+  }));
+  const total = grupos.reduce((soma, g) => soma + g.itens.length, 0);
+  const alvo = filtro === FILTRO_TODAS ? 'todas as partes' : ROTULO_PARTE[filtro];
 
   return (
     <div>
@@ -63,31 +76,32 @@ export function TarefasPorParte({ tarefas, filtro, aoFiltrar, novas }: Props) {
           ))}
         </div>
       </fieldset>
+      <p className="so-leitor" role="status">
+        {total} {total === 1 ? 'tarefa' : 'tarefas'} para {alvo}.
+      </p>
 
       {tarefas.length === 0 && (
         <p className="dica">
           Nenhuma tarefa por enquanto. Elas aparecem quando duas fontes declaram valores diferentes para o mesmo campo.
         </p>
       )}
-      {tarefas.length > 0 && visiveis.length === 0 && filtro !== FILTRO_TODAS && (
+      {tarefas.length > 0 && total === 0 && filtro !== FILTRO_TODAS && (
         <p className="dica">Nenhuma tarefa para {ROTULO_PARTE[filtro]} neste pedido.</p>
       )}
-      {partes.map((parte) => {
-        const doParte = agruparTarefas(visiveis.filter((t) => t.parte === parte));
-        if (doParte.length === 0) return null;
-        return (
-          <section key={parte} className="grupo" aria-labelledby={`parte-${parte}`}>
-            <h4 id={`parte-${parte}`}>
-              {ROTULO_PARTE[parte]} <span className="meta">({doParte.length})</span>
+      {grupos.map(({ parte, itens }) =>
+        itens.length === 0 ? null : (
+          <div key={parte} className="grupo">
+            <h4>
+              {ROTULO_PARTE[parte]} <span className="meta">({itens.length})</span>
             </h4>
             <ul>
-              {doParte.map((g) => (
+              {itens.map((g) => (
                 <Item key={g.titulo} grupo={g} novas={novas} />
               ))}
             </ul>
-          </section>
-        );
-      })}
+          </div>
+        ),
+      )}
     </div>
   );
 }
