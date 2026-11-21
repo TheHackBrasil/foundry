@@ -9,7 +9,8 @@ movido por evento real, selo "demonstração com dados fictícios",
 página de auditoria com link do explorer. P2: twin da cadeia (mapa de
 nós, three.js) só se o P1 fechar cedo.
 Paths: `app/web/**`. Não escrever em `app/shared/**` (consome tipos),
-`app/server/**`, `app/contracts/**`, `app/seed/**`.
+`app/server/**`, `app/api/**` (consome o contrato HTTP e SSE de
+`app/api/contrato.ts`, da `app-infra`), `app/contracts/**`, `app/seed/**`.
 Base: `main` com spec 0004 commitada; branch `wt/app-demo`; worktree
 `../foundry-wt-demo`.
 Proibido: merge em main, push fora da branch, editar imutável (A9),

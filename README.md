@@ -138,13 +138,14 @@ node scripts/repo-guard.mjs && node scripts/prose-evals.mjs
 
 ## Para quem desenvolve (pessoas e agentes)
 
-O MVP sai em três frentes paralelas, cada uma com worktree, branch
-`wt/<nome>` e brief próprio (spec 0004; mecanismo na spec 0005, D-019).
+O MVP sai em quatro frentes paralelas, cada uma com worktree, branch
+`wt/<nome>` e brief próprio (spec 0004; mecanismo na spec 0005, D-019 e D-021).
 A `main` só recebe commit de integração.
 
 | Frente | Branch | Worktree | Escreve em | Brief |
 |---|---|---|---|---|
-| `app-core` | `wt/app-core` | `../foundry-wt-app-core` | `app/shared/`, `app/server/`, `app/contracts/`, `app/package.json`, `app/tsconfig*.json`, `app/docker-compose.yml` | [brief-core.md](specs/0004-mvp-atraso-propagado/brief-core.md) |
+| `app-core` | `wt/app-core` | `../foundry-wt-app-core` | `app/shared/`, `app/server/ingest/` | [brief-core.md](specs/0004-mvp-atraso-propagado/brief-core.md) |
+| `app-infra` | `wt/app-infra` | `../foundry-wt-infra` | `app/server/*.ts`, `app/server/db/`, `app/api/`, `app/contracts/`, `app/package.json`, `app/tsconfig*.json`, `app/docker-compose.yml`, deploy | [brief-infra.md](specs/0004-mvp-atraso-propagado/brief-infra.md) |
 | `app-demo` | `wt/app-demo` | `../foundry-wt-demo` | `app/web/` | [brief-demo.md](specs/0004-mvp-atraso-propagado/brief-demo.md) |
 | `escopo-produto` | `wt/escopo-produto` | `../foundry-wt-escopo` | `app/seed/`, `app/README.md`, `docs/`, `DECISIONS.md`, `BACKLOG.md`, `RULES.md`, `README.md` | [brief-produto.md](specs/0004-mvp-atraso-propagado/brief-produto.md) |
 
@@ -162,7 +163,7 @@ git fetch && git worktree add ../foundry-wt-<frente> wt/<frente>
 
 O worktree fica fora da cópia principal e a `main` local fica limpa
 para integração e leitura. O `package.json` e o lockfile de `app/` são da
-`app-core`; `app/web/` tem os próprios, da `app-demo`.
+`app-infra`; `app/web/` tem os próprios, da `app-demo`.
 
 ### O que o hook impõe em todo commit
 

@@ -1,17 +1,30 @@
 {
-  "_leia": "Paths que cada frente pode escrever (D-019, specs/0005). Lido por scripts/frente-check.mjs no pre-commit. Path terminado em / vale para a pasta inteira; um * vale dentro de um nome de arquivo. Tudo que não está aqui é da integração, na main.",
+  "_leia": "Paths que cada frente pode escrever (D-019 e D-021, specs/0005). Lido por scripts/frente-check.mjs no pre-commit. Path terminado em / vale para a pasta inteira; um * vale dentro de um nome de arquivo e não atravessa a barra. Tudo que não está aqui é da integração, na main.",
   "frentes": {
     "app-core": {
       "brief": "specs/0004-mvp-atraso-propagado/brief-core.md",
       "paths": [
         "app/shared/",
-        "app/server/",
+        "app/server/ingest/",
+        "specs/0004-mvp-atraso-propagado/brief-core.md"
+      ]
+    },
+    "app-infra": {
+      "brief": "specs/0004-mvp-atraso-propagado/brief-infra.md",
+      "paths": [
+        "app/server/*.ts",
+        "app/server/db/",
+        "app/api/",
         "app/contracts/",
         "app/package.json",
         "app/package-lock.json",
         "app/tsconfig*.json",
         "app/docker-compose.yml",
-        "specs/0004-mvp-atraso-propagado/brief-core.md"
+        "app/Procfile",
+        "app/app.json",
+        "app/.env.example",
+        "app/deploy/",
+        "specs/0004-mvp-atraso-propagado/brief-infra.md"
       ]
     },
     "app-demo": {

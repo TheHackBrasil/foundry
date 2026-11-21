@@ -91,7 +91,8 @@ se sobrar. Corte preserva P0 primeiro, depois P1 na ordem inversa.
 - **RF4 [P0]**: upload manual de arquivo na demo (plano B ao vivo e
   porta para o juiz testar).
 - **RF5 [P1]**: caixa de e-mail dedicada via IMAP: documento enviado
-  por e-mail entra sozinho na camada.
+  por e-mail entra sozinho na camada. Só com o P0 verde ou na final; o
+  e-mail como formato já está no P0 (RF28).
 - **RF6 [P0]**: ingestão de planilha CSV/XLSX fazendo o papel de
   ERP/WMS do CD e de canal do atraso informado pelo fornecedor.
 - **RF7 [P1]**: extração de PDF por LLM com fila de revisão humana
@@ -154,7 +155,12 @@ se sobrar. Corte preserva P0 primeiro, depois P1 na ordem inversa.
   grava no workspace da sessão dele, e SSE e GET filtram por workspace;
   a seed é compartilhada e só leitura. Um XML real pode trazer CPF e
   nome de pessoa, e o regulamento 6.9 proíbe expor dado pessoal real de
-  terceiros na demo.
+  terceiros na demo. O `.eml` traz endereço de pessoa nos
+  cabeçalhos: não entra em log, payload nem tela.
+- **RF28 [P0]**: upload de `.eml` (mensagem de e-mail) com a NF-e, o CT-e
+  ou a planilha em anexo entra pelo mesmo caminho do XML. É o e-mail
+  como formato, sem depender de credencial nem de caixa postal
+  hospedada (D-021).
 
 ## Requisitos não-funcionais
 

@@ -7,7 +7,7 @@ verificação; nenhuma task sem os dois. Prioridade entre parênteses
 
 Revisada em 21/11 (D-020): correções de regulamento, fiscal e privacidade; escolhas de escopo seguem em P-006.
 
-Frentes: `wt/app-core`, `wt/app-demo`, `wt/escopo-produto`. Divisão de
+Frentes: `wt/app-core`, `wt/app-infra`, `wt/app-demo`, `wt/escopo-produto` (tags `[core]`, `[infra]`, `[demo]`, `[produto]`). Divisão de
 pessoas por frente fica a cargo do time. Onda 0 é sequencial (contrato);
 as demais seguem `speckit/frentes.md`.
 
@@ -22,26 +22,28 @@ as demais seguem `speckit/frentes.md`.
 
 ## Fase 1: Walking skeleton P0 (sáb/dom, 21-22/11)
 
-- [ ] T010 (P0) [core] skeleton `app/`: package.json, tsconfig, Fastify boot com `DATABASE_URL` e `PORT` por ambiente (roda em qualquer host, P-008); o boot do Vite é da frente demo (spec 0005) e a core só o orquestra no script `dev`: `app/package.json`, `app/server/index.ts`: `npm run dev` sobe server e web
-- [ ] T011 (P0) [core] Postgres via `docker-compose.yml` + tabela de eventos append-only (trigger rejeita UPDATE/DELETE): `app/docker-compose.yml`, `app/server/store.ts`: curl cria pedido e 2 eventos encadeados; UPDATE manual falha no banco
-- [ ] T012 (P0) [core] parser NF-e (chave 44 dígitos = id do pedido; emitente, destinatário, itens, pesos, datas) + `POST /api/ingest` por upload: `app/server/ingest/nfe.ts`, `app/server/index.ts`: XML da seed vira pedido com partes preenchidas; XML inválido rejeita com erro explícito
-- [ ] T013 (P0) [core] `divergence.ts` compara fontes (data, peso, volumes, status) + `rules.ts` mapeia divergência → tarefa por parte: `app/shared/divergence.ts`, `app/shared/rules.ts`: NF-e + evento divergente geram tarefa por parte
+- [ ] T010 (P0) [infra] skeleton `app/`: package.json, tsconfig, Fastify boot com `DATABASE_URL` e `PORT` por ambiente (roda em qualquer host, P-008); o boot do Vite é da frente demo (spec 0005) e a infra o orquestra no script `dev`: `app/package.json`, `app/server/index.ts`: `npm run dev` sobe server e web
+- [ ] T011 (P0) [infra] Postgres via `docker-compose.yml` + tabela de eventos append-only (trigger rejeita UPDATE/DELETE): `app/docker-compose.yml`, `app/server/store.ts`: curl cria pedido e 2 eventos encadeados; UPDATE manual falha no banco
+- [ ] T012 (P0) [core] parser NF-e (chave 44 dígitos = id do pedido; emitente, destinatário, itens, pesos, datas) e ponto de entrada `ingerir()`: `app/server/ingest/nfe.ts`, `app/server/ingest/index.ts`: XML da seed vira evento com partes preenchidas; XML inválido devolve `rejeitado` com erro explícito
+- [ ] T013 (P0) [core] `divergence.ts` compara fontes (data, peso, volumes, status), `rules.ts` mapeia divergência → tarefa por parte e `projecao.ts` monta a versão por parte a partir dos eventos: `app/shared/divergence.ts`, `app/shared/rules.ts`, `app/shared/projecao.ts`: NF-e + evento divergente geram tarefa por parte
 - [ ] T014 [P] (P0) [demo] painel de alertas por papel renderizando via GET (5 visões, identidade Foundry) + upload de XML na UI + selo "dados fictícios": `app/web/src/`: screenshot 1440 e 390 sem quebra
-- [ ] T015 [P] (P0) [produto] corpus completo: NF-e + CT-e + planilha de atraso do fornecedor coerentes entre si (mesma chave, CNPJ fictício): `app/seed/xmls/`, `app/seed/cenario.md`: NF-e e CT-e validam no pacote XSD do Portal Nacional (`xmllint --schema`); revisão
+- [ ] T015 [P] (P0) [produto] corpus completo: NF-e + CT-e + planilha de atraso do fornecedor + `.eml` com a NF-e em anexo, coerentes entre si (mesma chave, CNPJ fictício): `app/seed/xmls/`, `app/seed/cenario.md`: NF-e e CT-e validam no pacote XSD do Portal Nacional (`xmllint --schema`); revisão
 
 ## Fase 2: Propagação e prova (dom/seg, 22-23/11)
 
-- [ ] T020 [US1] (P0) [core] `GET /api/stream` SSE entregando evento novo: `app/server/index.ts`: 2 clientes recebem evento em <1s
+- [ ] T020 [US1] (P0) [infra] `GET /api/stream` SSE entregando evento novo: `app/server/index.ts`: 2 clientes recebem evento em <1s
 - [ ] T021 [US1] (P0) [demo] divergência propagando nas 5 visões via SSE sem reload: `app/web/src/`: envio da planilha de atraso acende a tarefa certa por parte
-- [ ] T022 [US2] (P0) [core] `GET /api/pedidos/:id/audit` verifica cadeia e aponta 1ª adulteração: `app/server/index.ts`: UPDATE via admin (bypass da trigger) faz audit falhar nomeando o evento
+- [ ] T022 [US2] (P0) [infra] `GET /api/pedidos/:id/audit` verifica cadeia e aponta 1ª adulteração: `app/server/index.ts`: UPDATE via admin (bypass da trigger) faz audit falhar nomeando o evento
 - [ ] T023 (P0) [core] parser CT-e (liga transportadora e frete à NF pela chave) + parser de eventos fiscais (CC-e, cancelamento; CC-e é evento de correção, nunca de atraso, R-006): `app/server/ingest/cte.ts`, `app/server/ingest/eventos.ts`: CT-e da seed vincula à NF; CC-e vira evento de correção
-- [ ] T024 (P0) [core] projeção + `GET /api/pedidos/:id` e `/versoes`: `app/shared/`, `app/server/index.ts`: JSON com versão por parte e tarefas
-- [ ] T025 (P1) [core] `FoundryAnchor.sol` + deploy Base Sepolia + `POST /api/anchor` + link do explorer no audit: `app/contracts/`, `app/server/anchor.ts`: tx visível em sepolia.basescan.org
-- [ ] T027 (P0) [core] isolamento por sessão (regulamento 6.9, LGPD): upload de visitante grava no workspace da sessão dele; SSE e GET filtram por workspace; seed compartilhada e só leitura; tamanho máximo de arquivo e parser de XML sem entidade externa: `app/server/`: XML enviado numa sessão não aparece em outra
+- [ ] T024 (P0) [infra] `GET /api/pedidos`, `GET /api/pedidos/:id` e `/versoes`, usando `projecao.ts` e `divergence.ts` da core e os tipos de `app/api/contrato.ts`: `app/server/index.ts`, `app/api/contrato.ts`: JSON com versão por parte e tarefas
+- [ ] T025 (P1) [infra] `FoundryAnchor.sol` + deploy Base Sepolia + `POST /api/anchor` + link do explorer no audit: `app/contracts/`, `app/server/anchor.ts`: tx visível em sepolia.basescan.org
+- [ ] T027 (P0) [infra] isolamento por sessão (regulamento 6.9, LGPD): upload de visitante grava no workspace da sessão dele; SSE e GET filtram por workspace; seed compartilhada e só leitura; tamanho máximo de arquivo e parser de XML sem entidade externa: `app/server/`: XML enviado numa sessão não aparece em outra
+- [ ] T028 (P0) [infra] `POST /api/ingest` (multipart) chama `ingerir()`, grava com `encadear()` na mesma transação que lê a cabeça, workspace por cookie, tamanho máximo do arquivo: `app/server/index.ts`, `app/server/store.ts`: dois uploads simultâneos no mesmo pedido não bifurcam a cadeia
+- [ ] T029 (P0) [core] `.eml` (mensagem de e-mail): lê a mensagem, desembrulha anexos XML e PDF e entrega ao mesmo caminho do upload, sem registrar cabeçalho (RF27): `app/server/ingest/eml.ts`: `.eml` da seed com a NF-e em anexo gera os mesmos eventos que o XML solto
 
 ## Fase 3: Fator wow P1 (seg/qua, 23-26/11)
 
-- [ ] T030 [P] (P1) [core] caixa de e-mail IMAP: documento anexado entra sozinho na camada: `app/server/ingest/imap.ts`: e-mail com XML anexo vira pedido/evento
+- [ ] T030 [P] (P1) [core] caixa de e-mail IMAP, só com o P0 verde ou na final (D-021); reaproveita o `.eml` da T029 e a infra agenda a leitura: `app/server/ingest/imap.ts`: e-mail com XML anexo vira pedido/evento
 - [ ] T031 [P] (P0) [core] ingestão de CSV/XLSX fazendo papel de ERP/WMS e de canal do atraso informado pelo fornecedor: `app/server/ingest/csv.ts`: planilha da seed com a nova data gera o evento de atraso
 - [ ] T032 [P] (P1) [core] simulação "e se?" reusando o grafo com entrada hipotética: `app/shared/rules.ts`, `app/server/index.ts`: entrada hipotética gera tarefas sem gravar evento
 - [ ] T033 (P1) [demo] dominó da propagação movido por evento real: `app/web/src/`: evento real anima a queda em cadeia
@@ -51,7 +53,7 @@ as demais seguem `speckit/frentes.md`.
 
 ## Fase 4: Entrega e polish (qui/seg, 26-30/11)
 
-- [ ] T040 (P0) [core] deploy da demo com URL pública, sem login e no ar até o fim da avaliação (regulamento 7.2 e 7.3); hospedagem decidida até 24/11 (P-008): `app/`: juiz acessa em janela anônima e testa com o próprio XML
+- [ ] T040 (P0) [infra] deploy da demo com URL pública, sem login e no ar até o fim da avaliação (regulamento 7.2 e 7.3); hospedagem decidida até 24/11 (P-008): `app/`: juiz acessa em janela anônima e testa com o próprio XML
 - [ ] T041 (P1) [demo] a11y: contraste AA, foco visível, teclado, reduced-motion, alt text: `app/web/src/`: checklist A6 item a item
 - [ ] T042 [P] (P0) [produto] vídeo de até 3 min do produto funcionando (regulamento 7.2), com a gravação da demo: release/asset do time: vídeo publicado e acessível sem login
 - [ ] T043 [P] (P1) [produto] `app/README.md` com setup em 3 comandos + roteiro de demo de 3 min: `app/README.md`: revisão + links resolvem

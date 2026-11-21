@@ -22,7 +22,7 @@ Conflito resolve-se a favor do primeiro da lista.
   tasks → analyze → implement → converge). Agnóstico: leia e execute.
 - Frentes paralelas: 1 worktree + branch `wt/<nome>` + brief por frente;
   duas frentes nunca escrevem no mesmo arquivo. Frentes atuais: `app-core`,
-  `app-demo`, `escopo-produto` (spec 0004). Os paths de cada uma estão em
+  `app-infra`, `app-demo`, `escopo-produto` (spec 0004 e D-021). Os paths de cada uma estão em
   `speckit/frentes.json`, e o hook de pre-commit recusa commit fora deles.
   Protocolo completo em `speckit/frentes.md`, mecanismo na spec 0005.
 - Na `main`, decisão do dia entra em `DECISIONS.md` no mesmo commit
