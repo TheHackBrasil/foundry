@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35260123456789000123550010000000011000000019" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <natOp>VENDA</natOp>
+        <serie>1</serie>
+        <nNF>1</nNF>
+        <dhEmi>2026-01-20T10:00:00-03:00</dhEmi>
+        <tpNF>1</tpNF>
+      </ide>
+      <emit>
+        <CNPJ>12345678000123</CNPJ>
+        <xNome>Fornecedor Ficticio Ltda</xNome>
+      </emit>
+      <dest>
+        <CNPJ>98765432000198</CNPJ>
+        <xNome>CD Ficticio SA</xNome>
+      </dest>
+      <det nItem="1">
+        <prod>
+          <cProd>A1</cProd>
+          <xProd>Produto A</xProd>
+          <qCom>10</qCom>
+          <uCom>CX</uCom>
+          <vProd>100.00</vProd>
+        </prod>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>B2</cProd>
+          <xProd>Produto B</xProd>
+          <qCom>5</qCom>
+          <uCom>UN</uCom>
+          <vProd>200.00</vProd>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vNF>2000.00</vNF>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>0</modFrete>
+        <vol>
+          <qVol>10</qVol>
+          <pesoL>495.000</pesoL>
+          <pesoB>510.000</pesoB>
+        </vol>
+      </transp>
+    </infNFe>
+  </NFe>
+</nfeProc>
