@@ -75,17 +75,29 @@ export async function buildServer() {
   });
 
   // Audit: recomputa a cadeia inteira e, havendo ancora gravada,
-  // confere o Merkle root atual contra o que foi para a rede — pega
-  // adulteracao pos-ancoragem e truncamento de cauda que a cadeia
-  // sozinha nao ve (RF15).
+  // recomputa o Merkle root sobre os eventos que a ancora cobriu
+  // (seq < seq do evento 'ancora', que entra no ledger depois dela).
+  // rootConfere = "o historico ancorado segue intacto": eventos novos
+  // legitimos nao o invalidam, adulteracao pre-ancoragem sim (RF15).
   app.get<{ Params: { id: string } }>('/api/pedidos/:id/audit', async (req, reply) => {
     const eventos = await store.eventosDoPedido(req.params.id);
     if (eventos.length === 0) return reply.code(404).send({ erro: 'pedido nao encontrado' });
     const verificacao = await store.auditar(req.params.id);
     const ancora = await store.ultimoAncora(req.params.id);
     const rootAtual = raizMerkle(eventos.map((e) => e.hash));
-    const rootConfere = ancora ? rootAtual === ancora['root'] : null;
-    return { ...verificacao, ancora, rootAtual, rootConfere };
+    const seqAncora = [...eventos].reverse().find((e) => e.tipo === 'ancora')?.seq;
+    const rootHistorico = seqAncora === undefined
+      ? null
+      : raizMerkle(eventos.filter((e) => e.seq !== undefined && e.seq < seqAncora).map((e) => e.hash));
+    const rootConfere = ancora && rootHistorico !== null ? rootHistorico === ancora['root'] : null;
+    return {
+      ...verificacao,
+      ancora,
+      rootAtual,
+      rootHistorico,
+      rootConfere,
+      eventosAncorados: seqAncora === undefined ? null : seqAncora - 1,
+    };
   });
 
   // SSE: fluxo ao vivo; reconexao reidrata via GET /api/pedidos/:id.

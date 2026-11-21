@@ -156,7 +156,9 @@ export interface RespostaAuditoria {
   hashEncontrado: string | null;
   ancora: Record<string, unknown> | null;
   rootAtual: string;
+  rootHistorico: string | null;
   rootConfere: boolean | null;
+  eventosAncorados: number | null;
 }
 
 export interface RespostaSimulacao {
