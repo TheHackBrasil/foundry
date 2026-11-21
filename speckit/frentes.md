@@ -104,9 +104,9 @@ superfície fora dos paths do brief (A4), criar CI/deploy/tracker externo.
   `spec`, `chore`, `refactor`. Referencia a spec quando houver:
   `docs: capítulo FENATRAN no diário: specs/0003`.
 - Identidade: autor real de cada um (`user.name`/`user.email` do
-  GitHub). Agente commita com a identidade da conta de quem operou a
-  sessão (hoje `GuiDecker` <102395083+GuiDecker@users.noreply.github.com>),
-  nunca a de outro humano. Sem `Co-authored-by`, sem trailers gerados.
+  GitHub). Agente commita com a identidade de bot da sua sessão
+  (ex.: `devin` <158243242+devin-ai-integration[bot]@users.noreply.github.com>),
+  nunca a de uma pessoa. Sem `Co-authored-by`, sem trailers gerados.
 - Guard verde antes de cada commit; saída relevante colada no corpo do PR.
 
 ## Anotando o processo

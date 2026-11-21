@@ -37,9 +37,9 @@ Conflito resolve-se a favor do primeiro da lista.
   são proibidos em `.md` (o guard falha).
 - Commits: atômicos, `<tipo>: <resumo>` (docs|feat|fix|spec|chore),
   autor real: humano commita com seu `user.name`/`user.email` do GitHub;
-  agente commita com a identidade da conta de quem operou a sessão
-  (hoje `GuiDecker` <102395083+GuiDecker@users.noreply.github.com>),
-  sem trailers.
+  agente commita com a identidade de bot da sua sessão (ex.: `devin`
+  <158243242+devin-ai-integration[bot]@users.noreply.github.com>),
+  nunca a de uma pessoa, sem trailers.
 
 ## Definition of Done
 
