@@ -110,7 +110,25 @@ decisões e o reporte.
   `app/server/` fora de `*.ts` precisa de entrada no mapa, feita pela
   integração.
 
-## Evidência
+## Evidência (21/11)
 
-Pendente: preenchida depois dos testes do hook sobre `wt/app-infra`,
-`wt/app-core` e `wt/app-demo`.
+Testes no estado `da3eb69`, com `scripts/hooks/pre-commit` rodando sobre
+arquivo temporário staged em cada worktree (removido depois, sem commit de
+teste). Quatorze casos, todos com o resultado esperado.
+
+- **CA1**: na `main`, arquivo staged sem `FOUNDRY_INTEGRA=1` foi
+  recusado ("commit direto na main é só para integração"); com a variável
+  passou.
+- **CA2**: em `wt/app-demo`, `app/server/tmp-no.ts` foi recusado e o hook
+  listou os paths da frente; `app/web/` passou.
+- **CA3**: em `wt/app-core`, `app/server/ingest/` e `app/shared/` passaram;
+  `app/server/tmp-no.ts` foi recusado.
+- **CA4**: `repo-guard` verde (11 checks); `prose-evals` com 0 duras.
+- **CA5**: `git worktree list` com `main`, `wt/app-core`, `wt/app-infra`,
+  `wt/app-demo` e `wt/escopo-produto`, todas em `da3eb69`.
+- **CA6**: em `wt/app-infra`, `app/server/tmp-ok.ts`, `app/api/` e
+  `app/package.json` passaram e `app/server/ingest/tmp-no.ts` foi
+  recusado, o que prova que o `*` de `app/server/*.ts` não atravessa a
+  barra. Em `wt/app-core`, `app/package.json` foi recusado.
+- Extra: em `wt/escopo-produto`, `app/seed/` passou e
+  `app/server/ingest/` foi recusado.
