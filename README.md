@@ -120,11 +120,12 @@ da call em [`docs/`](docs/).
 
 | Caminho | O que tem |
 |---|---|
-| [`docs/`](docs/) | Pesquisa e escopo: resumo e transcrição da call, fontes e contatos, dossiê da visão de arco |
+| [`app/`](app/) | MVP da camada de coordenação: `shared`, `server`, `web`, `contracts`, `seed` (um dono por pasta) |
+| [`docs/`](docs/) | Pesquisa e escopo: plano do MVP, resumo e transcrição da call, fontes e contatos, dossiê da visão de arco |
 | [`site/`](site/) | Site do diário (Astro + TypeScript) |
 | [`app/`](app/) | MVP da camada (spec 0004): API de eventos, ledger verificável, torre de controle, contratos |
 | [`slides/`](slides/) | Deck de descoberta preparado para a call Enviagora |
-| [`specs/`](specs/) | Specs de cada mudança não trivial |
+| [`specs/`](specs/) | Specs de cada mudança não trivial; a `0004` guarda o plano e os briefs das frentes |
 | [`PRODUCT.md`](PRODUCT.md) · [`DECISIONS.md`](DECISIONS.md) · [`BACKLOG.md`](BACKLOG.md) · [`RULES.md`](RULES.md) | Produto, log de decisões, fila de trabalho, regras da competição |
 | [`AGENTS.md`](AGENTS.md) · [`STYLE.md`](STYLE.md) · [`.specify/`](.specify/) · [`speckit/`](speckit/) | Como mudanças acontecem aqui e como a prosa é escrita |
 | [`scripts/`](scripts/) | Verificação local: `repo-guard.mjs` e `prose-evals.mjs` |
@@ -134,6 +135,72 @@ Antes de qualquer commit:
 ```bash
 node scripts/repo-guard.mjs && node scripts/prose-evals.mjs
 ```
+
+## Para quem desenvolve (pessoas e agentes)
+
+O MVP sai em três frentes paralelas, cada uma com worktree, branch
+`wt/<nome>` e brief próprio (spec 0004; mecanismo na spec 0005, D-019).
+A `main` só recebe commit de integração.
+
+| Frente | Branch | Worktree | Escreve em | Brief |
+|---|---|---|---|---|
+| `app-core` | `wt/app-core` | `../foundry-wt-app-core` | `app/shared/`, `app/server/`, `app/contracts/`, `app/package.json`, `app/tsconfig*.json`, `app/docker-compose.yml` | [brief-core.md](specs/0004-mvp-atraso-propagado/brief-core.md) |
+| `app-demo` | `wt/app-demo` | `../foundry-wt-demo` | `app/web/` | [brief-demo.md](specs/0004-mvp-atraso-propagado/brief-demo.md) |
+| `escopo-produto` | `wt/escopo-produto` | `../foundry-wt-escopo` | `app/seed/`, `app/README.md`, `docs/`, `DECISIONS.md`, `BACKLOG.md`, `RULES.md`, `README.md` | [brief-produto.md](specs/0004-mvp-atraso-propagado/brief-produto.md) |
+
+Tudo que não está na tabela é da integração: `AGENTS.md`, `PRODUCT.md`,
+`speckit/`, `scripts/`, `.specify/`, `site/`, `slides/` e
+`specs/README.md`.
+
+### Setup, uma vez por clone
+
+```bash
+git clone git@github.com:TheHackBrasil/foundry.git && cd foundry
+git config core.hooksPath scripts/hooks
+git fetch && git worktree add ../foundry-wt-<frente> wt/<frente>
+```
+
+O worktree fica fora da cópia principal e a `main` local fica limpa
+para integração e leitura. O `package.json` e o lockfile de `app/` são da
+`app-core`; `app/web/` tem os próprios, da `app-demo`.
+
+### O que o hook impõe em todo commit
+
+- Em `wt/<nome>`: recusa arquivo fora dos paths da frente
+  (`speckit/frentes.json` é a fonte). Precisou de arquivo alheio:
+  combine com a dona ou peça à integração.
+- Na `main`: recusa commit sem `FOUNDRY_INTEGRA=1`.
+- Branch `wt/` que não está no mapa é recusada.
+- `repo-guard` e `prose-evals` rodam sempre; falha bloqueia o commit.
+- `--no-verify` pula o hook. Por isso a integração lê o diff inteiro
+  antes de mergear.
+
+### Regras que o hook não consegue impor
+
+- Decisão tomada dentro da frente vai para a seção "Decisões da frente"
+  no fim do brief. `escopo-produto` (dona de `DECISIONS.md`, `BACKLOG.md`
+  e `RULES.md`) ou a integração copia para lá.
+- Push da própria branch sempre que um passo do brief fica verde.
+  Integração junta pelo menos uma vez por dia.
+- Commit atômico, mensagem `<tipo>: <resumo>`
+  (`docs|feat|fix|spec|chore|refactor`), sem `Co-authored-by` e sem
+  trailers gerados.
+- Merge na `main`, push fora da própria branch, force-push e rebase
+  sobre frente alheia são proibidos. Conflito com outra frente resolve
+  quem chegou por último, dentro da própria branch.
+
+### Com agentes
+
+- Agente executa o brief por escrito, não instrução de chat. Reporte
+  exigido: conclusão + evidência (`arquivo:linha`, saída de gate) por
+  critério.
+- Dois agentes nunca escrevem na mesma pasta: cada um no próprio
+  worktree, mesmo dentro de uma frente.
+- Frentes que se tocam não rodam na mesma onda. O orquestrador valida
+  em segunda instância: lê o diff, roda o guard, confere critérios.
+
+Protocolo completo em [`speckit/frentes.md`](speckit/frentes.md); mapa
+de paths em [`speckit/frentes.json`](speckit/frentes.json).
 
 ## Time
 
