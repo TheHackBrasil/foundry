@@ -62,3 +62,42 @@ gate por critério.
   `app/web/src/api.ts` até a infra promover o tipo).
 - Textos de `detalhe` das tarefas vêm com data ISO, código de status e sem
   acento (THE-9 corrige em `app/shared/rules.ts`).
+
+## Evidência por critério do gate (21/11)
+
+- `tsc --noEmit` limpo: `npm run typecheck` em `app/web/`, sem saída de erro.
+- Testes: `npm test` em `app/web/` passa 8 testes de `src/matriz.test.ts`
+  (matriz por fonte, conflito que some quando a fonte corrige o valor,
+  filtro por parte e agrupamento de tarefas). Build: `npm run build` ok.
+- Screenshot 1440 e 390 sem quebra: `app/web/evidencias/torre-1440.png` e
+  `app/web/evidencias/torre-390.png`. A página não rola na horizontal em
+  320, 390, 768 e 1440 px (`scrollWidth` igual a `clientWidth`); a tabela de
+  campos rola por dentro, o que o reflow permite em tabela de dados.
+- XML enviado vira pedido na tela: NF-e, CT-e e planilha de
+  `app/web/public/exemplos/` enviados pela própria interface criam o pedido,
+  com 1, 14 e 26 eventos, e o resultado de cada envio é listado.
+- Divergência propaga sem recarregar: a tela busca de novo ao receber o
+  evento do SSE (uma busca de lista, uma do pedido e uma da auditoria por
+  rajada, agrupadas em 300 ms) e anuncia na região viva, por exemplo
+  "Pedido 3526…000019: 20 eventos novos. 141 eventos no registro."
+- Cinco visões: o seletor "Ver como" filtra as tarefas por parte (D-W1,
+  pendente de confirmação).
+- A6, item a item, auditoria por subagente com `agent-browser` e
+  axe-core 4.14.1 (0 violações a 1440 e a 320 px) em dois passes:
+  - contraste: texto do menor par mede 4,88:1 (`--ink-faint` sobre
+    `--panel-hi`, só usado em borda) e os demais passam de 5,7:1;
+    ícones e bordas de controle passam de 3:1 (`--line-ctl` mede 3,69,
+    3,44 e 3,12 sobre `--bg`, `--panel` e `--panel-hi`);
+  - foco e teclado: ordem de Tab completa, anel visível em todas as
+    paradas (o anel dos links da lista estava cortado pelo `overflow` e
+    foi corrigido), grupo "Ver como" por setas, skip link sem trocar o
+    pedido aberto;
+  - `prefers-reduced-motion`: `.tarefa-nova` só anima sob
+    `no-preference` (medido com a mídia emulada);
+  - alt text: a tela não tem imagem; os 7 ícones SVG são decorativos
+    (`aria-hidden`) e o sentido vem em texto.
+- Não verificado: leitor de tela real (NVDA, VoiceOver), queda de rede real
+  do stream (simulada por evento `error` na instância do `EventSource`;
+  a recuperação foi testada com rede real), `forced-colors`, zoom de 200%
+  e 400% do navegador, Firefox e Safari, toque real e tema claro (não
+  existe).

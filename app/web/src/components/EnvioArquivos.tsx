@@ -103,18 +103,18 @@ export function EnvioArquivos({ aoEnviar }: { aoEnviar: (pedidoId: string) => vo
         .
       </p>
       <div role="status" aria-live="polite">
-      {resultados.length > 0 && (
-        <ul className="resultados" aria-label="Resultado dos envios">
-          {resultados.map((r, i) => (
-            <li key={`${r.nome}-${i}`} className={r.ok ? 'res-ok' : 'res-erro'}>
-              {r.ok ? <IconeOk /> : <IconeErro />}
-              <span>
-                <strong>{r.nome}</strong>: {r.texto}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+        {resultados.length > 0 && (
+          <ul className="resultados" aria-label="Resultado dos envios">
+            {resultados.map((r, i) => (
+              <li key={`${r.nome}-${i}`} className={r.ok ? 'res-ok' : 'res-erro'}>
+                {r.ok ? <IconeOk /> : <IconeErro />}
+                <span>
+                  <strong>{r.nome}</strong>: {r.texto}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

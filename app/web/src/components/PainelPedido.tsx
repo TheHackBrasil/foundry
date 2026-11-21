@@ -23,7 +23,8 @@ function Conteudo({ dados, auditoria, novas, aoVerificar }: Omit<Props, 'id' | '
     <>
       {dados.pedido && (
         <p className="partes-pedido">
-          {dados.pedido.emitente.nome} para {dados.pedido.destinatario.nome}. {dados.totalEventos} eventos no registro.
+          {dados.pedido.emitente.nome} para {dados.pedido.destinatario.nome}. {dados.totalEventos}{' '}
+          {dados.totalEventos === 1 ? 'evento' : 'eventos'} no registro.
         </p>
       )}
       <section className="bloco" aria-labelledby="bloco-cadeia">
