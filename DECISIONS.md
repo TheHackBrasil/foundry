@@ -42,6 +42,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-017 | 20/11 | Blockchain no MVP = ledger hash-chained + âncora Merkle em Base Sepolia + escrow contract como peça de impacto; rede permissionada e nó por empresa fora | decidido | Prova de integridade verificável sem fricção de adoção (setor não letrado); consortium chain fica como visão de arco |
 | D-018 | 20/11 | Recorte operacional refinado: produto = pipeline de documentos reais (NF-e/CT-e/CC-e, e-mail, planilha) → divergência → propagação; atraso propagado vira cenário da demo dentro do motor de divergência; âncora on-chain fica (P1) cobrindo eventos não-fiscais; escrow sai para backlog; twin de nós rebaixado para P2 | decidido | Proposta de escopo do time (doc de trabalho 20/11) + análise: ingestão executa a tese TOTVS de adoção sem mudança de rotina; SEFAZ autentica docs fiscais mas não os eventos da camada; twin é aditivo visual (Schulz) |
 | D-019 | 20/11 | Execução do MVP em três frentes paralelas, as da spec 0004 (`wt/app-core`, `wt/app-demo`, `wt/escopo-produto`), cada uma com worktree, dono por pasta (`speckit/frentes.json`) e brief em `specs/0004-mvp-atraso-propagado/`; hook de pre-commit versionado (guard, prose-evals, paths da frente, `main` protegida localmente); decisões de frente ficam no fim do brief da frente e `escopo-produto` ou a integração copiam para `DECISIONS.md` | decidido | Desenvolvimento com agentes em paralelo sem conflito; o protocolo antigo se contradizia (frentes não dividem arquivo, mas todas escreviam em `DECISIONS.md`). Spec 0005 |
+| D-020 | 21/11 | Correções na spec 0004 e nas tasks que valem para qualquer versão do escopo: URL pública (T040) e vídeo (T042) viram P0 pelo regulamento 7.2 e 7.3; o atraso entra pela planilha do fornecedor (T031 sobe para P0) e não por CC-e (R-006); XML enviado por visitante fica isolado na sessão dele (`workspaceId`, T027) pelo regulamento 6.9; escrow fora, vale D-018 sobre D-017; o boot do Vite é da frente demo (spec 0005) | decidido | Conferência contra o regulamento e a regra fiscal em 21/11; as escolhas de escopo (âncora, IMAP, uma tela, dominó) seguem em P-006 |
 
 ## Pendências
 
@@ -52,9 +53,10 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | P-003 | Liz confirmada como 4ª integrante? | Liz saiu do time (Thiago, 20/11); time de 3. Site e docs ainda citam a Liz como pendente | resolvido |
 | P-004 | Renomear `foundry` → `the-foundry` se o Gabriel liberar o nome? | Nome mais limpo; não urgente | aberto |
 | P-005 | Regras oficiais do HackBrasil | Regulamento oficial lido em 20/11 (R-005, `RULES.md`); restam formato da final (enviado aos finalistas) e nomes dos jurados (até 30/11) | resolvido |
-| P-006 | Reconciliar `specs/0004-mvp-atraso-propagado` (fechada na call de 20/11) com `docs/plano-mvp.pdf`: deploy (T040) e vídeo (T042) como P0 pelo regulamento 7.2 e 7.3; "CC-e de atraso" e "fiscal reemite a NF" (R-006); escrow em D-017 contra D-018; P1 com e-mail IMAP e âncora antes de 30/11 | A spec tem a âncora e o IMAP no P1 de 23 a 26/11 e a URL pública no fim; o regulamento exige demo e vídeo como entregáveis | aberto |
+| P-006 | Escolhas de escopo em que a spec 0004 e `docs/plano-mvp.pdf` divergem, para o Gab decidir: âncora em Base Sepolia antes de 30/11 (T025) ou só na final, com recibo de hash no alerta antes; e-mail IMAP (T030) no P1 ou só com o P0 verde; cinco visões por papel (T004, T014) ou tela única; dominó e twin (T033, T044) antes de 30/11 ou na final | A spec 0004 foi fechada na call, que terminou às 02:55 de 20/11; o plano revisado é das 03:03, depois dela. A seção 10 do PDF lista as diferenças linha a linha. As correções de regulamento e fiscal já entraram (D-020) | aberto |
 | P-007 | Quem integra as frentes na `main`, e se o GitHub passa a exigir PR para a `main` (D-005 hoje proíbe proteção de branch) | Com três pessoas e agentes em máquinas diferentes, o hook local não protege a `main` remota | aberto |
-| P-008 | Stack e hospedagem: D-016 fixou linguagem, banco e SSE; falta hospedagem (Heroku em avaliação) e validar o conjunto (sem hibernação até 12/12, Postgres com trigger, SSE atrás do roteador, deploy sem Docker, custo com o crédito disponível) | Demo no ar é entregável (regulamento 7.2 e 7.3) e a hospedagem não está decidida | aberto |
+| P-008 | Stack e hospedagem: D-016 fixou linguagem, banco e SSE; falta hospedagem (Heroku em avaliação) e validar o conjunto (sem hibernação até 12/12, Postgres com trigger, SSE atrás do roteador, deploy sem Docker, custo com o crédito disponível) | Demo no ar é entregável (regulamento 7.2 e 7.3) e a hospedagem não está decidida (prazo proposto: 24/11; até lá o código roda em qualquer host: `DATABASE_URL`, `PORT`, heartbeat no SSE) | aberto |
+| P-009 | OCOREN como segundo canal de atraso: arquivo EDI PROCEDA que a transportadora envia ao embarcador (registro 342, código 02 "entrega fora da data programada"), ligado ao pedido por CNPJ do emissor, série e número da NF | O registro não traz a chave de 44 dígitos e o layout varia por versão e por embarcador (R-007); entra como P1 se o Gab confirmar | aberto |
 
 ## Achados de pesquisa
 
@@ -66,6 +68,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | R-004 | Emiteaí: emissão de doc de rota ~5 min; também gestão financeira/operacional; sem blockchain | Concorrente/referência de comparação: diferenciação em aberto | investigar |
 | R-005 | Regulamento oficial ([hackbrasil.com/regulamento](https://hackbrasil.com/regulamento), atualizado em 18/11): quatro critérios de mesmo peso (execução técnica, implementação técnica, impacto, qualidade da comunicação); fase online julgada por repo, demo e vídeo de até 3 min do produto; top 5 por trilha com nota mínima 20/40 vai à final presencial de 12/12; congelamento de 30/11 a 12/12 | Detalhe item a item em `RULES.md`; o FAQ fala em "apresentação", o regulamento (que prevalece) diz "comunicação" | adotar |
 | R-006 | Regras fiscais do cenário de atraso: CC-e não corrige data de emissão ou de saída (Convênio SINIEF s/nº 1970, art. 7º, §1º-A); cancelamento de NF-e em regra até 24h e sem circulação da mercadoria (Ajuste SINIEF 07/05); evento de insucesso na entrega do CT-e (110190) | Fontes e consequência em `docs/plano-mvp.pdf`, seção 02; contador confirma antes de virar regra do motor | investigar |
+| R-007 | OCOREN (PROCEDA, versão 3.1 de 15/05/2000): arquivo de texto com registros de 120 caracteres (000, 340, 341, 342, 343); o 342 traz CNPJ do emissor da NF (posição 4, 14 dígitos), série (18, 3), número da NF (21, 8), código da ocorrência (29, 2), data DDMMAAAA (31, 8), hora (39, 4) e texto livre (45, 70); o código 02 é "entrega fora da data programada" na tabela de ocorrências da Senior | Fonte: layout PROCEDA (`ocoren.pdf` da Senior) e [manual de EDI da Senior](https://documentacao.senior.com.br/gestao-de-fretes-gko/7.01/manual-processos/edi.htm). A TOTVS publica layout próprio e existem versões posteriores; não li esses | referência; entra no motor só se P-009 for aceito |
 
 ---
 
@@ -144,3 +147,16 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   `wt/app-demo`, `wt/escopo-produto`; hook em `scripts/hooks/`.
 - Liz saiu do time (informado por Thiago, 20/11): P-003 resolvido, time
   de 3.
+
+### Sessão 7: correções da spec 0004 e início do código (21/11)
+
+- Sobre o "doc de mvp" da call: o Thiago respondeu "o pdf". A call
+  terminou às 02:55 (cabeçalho da transcrição, horário de Brasília) e o
+  `docs/plano-mvp.pdf` é das 03:03, então a call fechou o documento do
+  Gui. Entraram na spec só as correções que valem para qualquer versão
+  (D-020); as escolhas de escopo ficaram em P-006 para o Gab.
+- Branches remotas `wt/core`, `wt/demo` e `wt/produto` apagadas, com
+  autorização do Thiago.
+- Integração real: o mercado troca documento (NF-e, CT-e, arquivo EDI
+  PROCEDA, planilha, e-mail), não API de ERP. OCOREN lido no layout
+  original (R-007, P-009).

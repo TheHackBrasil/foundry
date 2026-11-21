@@ -1,12 +1,11 @@
 # Brief · frente `escopo-produto`
 
 Escopo: tudo que não é código da spec 0004: corpus de XMLs sintéticos
-(`app/seed/xmls/` + `app/seed/cenario.md`: NF-e, CT-e, CC-e de atraso
+(`app/seed/xmls/` + `app/seed/cenario.md`: NF-e, CT-e, planilha de atraso do fornecedor
 coerentes entre si, mesma chave de 44 dígitos, CNPJ fictício,
 rotulado), roteiro da call Enviagora atualizado (valida produto com a
 demo, não ideia), envio da pergunta P-002 ao contato TOTVS,
-levantamento dos critérios oficiais da banca (P-005, item barato e
-decisivo), comparação documentada com a Emiteaí (R-004),
+levantamento dos critérios oficiais da banca (P-005, resolvido em 20/11), comparação documentada com a Emiteaí (R-004),
 `app/README.md` (setup em 3 comandos + roteiro de demo de 3 min),
 copy da demo revisada por `STYLE.md`, pitch v11 com gravação da demo,
 sessões e decisões em `DECISIONS.md`, `BACKLOG.md` atualizado,

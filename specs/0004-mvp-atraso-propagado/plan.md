@@ -28,7 +28,7 @@ dispensa hash chain nem âncora).
 | A2 fronteira de dados | sim | sem dados reais; segredo só em `.env` local (gitignore); autorização real fora de escopo |
 | A3 escritas/domínio puro | sim | `app/shared/` puro e testado; efeitos em `app/server/` (store, parsers, anchor) |
 | A4 superfície pública | sim | `app/` indexado no `README.md` raiz + `specs/README.md` |
-| A5 dados pessoais | não | empresas fictícias no corpus de XMLs |
+| A5 dados pessoais | sim | corpus sintético; upload de visitante isolado por sessão (RF27) |
 | A6 idioma/identidade/a11y | sim | UI pt-BR na identidade Foundry; 4 itens a11y nos critérios |
 | A7 rótulo de ilustrativo | sim | selo "dados fictícios"; extração por LLM e impacto em R$ rotulados |
 | A8 gate local | sim | guard + prose-evals + `node --check` + `tsc --noEmit` + critérios item a item |
@@ -105,11 +105,12 @@ app/
    pronto e testado; corpus de XMLs começado.
 2. Fase 1 (sáb/dom): walking skeleton P0: upload → parser NF-e →
    pedido → divergência → painel SSE. Demo honesta na segunda.
-3. Fase 2 (seg/qua): completa P0 (CT-e, eventos/CC-e, CSV, testes,
-   P-005) e começa P1 (IMAP, audit + anchor, linha do tempo).
+3. Fase 2 (seg/qua): completa P0 (CT-e, eventos fiscais, planilha de atraso, isolamento
+   por sessão, testes, hospedagem decidida até 24/11) e começa P1 (IMAP, audit + anchor, linha do tempo).
 4. Fase 3 (qui/sáb): P1 wow: dominó por evento, fila de revisão,
-   URL pública, simulação "e se?", PDF por LLM se couber.
-5. Fase 4 (dom/seg 30): pitch v11 com gravação, capítulo do site,
+   simulação "e se?", PDF por LLM se couber.
+5. Fase 4 (dom/seg 30): URL pública estável e vídeo de até 3 min (P0),
+   pitch v11 com gravação, capítulo do site,
    comparação Emiteaí, twin de nós se sobrar, gates e ensaio final.
 Reversão: `git revert`; frentes integram via `wt/` (`speckit/frentes.md`).
 

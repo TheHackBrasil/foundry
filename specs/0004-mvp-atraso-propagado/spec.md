@@ -1,6 +1,6 @@
 # Spec 0004: MVP da camada de coordenação (documentos reais + divergência)
 
-**Status:** aprovada
+**Status:** aprovada (correções de 21/11 em D-020)
 **Origem:** `BACKLOG.md` item 8 · decisões D-015 a D-018 · proposta de
 escopo do time (doc de trabalho, 20/11)
 **Data:** 2026-11-20
@@ -38,7 +38,7 @@ prova a integridade do histórico.
   NF-e (upload ou e-mail) **Então** o pedido aparece na torre com as
   partes preenchidas a partir do documento.
 - **Dado** o pedido criado **Quando** chega um evento de divergência
-  (CC-e de atraso, CT-e com data ou peso divergente) **Então** as
+  (planilha do fornecedor com a nova data, CT-e com data ou peso divergente) **Então** as
   visões de cada parte acendem com a tarefa que lhes cabe, em tempo
   real.
 
@@ -85,14 +85,15 @@ se sobrar. Corte preserva P0 primeiro, depois P1 na ordem inversa.
   pesos e datas.
 - **RF2 [P0]**: parser de CT-e (XML): liga transportadora e frete à NF
   pela chave.
-- **RF3 [P0]**: parser de eventos fiscais (CC-e, cancelamento): é o
-  gatilho real do atraso/divergência.
+- **RF3 [P0]**: parser de eventos fiscais (CC-e, cancelamento). A CC-e
+  não corrige a data de saída (R-006), então não é o gatilho do atraso,
+  que entra pela planilha do RF6.
 - **RF4 [P0]**: upload manual de arquivo na demo (plano B ao vivo e
   porta para o juiz testar).
 - **RF5 [P1]**: caixa de e-mail dedicada via IMAP: documento enviado
   por e-mail entra sozinho na camada.
-- **RF6 [P1]**: ingestão de planilha CSV/XLSX fazendo o papel de
-  ERP/WMS do CD.
+- **RF6 [P0]**: ingestão de planilha CSV/XLSX fazendo o papel de
+  ERP/WMS do CD e de canal do atraso informado pelo fornecedor.
 - **RF7 [P1]**: extração de PDF por LLM com fila de revisão humana
   visível na UI (o erro de extração é confessado, não escondido).
 
@@ -144,9 +145,16 @@ se sobrar. Corte preserva P0 primeiro, depois P1 na ordem inversa.
   não pode quebrar.
 - **RF23 [P0]**: critérios oficiais de avaliação do HackBrasil
   levantados (P-005) e registrados em `RULES.md`.
-- **RF24 [P1]**: demo pública com URL (juiz testa sozinho).
-- **RF25 [P1]**: pitch v11 com gravação da demo.
+- **RF24 [P0]**: demo pública com URL, sem login e no ar até o fim da
+  avaliação (regulamento 7.2 e 7.3); juiz testa sozinho.
+- **RF25 [P0]**: vídeo de até 3 minutos do produto funcionando
+  (regulamento 7.2); pitch v11 com a gravação da demo.
 - **RF26 [P1]**: comparação documentada com a Emiteaí (R-004).
+- **RF27 [P0]**: isolamento por sessão: arquivo enviado por visitante
+  grava no workspace da sessão dele, e SSE e GET filtram por workspace;
+  a seed é compartilhada e só leitura. Um XML real pode trazer CPF e
+  nome de pessoa, e o regulamento 6.9 proíbe expor dado pessoal real de
+  terceiros na demo.
 
 ## Requisitos não-funcionais
 
@@ -181,14 +189,16 @@ se sobrar. Corte preserva P0 primeiro, depois P1 na ordem inversa.
 
 - [ ] Enviar XML de NF-e (upload ou e-mail) cria pedido com partes
       preenchidas.
-- [ ] CC-e/CT-e divergente acende a tarefa certa em cada visão via SSE.
+- [ ] Planilha de atraso ou CT-e divergente acende a tarefa certa em
+      cada visão via SSE.
 - [ ] UPDATE via admin no banco falha (trigger); bypass dele é pego
       pelo audit nomeando o evento.
 - [ ] Anchor gera tx visível em sepolia.basescan.org.
 - [ ] `tsc --noEmit` limpo; `node --check` em `.js`/`.mjs`; guard e
       prose-evals exit 0.
 - [ ] Demo de 3 min ensaiada ponta a ponta sem intervenção.
-- [ ] (P1) URL pública acessível; (P2) twin renderiza a cadeia.
+- [ ] URL pública acessível sem login (P0); (P2) twin renderiza a cadeia.
+- [ ] XML enviado numa sessão não aparece em outra (RF27).
 
 ## Premissas
 
@@ -202,3 +212,6 @@ se sobrar. Corte preserva P0 primeiro, depois P1 na ordem inversa.
 
 Nenhuma. Recorte consolidado em 20/11 a partir da proposta do time +
 análise da sessão (D-018).
+- Hospedagem decidida até 24/11 (P-008); até lá o código roda em qualquer
+  host: `DATABASE_URL` e `PORT` por ambiente e heartbeat no SSE (o
+  roteador da hospedagem derruba conexão ociosa).
