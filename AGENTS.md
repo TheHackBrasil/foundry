@@ -36,8 +36,10 @@ Conflito resolve-se a favor do primeiro da lista.
   harness; sem a skill, aplicar o guia à mão. Travessão e meia-risca
   são proibidos em `.md` (o guard falha).
 - Commits: atômicos, `<tipo>: <resumo>` (docs|feat|fix|spec|chore),
-  autor real: humano commita com seu `user.name`/`user.email` do GitHub,
-  agente com a identidade de bot da sessão (ex.: `devin`), sem trailers.
+  autor real: humano commita com seu `user.name`/`user.email` do GitHub;
+  agente commita com a identidade da conta de quem operou a sessão
+  (hoje `thisux1` <125291983+thisux1@users.noreply.github.com>),
+  sem trailers.
 
 ## Definition of Done
 
