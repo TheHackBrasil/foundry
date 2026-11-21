@@ -128,8 +128,13 @@ critério; "feito" sem evidência não é feito.
   repetir em outra máquina: `ANCHOR_PRIVATE_KEY` +
   `BASE_SEPOLIA_RPC_URL` + `ANCHOR_CONTRACT_ADDRESS` no `.env` local e
   `npm run deploy` em `app/contracts/` se for contrato novo.
-- Postgres real via `app/docker-compose.yml` não foi validado aqui
-  (sem Docker); PGlite cobre os mesmos testes.
+- Postgres real via `app/docker-compose.yml` validado nesta sessão
+  (Docker Desktop + WSL2, imagem `postgres:17-alpine`):
+  `docker compose up -d` + `DATABASE_URL` faz o server usar `pg`;
+  73 eventos do seed persistiram, triggers rejeitaram UPDATE, DELETE
+  e TRUNCATE via psql no container, âncora gravou a tx
+  `0xd5691de312cb1d486304df92dee78043cef0f1eb236f957e0bb075717f683f84`
+  e reiniciar o server manteve dados + `rootConfere:true`.
 - Extração de PDF por LLM implementada (OpenAI-compatible via
   `LLM_API_URL`/`LLM_API_KEY`/`LLM_MODEL`); sem provider, todo PDF vai
   para a fila de revisão com motivo `llm_nao_configurada`.
