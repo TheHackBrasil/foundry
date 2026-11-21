@@ -228,6 +228,21 @@ describe('ledger + api (PGlite)', () => {
     expect((res.json() as { erro: string }).erro).toContain('XML');
   });
 
+  it('XLSX e XLS respondem 422 pedindo CSV, sem ler o arquivo (D-C13)', async () => {
+    for (const nome of ['planilha.xlsx', 'planilha.XLS']) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/ingest',
+        payload: { nome, conteudoBase64: Buffer.from('PK\u0003\u0004 conteudo qualquer').toString('base64') },
+      });
+      expect(res.statusCode).toBe(422);
+      const body = res.json() as { erro: string; tipo: string };
+      expect(body.tipo).toBe('parser');
+      expect(body.erro).toContain('exporte a planilha como CSV');
+      expect(body.erro).toMatch(/nao suportad/); // imap.ts manda para a revisao com base nesse texto
+    }
+  });
+
   it('trigger do banco rejeita UPDATE e DELETE em events', async () => {
     const db = (store as unknown as { db: { query: (s: string) => Promise<unknown> } }).db;
     await expect(db.query(`UPDATE events SET tipo='x' WHERE pedido_id='${CHAVE}'`)).rejects.toThrow();

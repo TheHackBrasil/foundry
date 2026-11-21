@@ -77,6 +77,48 @@ critério; "feito" sem evidência não é feito.
 - **D-C11 (P)**: CORS aberto e rotas de escrita sem auth são escopo
   de demo local; endurecer (token ou bind localhost) fica para a
   integração se a demo for exposta.
+- **D-C12 (D)**: `.eml` entra como formato (RF28, D-021). `detectarTipo`
+  reconhece a extensão ou, fora de `.xml`, um `MIME-Version:` ou
+  `Content-Type: multipart/` no começo de linha nos primeiros 2 KB
+  (`app/server/ingest/detect.ts`). `extrairAnexos`
+  (`app/server/ingest/eml.ts`) devolve só anexos `.xml`, `.csv` e `.pdf`
+  (ou o content-type equivalente; um `.xlsx` derruba o e-mail com o 422
+  de D-C13), no máximo 10 por e-mail e 5 MB cada, renomeados
+  `anexo-N.<ext>` e com a NF-e antes do CT-e. E-mail
+  dentro de e-mail é rejeitado, sem recursão. Nenhum cabeçalho é lido,
+  devolvido nem repetido em erro (RF27); o erro do `mailparser` também
+  não é repassado, porque pode citar trecho da mensagem. Tipo de anexo
+  desconhecido derruba o e-mail antes de gravar qualquer um; um erro de
+  parser num anexo depois de outro já gravado deixa o anterior no
+  ledger, e reenviar é seguro porque a reingestão é no-op (D-C4). Em
+  `app/server/pipeline.ts` (frente app-infra) entrou só o `case 'eml'`
+  de `ingerir`, que passa cada anexo pelo mesmo caminho do upload solto.
+- **D-C13 (D)**: o leitor de XLSX sai do MVP e a planilha fica só em
+  CSV. `xlsx@0.18.5` da npm tem ReDoS (CVE-2024-22363) e prototype
+  pollution, e a correção só sai pela CDN da SheetJS. Duas trocas foram
+  medidas antes de remover. `exceljs@4.4.0` traz 193 pacotes (50 MB) e
+  o `npm audit` acusa 2 vulnerabilidades moderadas (`uuid`).
+  `read-excel-file@9.3.14` fecha o audit em 0 e traz 7 pacotes, mas em
+  teste local arquivo pequeno derrubou o processo: um `.xlsx` de 39 KB
+  com referência de célula absurda consumiu cerca de 2 GB de memória, um
+  de 2,3 MB com 200 mil atributos num elemento levou cerca de 70 s, uma
+  folha de 15 MB só de linhas vazias levou cerca de 52 s e um zip de
+  411 KB que infla para 400 MB levou cerca de 70 s, todos terminando em
+  `RangeError`. Limite de tamanho não resolve, porque o de 39 KB passa em
+  qualquer teto. A demo pública recebe arquivo de qualquer visitante, e
+  um processo só atende o juiz, então `.xlsx` e `.xls` viram 422 com
+  "exporte a planilha como CSV" (`app/server/ingest/detect.ts`). O texto
+  casa com `nao suportad` em `imap.ts`, que manda o anexo para a fila de
+  revisão em vez de retentar para sempre. Como o erro sai de
+  `detectarTipo`, um `.eml` com NF-e e `.xlsx` falha inteiro antes de
+  gravar. Caminho de volta, se a demo precisar de XLSX: ler a planilha
+  num `worker_threads` com `resourceLimits` e timeout, mais checagem dos
+  tamanhos do diretório central do zip antes de inflar.
+  Pendente para os donos (escopo-produto ou integração): RF6 da
+  `spec.md`, `plan.md`, T031 de `tasks.md`, `app/README.md`, `docs/` e
+  a P-010 do `DECISIONS.md` ainda dizem CSV/XLSX. `app/package.json`,
+  o lockfile e `app/server/pipeline.ts` (app-infra) perderam a `xlsx`
+  e o `case 'xlsx'`.
 
 ## Evidência por critério do gate
 

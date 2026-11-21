@@ -9,10 +9,11 @@ import { camposPorFonte, docDataParaPayload } from '../shared/projection.js';
 import type { LedgerStore } from './store.js';
 import type { CanalSSE } from './sse.js';
 import { detectarTipo } from './ingest/detect.js';
+import { extrairAnexos } from './ingest/eml.js';
 import { ErroParser, parseNFe } from './ingest/nfe.js';
 import { parseCTe } from './ingest/cte.js';
 import { parseEventoNFe } from './ingest/eventos.js';
-import { parseCsv, parseXlsx } from './ingest/csv.js';
+import { parseCsv } from './ingest/csv.js';
 import { parsePdf } from './ingest/pdf.js';
 
 export interface ResultadoIngest {
@@ -143,8 +144,17 @@ export async function ingerir(
     case 'csv':
       for (const doc of parseCsv(conteudo.toString('utf8'))) await processar(doc);
       break;
-    case 'xlsx':
-      for (const doc of parseXlsx(conteudo)) await processar(doc);
+    case 'eml':
+      // RF28: cada anexo aproveitavel segue o caminho de um upload solto. A
+      // recursao e de um nivel: os nomes sinteticos (anexo-N.xml|csv|pdf)
+      // nunca detectam como eml, e extrairAnexos ja rejeita e-mail aninhado.
+      for (const anexo of await extrairAnexos(conteudo)) {
+        const r = await ingerir(store, canal, anexo.nome, anexo.conteudo);
+        docs += r.docs;
+        todos.push(...r.eventos);
+        pedidoId ??= r.pedidoId;
+        revisaoId ??= r.revisaoId;
+      }
       break;
     case 'pdf': {
       const r = await parsePdf(conteudo);
