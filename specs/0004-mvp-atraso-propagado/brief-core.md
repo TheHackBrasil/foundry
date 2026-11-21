@@ -28,11 +28,12 @@ critério; "feito" sem evidência não é feito.
 
 ## Decisões da frente
 
-- **D-C1 (D)**: sem Docker na máquina, o store cai para PGlite
-  (Postgres real em WASM, `@electric-sql/pglite`) quando
-  `DATABASE_URL` não está definida; com a variável, usa `pg` Pool.
-  Mesma interface `Db` nos dois lados (`app/server/db.ts:7`). A
-  trigger append-only é testada de verdade, sem mock.
+- **D-C1 (D)**: o produto roda só em Postgres real: sem
+  `DATABASE_URL`, `createDb` falha com erro acionável; não há
+  fallback silencioso (`app/server/db.ts:96`). PGlite (Postgres real
+  em WASM) existe apenas como infra de teste via `createLiteDb`,
+  injetado em `buildServer` (`app/server/index.ts:27`): memória,
+  zero Docker, mesma interface `Db` e triggers reais, sem mock.
 - **D-C2 (D)**: seq por pedido serializada com
   `pg_advisory_xact_lock(hashtext(pedido_id))` dentro da tx
   (`app/server/store.ts:99`). `FOR UPDATE` não bastaria: a tx

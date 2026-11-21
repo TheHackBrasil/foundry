@@ -25,6 +25,7 @@ const PRIORIDADE_TIPO: Record<string, number> = {
 };
 
 async function main(): Promise<void> {
+  await import('dotenv/config'); // mesma convencao do boot do server
   const db = await createDb();
   const store = new LedgerStore(db);
   await store.init();

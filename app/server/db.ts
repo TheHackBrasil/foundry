@@ -1,5 +1,7 @@
-// Adaptador de banco: real Postgres via DATABASE_URL (pg) ou PGlite em
-// memoria para dev/test sem Docker. Mesma interface nos dois lados.
+// Adaptador de banco. O produto roda so em Postgres real via
+// DATABASE_URL (pg); createDb falha claro sem ela — nao ha fallback
+// silencioso. PGlite existe apenas para os testes via createLiteDb
+// (Postgres real em memoria, zero Docker, isolamento por suite).
 
 import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
@@ -93,6 +95,16 @@ class LiteDb implements Db {
 
 export async function createDb(url?: string): Promise<Db> {
   const connection = url ?? process.env['DATABASE_URL'];
-  if (connection) return new PgDb(connection);
+  if (!connection) {
+    throw new Error(
+      'DATABASE_URL ausente: suba o Postgres com `docker compose up -d` ' +
+        'e defina DATABASE_URL=postgres://foundry:foundry@localhost:5432/foundry',
+    );
+  }
+  return new PgDb(connection);
+}
+
+// Somente para testes: Postgres real em memoria, sem Docker nem volume.
+export async function createLiteDb(): Promise<Db> {
   return new LiteDb(new PGlite());
 }

@@ -9,7 +9,7 @@ import { propagarTodas } from '../shared/rules.js';
 import type { CamposObservados, Divergencia } from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
 import { ancorar } from './anchor.js';
-import { createDb } from './db.js';
+import { createDb, type Db } from './db.js';
 import { imapConfigDoEnv, iniciarPolling } from './ingest/imap.js';
 import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
 import { CanalSSE } from './sse.js';
@@ -17,12 +17,14 @@ import { LedgerStore } from './store.js';
 
 const PORTA = Number(process.env['PORT'] ?? 3000);
 
-export async function buildServer() {
+export async function buildServer(dbInjetado?: Db) {
   const app = Fastify({ logger: true });
   await app.register(cors, { origin: true });
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
-  const db = await createDb();
+  // Sem injecao: exige DATABASE_URL (createDb falha claro sem ela).
+  // Testes injetam createLiteDb() — PGlite nao e modo do produto.
+  const db = dbInjetado ?? (await createDb());
   const store = new LedgerStore(db);
   await store.init();
   const canal = new CanalSSE();
@@ -197,6 +199,7 @@ async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
 
 // Boot standalone (tsx server/index.ts).
 if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
+  await import('dotenv/config'); // carrega .env so no boot, nao nos testes
   const { app, store, canal } = await buildServer();
   await ligarImap(canal, store);
   try {

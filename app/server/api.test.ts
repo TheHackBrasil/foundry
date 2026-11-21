@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { GENESIS_HASH, hashEvento } from '../shared/chain.js';
 import { raizMerkle } from '../shared/merkle.js';
 import { buildServer } from './index.js';
+import { createLiteDb } from './db.js';
 import { parseNFe } from './ingest/nfe.js';
 import { parseCTe } from './ingest/cte.js';
 import { parseEventoNFe } from './ingest/eventos.js';
@@ -69,7 +70,7 @@ describe('ledger + api (PGlite)', () => {
   let store: LedgerStore;
 
   beforeAll(async () => {
-    const r = await buildServer();
+    const r = await buildServer(await createLiteDb());
     app = r.app;
     store = r.store;
     await app.ready();
