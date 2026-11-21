@@ -105,7 +105,7 @@ superfície fora dos paths do brief (A4), criar CI/deploy/tracker externo.
   `docs: capítulo FENATRAN no diário: specs/0003`.
 - Identidade: autor real de cada um (`user.name`/`user.email` do
   GitHub). Agente commita com a identidade da conta de quem operou a
-  sessão (hoje `thisux1` <125291983+thisux1@users.noreply.github.com>),
+  sessão (hoje `GuiDecker` <102395083+GuiDecker@users.noreply.github.com>),
   nunca a de outro humano. Sem `Co-authored-by`, sem trailers gerados.
 - Guard verde antes de cada commit; saída relevante colada no corpo do PR.
 
