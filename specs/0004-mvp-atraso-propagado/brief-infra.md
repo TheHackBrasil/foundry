@@ -20,7 +20,7 @@ na `wt/app-core` (D-022): store com trigger anti UPDATE, DELETE e
 TRUNCATE e trava por pedido, SSE com heartbeat, anchor, carga da seed e
 PGlite quando não há Docker (`brief-core.md`, "Decisões da frente").
 Falta o que o P-010 lista: isolamento por sessão, CORS e escrita sem
-autenticação, a dependência `xlsx` e a hospedagem.
+autenticação, o boot no Linux e a hospedagem.
 Contrato com a `app-core`: a infra chama os parsers de
 `app/server/ingest/` (`detectarTipo` e um parser por tipo, que lançam
 `ErroParser`) em `app/server/pipeline.ts`, e grava os eventos. Mudança

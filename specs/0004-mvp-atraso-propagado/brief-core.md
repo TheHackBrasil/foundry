@@ -2,7 +2,7 @@
 
 Escopo: núcleo de domínio e ingest da spec 0004: `app/shared/` (modelo,
 cadeia de hashes, divergência, regras, projeção, Merkle) e
-`app/server/ingest/` (parsers de NF-e, CT-e, eventos fiscais, CSV/XLSX,
+`app/server/ingest/` (parsers de NF-e, CT-e, eventos fiscais, CSV,
 IMAP, PDF por LLM e, se o P-009 for aceito, OCOREN). A primeira versão
 foi escrita por Gui na `wt/app-core` em 21/11 e é a base do código
 (D-022).
@@ -114,11 +114,8 @@ critério; "feito" sem evidência não é feito.
   gravar. Caminho de volta, se a demo precisar de XLSX: ler a planilha
   num `worker_threads` com `resourceLimits` e timeout, mais checagem dos
   tamanhos do diretório central do zip antes de inflar.
-  Pendente para os donos (escopo-produto ou integração): RF6 da
-  `spec.md`, `plan.md`, T031 de `tasks.md`, `app/README.md`, `docs/` e
-  a P-010 do `DECISIONS.md` ainda dizem CSV/XLSX. `app/package.json`,
-  o lockfile e `app/server/pipeline.ts` (app-infra) perderam a `xlsx`
-  e o `case 'xlsx'`.
+  Documentos que diziam CSV/XLSX (RF6, `plan.md`, T031, `app/README.md`,
+  P-010) foram ajustados na integração (D-023).
 
 ## Evidência por critério do gate
 

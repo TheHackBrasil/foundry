@@ -7,7 +7,7 @@ verificação; nenhuma task sem os dois. Prioridade entre parênteses
 
 Revisada em 21/11 (D-020): correções de regulamento, fiscal e privacidade; escolhas de escopo seguem em P-006.
 
-Estado em 21/11 (D-022): a primeira versão de `app/shared/`, `app/server/` e `app/contracts/`, escrita por Gui na `wt/app-core`, implementa T010 a T013, T020 a T022, T024, T025 (sem deploy na Base Sepolia), T030 a T032 e T035, segundo a evidência do `brief-core.md`, com 38 testes passando na integração. Pendem de verdade: T027 e T028 (workspace), T029 (`.eml`), a correção da CC-e (T023), T040 (hospedagem e deploy), o corpus (T015), a frente demo e o vídeo (T042).
+Estado em 21/11 (D-022): a primeira versão de `app/shared/`, `app/server/` e `app/contracts/`, escrita por Gui na `wt/app-core`, implementa T010 a T013, T020 a T022, T024, T025 (sem deploy na Base Sepolia), T030 a T032 e T035, segundo a evidência do `brief-core.md`, com 38 testes passando na integração. Pendem de verdade: T027 e T028 (workspace), o cancelamento gravado com fonte `cce` (T023), T040 (hospedagem e deploy), o corpus (T015), a frente demo e o vídeo (T042).
 
 Frentes: `wt/app-core`, `wt/app-infra`, `wt/app-demo`, `wt/escopo-produto` (tags `[core]`, `[infra]`, `[demo]`, `[produto]`). Divisão de
 pessoas por frente fica a cargo do time. Onda 0 é sequencial (contrato);
@@ -41,12 +41,12 @@ as demais seguem `speckit/frentes.md`.
 - [ ] T025 (P1) [infra] `FoundryAnchor.sol` + deploy Base Sepolia + `POST /api/anchor` + link do explorer no audit: `app/contracts/`, `app/server/anchor.ts`: tx visível em sepolia.basescan.org
 - [ ] T027 (P0) [infra] isolamento por sessão (regulamento 6.9, LGPD): upload de visitante grava no workspace da sessão dele; SSE e GET filtram por workspace; seed compartilhada e só leitura; tamanho máximo de arquivo e parser de XML sem entidade externa: `app/server/`: XML enviado numa sessão não aparece em outra
 - [ ] T028 (P0) [infra] `POST /api/ingest` (já existe) ganha workspace por cookie e tamanho máximo do arquivo: `app/server/index.ts`, `app/server/store.ts`: dois uploads simultâneos no mesmo pedido seguem sem bifurcar a cadeia, agora com o workspace
-- [ ] T029 (P0) [core] `.eml` (mensagem de e-mail): lê a mensagem, desembrulha anexos XML e PDF e entrega ao mesmo caminho do upload, sem registrar cabeçalho (RF27): `app/server/ingest/eml.ts`: `.eml` da seed com a NF-e em anexo gera os mesmos eventos que o XML solto
+- [x] T029 (P0) [core] `.eml` (mensagem de e-mail), feito em 21/11 em `app/server/ingest/eml.ts`: lê a mensagem, desembrulha anexos XML e PDF e entrega ao mesmo caminho do upload, sem registrar cabeçalho (RF27): `app/server/ingest/eml.ts`: `.eml` da seed com a NF-e em anexo gera os mesmos eventos que o XML solto
 
 ## Fase 3: Fator wow P1 (seg/qua, 23-26/11)
 
 - [ ] T030 [P] (P1) [core] caixa de e-mail IMAP, só com o P0 verde ou na final (D-021); reaproveita o `.eml` da T029 e a infra agenda a leitura: `app/server/ingest/imap.ts`: e-mail com XML anexo vira pedido/evento
-- [ ] T031 [P] (P0) [core] ingestão de CSV/XLSX fazendo papel de ERP/WMS e de canal do atraso informado pelo fornecedor: `app/server/ingest/csv.ts`: planilha da seed com a nova data gera o evento de atraso
+- [ ] T031 [P] (P0) [core] ingestão de CSV (XLSX saiu do MVP, D-023) fazendo papel de ERP/WMS e de canal do atraso informado pelo fornecedor: `app/server/ingest/csv.ts`: planilha da seed com a nova data gera o evento de atraso
 - [ ] T032 [P] (P1) [core] simulação "e se?" reusando o grafo com entrada hipotética: `app/shared/rules.ts`, `app/server/index.ts`: entrada hipotética gera tarefas sem gravar evento
 - [ ] T033 (P1) [demo] dominó da propagação movido por evento real: `app/web/src/`: evento real anima a queda em cadeia
 - [ ] T034 [P] (P1) [demo] linha do tempo do pedido com versões lado a lado + hashes clicáveis + tela da fila de revisão: `app/web/src/`: divergência legível entre versões

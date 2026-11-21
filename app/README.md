@@ -17,7 +17,7 @@ fila em `../BACKLOG.md` (item 8).
 |---|---|
 | `shared/` | Tipos e regras puras: modelo canônico, cadeia de hashes, detecção de divergência, tabela de propagação |
 | `server/` | API REST (Fastify) + Postgres append-only (trigger anti UPDATE/DELETE) + SSE + cliente ethers da âncora |
-| `server/ingest/` | Parsers: NF-e, CT-e, eventos fiscais (CC-e), CSV/XLSX, caixa IMAP, PDF por LLM com revisão |
+| `server/ingest/` | Parsers: NF-e, CT-e, eventos fiscais (CC-e), CSV, e-mail (.eml), caixa IMAP, PDF por LLM com revisão |
 | `web/` | Painel de alertas por papel (Vite + React): upload, propagação ao vivo, linha do tempo, fila de revisão |
 | `contracts/` | `FoundryAnchor.sol` (âncora Merkle) em Hardhat, Base Sepolia |
 | `seed/` | Corpus de XMLs sintéticos coerentes (mesma chave, CNPJ fictício), rotulado |
