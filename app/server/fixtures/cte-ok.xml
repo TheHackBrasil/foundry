@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cteProc xmlns="http://www.portalfiscal.inf.br/cte" versao="4.00">
+  <CTe>
+    <infCte Id="CTe35260155566677000188570010000000021000000025" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <dhEmi>2026-01-20T14:00:00-03:00</dhEmi>
+        <modal>01</modal>
+        <serie>1</serie>
+        <nCT>2</nCT>
+      </ide>
+      <emit>
+        <CNPJ>55566677000188</CNPJ>
+        <xNome>Transportadora Ficticia Ltda</xNome>
+      </emit>
+      <rem>
+        <CNPJ>12345678000123</CNPJ>
+        <xNome>Fornecedor Ficticio Ltda</xNome>
+      </rem>
+      <dest>
+        <CNPJ>98765432000198</CNPJ>
+        <xNome>CD Ficticio SA</xNome>
+      </dest>
+      <vPrest>
+        <vTPrest>1500.00</vTPrest>
+      </vPrest>
+      <infCTeNorm>
+        <infCarga>
+          <vCarga>2000.00</vCarga>
+          <proPred>Produtos A e B</proPred>
+          <infQ>
+            <cUnid>01</cUnid>
+            <tpMed>PESO BRUTO</tpMed>
+            <qCarga>520.000</qCarga>
+          </infQ>
+          <infQ>
+            <cUnid>02</cUnid>
+            <tpMed>VOLUMES</tpMed>
+            <qCarga>12</qCarga>
+          </infQ>
+        </infCarga>
+        <infDoc>
+          <infNFe>
+            <chave>35260123456789000123550010000000011000000019</chave>
+          </infNFe>
+        </infDoc>
+      </infCTeNorm>
+    </infCte>
+  </CTe>
+</cteProc>

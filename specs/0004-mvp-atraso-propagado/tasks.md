@@ -7,6 +7,8 @@ verificação; nenhuma task sem os dois. Prioridade entre parênteses
 
 Revisada em 21/11 (D-020): correções de regulamento, fiscal e privacidade; escolhas de escopo seguem em P-006.
 
+Estado em 21/11 (D-022): a primeira versão de `app/shared/`, `app/server/` e `app/contracts/`, escrita por Gui na `wt/app-core`, implementa T010 a T013, T020 a T022, T024, T025 (sem deploy na Base Sepolia), T030 a T032 e T035, segundo a evidência do `brief-core.md`, com 38 testes passando na integração. Pendem de verdade: T027 e T028 (workspace), T029 (`.eml`), a correção da CC-e (T023), T040 (hospedagem e deploy), o corpus (T015), a frente demo e o vídeo (T042).
+
 Frentes: `wt/app-core`, `wt/app-infra`, `wt/app-demo`, `wt/escopo-produto` (tags `[core]`, `[infra]`, `[demo]`, `[produto]`). Divisão de
 pessoas por frente fica a cargo do time. Onda 0 é sequencial (contrato);
 as demais seguem `speckit/frentes.md`.
@@ -24,7 +26,7 @@ as demais seguem `speckit/frentes.md`.
 
 - [ ] T010 (P0) [infra] skeleton `app/`: package.json, tsconfig, Fastify boot com `DATABASE_URL` e `PORT` por ambiente (roda em qualquer host, P-008); o boot do Vite é da frente demo (spec 0005) e a infra o orquestra no script `dev`: `app/package.json`, `app/server/index.ts`: `npm run dev` sobe server e web
 - [ ] T011 (P0) [infra] Postgres via `docker-compose.yml` + tabela de eventos append-only (trigger rejeita UPDATE/DELETE): `app/docker-compose.yml`, `app/server/store.ts`: curl cria pedido e 2 eventos encadeados; UPDATE manual falha no banco
-- [ ] T012 (P0) [core] parser NF-e (chave 44 dígitos = id do pedido; emitente, destinatário, itens, pesos, datas) e ponto de entrada `ingerir()`: `app/server/ingest/nfe.ts`, `app/server/ingest/index.ts`: XML da seed vira evento com partes preenchidas; XML inválido devolve `rejeitado` com erro explícito
+- [ ] T012 (P0) [core] parser NF-e (chave 44 dígitos = id do pedido; emitente, destinatário, itens, pesos, datas): `app/server/ingest/nfe.ts`: XML da seed vira documento com partes preenchidas; XML inválido lança `ErroParser` com erro explícito
 - [ ] T013 (P0) [core] `divergence.ts` compara fontes (data, peso, volumes, status), `rules.ts` mapeia divergência → tarefa por parte e `projecao.ts` monta a versão por parte a partir dos eventos: `app/shared/divergence.ts`, `app/shared/rules.ts`, `app/shared/projecao.ts`: NF-e + evento divergente geram tarefa por parte
 - [ ] T014 [P] (P0) [demo] painel de alertas por papel renderizando via GET (5 visões, identidade Foundry) + upload de XML na UI + selo "dados fictícios": `app/web/src/`: screenshot 1440 e 390 sem quebra
 - [ ] T015 [P] (P0) [produto] corpus completo: NF-e + CT-e + planilha de atraso do fornecedor + `.eml` com a NF-e em anexo, coerentes entre si (mesma chave, CNPJ fictício): `app/seed/xmls/`, `app/seed/cenario.md`: NF-e e CT-e validam no pacote XSD do Portal Nacional (`xmllint --schema`); revisão
@@ -34,11 +36,11 @@ as demais seguem `speckit/frentes.md`.
 - [ ] T020 [US1] (P0) [infra] `GET /api/stream` SSE entregando evento novo: `app/server/index.ts`: 2 clientes recebem evento em <1s
 - [ ] T021 [US1] (P0) [demo] divergência propagando nas 5 visões via SSE sem reload: `app/web/src/`: envio da planilha de atraso acende a tarefa certa por parte
 - [ ] T022 [US2] (P0) [infra] `GET /api/pedidos/:id/audit` verifica cadeia e aponta 1ª adulteração: `app/server/index.ts`: UPDATE via admin (bypass da trigger) faz audit falhar nomeando o evento
-- [ ] T023 (P0) [core] parser CT-e (liga transportadora e frete à NF pela chave) + parser de eventos fiscais (CC-e, cancelamento; CC-e é evento de correção, nunca de atraso, R-006): `app/server/ingest/cte.ts`, `app/server/ingest/eventos.ts`: CT-e da seed vincula à NF; CC-e vira evento de correção
+- [ ] T023 (P0) [core] parser CT-e (liga transportadora e frete à NF pela chave) + parser de eventos fiscais (CC-e, cancelamento; CC-e é evento de correção, nunca de atraso, R-006): `app/server/ingest/cte.ts`, `app/server/ingest/eventos.ts`: CT-e da seed vincula à NF; CC-e vira evento de correção (hoje a CC-e com data nova vira `previsaoEntrega` em `app/server/ingest/eventos.ts`, e a seed tem `cce-atraso.xml`: corrigir)
 - [ ] T024 (P0) [infra] `GET /api/pedidos`, `GET /api/pedidos/:id` e `/versoes`, usando `projecao.ts` e `divergence.ts` da core e os tipos de `app/api/contrato.ts`: `app/server/index.ts`, `app/api/contrato.ts`: JSON com versão por parte e tarefas
 - [ ] T025 (P1) [infra] `FoundryAnchor.sol` + deploy Base Sepolia + `POST /api/anchor` + link do explorer no audit: `app/contracts/`, `app/server/anchor.ts`: tx visível em sepolia.basescan.org
 - [ ] T027 (P0) [infra] isolamento por sessão (regulamento 6.9, LGPD): upload de visitante grava no workspace da sessão dele; SSE e GET filtram por workspace; seed compartilhada e só leitura; tamanho máximo de arquivo e parser de XML sem entidade externa: `app/server/`: XML enviado numa sessão não aparece em outra
-- [ ] T028 (P0) [infra] `POST /api/ingest` (multipart) chama `ingerir()`, grava com `encadear()` na mesma transação que lê a cabeça, workspace por cookie, tamanho máximo do arquivo: `app/server/index.ts`, `app/server/store.ts`: dois uploads simultâneos no mesmo pedido não bifurcam a cadeia
+- [ ] T028 (P0) [infra] `POST /api/ingest` (já existe) ganha workspace por cookie e tamanho máximo do arquivo: `app/server/index.ts`, `app/server/store.ts`: dois uploads simultâneos no mesmo pedido seguem sem bifurcar a cadeia, agora com o workspace
 - [ ] T029 (P0) [core] `.eml` (mensagem de e-mail): lê a mensagem, desembrulha anexos XML e PDF e entrega ao mesmo caminho do upload, sem registrar cabeçalho (RF27): `app/server/ingest/eml.ts`: `.eml` da seed com a NF-e em anexo gera os mesmos eventos que o XML solto
 
 ## Fase 3: Fator wow P1 (seg/qua, 23-26/11)

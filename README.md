@@ -145,7 +145,7 @@ A `main` só recebe commit de integração.
 | Frente | Branch | Worktree | Escreve em | Brief |
 |---|---|---|---|---|
 | `app-core` | `wt/app-core` | `../foundry-wt-app-core` | `app/shared/`, `app/server/ingest/` | [brief-core.md](specs/0004-mvp-atraso-propagado/brief-core.md) |
-| `app-infra` | `wt/app-infra` | `../foundry-wt-infra` | `app/server/*.ts`, `app/server/db/`, `app/api/`, `app/contracts/`, `app/package.json`, `app/tsconfig*.json`, `app/docker-compose.yml`, deploy | [brief-infra.md](specs/0004-mvp-atraso-propagado/brief-infra.md) |
+| `app-infra` | `wt/app-infra` | `../foundry-wt-infra` | `app/server/*.ts`, `app/server/db/`, `app/contracts/`, `app/package.json`, `app/tsconfig*.json`, `app/docker-compose.yml`, deploy | [brief-infra.md](specs/0004-mvp-atraso-propagado/brief-infra.md) |
 | `app-demo` | `wt/app-demo` | `../foundry-wt-demo` | `app/web/` | [brief-demo.md](specs/0004-mvp-atraso-propagado/brief-demo.md) |
 | `escopo-produto` | `wt/escopo-produto` | `../foundry-wt-escopo` | `app/seed/`, `app/README.md`, `docs/`, `DECISIONS.md`, `BACKLOG.md`, `RULES.md`, `README.md` | [brief-produto.md](specs/0004-mvp-atraso-propagado/brief-produto.md) |
 

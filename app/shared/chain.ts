@@ -1,106 +1,81 @@
-// Cadeia de hashes do ledger (spec 0004, RF9 e RF15). Pura: usa só o
-// WebCrypto, que existe no Node e no navegador.
-//
-// Limite conhecido: quem controla o banco e recalcula a cadeia inteira a
-// partir do evento adulterado passa por esta verificação. Quem fecha esse
-// caso é uma testemunha externa (recibo com o hash no alerta, âncora
-// pública), não este arquivo.
+// Cadeia de hashes do ledger (spec 0004, RF9). Puro e testado.
+// Cada pedido tem uma cadeia propria ordenada por seq; o hash cobre o
+// conteudo do evento mais o hash do anterior (prev_hash).
 
-import type { Evento, EventoEntrada, Json } from './model.ts';
+import { createHash } from 'node:crypto';
+import type { Evento } from './model.js';
 
-export const GENESIS = '0'.repeat(64);
+export const GENESIS_HASH = '0'.repeat(64);
 
-// JSON com chaves ordenadas e sem espaço, para o mesmo objeto gerar sempre
-// os mesmos bytes (o jsonb do Postgres não preserva a ordem das chaves).
-// Recusa o que o JSON não representa: undefined, NaN, Infinity, bigint.
-export function canonicalJson(valor: Json): string {
-  if (valor === null || typeof valor === 'boolean' || typeof valor === 'string') {
-    return JSON.stringify(valor);
-  }
-  if (typeof valor === 'number') {
-    if (!Number.isFinite(valor)) throw new TypeError('número não finito não é JSON');
-    return JSON.stringify(valor);
-  }
-  if (Array.isArray(valor)) {
-    return `[${valor.map(canonicalJson).join(',')}]`;
-  }
-  if (typeof valor === 'object') {
-    const campos = Object.keys(valor)
-      .sort()
-      .map((chave) => `${JSON.stringify(chave)}:${canonicalJson(valor[chave] as Json)}`);
-    return `{${campos.join(',')}}`;
-  }
-  throw new TypeError(`valor fora do JSON: ${typeof valor}`);
+// Serializacao canonica: chaves ordenadas em qualquer profundidade.
+// Sem ela, reordenar chaves do payload mudaria o hash.
+export function canonico(valor: unknown): string {
+  if (valor === null || typeof valor !== 'object') return JSON.stringify(valor);
+  if (Array.isArray(valor)) return `[${valor.map(canonico).join(',')}]`;
+  const obj = valor as Record<string, unknown>;
+  const chaves = Object.keys(obj).sort();
+  return `{${chaves.map((k) => `${JSON.stringify(k)}:${canonico(obj[k])}`).join(',')}}`;
 }
 
-export async function sha256Hex(texto: string): Promise<string> {
-  const bytes = new TextEncoder().encode(texto);
-  const resumo = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(resumo), (b) => b.toString(16).padStart(2, '0')).join('');
+export function sha256Hex(texto: string): string {
+  return createHash('sha256').update(texto, 'utf8').digest('hex');
 }
 
-type SemHash = Omit<Evento, 'hash'>;
-
-// Lista os campos de propósito: coluna extra do banco (id, criadoEm) não
-// entra no hash.
-export function hashEvento(e: SemHash): Promise<string> {
-  return sha256Hex(
-    canonicalJson({
-      pedidoId: e.pedidoId,
-      workspaceId: e.workspaceId,
-      seq: e.seq,
-      prevHash: e.prevHash,
-      tipo: e.tipo,
-      autor: e.autor,
-      canal: e.canal,
-      ocorridoEm: e.ocorridoEm,
-      payload: e.payload,
-    }),
-  );
+// Material hasheado: identidade do pedido, tipo, payload canonico, ts e elo.
+export function hashEvento(
+  evento: Pick<Evento, 'pedidoId' | 'tipo' | 'payload' | 'ts'>,
+  prevHash: string,
+): string {
+  const material =
+    canonico({
+      pedidoId: evento.pedidoId,
+      tipo: evento.tipo,
+      payload: evento.payload,
+      ts: evento.ts,
+    }) + prevHash;
+  return sha256Hex(material);
 }
 
-export async function encadear(anterior: Evento | null, entrada: EventoEntrada): Promise<Evento> {
-  if (
-    anterior &&
-    (anterior.pedidoId !== entrada.pedidoId || anterior.workspaceId !== entrada.workspaceId)
-  ) {
-    throw new Error('evento de outro pedido ou workspace não encadeia nesta cadeia');
-  }
-  const base: SemHash = {
-    ...entrada,
-    seq: anterior ? anterior.seq + 1 : 0,
-    prevHash: anterior ? anterior.hash : GENESIS,
-  };
-  return { ...base, hash: await hashEvento(base) };
+export interface VerificacaoCadeia {
+  valida: boolean;
+  total: number;
+  indiceFalha: number | null; // posicao do 1o evento adulterado (0-based)
+  eventoFalha: Evento | null;
+  hashEsperado: string | null; // hash que o evento deveria ter
+  hashEncontrado: string | null;
 }
 
-export type FalhaCadeia = 'pedido' | 'seq' | 'prev_hash' | 'hash';
-
-export type ResultadoCadeia =
-  | { ok: true; cabeca: string }
-  | { ok: false; indice: number; seq: number; motivo: FalhaCadeia };
-
-// Aponta o primeiro evento que não confere. Cadeia vazia é válida e a
-// cabeça dela é o GENESIS.
-export async function verificarCadeia(eventos: readonly Evento[]): Promise<ResultadoCadeia> {
-  const primeiro = eventos[0];
-  if (!primeiro) return { ok: true, cabeca: GENESIS };
-
-  let prevEsperado = GENESIS;
-  for (const [indice, e] of eventos.entries()) {
-    const falha = (motivo: FalhaCadeia): ResultadoCadeia => ({
-      ok: false,
-      indice,
-      seq: e.seq,
-      motivo,
-    });
-    if (e.pedidoId !== primeiro.pedidoId || e.workspaceId !== primeiro.workspaceId) {
-      return falha('pedido');
+// Verifica elo a elo. Cadeia vazia e valida. Rejeita adulteracao de
+// conteudo (payload/ts/tipo), de sequencia (seq fora de ordem) e de elo
+// (prevHash quebrado).
+export function verificarCadeia(eventos: Evento[]): VerificacaoCadeia {
+  let prev = GENESIS_HASH;
+  for (let i = 0; i < eventos.length; i++) {
+    const ev = eventos[i]!;
+    const esperado = hashEvento(ev, prev);
+    const seqEsperada = i + 1;
+    if (
+      ev.prevHash !== prev ||
+      ev.hash !== esperado ||
+      (ev.seq !== undefined && ev.seq !== seqEsperada)
+    ) {
+      return {
+        valida: false,
+        total: eventos.length,
+        indiceFalha: i,
+        eventoFalha: ev,
+        hashEsperado: esperado,
+        hashEncontrado: ev.hash,
+      };
     }
-    if (e.seq !== indice) return falha('seq');
-    if (e.prevHash !== prevEsperado) return falha('prev_hash');
-    if (e.hash !== (await hashEvento(e))) return falha('hash');
-    prevEsperado = e.hash;
+    prev = ev.hash;
   }
-  return { ok: true, cabeca: prevEsperado };
+  return {
+    valida: true,
+    total: eventos.length,
+    indiceFalha: null,
+    eventoFalha: null,
+    hashEsperado: null,
+    hashEncontrado: null,
+  };
 }

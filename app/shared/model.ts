@@ -1,69 +1,166 @@
-// Modelo canônico (spec 0004, RF8). Puro: sem I/O, importável por server e web.
+// Modelo canonico da camada de coordenacao (spec 0004, RF8).
+// Contrato unico server x web: a web consome estes tipos via caminho relativo.
 
-export type Json =
-  | null
-  | boolean
-  | number
-  | string
-  | Json[]
-  | { [chave: string]: Json };
+export type Parte = 'fornecedor' | 'transportadora' | 'cd' | 'fiscal' | 'financeiro';
 
-export const PARTES = ['fornecedor', 'transportadora', 'cd', 'fiscal', 'financeiro'] as const;
-export type Parte = (typeof PARTES)[number];
+export const PARTES: readonly Parte[] = [
+  'fornecedor',
+  'transportadora',
+  'cd',
+  'fiscal',
+  'financeiro',
+] as const;
 
-export const CANAIS = ['upload', 'email', 'planilha', 'seed'] as const;
-export type Canal = (typeof CANAIS)[number];
+// Origem do documento que entrou na camada (o que cada parceiro ja produz).
+export type FonteDocumento = 'nfe' | 'cte' | 'cce' | 'planilha' | 'pdf' | 'imap' | 'manual';
 
-// O ledger guarda fatos de entrada. Divergência e tarefa são projeção
-// (recalculável), não evento: o que a cadeia prova é o que chegou.
-export const TIPOS_EVENTO = ['nfe', 'cte', 'evento_fiscal', 'atraso_informado'] as const;
-export type TipoEvento = (typeof TIPOS_EVENTO)[number];
+export type TipoEvento =
+  | 'nfe'
+  | 'cte'
+  | 'cce'
+  | 'cancelamento'
+  | 'planilha'
+  | 'pdf'
+  | 'divergencia'
+  | 'tarefa'
+  | 'ancora'
+  | 'revisao';
 
-// Campos que o motor compara entre fontes (RF10).
-export const CAMPOS = ['dataEntrega', 'pesoKg', 'volumes', 'status'] as const;
-export type Campo = (typeof CAMPOS)[number];
-
-// Peso e valor entram como string decimal: o hash passa por JSON e float
-// perde precisão.
-export interface CamposPedido {
-  dataEntrega?: string;
-  pesoKg?: string;
+// Campos que a camada vigia entre fontes (RF10). Ausente = a fonte nao declara.
+export interface CamposObservados {
+  previsaoEntrega?: string; // ISO 8601 (YYYY-MM-DD)
+  pesoTotal?: number; // kg
   volumes?: number;
-  status?: string;
+  status?: string; // 'emitida' | 'em_transito' | 'entregue' | 'atrasada' | 'cancelada'
 }
 
-export interface EventoEntrada {
-  // Chave de acesso de 44 dígitos da NF-e.
+export const CAMPOS_VIGIADOS = [
+  'previsaoEntrega',
+  'pesoTotal',
+  'volumes',
+  'status',
+] as const;
+
+export type CampoVigiado = (typeof CAMPOS_VIGIADOS)[number];
+
+export interface ItemPedido {
+  descricao: string;
+  quantidade: number;
+  unidade: string;
+  codigo?: string;
+}
+
+export interface ContatoDoc {
+  cnpj?: string;
+  nome: string;
+}
+
+// Saida normalizada de qualquer parser: documento vira DocData antes de virar Evento.
+export interface DocData {
+  fonte: FonteDocumento;
+  docTipo: TipoEvento;
+  pedidoId: string; // chave de 44 digitos da NF-e ou chave referenciada
+  campos: CamposObservados;
+  dados: Record<string, unknown>; // payload parseado completo (vai para o ledger)
+  confianca?: number; // 0..1, usado pela extracao por LLM (A7: rotulado na UI)
+}
+
+// Evento do ledger append-only. hash/prevHash preenchidos na gravacao (chain.ts).
+export interface Evento {
+  id?: number;
   pedidoId: string;
-  // Isola o upload de cada visitante (regulamento 6.9, RF27). A seed usa
-  // o workspace compartilhado e só leitura.
-  workspaceId: string;
+  seq?: number; // posicao na cadeia do pedido (1..n)
   tipo: TipoEvento;
-  // Quem emitiu o fato e por onde ele chegou.
-  autor: Parte;
-  canal: Canal;
-  // Data do fato conforme o documento, ISO 8601.
-  ocorridoEm: string;
-  payload: Json;
-}
-
-// A cadeia é por pedido: inserções de pedidos diferentes não competem pela
-// mesma cabeça. A âncora pública (P1) cobre a cabeça de cada cadeia.
-export interface Evento extends EventoEntrada {
-  seq: number;
+  payload: Record<string, unknown>;
+  ts: string; // ISO 8601
   prevHash: string;
   hash: string;
 }
 
 export interface Pedido {
-  id: string;
-  workspaceId: string;
-  eventos: readonly Evento[];
+  id: string; // chave de 44 digitos
+  emitente: ContatoDoc;
+  destinatario: ContatoDoc;
+  itens: ItemPedido[];
+  campos: CamposObservados; // estado consolidado das fontes
+  partes: Parte[];
+  criadoEm: string;
 }
 
-// Retrato do pedido segundo uma fonte, até um ponto da cadeia.
+// Uma versao do pedido por documento recebido (linha do tempo, RF18).
 export interface VersaoPedido {
-  autor: Parte;
-  ate: number;
-  campos: CamposPedido;
+  pedidoId: string;
+  versao: number;
+  fonte: FonteDocumento;
+  campos: CamposObservados;
+  geradaEm: string;
+}
+
+export interface Divergencia {
+  campo: CampoVigiado;
+  fonteA: FonteDocumento;
+  fonteB: FonteDocumento;
+  valorA: unknown;
+  valorB: unknown;
+}
+
+export interface Tarefa {
+  parte: Parte;
+  titulo: string;
+  detalhe: string;
+  divergencia: Divergencia;
+}
+
+// Resultado de GET /api/pedidos/:id (projecao do ledger, T024).
+export interface ProjecaoPedido {
+  pedido: Pedido | null;
+  versoes: VersaoPedido[];
+  divergencias: Divergencia[];
+  tarefas: Tarefa[];
+  totalEventos: number;
+}
+
+// Contratos de resposta da API (contrato unico server x web, RF8).
+
+export interface ItemRevisao {
+  id: number;
+  origem: string;
+  motivo: string;
+  payload: Record<string, unknown>;
+  status: 'pendente' | 'aprovado' | 'descartado';
+  ts: string;
+}
+
+export interface ResultadoIngest {
+  pedidoId: string | null;
+  docs: number;
+  eventos: number;
+  revisaoId: number | null;
+  ok?: boolean;
+}
+
+export interface ResultadoAncora {
+  ok: boolean;
+  motivo?: string;
+  root?: string;
+  txHash?: string;
+  url?: string;
+}
+
+export interface RespostaAuditoria {
+  valida: boolean;
+  total: number;
+  indiceFalha: number | null;
+  eventoFalha: Evento | null;
+  hashEsperado: string | null;
+  hashEncontrado: string | null;
+  ancora: Record<string, unknown> | null;
+  rootAtual: string;
+  rootConfere: boolean | null;
+}
+
+export interface RespostaSimulacao {
+  divergencias: Divergencia[];
+  tarefas: Tarefa[];
+  simulacao: true;
 }

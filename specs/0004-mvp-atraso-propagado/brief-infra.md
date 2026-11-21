@@ -2,12 +2,11 @@
 
 Escopo: servidor, banco e hospedagem da spec 0004: `app/server/*.ts`
 (Fastify, rotas, SSE, store Postgres append-only, carga da seed),
-`app/server/db/` (SQL e trigger), `app/api/` (contrato HTTP e SSE com a
-web), `app/contracts/` (FoundryAnchor, P1 só na final),
+`app/server/db/` (SQL e trigger), `app/contracts/` (FoundryAnchor, P1 só na final),
 `app/package.json`, lockfile, `app/tsconfig*.json`,
 `app/docker-compose.yml`, arquivos de deploy, a decisão de hospedagem
 (P-008, até 24/11) e a URL pública (T040).
-Paths: `app/server/*.ts`, `app/server/db/**`, `app/api/**`,
+Paths: `app/server/*.ts`, `app/server/db/**`,
 `app/contracts/**`, `app/package.json`, `app/package-lock.json`,
 `app/tsconfig*.json`, `app/docker-compose.yml`, `app/Procfile`,
 `app/app.json`, `app/.env.example`, `app/deploy/**`. Não escrever em
@@ -16,14 +15,21 @@ Paths: `app/server/*.ts`, `app/server/db/**`, `app/api/**`,
 Base: `main` com spec 0004 commitada; branch `wt/app-infra`; worktree
 `../foundry-wt-infra`.
 
-Contrato com a `app-core`: a infra importa só `ingerir()` de
-`app/server/ingest/index.ts`. Recebe `ok`, `rejeitado` ou `revisao`;
-grava os eventos com `encadear()` de `app/shared/chain.ts` e responde
-`IngestResposta`. Mudança nesse formato é combinada no Linear.
-Contrato com a `app-demo`: os tipos de `app/api/contrato.ts` são a
-fonte das respostas GET e das mensagens SSE. A demo importa os tipos e
-não inventa formato; mudou a rota, mudou o tipo no mesmo commit e avisa
-no Linear.
+Estado em 21/11: a primeira versão do servidor existe, escrita por Gui
+na `wt/app-core` (D-022): store com trigger anti UPDATE, DELETE e
+TRUNCATE e trava por pedido, SSE com heartbeat, anchor, carga da seed e
+PGlite quando não há Docker (`brief-core.md`, "Decisões da frente").
+Falta o que o P-010 lista: isolamento por sessão, CORS e escrita sem
+autenticação, a dependência `xlsx` e a hospedagem.
+Contrato com a `app-core`: a infra chama os parsers de
+`app/server/ingest/` (`detectarTipo` e um parser por tipo, que lançam
+`ErroParser`) em `app/server/pipeline.ts`, e grava os eventos. Mudança
+nesse formato é combinada no Linear.
+Contrato com a `app-demo`: os tipos de resposta de `app/shared/model.ts`
+(`ResultadoIngest`, `ProjecaoPedido`, `RespostaAuditoria`,
+`RespostaSimulacao`) são a fonte das respostas GET e das mensagens SSE.
+A demo importa os tipos e não inventa formato; mudou a rota, mudou o tipo
+no mesmo commit e avisa no Linear.
 Workspace: a infra sorteia o `workspaceId` (valor aleatório, em cookie
 `foundry_ws`) e nunca confia em workspace vindo do cliente. GET e SSE
 devolvem só o workspace da sessão e o `WORKSPACE_SEED`, que é
@@ -32,9 +38,9 @@ compartilhado e só leitura (RF27, regulamento 6.9).
 Invariantes do store, que quem faz pela primeira vez costuma perder:
 - Cadeia por pedido. Duas gravações simultâneas no mesmo pedido leem a
   mesma cabeça e bifurcam a cadeia, e a auditoria passa a acusar uma
-  história legítima. Use `UNIQUE (workspace_id, pedido_id, seq)` com nova
-  tentativa, ou trava por pedido na mesma transação. Teste com dois
-  uploads em paralelo.
+  história legítima. Já resolvido com `UNIQUE (pedido_id, seq)` e
+  `pg_advisory_xact_lock` por pedido (`store.ts`); ao incluir o
+  workspace, a trava e a unicidade passam a incluí-lo também.
 - Trigger que rejeita UPDATE e DELETE na tabela de eventos. O teste da
   T022 desliga a trigger como dono da tabela para adulterar um evento;
   isso fica documentado no teste e não vira rota.

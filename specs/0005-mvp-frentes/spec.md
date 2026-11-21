@@ -30,7 +30,7 @@ e hospedagem do outro.
 | Frente | Branch | Worktree | Dona de | Brief |
 |---|---|---|---|---|
 | `app-core` | `wt/app-core` | `../foundry-wt-app-core` | `app/shared/`, `app/server/ingest/` | [brief-core.md](../0004-mvp-atraso-propagado/brief-core.md) |
-| `app-infra` | `wt/app-infra` | `../foundry-wt-infra` | `app/server/*.ts`, `app/server/db/`, `app/api/`, `app/contracts/`, `app/package.json`, `app/package-lock.json`, `app/tsconfig*.json`, `app/docker-compose.yml`, arquivos de deploy | [brief-infra.md](../0004-mvp-atraso-propagado/brief-infra.md) |
+| `app-infra` | `wt/app-infra` | `../foundry-wt-infra` | `app/server/*.ts`, `app/server/db/`, `app/contracts/`, `app/package.json`, `app/package-lock.json`, `app/tsconfig*.json`, `app/docker-compose.yml`, arquivos de deploy | [brief-infra.md](../0004-mvp-atraso-propagado/brief-infra.md) |
 | `app-demo` | `wt/app-demo` | `../foundry-wt-demo` | `app/web/` (com `package.json` e lockfile próprios) | [brief-demo.md](../0004-mvp-atraso-propagado/brief-demo.md) |
 | `escopo-produto` | `wt/escopo-produto` | `../foundry-wt-escopo` | `app/seed/`, `app/README.md`, `docs/`, `DECISIONS.md`, `BACKLOG.md`, `RULES.md`, `README.md`, roteiros | [brief-produto.md](../0004-mvp-atraso-propagado/brief-produto.md) |
 
@@ -56,8 +56,8 @@ decisões e o reporte.
 - **RF4**: nenhum arquivo de dependência é disputado. O `package.json`,
   o lockfile, o `tsconfig*.json`, o `docker-compose.yml` e os scripts
   (`dev`, `start`, `build`) da raiz de `app/` são da `app-infra`. As
-  dependências do ingest (`fast-xml-parser`, `csv-parse`, `mailparser`)
-  foram instaladas na integração, e a `app-core` pede dependência nova à
+  dependências que a `app-core` usa já estão no `package.json` da
+  primeira versão do código (D-022), e ela pede dependência nova à
   `app-infra` no Linear. A `app-demo` cria `app/web/package.json` e
   lockfile próprios, e a `app-infra` orquestra os dois no script `dev`.
 - **RF5**: `AGENTS.md` e `speckit/frentes.md` registram a regra de
@@ -66,12 +66,13 @@ decisões e o reporte.
   máquinas (branch por frente, uma pessoa integra).
 - **RF6**: as fronteiras entre frentes têm contrato escrito, porque o
   hook impede o arquivo alheio mas não impede o formato alheio.
-  `app-core` para `app-infra`: `ingerir()` em
-  `app/server/ingest/index.ts`, o único módulo do ingest que a infra
-  importa. `app-infra` para `app-demo`: os tipos de
-  `app/api/contrato.ts`, que a demo importa em vez de inventar formato.
-  Tipos de domínio vêm de `app/shared/` por caminho relativo. O
-  `workspaceId` é sorteado pela infra, em cookie.
+  `app-core` para `app-infra`: `detectarTipo` e os parsers de
+  `app/server/ingest/`, que lançam `ErroParser` para entrada ruim;
+  `app/server/pipeline.ts` os chama e grava. `app-infra` para
+  `app-demo`: os tipos de resposta de `app/shared/model.ts`
+  (`ResultadoIngest`, `ProjecaoPedido`, `RespostaAuditoria`,
+  `RespostaSimulacao`), que a demo importa em vez de inventar formato.
+  O `workspaceId` é sorteado pela infra, em cookie (RF27 da spec 0004).
 
 ## Critérios de aceite
 

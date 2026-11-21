@@ -1,26 +1,19 @@
 {
   "compilerOptions": {
-    "target": "ES2023",
-    "lib": [
-      "ES2023"
-    ],
+    "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "types": [
-      "node"
-    ],
+    "lib": ["ES2022"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "verbatimModuleSyntax": true,
-    "erasableSyntaxOnly": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "skipLibCheck": true
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": ["node"]
   },
-  "include": [
-    "shared/**/*.ts",
-    "server/**/*.ts",
-    "api/**/*.ts"
-  ]
+  "include": ["shared/**/*.ts", "server/**/*.ts"],
+  "exclude": ["node_modules", "dist", "contracts"]
 }

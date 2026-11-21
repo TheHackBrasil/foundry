@@ -14,7 +14,6 @@
       "paths": [
         "app/server/*.ts",
         "app/server/db/",
-        "app/api/",
         "app/contracts/",
         "app/package.json",
         "app/package-lock.json",
