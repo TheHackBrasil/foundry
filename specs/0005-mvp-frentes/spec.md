@@ -88,6 +88,22 @@ decisões e o reporte.
   o mesmo brief proíbe escrever lá. Vale a regra desta spec: o boot do
   Vite é da `app-demo`.
 
-## Evidência
+## Evidência (20/11)
 
-Preenchida depois dos testes no passo de integração (20/11).
+Testes no estado `a44f749`, com o `scripts/hooks/pre-commit` rodando sobre
+arquivo temporário staged (removido depois, sem commit de teste).
+
+- **CA1**: `git commit` na `main` sem `FOUNDRY_INTEGRA=1` foi recusado
+  ("commit direto na main é só para integração"); nenhum commit criado.
+- **CA2**: em `wt/app-demo`, `app/server/tmp-ca2.txt` foi recusado e o hook
+  nomeou o arquivo e os paths da frente.
+- **CA3**: em `wt/app-core`, `app/server/tmp-ca3.txt` passou (exit 0); o
+  `app/tsconfig.base.json` com `{}` também, o que prova o `*` do
+  `tsconfig*.json`. Com texto que não é JSON, o `repo-guard` barrou: o
+  bloqueio foi do check `json`, não do `frente-check`.
+- Extras: `app/web/` recusado em `wt/app-core`; `app/tsconfig.base.json`
+  recusado em `wt/app-demo`; `DECISIONS.md` e `app/server/` recusados e
+  `app/seed/` aceito em `wt/escopo-produto`.
+- **CA4**: `repo-guard` verde (11 checks); `prose-evals` 0 duras.
+- **CA5**: `git worktree list` com `main`, `wt/app-core`, `wt/app-demo` e
+  `wt/escopo-produto`.
