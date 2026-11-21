@@ -142,7 +142,7 @@ describe('ledger + api (PGlite)', () => {
       payload: { nome: 'cce-correcao.xml', conteudo: ler('cce-correcao.xml') },
     });
     expect(res.statusCode).toBe(200);
-    expect((res.json() as { eventos: number }).eventos).toBe(1); // so o doc
+    expect((res.json() as { eventos: number }).eventos).toBe(1);
 
     const depois = await store.eventosDoPedido(CHAVE);
     expect(depois).toHaveLength(antes.length + 1);
@@ -155,8 +155,8 @@ describe('ledger + api (PGlite)', () => {
     expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cte', 'cce']);
     expect(proj.divergencias.filter((d) => d.campo === 'previsaoEntrega')).toEqual([]);
     expect(proj.tarefas.filter((t) => t.divergencia.campo === 'previsaoEntrega')).toEqual([]);
-    expect(proj.pedido.campos['previsaoEntrega']).toBe('2026-01-20'); // a da NF-e, intacta
-    expect(proj.pedido.campos['status']).toBe('em_transito'); // nao virou atrasada
+    expect(proj.pedido.campos['previsaoEntrega']).toBe('2026-01-20');
+    expect(proj.pedido.campos['status']).toBe('em_transito');
   });
 
   it('planilha com data nova gera a divergencia de data e as 5 tarefas, uma por parte', async () => {
@@ -319,7 +319,7 @@ describe('CC-e com texto de data nao vira atraso (R-006, D-020)', () => {
       payload: { nome: 'cce-com-data.xml', conteudo: cceComTexto(TEXTO_CCE_COM_DATA) },
     });
     expect(res.statusCode).toBe(200);
-    expect((res.json() as { eventos: number }).eventos).toBe(1); // so o doc
+    expect((res.json() as { eventos: number }).eventos).toBe(1);
 
     const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
     expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cce']);

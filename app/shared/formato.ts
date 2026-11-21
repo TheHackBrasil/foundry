@@ -1,6 +1,6 @@
 // Formatacao pt-BR dos valores que entram em texto legivel (tarefas, detalhes).
-// Funcoes puras, sem Date nem Intl: a data e convertida por regex sobre a
-// string, entao o texto sai igual em qualquer fuso e locale.
+// Funcoes puras, sem Intl e sem Date em hora local: a data e convertida por
+// regex sobre a string, entao o texto sai igual em qualquer fuso e locale.
 
 import type { CampoVigiado, FonteDocumento } from './model.js';
 
