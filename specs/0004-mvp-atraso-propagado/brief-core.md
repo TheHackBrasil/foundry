@@ -94,7 +94,8 @@ critério; "feito" sem evidência não é feito.
   `app/server/index.ts:52` a `56`; teste "XML invalido responde 422".
 - CT-e vincula ao pedido pela chave NF-e em `infDoc/infNFe`:
   `app/server/ingest/cte.ts`.
-- CC-e (110110) vira previsaoEntrega/status; cancelamento (110111)
+- CC-e (110110) é evento informativo, com o texto da correção e sem
+  campos observados (R-006, corrigido em 21/11); cancelamento (110111)
   vira status `cancelada`: `app/server/ingest/eventos.ts`.
 - UPDATE/DELETE manual rejeitado por trigger e bypass via
   `DISABLE TRIGGER ALL` é pego pelo audit nomeando `seq`: testes
@@ -128,3 +129,15 @@ critério; "feito" sem evidência não é feito.
   para a fila de revisão com motivo `llm_nao_configurada`.
 - `dev:all` em `app/package.json` pressupõe `app/web/` da frente
   app-demo; sem ela, `npm run dev` sobe só a API.
+- Cancelamento e CC-e compartilham `fonte: 'cce'` em `eventos.ts`. Efeitos:
+  o cancelamento aparece como "CC-e" nas divergências e nas tarefas, e uma
+  CC-e que chega depois (campos vazios) substitui o estado da fonte em
+  `camposPorFonte` e `consolidarCampos`, apagando o status `cancelada`.
+  Caminhos: uma `FonteDocumento` própria para o cancelamento (mexe em
+  `model.ts` e nos rótulos da web) ou não deixar um documento sem campos
+  substituir o estado da fonte em `projection.ts`.
+- `app/server/fixtures/cancelamento.xml` tem `dhEvento` cerca de 46 h depois
+  da emissão da NF-e: o seed demonstra um cancelamento que a tarefa fiscal
+  do atraso diz não caber (limite de 24 h sem circulação da mercadoria).
+- O ledger é append-only: tarefas já gravadas mantêm o texto antigo. Só um
+  seed em banco limpo gera os textos novos de `app/shared/rules.ts`.
