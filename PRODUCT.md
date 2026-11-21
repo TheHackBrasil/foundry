@@ -47,7 +47,7 @@ apresentado como provado antes de ser.
 
 - Time: Gabriel Sacilotto (produto/pesquisa), Guilherme Barreto
   (engenharia/sistemas), Thiago (experiência/design, arquitetura & IA).
-  Liz é 4ª integrante pendente de confirmação/registro.
+  Liz saiu do time em 20/11; são 3 integrantes.
 - Hipótese de produto em exploração: camada de eventos compartilhados entre
   fornecedores/operadores/financeiro-fiscal, sem exigir troca de sistemas.
   Blockchain é alternativa sob avaliação, não decisão.
@@ -87,5 +87,4 @@ apresentado como provado antes de ser.
 ## Open Decisions
 
 - Resultado da call Enviagora (remarcada, sem data) → próximo capítulo.
-- Entrada formal da Liz no time → seção "pessoas" quando confirmada.
 - Definição do fluxo único do MVP (NF/fiscal vs atraso vs contratos).

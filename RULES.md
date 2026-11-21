@@ -37,7 +37,7 @@ comunicação, vale o regulamento (item 1.6). A página
   local e apresentam ao júri; notas recomeçam do zero (8.3, 9.3). Todo o
   time precisa estar presente (8.5); viagem e estadia por conta própria (8.6).
 - **Time:** de 1 a 4 integrantes (4.1). Atual: Gabriel Sacilotto, Guilherme
-  Barreto, Thiago; 4ª integrante (Liz) pendente de confirmação.
+  Barreto, Thiago. A Liz saiu do time (informado em 20/11).
 - **Código:** repositórios criados depois de 04/11, 21h, sem fork nem
   histórico importado; todo código do evento precisa estar nos repositórios
   entregues; código anterior só se já era público, copiado em commit que

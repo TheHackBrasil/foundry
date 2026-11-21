@@ -35,7 +35,15 @@ vira um produto diferente:
 | **Recebimento / etiquetas** | Padronizar códigos e conferência na entrada do galpão (kits, lotes, peso variável) | Especialista em armazéns |
 | **Contratos / conciliação** | Revalidar contratos e pagamentos quando a operação muda | Call (cascata para os bancos) |
 
-Pergunta pendente para o contato da TOTVS e para a call da Enviagora.
+**Decidido em 20/11 (D-015, refinado em D-018):** o MVP é um pipeline
+de documentos reais (NF-e, CT-e, CC-e, e-mail, planilha) alimentando
+um motor de divergência: quando duas fontes discordam (data, peso,
+volumes, status), a camada propaga a tarefa certa para cada parte. O
+cenário da demo é o atraso propagado (exemplo central TOTVS); os
+demais candidatos entram como novos tipos de documento/divergência no
+mesmo modelo. Implementação na `specs/0004`. A pergunta ao contato
+TOTVS e a call da Enviagora continuam valendo como validação, não como
+decisão.
 
 ## Leitura candidata de escopo (em discussão)
 

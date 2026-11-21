@@ -1,30 +1,38 @@
 {
-  "_leia": "Paths que cada frente pode escrever (D-015, specs/0004). Lido por scripts/frente-check.mjs no pre-commit. Path terminado em / vale para a pasta inteira. Tudo que não está aqui é da integração, na main.",
+  "_leia": "Paths que cada frente pode escrever (D-019, specs/0005). Lido por scripts/frente-check.mjs no pre-commit. Path terminado em / vale para a pasta inteira; um * vale dentro de um nome de arquivo. Tudo que não está aqui é da integração, na main.",
   "frentes": {
-    "core": {
-      "brief": "specs/0004-mvp-frentes/brief-core.md",
+    "app-core": {
+      "brief": "specs/0004-mvp-atraso-propagado/brief-core.md",
       "paths": [
-        "apps/core/",
-        "packages/shared/",
-        "infra/",
-        "specs/0004-mvp-frentes/brief-core.md"
+        "app/shared/",
+        "app/server/",
+        "app/contracts/",
+        "app/package.json",
+        "app/package-lock.json",
+        "app/tsconfig*.json",
+        "app/docker-compose.yml",
+        "specs/0004-mvp-atraso-propagado/brief-core.md"
       ]
     },
-    "demo": {
-      "brief": "specs/0004-mvp-frentes/brief-demo.md",
+    "app-demo": {
+      "brief": "specs/0004-mvp-atraso-propagado/brief-demo.md",
       "paths": [
-        "apps/web/",
-        "specs/0004-mvp-frentes/brief-demo.md"
+        "app/web/",
+        "specs/0004-mvp-atraso-propagado/brief-demo.md"
       ]
     },
-    "produto": {
-      "brief": "specs/0004-mvp-frentes/brief-produto.md",
+    "escopo-produto": {
+      "brief": "specs/0004-mvp-atraso-propagado/brief-produto.md",
       "paths": [
-        "corpus/",
+        "app/seed/",
+        "app/README.md",
         "docs/",
-        "site/",
+        "DECISIONS.md",
+        "BACKLOG.md",
+        "RULES.md",
         "README.md",
-        "specs/0004-mvp-frentes/brief-produto.md"
+        "specs/0004-mvp-atraso-propagado/roteiro*.md",
+        "specs/0004-mvp-atraso-propagado/brief-produto.md"
       ]
     }
   }

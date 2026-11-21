@@ -14,7 +14,8 @@ git worktree add ../foundry-wt-<nome> -b wt/<nome>
 ```
 
 - Worktree nomeado `../foundry-wt-<nome>` (fora da raiz principal), branch
-  `wt/<nome>`. O nome descreve a frente: `site`, `slides`, `guard`, `docs`.
+  `wt/<nome>`. O nome descreve a frente: hoje `app-core`, `app-demo` e
+  `escopo-produto`.
 - O **dono da frente** trabalha lá dentro; a cópia principal (`foundry/`)
   fica na `main` limpa para integração e leitura.
 - A área de cada frente é a lista de paths do brief, espelhada em
@@ -111,8 +112,9 @@ superfície fora dos paths do brief (A4), criar CI/deploy/tracker externo.
 
 - Decisão tomada no dia → `DECISIONS.md` (D/R/P) no mesmo commit ou antes,
   quando o trabalho é na `main`. Dentro de uma frente, a decisão vai para
-  a seção "Decisões da frente" do brief; a integração copia para
-  `DECISIONS.md` ao mergear. Assim nenhuma frente escreve no mesmo log.
+  a seção "Decisões da frente" no fim do brief (criada na primeira decisão); a frente `escopo-produto` (dona
+  de `DECISIONS.md`) ou a integração copia para lá. Assim só um lugar
+  escreve no mesmo log.
 - Bloco de trabalho relevante → `## Sessão N: título (data)` em
   `DECISIONS.md`: o que se fez, o que se aprendeu, o que ficou aberto.
 - É isso que alimenta o diário build-in-public do site, a narrativa sai

@@ -37,7 +37,11 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-012 | 19/11 | Site em `site/` = Astro + TypeScript + ilha React (dominó) + GSAP/Lenis; vanilla descartado a pedido ("usa frameworks modernos"). Narrativa "A Forja" em 5 estações; dominó do atraso é a peça central; isométricos substituídos por cenas em código | decidido | Escolhas do usuário nas clarifications da spec 0002 |
 | D-013 | 19/11 | Redesign do site (spec 0003): estrutura editorial da referência em preto e laranja; logo oficial F+bigorna; bigorna 3D do path do logo com MSAA; stickers isométricos animados no lugar do diagrama esquemático; termômetro e temperaturas removidos | decidido | Usuário avaliou a 0002 como genérica; pediu acabamento e reaproveitar elementos da referência |
 | D-014 | 19/11 | Pitch oficial passa a ser o v10 (`pitch-v10-share.mp4`), publicado na release `pitch-v10`; substitui o v9 de D-007 | decidido | Pedido do time; o site lê a release pela API e mostra o vídeo |
-| D-015 | 20/11 | Execução do MVP em três frentes paralelas (`core`, `demo`, `produto`), cada uma com worktree, branch `wt/<nome>`, dono por pasta (`speckit/frentes.json`) e brief em `specs/0004`; hook de pre-commit versionado (guard, prose-evals, paths da frente, `main` protegida localmente); decisões de frente ficam no brief e só a integração escreve `DECISIONS.md` e `BACKLOG.md` | decidido | Desenvolvimento com agentes em paralelo sem conflito; o protocolo antigo se contradizia (frentes não dividem arquivo, mas todas escreviam em `DECISIONS.md`). Spec 0004 |
+| D-015 | 20/11 | Fluxo único do MVP = atraso propagado; demais candidatos de `docs/escopo.md` viram tipos de evento do mesmo modelo | decidido | Melhor evidência de campo (exemplo central TOTVS) e narrativa já construída (dominó, slide BR-2048); call Enviagora passa a validar produto, não ideia |
+| D-016 | 20/11 | Stack do `app/` = TypeScript ponta a ponta: Fastify, Postgres (tabela de eventos append-only, trigger anti UPDATE/DELETE), Vite + React, ethers + Hardhat, SSE | decidido | Núcleo do problema é event sourcing + integridade criptográfica; Postgres como padrão de produção desde o dia 1; toolchain on-chain TS-native |
+| D-017 | 20/11 | Blockchain no MVP = ledger hash-chained + âncora Merkle em Base Sepolia + escrow contract como peça de impacto; rede permissionada e nó por empresa fora | decidido | Prova de integridade verificável sem fricção de adoção (setor não letrado); consortium chain fica como visão de arco |
+| D-018 | 20/11 | Recorte operacional refinado: produto = pipeline de documentos reais (NF-e/CT-e/CC-e, e-mail, planilha) → divergência → propagação; atraso propagado vira cenário da demo dentro do motor de divergência; âncora on-chain fica (P1) cobrindo eventos não-fiscais; escrow sai para backlog; twin de nós rebaixado para P2 | decidido | Proposta de escopo do time (doc de trabalho 20/11) + análise: ingestão executa a tese TOTVS de adoção sem mudança de rotina; SEFAZ autentica docs fiscais mas não os eventos da camada; twin é aditivo visual (Schulz) |
+| D-019 | 20/11 | Execução do MVP em três frentes paralelas, as da spec 0004 (`wt/app-core`, `wt/app-demo`, `wt/escopo-produto`), cada uma com worktree, dono por pasta (`speckit/frentes.json`) e brief em `specs/0004-mvp-atraso-propagado/`; hook de pre-commit versionado (guard, prose-evals, paths da frente, `main` protegida localmente); decisões de frente ficam no fim do brief da frente e `escopo-produto` ou a integração copiam para `DECISIONS.md` | decidido | Desenvolvimento com agentes em paralelo sem conflito; o protocolo antigo se contradizia (frentes não dividem arquivo, mas todas escreviam em `DECISIONS.md`). Spec 0005 |
 
 ## Pendências
 
@@ -45,11 +49,12 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 |---|---|---|---|
 | P-001 | Nova data da call com Rafael Born (Enviagora) | Define o fluxo único do MVP + destrava capítulo do diário | aberto |
 | P-002 | Pergunta ao contato TOTVS: na gestão multi-fornecedor, dói mais documento fiscal, atraso propagado ou contrato/pagamento? | Cada resposta vira um MVP diferente | aberto |
-| P-003 | Liz confirmada como 4ª integrante? | Atualiza site/docs/time | aberto |
+| P-003 | Liz confirmada como 4ª integrante? | Liz saiu do time (Thiago, 20/11); time de 3. Site e docs ainda citam a Liz como pendente | resolvido |
 | P-004 | Renomear `foundry` → `the-foundry` se o Gabriel liberar o nome? | Nome mais limpo; não urgente | aberto |
 | P-005 | Regras oficiais do HackBrasil | Regulamento oficial lido em 20/11 (R-005, `RULES.md`); restam formato da final (enviado aos finalistas) e nomes dos jurados (até 30/11) | resolvido |
-| P-006 | Aprovação do `docs/plano-mvp.pdf` pelo time como escopo do MVP | O plano consolida o v2 do time e a revisão pelo regulamento; as frentes já partem dele | aberto |
+| P-006 | Reconciliar `specs/0004-mvp-atraso-propagado` (fechada na call de 20/11) com `docs/plano-mvp.pdf`: deploy (T040) e vídeo (T042) como P0 pelo regulamento 7.2 e 7.3; "CC-e de atraso" e "fiscal reemite a NF" (R-006); escrow em D-017 contra D-018; P1 com e-mail IMAP e âncora antes de 30/11 | A spec tem a âncora e o IMAP no P1 de 23 a 26/11 e a URL pública no fim; o regulamento exige demo e vídeo como entregáveis | aberto |
 | P-007 | Quem integra as frentes na `main`, e se o GitHub passa a exigir PR para a `main` (D-005 hoje proíbe proteção de branch) | Com três pessoas e agentes em máquinas diferentes, o hook local não protege a `main` remota | aberto |
+| P-008 | Stack e hospedagem: D-016 fixou linguagem, banco e SSE; falta hospedagem (Heroku em avaliação) e validar o conjunto (sem hibernação até 12/12, Postgres com trigger, SSE atrás do roteador, deploy sem Docker, custo com o crédito disponível) | Demo no ar é entregável (regulamento 7.2 e 7.3) e a hospedagem não está decidida | aberto |
 
 ## Achados de pesquisa
 
@@ -104,15 +109,38 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   isométricos e mapa ASCII; termômetro, palavras vazadas e HUD saem.
 - Deploy, release do pitch e capítulo pós-call seguem fora.
 
-### Sessão 5: escopo revisado pelo regulamento + frentes do MVP (20/11)
+### Sessão 5: escopo do MVP fechado e frentes abertas (20/11)
+
+- Escopo decidido sem esperar a call Enviagora nem a resposta TOTVS:
+  a evidência disponível já apontava o atraso propagado; a call passa
+  a validar produto com demo, não ideia.
+- Spec 0004 aprovada com plano, tasks e 3 briefs de frente:
+  `wt/app-core`, `wt/app-demo`, `wt/escopo-produto`. Divisão de pessoas
+  por frente fica a cargo do time.
+- Blockchain reposicionada: de "plataforma onde tudo roda" para
+  propriedade do registro (cadeia de hashes + âncora pública +
+  escrow). Justificativa: a coordenação se resolve com a camada de
+  eventos; a chain prova integridade entre empresas que não confiam
+  uma na outra.
+- Recorte refinado (D-018) a partir da proposta de escopo do time:
+  o MVP passa a ser o pipeline de documentos reais + motor de
+  divergência, com o atraso propagado como cenário da demo; âncora
+  em Base Sepolia mantida (P1) para os eventos não-fiscais; escrow e
+  twin de nós viram backlog/P2.
+- Item 7 do BACKLOG fechado; item 8 (build do MVP) abre a semana.
+
+### Sessão 6: regulamento, hook das frentes e integração com a spec 0004 (20/11)
 
 - Regulamento oficial lido e conferido item a item (R-005, `RULES.md`).
-  Mudou prioridades: demo no ar e vídeo do produto viraram P0; o fator
-  wow ao vivo foi para a final de 12/12; o site deixou de disputar tempo.
-- `docs/plano-mvp.pdf` consolida o plano v2 do time e a revisão de escopo,
-  com errata (incluindo a CC-e, que não corrige data de saída) e a lista
-  de afirmações de subagentes que não entram sem fonte. Aprovação: P-006.
-- Frentes do MVP (D-015, `specs/0004`): worktrees antigos (`domino`, `fx`,
-  `site`) removidos, já mergeados; esqueleto `apps/core`, `apps/web`,
-  `packages/shared`, `corpus/`; worktrees `wt/core`, `wt/demo`,
-  `wt/produto`; hook de pre-commit versionado em `scripts/hooks/`.
+  Mudou prioridades: demo no ar e vídeo do produto viram P0; o fator
+  wow ao vivo vai para a final de 12/12; o site deixa de disputar tempo.
+  Detalhe, errata e afirmações sem fonte em `docs/plano-mvp.pdf`.
+- A spec 0004 do Gui já estava na `origin/main` (fechada na call). O
+  plano revisado e a spec divergem em pontos de regulamento e fiscal:
+  reconciliação em aberto (P-006), stack e hospedagem em aberto (P-008).
+- Frentes (D-019, spec 0005): worktrees antigos (`domino`, `fx`, `site`)
+  removidos, já mergeados; esqueleto próprio (`apps/`, `packages/`)
+  descartado em favor do `app/` da spec 0004; frentes `wt/app-core`,
+  `wt/app-demo`, `wt/escopo-produto`; hook em `scripts/hooks/`.
+- Liz saiu do time (informado por Thiago, 20/11): P-003 resolvido, time
+  de 3.

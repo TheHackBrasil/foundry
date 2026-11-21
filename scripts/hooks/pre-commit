@@ -1,5 +1,5 @@
 #!/bin/sh
-# Hook versionado (D-015, specs/0004). Ativar uma vez por clone:
+# Hook versionado (D-019, specs/0005). Ativar uma vez por clone:
 #   git config core.hooksPath scripts/hooks
 root=$(git rev-parse --show-toplevel) || exit 1
 

@@ -6,8 +6,9 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 
 ## Em execução
 
-- #7 Definir escopo do MVP (desde 19/11): plano consolidado em
-  `docs/plano-mvp.pdf`, aguardando aprovação do time (P-006).
+- #8 Build do MVP (atraso propagado): três frentes da `specs/0004`
+  (core, demo, produto), meta de demo funcional em 23/11.
+  Reconciliação com `docs/plano-mvp.pdf` em P-006.
 
 ## Fila
 
@@ -15,13 +16,14 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 |---|---|---|---|
 | 4 | Publicar `slides/` do deck de descoberta Enviagora | todo | arquivos já portados; subir no mesmo deploy |
 | 6 | Capítulo pós-call Enviagora no diário | blocked | call remarcada sem data: escrever só com resultado real |
-| 7 | Definir escopo do MVP | doing | plano em `docs/plano-mvp.pdf` (20/11); falta a aprovação do time (P-006). Enviagora e TOTVS viram validação, não bloqueio |
+| 10 | Capítulo "MVP no ar" no site | blocked | escrever quando a demo da spec 0004 existir |
 
 ## Feito
 
 | # | Item | Data |
 |---|---|---|
-| 10 | Frentes do MVP: worktrees `core`, `demo`, `produto`, dono por pasta, hook de pre-commit | 2026-11-20 → `specs/0004` |
+| 7 | Escopo do MVP fechado: atraso propagado (`specs/0004`, D-015 a D-018) | 2026-11-20 |
+| 11 | Frentes do MVP: worktrees por frente, dono por pasta, hook de pre-commit | 2026-11-20 → `specs/0005` |
 | · | Publicação dos docs de pesquisa | 2026-11-19 → `specs/0001` |
 | · | Pipeline SDD local (constitution, speckit, guard, DECISIONS, RULES) | 2026-11-19 |
 | 9 | `site/assets/` + `slides/` portados e commitados | 2026-11-19 |

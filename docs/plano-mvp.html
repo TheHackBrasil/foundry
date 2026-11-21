@@ -146,9 +146,9 @@ ol.steps li strong { color:var(--ink); font-weight:500; }
   <div class="meta">HackBrasil 2026<br><b>Logística &amp; Automação</b></div>
 </div>
 
-<div class="tarja" style="margin-bottom:2.5mm">Plano do MVP · versão consolidada · 20/11/2026 · aguarda aprovação do time</div>
+<div class="tarja" style="margin-bottom:2.5mm">Plano do MVP · versão consolidada · 20/11/2026 · a reconciliar com a spec 0004</div>
 <h1>O <em>plano</em> do MVP, revisado pelo regulamento</h1>
-<p class="lede">Junta o plano v2 do time e a revisão de escopo de 20/11, conferidos contra o <strong>regulamento oficial do Hack Brasil 2026</strong> (hackbrasil.com/regulamento, atualizado em 18/11/2026). O recorte continua o mesmo: <strong>ler os documentos que cada empresa já produz, comparar as fontes e avisar cada parte com a tarefa que lhe cabe</strong>. O que muda são as prioridades, a divisão entre as duas fases do evento e alguns fatos que estavam errados.</p>
+<p class="lede">Junta o plano v2 do time e a revisão de escopo de 20/11, conferidos contra o <strong>regulamento oficial do Hack Brasil 2026</strong> (hackbrasil.com/regulamento, atualizado em 18/11/2026). O recorte continua o mesmo: <strong>ler os documentos que cada empresa já produz, comparar as fontes e avisar cada parte com a tarefa que lhe cabe</strong>. O que muda são as prioridades, a divisão entre as duas fases do evento e alguns fatos que estavam errados. A spec 0004, fechada na call de 20/11, é a base do time: a seção 10 lista onde este plano a corrige e o time decide o que vira patch nas tasks.</p>
 
 <div class="status">
   <div><span class="k">Submissão</span><span class="v hot">30/11 · 23h59</span><span class="s">vale o último commit até lá</span></div>
@@ -386,15 +386,37 @@ ol.steps li strong { color:var(--ink); font-weight:500; }
 </section>
 
 <section>
-  <div class="sec-head"><span class="sec-num">10</span><span class="sec-title">Pendências</span><span class="sec-sub">antes de começar e antes de submeter</span></div>
+  <div class="sec-head"><span class="sec-num">10</span><span class="sec-title">Diferenças com a spec 0004</span><span class="sec-sub">fechada na call de 20/11 · patches para o time decidir</span></div>
+  <p style="font-size:9.4pt;color:var(--ink-dim);line-height:1.55;margin-bottom:2.5mm">Os dois documentos concordam no centro: modelo Pedido, Evento e Parte, cadeia de hash sobre Postgres append-only, SSE, o atraso propagado do relato da TOTVS como cenário. Divergem nos pontos abaixo. Nenhum deles muda o produto; mudam prioridade, data e um fato fiscal.</p>
+  <table class="t">
+    <colgroup><col style="width:55mm"><col style="width:62mm"><col></colgroup>
+    <thead><tr><th>Na spec 0004</th><th>Neste plano</th><th>Por quê</th></tr></thead>
+    <tbody>
+      <tr><td class="old">T040: URL pública é P1, na fase de 26 a 30/11</td><td class="item">P0, no ar até 22/11</td><td>A demo funcionando é entregável (7.2) e precisa estar no ar na avaliação (7.3). Corte de P1 não pode levar a demo junto.</td></tr>
+      <tr><td class="old">T042: vídeo do pitch com a demo é P1</td><td class="item">P0, vídeo de até 3 min do produto funcionando</td><td>Entregável do 7.2; vale como comunicação (9.1).</td></tr>
+      <tr><td class="old">T015, T023 e US1: "CC-e de atraso" vira evento de atraso</td><td class="item">Atraso entra por planilha ou texto do fornecedor, ou por evento do CT-e (110190)</td><td>A CC-e não corrige data de saída (Convênio SINIEF s/nº de 1970, art. 7º, §1º-A, III). Um contador da área nota o erro na hora.</td></tr>
+      <tr><td class="old">Seção 2 do plano de 20/11: "o fiscal reemite a NF"</td><td class="item">Tarefa fiscal condicional</td><td>Cancelamento só em até 24h e sem circulação da mercadoria. Fonte e ressalva na seção 02.</td></tr>
+      <tr><td class="old">D-017 mantém o escrow; D-018 o tira</td><td class="item">Fora; registrar uma decisão só</td><td>As duas entradas estão em DECISIONS.md sem uma revogar a outra.</td></tr>
+      <tr><td class="old">T025: âncora em Base Sepolia no P1, antes de 30/11</td><td class="item">Final de 12/12; antes, recibo com hash em cada alerta</td><td>Âncora é a testemunha externa forte, mas a fase online não deve depender de testnet e faucet. Na final ela vira o momento ao vivo.</td></tr>
+      <tr><td class="old">T030: e-mail IMAP no P1 de 23 a 26/11</td><td class="item">P1 só com o P0 verde</td><td>Na call o time disse que o e-mail ficaria no máximo como válvula de escape (1:06:36 da gravação).</td></tr>
+      <tr><td class="old">T004 e T014: cinco visões por papel</td><td class="item">Uma tela única com fontes × campos</td><td>Mesma propagação, menos trabalho de tela e de vídeo.</td></tr>
+      <tr><td class="old">T033 e T044: dominó e twin como entrega da fase online</td><td class="item">Dominó animado na final</td><td>Na call: produto fechadinho, e o que impressiona fica na apresentação (1:25:35).</td></tr>
+      <tr><td class="old">D-016: stack "decidida"</td><td class="item">Linguagem e banco decididos; hospedagem aberta</td><td>Sem hospedagem não há demo no ar. Pendência P-008.</td></tr>
+      <tr><td class="old">T006: levantar os critérios da banca (P-005)</td><td class="item">Feito</td><td>Regulamento lido em 20/11 (R-005 e RULES.md).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">11</span><span class="sec-title">Pendências</span><span class="sec-sub">antes de começar e antes de submeter</span></div>
   <table class="t">
     <colgroup><col style="width:80mm"><col style="width:28mm"><col></colgroup>
     <thead><tr><th>Item</th><th>Quando</th><th>Nota</th></tr></thead>
     <tbody>
-      <tr><td class="item">Aprovar este plano e registrar como D-015 e spec 0004</td><td class="n">20/11</td><td>Regra do repo: decisão do dia entra em DECISIONS.md.</td></tr>
-      <tr><td class="item">Decidir a hospedagem</td><td class="n">20/11</td><td>Requisitos na seção 05.</td></tr>
-      <tr><td class="item">Corrigir RULES.md e DECISIONS.md</td><td class="n">20/11</td><td>4º critério é comunicação; o link oficial já existe; a lista de entregáveis precisa incluir a demo, e o site sai dela.</td></tr>
-      <tr><td class="item">Confirmar presença de todo o time em São Paulo em 12/12</td><td class="n">agora</td><td>Item 8.5.</td></tr>
+      <tr><td class="item">Reconciliar este plano com a spec 0004 (P-006)</td><td class="n">20/11</td><td>O time decide quais linhas da seção 10 viram patch nas tasks.</td></tr>
+      <tr><td class="item">Decidir a hospedagem</td><td class="n">20/11</td><td>Requisitos na seção 05; pesquisa em P-008, Heroku em avaliação.</td></tr>
+      <tr><td class="item">Corrigir RULES.md e DECISIONS.md</td><td class="n">feito</td><td>Feito em 20/11: 4º critério é comunicação, a demo entra na lista de entregáveis e o site sai dela.</td></tr>
+      <tr><td class="item">Confirmar presença de todo o time em São Paulo em 12/12</td><td class="n">agora</td><td>Item 8.5. São três pessoas desde que a Liz saiu.</td></tr>
       <tr><td class="item">Repo privado <span class="mono">the-foundry</span></td><td class="n">antes de 30/11</td><td>Se tiver código do projeto que não está no <span class="mono">foundry</span>, portar ou tornar público (6.1).</td></tr>
       <tr><td class="item">Validar as regras fiscais com um contador</td><td class="n">antes de 24/11</td><td>Antes do motor ganhar a tarefa fiscal.</td></tr>
       <tr><td class="item">Ver o perfil dos jurados</td><td class="n">até 30/11</td><td>O regulamento anuncia o júri até essa data e não diz se há jurado do setor.</td></tr>
@@ -416,7 +438,7 @@ ol.steps li strong { color:var(--ink); font-weight:500; }
 </section>
 
 <div class="closing">
-  <div class="t"><b>Próximo passo:</b> o time aprova ou ajusta este plano hoje. Aprovado, vira a spec 0004 e a decisão D-015, e a Frente A começa pelo modelo canônico e pela hospedagem.</div>
+  <div class="t"><b>Próximo passo:</b> o time decide hoje as linhas da seção 10 (P-006) e a hospedagem (P-008). Decididas, as tasks da spec 0004 recebem os patches e a frente app-core começa pelo modelo canônico e pela hospedagem.</div>
   <div class="stamp">The Foundry<br>HackBrasil 2026<br>20/11/2026</div>
 </div>
 

@@ -29,7 +29,7 @@ alinhamento e no Discord do time.
   acima).
 - **Patrick**, amigo do time; mentor neste hackathon (projeto Renner, memória
   para agents).
-- **Liz**: 4ª integrante pendente de confirmação.
+- **Liz**: saiu do time em 20/11 (P-003).
 
 ## Referências técnicas e de mercado
 

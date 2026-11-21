@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Pre-commit das frentes (D-015, specs/0004): em wt/<nome> só entram os paths
+// Pre-commit das frentes (D-019, specs/0005): em wt/<nome> só entram os paths
 // da frente (speckit/frentes.json); na main, só commit de integração.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -29,7 +29,14 @@ if (!existsSync(mapPath)) fail('speckit/frentes.json ausente.');
 const frente = JSON.parse(readFileSync(mapPath, 'utf8')).frentes?.[nome];
 if (!frente) fail(`a frente "${nome}" não está em speckit/frentes.json. A integração registra a frente e o brief na main antes do worktree.`);
 
-const dentro = (f) => frente.paths.some((p) => (p.endsWith('/') ? f.startsWith(p) : f === p));
+// "pasta/" vale para a pasta inteira, um * vale dentro de um nome de arquivo
+const casa = (p, f) => {
+  if (p.endsWith('/')) return f.startsWith(p);
+  if (!p.includes('*')) return f === p;
+  const re = p.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*');
+  return new RegExp(`^${re}$`).test(f);
+};
+const dentro = (f) => frente.paths.some((p) => casa(p, f));
 const fora = staged.filter((f) => !dentro(f));
 if (fora.length) {
   fail(`a frente "${nome}" não pode commitar estes arquivos:\n`
