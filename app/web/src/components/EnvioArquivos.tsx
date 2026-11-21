@@ -13,6 +13,7 @@ const EXEMPLOS = [
   { arquivo: 'nfe-ok.xml', rotulo: 'NF-e' },
   { arquivo: 'cte-ok.xml', rotulo: 'CT-e' },
   { arquivo: 'planilha.csv', rotulo: 'Planilha' },
+  { arquivo: 'exemplo.eml', rotulo: 'E-mail' },
 ];
 
 function descrever(r: Awaited<ReturnType<typeof enviarArquivo>>): { ok: boolean; texto: string } {
@@ -80,7 +81,7 @@ export function EnvioArquivos({ aoEnviar }: { aoEnviar: (pedidoId: string) => vo
           ref={entrada}
           type="file"
           multiple
-          accept=".xml,.csv,.xlsx,.xls,.pdf"
+          accept=".xml,.csv,.pdf,.eml"
           onChange={aoEscolher}
           aria-describedby={ajuda}
         />
@@ -88,7 +89,7 @@ export function EnvioArquivos({ aoEnviar }: { aoEnviar: (pedidoId: string) => vo
         <span>{enviando ? 'Enviando…' : 'Solte arquivos aqui ou escolha no computador'}</span>
       </label>
       <p id={ajuda} className="dica">
-        NF-e, CT-e, evento fiscal, planilha CSV ou XLSX, ou PDF. Envie a NF-e primeiro: ela cria o pedido.
+        NF-e, CT-e, evento fiscal, planilha CSV, PDF ou e-mail (.eml) com esses documentos em anexo. A NF-e cria o pedido: envie ela primeiro, ou dentro do e-mail.
       </p>
       <p className="dica">
         Sem arquivo à mão? Baixe os exemplos, todos com dados fictícios:{' '}

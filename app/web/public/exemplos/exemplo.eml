@@ -1,0 +1,45 @@
+From: Expedicao Ficticia <expedicao@fornecedor.example.com>
+To: Recebimento CD <recebimento@cd.example.com>
+Subject: NF-e 1 do pedido de exemplo (dado ficticio)
+Date: Tue, 20 Jan 2026 10:05:00 -0300
+Message-ID: <exemplo-001@fornecedor.example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_Parte_exemplo_001"
+
+------=_Parte_exemplo_001
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+Segue a NF-e do pedido em anexo. Mensagem de exemplo, com dados ficticios.
+
+------=_Parte_exemplo_001
+Content-Type: application/xml; name="nfe-ok.xml"
+Content-Disposition: attachment; filename="nfe-ok.xml"
+Content-Transfer-Encoding: base64
+
+PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPG5mZVByb2MgeG1sbnM9Imh0
+dHA6Ly93d3cucG9ydGFsZmlzY2FsLmluZi5ici9uZmUiIHZlcnNhbz0iNC4wMCI+CiAgPE5GZT4K
+ICAgIDxpbmZORmUgSWQ9Ik5GZTM1MjYwMTIzNDU2Nzg5MDAwMTIzNTUwMDEwMDAwMDAwMDExMDAw
+MDAwMDE5IiB2ZXJzYW89IjQuMDAiPgogICAgICA8aWRlPgogICAgICAgIDxjVUY+MzU8L2NVRj4K
+ICAgICAgICA8bmF0T3A+VkVOREE8L25hdE9wPgogICAgICAgIDxzZXJpZT4xPC9zZXJpZT4KICAg
+ICAgICA8bk5GPjE8L25ORj4KICAgICAgICA8ZGhFbWk+MjAyNi0wMS0yMFQxMDowMDowMC0wMzow
+MDwvZGhFbWk+CiAgICAgICAgPHRwTkY+MTwvdHBORj4KICAgICAgPC9pZGU+CiAgICAgIDxlbWl0
+PgogICAgICAgIDxDTlBKPjEyMzQ1Njc4MDAwMTIzPC9DTlBKPgogICAgICAgIDx4Tm9tZT5Gb3Ju
+ZWNlZG9yIEZpY3RpY2lvIEx0ZGE8L3hOb21lPgogICAgICA8L2VtaXQ+CiAgICAgIDxkZXN0Pgog
+ICAgICAgIDxDTlBKPjk4NzY1NDMyMDAwMTk4PC9DTlBKPgogICAgICAgIDx4Tm9tZT5DRCBGaWN0
+aWNpbyBTQTwveE5vbWU+CiAgICAgIDwvZGVzdD4KICAgICAgPGRldCBuSXRlbT0iMSI+CiAgICAg
+ICAgPHByb2Q+CiAgICAgICAgICA8Y1Byb2Q+QTE8L2NQcm9kPgogICAgICAgICAgPHhQcm9kPlBy
+b2R1dG8gQTwveFByb2Q+CiAgICAgICAgICA8cUNvbT4xMDwvcUNvbT4KICAgICAgICAgIDx1Q29t
+PkNYPC91Q29tPgogICAgICAgICAgPHZQcm9kPjEwMC4wMDwvdlByb2Q+CiAgICAgICAgPC9wcm9k
+PgogICAgICA8L2RldD4KICAgICAgPGRldCBuSXRlbT0iMiI+CiAgICAgICAgPHByb2Q+CiAgICAg
+ICAgICA8Y1Byb2Q+QjI8L2NQcm9kPgogICAgICAgICAgPHhQcm9kPlByb2R1dG8gQjwveFByb2Q+
+CiAgICAgICAgICA8cUNvbT41PC9xQ29tPgogICAgICAgICAgPHVDb20+VU48L3VDb20+CiAgICAg
+ICAgICA8dlByb2Q+MjAwLjAwPC92UHJvZD4KICAgICAgICA8L3Byb2Q+CiAgICAgIDwvZGV0Pgog
+ICAgICA8dG90YWw+CiAgICAgICAgPElDTVNUb3Q+CiAgICAgICAgICA8dk5GPjIwMDAuMDA8L3ZO
+Rj4KICAgICAgICA8L0lDTVNUb3Q+CiAgICAgIDwvdG90YWw+CiAgICAgIDx0cmFuc3A+CiAgICAg
+ICAgPG1vZEZyZXRlPjA8L21vZEZyZXRlPgogICAgICAgIDx2b2w+CiAgICAgICAgICA8cVZvbD4x
+MDwvcVZvbD4KICAgICAgICAgIDxwZXNvTD40OTUuMDAwPC9wZXNvTD4KICAgICAgICAgIDxwZXNv
+Qj41MTAuMDAwPC9wZXNvQj4KICAgICAgICA8L3ZvbD4KICAgICAgPC90cmFuc3A+CiAgICA8L2lu
+Zk5GZT4KICA8L05GZT4KPC9uZmVQcm9jPgo=
+
+------=_Parte_exemplo_001--
