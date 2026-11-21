@@ -19,6 +19,8 @@ export interface AnexoEml {
   conteudo: Buffer;
 }
 
+// xlsx fica na lista de proposito: detectarTipo responde o 422 de D-C13
+// ("exporte como CSV") em vez de o anexo sumir em silencio.
 const EXT_ACEITA = new Set(['xml', 'csv', 'xlsx', 'pdf']);
 const EXT_POR_MIME: Record<string, string> = {
   'application/xml': 'xml',
@@ -37,7 +39,6 @@ const PRIORIDADE_TIPO: Partial<Record<TipoDoc, number>> = {
   cte: 1,
   eventoNFe: 2,
   csv: 3,
-  xlsx: 3,
   pdf: 4,
 };
 
@@ -89,7 +90,7 @@ export async function extrairAnexos(conteudo: Buffer): Promise<AnexoEml[]> {
   });
 
   if (aproveitaveis.length === 0) {
-    throw new ErroParser('E-mail (.eml): nenhum anexo aproveitavel (esperado .xml, .csv, .xlsx ou .pdf)');
+    throw new ErroParser('E-mail (.eml): nenhum anexo aproveitavel (esperado .xml, .csv ou .pdf)');
   }
   if (aproveitaveis.length > MAX_ANEXOS) {
     throw new ErroParser(`E-mail (.eml): ${aproveitaveis.length} anexos aproveitaveis, o maximo e ${MAX_ANEXOS}`);

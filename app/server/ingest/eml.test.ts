@@ -332,6 +332,15 @@ describe('POST /api/ingest com .eml', () => {
     expect(await s.store.todosEventos()).toHaveLength(0);
   });
 
+  it('NF-e valida com planilha XLSX no mesmo e-mail responde 422 e nao grava nada (D-C13)', async () => {
+    const s = await novo();
+    const xlsx = { tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', corpo: 'PK', nome: 'planilha.xlsx', disposicao: 'attachment' as const };
+    const r = await enviar(s, 'pedido.eml', montarEml([anexoXml(NFE), xlsx]));
+    expect(r.status).toBe(422);
+    expect(r.corpo['erro']).toContain('exporte a planilha como CSV');
+    expect(await s.store.todosEventos()).toHaveLength(0);
+  });
+
   it('nenhum cabecalho do e-mail aparece em resposta, evento, revisao ou erro (RF27)', async () => {
     const s = await novo();
     const orfao = Buffer.from(CTE.toString('utf8').replaceAll(CHAVE, '35260100000000000100550010000099991000099991'));
