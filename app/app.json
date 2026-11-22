@@ -1,0 +1,9 @@
+{
+  "name": "foundry",
+  "description": "Coordenacao de excecoes logisticas com ledger append-only e prova publica.",
+  "env": {
+    "DATABASE_URL": { "required": true },
+    "WORKSPACE_SEED": { "value": "seed" }
+  },
+  "formation": { "web": { "quantity": 1 } }
+}

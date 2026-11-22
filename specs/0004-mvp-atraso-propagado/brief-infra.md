@@ -68,3 +68,32 @@ Setup no clone: `git pull`, `git config core.hooksPath scripts/hooks`,
 `git fetch && git worktree add ../foundry-wt-infra wt/app-infra`.
 Reporte: conclusão + evidência `arquivo:linha` e saídas de comando por
 critério; "feito" sem evidência não é feito.
+
+## Decisões da frente
+
+- D-I1 (21/11): workspace implementado como `workspace_id` em `events` e
+  `review_queue`, unicidade por `(workspace_id, pedido_id, seq)` via
+  índice; migração `ALTER TABLE ... IF NOT EXISTS` marca linhas antigas
+  como `seed`. `LedgerStore` carrega o workspace e `paraWorkspace(ws)`
+  escopa; trava por `hashtext(ws:pedido)`. Cookie `foundry_ws` UUID
+  emitido no `onRequest`, HttpOnly; workspace nunca vem do body.
+  Leituras: sessão + `WORKSPACE_SEED`; escritas de ingest sempre na
+  sessão; âncora e aprovação de revisão gravam no workspace dono do
+  pedido/item. IMAP e `seed.ts` gravam em `WORKSPACE_SEED`.
+- D-I2 (21/11): SSE por workspace: cliente recebe eventos da própria
+  sessão e da seed (broadcast quando `ws === seed`); heartbeat 20 s.
+- D-I3 (21/11): CORS com `credentials: true` e `CORS_ORIGIN` por env
+  (vazio = qualquer origem, só uso local); upload acima de 10 MB vira
+  413 explícito; `@fastify/static` serve `app/web/dist` quando existir;
+  `Procfile` + `app.json` prontos para deploy subpasta `app/`.
+
+## Evidência (21/11)
+
+- `tsc --noEmit` limpo; `vitest`: 5 arquivos, 44 testes, incluindo
+  isolamento por cookie (`api.test.ts`) e SSE por workspace
+  (`sse.test.ts`).
+- Postgres real (container `foundry-postgres`): 96 eventos legados
+  migrados como `seed`; índice `events_ws_pedido_seq` criado.
+- Ao vivo: ingest sem cookie emitiu `foundry_ws=3c74c882-...`; sessão A
+  vê própria cópia do pedido + seed; sessão B (`9999...`) vê só seed.
+  Regulamento 6.9 cumprido.

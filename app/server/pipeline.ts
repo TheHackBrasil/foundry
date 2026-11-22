@@ -73,11 +73,12 @@ async function processarDoc(
     return inseridos;
   });
 
-  for (const ev of eventos) canal.evento(ev);
+  for (const ev of eventos) canal.evento(ev, store.workspace);
   return { eventos, revisaoId: null };
 }
 
-// Aprovacao na revisao: o doc volta ao pipeline com aceite forcado.
+// Aprovacao na revisao: o doc volta ao pipeline com aceite forcado e
+// grava no workspace que gerou o item (nao no do aprovador).
 export async function aprovarRevisao(
   store: LedgerStore,
   canal: CanalSSE,
@@ -85,9 +86,10 @@ export async function aprovarRevisao(
 ): Promise<Evento[] | null> {
   const item = await store.buscarRevisao(id);
   if (!item || item['status'] !== 'pendente') return null;
+  const alvo = store.paraWorkspace(String(item['workspace_id']));
   const p = item['payload'] as { pedidoId: string; docTipo: DocData['docTipo']; fonte: DocData['fonte']; campos: DocData['campos']; dados: Record<string, unknown> };
   const doc: DocData = { fonte: p.fonte, docTipo: p.docTipo, pedidoId: p.pedidoId, campos: p.campos, dados: p.dados };
-  const r = await store.transaction(async (tx) => {
+  const r = await alvo.transaction(async (tx) => {
     const inseridos: Evento[] = [];
     inseridos.push(await tx.append(doc.pedidoId, doc.docTipo, docDataParaPayload(doc)));
     const historico = await tx.eventosDoPedido(doc.pedidoId);
@@ -101,7 +103,7 @@ export async function aprovarRevisao(
     await tx.resolverRevisao(id, 'aprovado');
     return inseridos;
   });
-  for (const ev of r) canal.evento(ev);
+  for (const ev of r) canal.evento(ev, alvo.workspace);
   return r;
 }
 
