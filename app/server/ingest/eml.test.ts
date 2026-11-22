@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Evento } from '../../shared/model.js';
+import { createLiteDb } from '../db.js';
 import { buildServer } from '../index.js';
 import { detectarTipo } from './detect.js';
 import { MAX_ANEXOS, MAX_BYTES_ANEXO, extrairAnexos } from './eml.js';
@@ -206,7 +207,7 @@ async function enviar(s: Servidor, nome: string, conteudo: Buffer) {
 describe('POST /api/ingest com .eml', () => {
   const abertos: Servidor[] = [];
   const novo = async (): Promise<Servidor> => {
-    const s = await buildServer();
+    const s = await buildServer(await createLiteDb());
     await s.app.ready();
     abertos.push(s);
     return s;
@@ -332,7 +333,7 @@ describe('POST /api/ingest com .eml', () => {
     expect(await s.store.todosEventos()).toHaveLength(0);
   });
 
-  it('NF-e valida com planilha XLSX no mesmo e-mail responde 422 e nao grava nada (D-C13)', async () => {
+  it('NF-e valida com planilha XLSX no mesmo e-mail responde 422 e nao grava nada (D-C14)', async () => {
     const s = await novo();
     const xlsx = { tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', corpo: 'PK', nome: 'planilha.xlsx', disposicao: 'attachment' as const };
     const r = await enviar(s, 'pedido.eml', montarEml([anexoXml(NFE), xlsx]));

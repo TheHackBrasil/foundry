@@ -19,7 +19,7 @@ export interface AnexoEml {
   conteudo: Buffer;
 }
 
-// xlsx fica na lista de proposito: detectarTipo responde o 422 de D-C13
+// xlsx fica na lista de proposito: detectarTipo responde o 422 de D-C14
 // ("exporte como CSV") em vez de o anexo sumir em silencio.
 const EXT_ACEITA = new Set(['xml', 'csv', 'xlsx', 'pdf']);
 const EXT_POR_MIME: Record<string, string> = {

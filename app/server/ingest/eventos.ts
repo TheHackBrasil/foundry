@@ -1,10 +1,7 @@
-// Parser de eventos fiscais NF-e (spec 0004, T023): CC-e (110110) e
-// cancelamento (110111) -> DocData. A CC-e e evento informativo: entra no
-// ledger com o texto da correcao e sem campo observado, porque ela nao
-// corrige data de emissao nem de saida (R-006, D-020; Convenio SINIEF s/n
-// de 1970, art. 7, par. 1-A, III). O atraso entra pela planilha do
-// fornecedor (e, no futuro, por OCOREN). O cancelamento vira status
-// 'cancelada'.
+// Eventos fiscais NF-e (spec 0004, T023): CC-e (110110) e cancelamento
+// (110111). A CC-e e informativa e nao vira campo: ela nao corrige data de
+// emissao nem de saida (R-006, D-020). O atraso entra pela planilha.
+// Cancelamento vira status 'cancelada'.
 
 import { XMLParser } from 'fast-xml-parser';
 import type { DocData } from '../../shared/model.js';
@@ -47,8 +44,7 @@ export function parseEventoNFe(xml: string): DocData {
   const dhEvento = texto(inf['dhEvento']);
 
   if (tp === '110110') {
-    // Texto livre da correcao nunca vira campo: mesmo com data ou a palavra
-    // "atraso" no texto, campos fica vazio.
+    // Texto livre da CC-e nunca vira campo, mesmo com data ou 'atraso'.
     return {
       fonte: 'cce',
       docTipo: 'cce',

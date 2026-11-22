@@ -1,6 +1,5 @@
-// Deteccao de divergencia entre fontes (spec 0004, RF10): e o produto.
-// Compara os campos vigiados que as duas fontes declaram; diverge quando
-// ambas declaram valores diferentes para o mesmo campo.
+// Divergencia entre fontes (spec 0004, RF10): diverge quando duas
+// fontes declaram valores diferentes para o mesmo campo vigiado.
 
 import {
   CAMPOS_VIGIADOS,

@@ -1,5 +1,4 @@
-// Adaptador de banco: real Postgres via DATABASE_URL (pg) ou PGlite em
-// memoria para dev/test sem Docker. Mesma interface nos dois lados.
+// Adaptador de banco (spec 0004): Postgres real via DATABASE_URL.
 
 import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
@@ -34,8 +33,7 @@ class PgDb implements Db {
     await this.query(sql);
   }
 
-  // Tx aninhada junta a tx externa (queries no mesmo client): o pipeline
-  // abre uma tx e os appends internos rodam nela.
+  // Tx aninhada junta a tx externa (mesmo client).
   async transaction<T>(fn: (db: Db) => Promise<T>): Promise<T> {
     if (this.client) return fn(this);
     const client = await this.pool.connect();
@@ -71,14 +69,12 @@ class LiteDb implements Db {
     return r.rows;
   }
 
-  // exec aceita lote multi-statement (DDL com $$ que o modo query nao parseia).
+  // exec aceita lote multi-statement (DDL com $$).
   async exec(sql: string): Promise<void> {
     await this.lite.exec(sql);
   }
 
-  // Queries dentro do tx rodam pelo handle da transacao (tx), nao por
-  // this.lite — PGlite serializa numa conexao so e deadlockaria. O
-  // handle de tx nao tem .transaction: tx aninhada junta a externa.
+  // PGlite serializa numa conexao: dentro da tx usa o handle (tx).
   async transaction<T>(fn: (db: Db) => Promise<T>): Promise<T> {
     if (this.inTx) return fn(this);
     return this.lite.transaction(
@@ -93,6 +89,16 @@ class LiteDb implements Db {
 
 export async function createDb(url?: string): Promise<Db> {
   const connection = url ?? process.env['DATABASE_URL'];
-  if (connection) return new PgDb(connection);
+  if (!connection) {
+    throw new Error(
+      'DATABASE_URL ausente: suba o Postgres com `docker compose up -d` ' +
+        'e defina DATABASE_URL=postgres://foundry:foundry@localhost:5432/foundry',
+    );
+  }
+  return new PgDb(connection);
+}
+
+// Usado so pelos testes (memoria).
+export async function createLiteDb(): Promise<Db> {
   return new LiteDb(new PGlite());
 }

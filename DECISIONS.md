@@ -45,7 +45,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-020 | 21/11 | Correções na spec 0004 e nas tasks que valem para qualquer versão do escopo: URL pública (T040) e vídeo (T042) viram P0 pelo regulamento 7.2 e 7.3; o atraso entra pela planilha do fornecedor (T031 sobe para P0) e não por CC-e (R-006); XML enviado por visitante fica isolado na sessão dele (`workspaceId`, T027) pelo regulamento 6.9; escrow fora, vale D-018 sobre D-017; o boot do Vite é da frente demo (spec 0005) | decidido | Conferência contra o regulamento e a regra fiscal em 21/11; as escolhas de escopo (âncora, IMAP, uma tela, dominó) seguem em P-006 |
 | D-021 | 21/11 | Nova divisão do MVP: Thiago na `app-demo` (design); Gui na nova frente `app-infra` (servidor, banco, hospedagem, deploy, contrato da API); `app-core` fica com `app/shared/` e o ingest; Gab e Gui pesquisam campos úteis e aplicabilidade. O e-mail entra como formato (arquivo `.eml` no upload, P0) e a caixa IMAP ao vivo fica para a final ou para o P0 verde | decidido por Thiago; Gab e Gui ainda não confirmaram o e-mail | Gab acha o e-mail frágil e sem sentido. A documentação de ERPs mostra que o recurso de captura de XML por caixa de e-mail existe (Senior, Omie, Dynamics), mas não que o público-alvo o usa, e a pesquisa de campo do time não registra o uso (o Thiago confirmou em 21/11 que a frase "eles já usam caixa de e-mail" da call 2 veio de um assistente de IA); o `.eml` entrega o canal sem depender de credencial nem de hospedagem de caixa |
 | D-022 | 21/11 | A base do código de `app/` é a implementação de Gui na `wt/app-core` (21/11, 00:35): `app/shared/`, `app/server/` com ledger append-only, SSE, anchor e ingest, e `app/contracts/` com Hardhat. Na integração, os conflitos em `app/shared/`, `package.json` e `tsconfig.json` foram resolvidos a favor dela. T002 e T003 de Thiago (commit `d38d173`) ficam no histórico, e o `ingerir()` e o `app/api/contrato.ts` propostos antes foram retirados, porque o despacho (`detectarTipo`) e os tipos de resposta (`app/shared/model.ts`) já existem | decidido | `tsc` limpo e 38 testes passando na integração; cobre o que a spec previa e mais (fila de revisão, simulação, IMAP, PDF); duas implementações paralelas do mesmo núcleo não se sustentam |
-| D-025 | 21/11 | A planilha do fornecedor é só CSV no MVP: `.xlsx` e `.xls` respondem 422 pedindo CSV, e o `xlsx@0.18.5` sai do `package.json` | decidido por subagente seguindo a regra do brief da THE-9; Thiago a confirmar | `xlsx@0.18.5` (a única versão instalável pela npm) tem ReDoS e prototype pollution ao ler arquivo malicioso; a alternativa `read-excel-file` estourou memória e tempo com arquivos pequenos feitos à mão (um `.xlsx` de 39 KB levou cerca de 2 GB em 2,7 s), medições em D-C13 do `brief-core.md`. O juiz sobe arquivo próprio na URL pública. Custo: Excel é o formato comum de planilha e o usuário precisa exportar CSV. Caminho de volta: ler a planilha num `worker_threads` com limite de recursos e checar o zip antes de inflar |
+| D-025 | 21/11 | A planilha do fornecedor é só CSV no MVP: `.xlsx` e `.xls` respondem 422 pedindo CSV, e o `xlsx@0.18.5` sai do `package.json` | decidido por subagente seguindo a regra do brief da THE-9; Thiago a confirmar | `xlsx@0.18.5` (a única versão instalável pela npm) tem ReDoS e prototype pollution ao ler arquivo malicioso; a alternativa `read-excel-file` estourou memória e tempo com arquivos pequenos feitos à mão (um `.xlsx` de 39 KB levou cerca de 2 GB em 2,7 s), medições em D-C14 do `brief-core.md`. O juiz sobe arquivo próprio na URL pública. Custo: Excel é o formato comum de planilha e o usuário precisa exportar CSV. Caminho de volta: ler a planilha num `worker_threads` com limite de recursos e checar o zip antes de inflar |
 
 ## Pendências
 
@@ -177,3 +177,26 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   commit) e na `origin/wt/app-core` (primeira versão completa do código).
   Integrado sem force (D-022): `tsc` limpo e 38 testes passando. As
   pendências reais estão em P-010 e no cabeçalho do `tasks.md`.
+| D-023 | 21/11 | `GET /audit` compara o root ancorado contra os eventos que a âncora cobriu (`seq < seq` do evento `ancora`): expõe `rootAtual`, `rootHistorico`, `rootConfere` e `eventosAncorados` (`app/server/index.ts`) | decidido | O teste real na Base Sepolia expôs o bug: comparar contra todos os eventos flaggeava o próprio evento `ancora` e `rootConfere` ficava falso para sempre; teste do ataque de reescrita da cadeia cobre o cenário |
+| D-024 | 21/11 | Runtime exige `DATABASE_URL` (Postgres real via Docker): sem ela, `createDb` falha com erro acionável; PGlite sai do runtime e vira só infra de teste via `createLiteDb` injetada no `buildServer`; `dotenv` carrega `.env` só no boot e no seed | decidido | Pedido do usuário: um banco só no produto; PGlite em memória segue nos testes por isolar a suite sem Docker |
+
+### Sessão 8: âncora real na Base Sepolia, Postgres real e integração app-core (21/11)
+
+- Ambiente de testnet montado do zero: carteira descartável
+  `0x2151fD2DD17c8dB3914F888a322EE70F9606d64b` (chave só no `.env`
+  local), ETH de teste via faucet CDP (Alchemy/QuickNode exigiam saldo
+  na mainnet; pk910 paga só Ethereum Sepolia). Contrato `FoundryAnchor`
+  deployado em `0x5CA2F67E27257D2f67E703fe7bF81865d481FF03`.
+- Âncora real confirmada: tx
+  `0xd5691de312cb1d486304df92dee78043cef0f1eb236f957e0bb075717f683f84`
+  sobre 73 eventos do seed. O primeiro uso real da rede expôs e motivou
+  o fix de D-023.
+- Docker Desktop + WSL2 instalados; `app/docker-compose.yml` sobe
+  `postgres:17-alpine`. Validado ao vivo: 74 eventos persistidos,
+  UPDATE/DELETE/TRUNCATE rejeitados pelas triggers no psql do
+  container, dados intactos após restart do server e `rootConfere: true`.
+- Runtime passa a exigir `DATABASE_URL` (D-024); `npm start` funciona
+  com o `.env` local via `dotenv`. Suíte: 40 testes, guard e
+  prose-evals verdes na `wt/app-core` antes do merge.
+- Item de P-006 encaminhado: âncora na Base Sepolia antes de 30/11 está
+  feita e tem recibo público em `sepolia.basescan.org`.

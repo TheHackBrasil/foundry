@@ -1,7 +1,6 @@
-// Deteccao de tipo de documento (spec 0004, T012/T023/T031/T035, RF28):
-// XML pelo conteudo, CSV/PDF pela extensao, e-mail (.eml) pela extensao ou
-// por cabecalho MIME. Tipo desconhecido ou planilha XLSX (D-C13) vira erro
-// explicito 422 na rota, nunca 500.
+// Deteccao de tipo (spec 0004, RF28): XML pelo conteudo, CSV/PDF pela
+// extensao, .eml por extensao ou cabecalho MIME. Desconhecido e XLSX (D-C14)
+// viram 422, nunca 500.
 
 import { ErroParser } from './nfe.js';
 

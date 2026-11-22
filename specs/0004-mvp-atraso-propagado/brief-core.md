@@ -34,11 +34,12 @@ critério; "feito" sem evidência não é feito.
 
 ## Decisões da frente
 
-- **D-C1 (D)**: sem Docker na máquina, o store cai para PGlite
-  (Postgres real em WASM, `@electric-sql/pglite`) quando
-  `DATABASE_URL` não está definida; com a variável, usa `pg` Pool.
-  Mesma interface `Db` nos dois lados (`app/server/db.ts:7`). A
-  trigger append-only é testada de verdade, sem mock.
+- **D-C1 (D)**: o produto roda só em Postgres real: sem
+  `DATABASE_URL`, `createDb` falha com erro acionável; não há
+  fallback silencioso (`app/server/db.ts:96`). PGlite (Postgres real
+  em WASM) existe apenas como infra de teste via `createLiteDb`,
+  injetado em `buildServer` (`app/server/index.ts:27`): memória,
+  zero Docker, mesma interface `Db` e triggers reais, sem mock.
 - **D-C2 (D)**: seq por pedido serializada com
   `pg_advisory_xact_lock(hashtext(pedido_id))` dentro da tx
   (`app/server/store.ts:99`). `FOR UPDATE` não bastaria: a tx
@@ -51,9 +52,9 @@ critério; "feito" sem evidência não é feito.
   dependeria de ordem de chaves e espaçamento.
 - **D-C5 (D)**: `events` tem triggers anti UPDATE/DELETE por linha e
   anti TRUNCATE por statement (`app/server/store.ts:38` a `48`). O
-  audit reconta a cadeia e, havendo âncora, confere o Merkle root
-  atual contra o ancorado (`app/server/index.ts:87`), o que pega
-  truncamento de cauda que a cadeia sozinha não vê.
+  audit reconta a cadeia e, havendo âncora, recomputa o Merkle root
+  sobre os eventos que a âncora cobriu (`app/server/index.ts:87` a
+  `100`): `rootConfere` verde significa histórico ancorado intacto.
 - **D-C6 (D)**: divergência é derivada e gravada como evento, não só
   computada na leitura: cada doc novo compara com a última declaração
   de cada outra fonte e grava `divergencia` + `tarefa` no ledger
@@ -77,13 +78,20 @@ critério; "feito" sem evidência não é feito.
 - **D-C11 (P)**: CORS aberto e rotas de escrita sem auth são escopo
   de demo local; endurecer (token ou bind localhost) fica para a
   integração se a demo for exposta.
-- **D-C12 (D)**: `.eml` entra como formato (RF28, D-021). `detectarTipo`
+- **D-C12 (D)**: o root da âncora é comparado contra o root
+  recomputado dos eventos com `seq < seq` da última âncora, não o de
+  todos os eventos. O evento `ancora` entra no próprio ledger após a
+  tx, então comparar contra o total tornaria `rootConfere` falso para
+  sempre. Eventos legítimos pós-âncora não invalidam a conferência;
+  reescrita de cadeia (payload + hash recomputados) é pega por ela
+  (`api.test.ts`, "rescrever cadeia inteira").
+- **D-C13 (D)**: `.eml` entra como formato (RF28, D-021). `detectarTipo`
   reconhece a extensão ou, fora de `.xml`, um `MIME-Version:` ou
   `Content-Type: multipart/` no começo de linha nos primeiros 2 KB
   (`app/server/ingest/detect.ts`). `extrairAnexos`
   (`app/server/ingest/eml.ts`) devolve só anexos `.xml`, `.csv` e `.pdf`
   (ou o content-type equivalente; um `.xlsx` derruba o e-mail com o 422
-  de D-C13), no máximo 10 por e-mail e 5 MB cada, renomeados
+  de D-C14), no máximo 10 por e-mail e 5 MB cada, renomeados
   `anexo-N.<ext>` e com a NF-e antes do CT-e. E-mail
   dentro de e-mail é rejeitado, sem recursão. Nenhum cabeçalho é lido,
   devolvido nem repetido em erro (RF27); o erro do `mailparser` também
@@ -93,7 +101,7 @@ critério; "feito" sem evidência não é feito.
   ledger, e reenviar é seguro porque a reingestão é no-op (D-C4). Em
   `app/server/pipeline.ts` (frente app-infra) entrou só o `case 'eml'`
   de `ingerir`, que passa cada anexo pelo mesmo caminho do upload solto.
-- **D-C13 (D)**: o leitor de XLSX sai do MVP e a planilha fica só em
+- **D-C14 (D)**: o leitor de XLSX sai do MVP e a planilha fica só em
   CSV. `xlsx@0.18.5` da npm tem ReDoS (CVE-2024-22363) e prototype
   pollution, e a correção só sai pela CDN da SheetJS. Duas trocas foram
   medidas antes de remover. `exceljs@4.4.0` traz 193 pacotes (50 MB) e
@@ -120,7 +128,7 @@ critério; "feito" sem evidência não é feito.
 ## Evidência por critério do gate
 
 - `tsc --noEmit` limpo: `npm run typecheck` sem saída de erro.
-- Testes: `npm test` -> `Test Files 5 passed (5)`, `Tests 38 passed (38)`.
+- Testes: `npm test` -> `Test Files 5 passed (5)`, `Tests 40 passed (40)`.
 - Contrato: `npx hardhat test` em `app/contracts/` -> 4/4 passando
   (emit, get, root repetido não sobrescreve).
 - Cadeia válida, adulteração nomeia o 1o evento afetado e cadeia
@@ -149,6 +157,13 @@ critério; "feito" sem evidência não é feito.
   reingere: `app/server/pipeline.ts:26` a `35` e `85`.
 - `POST /api/anchor` sem credenciais -> 503 com `motivo` declarado e
   `root` computado: `app/server/anchor.ts`; teste "anchor sem config".
+- Deploy e âncora reais na Base Sepolia (feitos nesta sessão):
+  contrato `FoundryAnchor` em `0x5CA2F67E27257D2f67E703fe7bF81865d481FF03`
+  (sepolia.basescan.org/address/0x5CA2F67E27257D2f67E703fe7bF81865d481FF03);
+  âncora do pedido do seed na tx `0x5b15133be63d726a2974b2149e2cbecf83e23f78666391053606468e1e704be3`;
+  audit ao vivo respondeu `rootConfere:true` com
+  `eventosAncorados:73`. Carteira descartável só de testnet, chave em
+  `app/.env` local (gitignored, nunca commitada).
 - Seed idempotente e ordenada por tipo (NF-e primeiro):
   `app/server/seed.ts`; saída `5 doc(s) processados` na mesma chave.
 - `node scripts/repo-guard.mjs` exit 0 (11 checks); `prose-evals`
@@ -156,13 +171,17 @@ critério; "feito" sem evidência não é feito.
 
 ## Pendências conhecidas (para a integração)
 
-- Deploy real na Base Sepolia exige `ANCHOR_PRIVATE_KEY` +
-  `BASE_SEPOLIA_RPC_URL` + `ANCHOR_CONTRACT_ADDRESS` locais;
-  `npm run deploy` em `app/contracts/` publica e imprime a URL do
-  basescan. Sem chave não há tx visível; o caminho está implementado
-  e testado em rede local hardhat.
-- Postgres real via `app/docker-compose.yml` não foi validado aqui
-  (sem Docker); PGlite cobre os mesmos testes.
+- Deploy real na Base Sepolia já foi feito (evidência acima). Para
+  repetir em outra máquina: `ANCHOR_PRIVATE_KEY` +
+  `BASE_SEPOLIA_RPC_URL` + `ANCHOR_CONTRACT_ADDRESS` no `.env` local e
+  `npm run deploy` em `app/contracts/` se for contrato novo.
+- Postgres real via `app/docker-compose.yml` validado nesta sessão
+  (Docker Desktop + WSL2, imagem `postgres:17-alpine`):
+  `docker compose up -d` + `DATABASE_URL` faz o server usar `pg`;
+  73 eventos do seed persistiram, triggers rejeitaram UPDATE, DELETE
+  e TRUNCATE via psql no container, âncora gravou a tx
+  `0xd5691de312cb1d486304df92dee78043cef0f1eb236f957e0bb075717f683f84`
+  e reiniciar o server manteve dados + `rootConfere:true`.
 - Extração de PDF por LLM implementada (OpenAI-compatible via
   `LLM_API_URL`/`LLM_API_KEY`/`LLM_MODEL`); sem provider, todo PDF vai
   para a fila de revisão com motivo `llm_nao_configurada`.

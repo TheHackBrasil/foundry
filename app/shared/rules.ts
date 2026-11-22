@@ -1,6 +1,5 @@
 // Grafo de propagacao deterministico (spec 0004, RF11): divergencia ->
-// tarefa por parte, como dado. Pureza total: mesma divergencia, mesmas
-// tarefas, sempre. A simulacao "e se?" (RF12) reusa este mapa.
+// tarefa por parte, como dado. A simulacao "e se?" (RF12) reusa o mapa.
 
 import { formatarValor, rotuloFonte } from './formato.js';
 import type { CampoVigiado, Divergencia, Tarefa } from './model.js';
@@ -17,8 +16,7 @@ function legivel(d: Divergencia) {
   };
 }
 
-// Regras declarativas: para cada campo vigiado, quem faz o que quando
-// duas fontes divergem. Ordem das partes fixa para saida deterministica.
+// Para cada campo vigiado, quem faz o que quando duas fontes divergem.
 export const REGRAS_PROPAGACAO: Record<CampoVigiado, Gerador> = {
   previsaoEntrega: (d) => {
     const { fonteA, fonteB, valorA, valorB } = legivel(d);

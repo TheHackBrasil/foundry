@@ -1,6 +1,6 @@
 // Extracao de PDF (spec 0004, T035): texto via pdf-parse; campos via
-// LLM OpenAI-compatible quando LLM_API_URL esta configurada; sem LLM ou
-// confianca baixa -> fila de revisao (A7: nada de extracao fingida).
+// LLM quando LLM_API_URL esta configurada. Sem LLM ou confianca baixa
+// vai para a fila de revisao (A7).
 
 import { PDFParse } from 'pdf-parse';
 import type { CamposObservados, DocData } from '../../shared/model.js';

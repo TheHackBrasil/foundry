@@ -1,5 +1,5 @@
-// Raiz Merkle dos hashes de eventos (spec 0004, RF14): e o que vai para
-// o contrato FoundryAnchor. Puro: recebe hex sha256, devolve hex sha256.
+// Raiz Merkle dos hashes de eventos (spec 0004, RF14): e o que vai
+// para o contrato FoundryAnchor.
 
 import { sha256Hex } from './chain.js';
 

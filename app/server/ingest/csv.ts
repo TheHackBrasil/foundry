@@ -1,6 +1,5 @@
-// Parser CSV de planilhas (spec 0004, T031): uma linha = um doc
-// 'planilha'. Headers tolerados em PT-BR (chave_nf, data_prevista...).
-// XLSX saiu do MVP: ver D-C13 em brief-core.md.
+// Parser CSV (spec 0004, T031): uma linha = um doc 'planilha'; headers
+// tolerados em PT-BR (chave_nf, data_prevista...). XLSX saiu do MVP (D-C14).
 
 import Papa from 'papaparse';
 import type { CamposObservados, DocData } from '../../shared/model.js';

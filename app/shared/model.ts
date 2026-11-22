@@ -1,5 +1,4 @@
-// Modelo canonico da camada de coordenacao (spec 0004, RF8).
-// Contrato unico server x web: a web consome estes tipos via caminho relativo.
+// Modelo canonico (spec 0004, RF8): contrato unico server x web.
 
 export type Parte = 'fornecedor' | 'transportadora' | 'cd' | 'fiscal' | 'financeiro';
 
@@ -156,7 +155,9 @@ export interface RespostaAuditoria {
   hashEncontrado: string | null;
   ancora: Record<string, unknown> | null;
   rootAtual: string;
+  rootHistorico: string | null;
   rootConfere: boolean | null;
+  eventosAncorados: number | null;
 }
 
 export interface RespostaSimulacao {
