@@ -1,9 +1,10 @@
 // Eventos fiscais NF-e (spec 0004, T023): CC-e (110110) e cancelamento
-// (110111). Correcao de data vira previsaoEntrega; cancelamento vira
+// (110111). CC-e e evento de correcao, nunca gatilho de atraso (R-006):
+// o atraso entra pela planilha do fornecedor. Cancelamento vira
 // status 'cancelada'.
 
 import { XMLParser } from 'fast-xml-parser';
-import type { CamposObservados, DocData } from '../../shared/model.js';
+import type { DocData } from '../../shared/model.js';
 import { ErroParser } from './nfe.js';
 
 const parser = new XMLParser({
@@ -17,15 +18,6 @@ const parser = new XMLParser({
 function texto(v: unknown): string | undefined {
   if (v === undefined || v === null) return undefined;
   return String(v).trim();
-}
-
-// Extrai data DD/MM/AAAA (ou AAAA-MM-DD) de texto livre da correcao.
-function dataNoTexto(s: string): string | undefined {
-  const br = s.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
-  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
-  const iso = s.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
-  if (iso) return iso[0];
-  return undefined;
 }
 
 export function parseEventoNFe(xml: string): DocData {
@@ -52,17 +44,14 @@ export function parseEventoNFe(xml: string): DocData {
   const dhEvento = texto(inf['dhEvento']);
 
   if (tp === '110110') {
-    // CC-e com data nova vira previsaoEntrega (atraso).
-    const novaData = dataNoTexto(correcao);
-    const campos: CamposObservados = {};
-    if (novaData) campos.previsaoEntrega = novaData;
-    if (/atras|posterg|adiad|reagend/i.test(correcao)) campos.status = 'atrasada';
+    // CC-e registra a correcao em dados (trilha), mas nao declara campo
+    // vigiado: nao e a fonte do atraso (R-006).
     return {
       fonte: 'cce',
       docTipo: 'cce',
       pedidoId: chNFe,
-      campos,
-      dados: { chNFe, descricao, correcao, dhEvento, novaData: novaData ?? null },
+      campos: {},
+      dados: { chNFe, descricao, correcao, dhEvento },
     };
   }
 

@@ -13,6 +13,7 @@ import { parseCTe } from './ingest/cte.js';
 import { parseEventoNFe } from './ingest/eventos.js';
 import { parseCsv, parseXlsx } from './ingest/csv.js';
 import { parsePdf } from './ingest/pdf.js';
+import { extrairAnexosEml } from './ingest/eml.js';
 
 export interface ResultadoIngest {
   pedidoId: string | null;
@@ -105,13 +106,13 @@ export async function aprovarRevisao(
 }
 
 // Entrada unica: nome+conteudo -> detecta -> parse -> store.
+// .eml desembrulha os anexos e joga cada um pelo mesmo caminho.
 export async function ingerir(
   store: LedgerStore,
   canal: CanalSSE,
   nome: string,
   conteudo: Buffer,
 ): Promise<ResultadoIngest> {
-  const tipo = detectarTipo(nome, conteudo);
   const todos: Evento[] = [];
   let pedidoId: string | null = null;
   let revisaoId: number | null = null;
@@ -125,32 +126,42 @@ export async function ingerir(
     revisaoId ??= r.revisaoId;
   };
 
-  switch (tipo) {
-    case 'nfe':
-      await processar(parseNFe(conteudo.toString('utf8')));
-      break;
-    case 'cte':
-      await processar(parseCTe(conteudo.toString('utf8')));
-      break;
-    case 'eventoNFe':
-      await processar(parseEventoNFe(conteudo.toString('utf8')));
-      break;
-    case 'csv':
-      for (const doc of parseCsv(conteudo.toString('utf8'))) await processar(doc);
-      break;
-    case 'xlsx':
-      for (const doc of parseXlsx(conteudo)) await processar(doc);
-      break;
-    case 'pdf': {
-      const r = await parsePdf(conteudo);
-      if (r.doc) await processar(r.doc);
-      if (r.revisao) {
-        revisaoId = await store.enfileirarRevisao('pdf', r.revisao.motivo, r.revisao.payload);
+  const processarArquivo = async (nomeArq: string, buf: Buffer, dentroDeEml = false): Promise<void> => {
+    switch (detectarTipo(nomeArq, buf)) {
+      case 'nfe':
+        await processar(parseNFe(buf.toString('utf8')));
+        break;
+      case 'cte':
+        await processar(parseCTe(buf.toString('utf8')));
+        break;
+      case 'eventoNFe':
+        await processar(parseEventoNFe(buf.toString('utf8')));
+        break;
+      case 'csv':
+        for (const doc of parseCsv(buf.toString('utf8'))) await processar(doc);
+        break;
+      case 'xlsx':
+        for (const doc of parseXlsx(buf)) await processar(doc);
+        break;
+      case 'pdf': {
+        const r = await parsePdf(buf);
+        if (r.doc) await processar(r.doc);
+        if (r.revisao) {
+          revisaoId = await store.enfileirarRevisao('pdf', r.revisao.motivo, r.revisao.payload);
+        }
+        break;
       }
-      break;
+      case 'eml': {
+        if (dentroDeEml) throw new ErroParser('EML dentro de EML nao suportado');
+        for (const anexo of await extrairAnexosEml(buf)) {
+          await processarArquivo(anexo.nome, anexo.conteudo, true);
+        }
+        break;
+      }
     }
-  }
+  };
 
+  await processarArquivo(nome, conteudo);
   return { pedidoId, docs, eventos: todos, revisaoId };
 }
 

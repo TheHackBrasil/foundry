@@ -38,12 +38,13 @@ describe('parsers', () => {
     expect(d.campos.volumes).toBe(12);
   });
 
-  it('CC-e vira evento de atraso com nova data', () => {
-    const d = parseEventoNFe(ler('cce-atraso.xml'));
+  it('CC-e vira evento de correcao, sem declarar campo de atraso', () => {
+    const d = parseEventoNFe(ler('cce-correcao.xml'));
     expect(d.docTipo).toBe('cce');
     expect(d.pedidoId).toBe(CHAVE);
-    expect(d.campos.previsaoEntrega).toBe('2026-01-25');
-    expect(d.campos.status).toBe('atrasada');
+    expect(d.campos.previsaoEntrega).toBeUndefined();
+    expect(d.campos.status).toBeUndefined();
+    expect(d.dados['correcao']).toContain('Acacias');
   });
 
   it('cancelamento vira status cancelada', () => {
@@ -109,11 +110,11 @@ describe('ledger + api (PGlite)', () => {
     expect(new Set(proj.tarefas.map((t) => t.parte))).toContain('transportadora');
   });
 
-  it('CC-e propaga tarefa para as 5 partes no atraso', async () => {
+  it('planilha do fornecedor propaga tarefa para as 5 partes no atraso', async () => {
     await app.inject({
       method: 'POST',
       url: '/api/ingest',
-      payload: { nome: 'cce-atraso.xml', conteudo: ler('cce-atraso.xml') },
+      payload: { nome: 'planilha.csv', conteudo: ler('planilha.csv') },
     });
     const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as {
       tarefas: Array<{ parte: string; divergencia: { campo: string } }>;
@@ -121,7 +122,20 @@ describe('ledger + api (PGlite)', () => {
     };
     const deData = proj.tarefas.filter((t) => t.divergencia.campo === 'previsaoEntrega');
     expect(new Set(deData.map((t) => t.parte)).size).toBe(5);
-    expect(proj.versoes.length).toBe(3); // nfe, cte, cce
+    expect(proj.versoes.length).toBe(3); // nfe, cte, planilha
+  });
+
+  it('.eml desembrulha anexo XML e joga no mesmo pipeline', async () => {
+    const eml = readFileSync(join(FIX, 'email-nfe.eml'));
+    const r = await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'email-nfe.eml', conteudoBase64: eml.toString('base64') },
+    });
+    const body = r.json() as { ok: boolean; pedidoId: string | null; docs: number };
+    expect(body.ok).toBe(true);
+    expect(body.pedidoId).toBe(CHAVE);
+    expect(body.docs).toBe(1); // o anexo vira doc; idempotente, sem evento novo
   });
 
   it('reingestao identica e no-op (idempotente)', async () => {

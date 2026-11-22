@@ -220,3 +220,12 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   + tarefas). Ollama fica como plano B local para o dia da banca.
 - Bug encontrado e corrigido no caminho (D-026): chave com espaços.
   Item de revisão residual descartado após o reprocessamento.
+| D-027 | 21/11 | T029 (`.eml`) e correção da CC-e (T023) implementados: `.eml` desembrulha anexos no mesmo pipeline sem registrar cabeçalho (RF27); CC-e passou a evento de correção sem campo vigiado (R-006), e o atraso da suíte passou a vir da planilha do fornecedor | decidido | A CC-e corrigida pelo regulamento fiscal não é gatilho de atraso; a implementação anterior contradizia a spec; `.eml` era P0 pendente |
+
+### Sessão 11: `.eml` e semântica correta da CC-e (21/11)
+
+- `app/server/ingest/eml.ts` com mailparser: fixture `email-nfe.eml`
+  gera o mesmo pedido do XML solto, provado ao vivo no server.
+- `cce-atraso.xml` virou `cce-correcao.xml` (correção de endereço);
+  CC-e não declara `previsaoEntrega` nem `atrasada`, registrando a
+  correção só em `dados` para trilha. Suíte: 41 testes.

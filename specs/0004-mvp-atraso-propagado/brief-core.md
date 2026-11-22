@@ -149,3 +149,10 @@ critério; "feito" sem evidência não é feito.
   para a fila de revisão com motivo `llm_nao_configurada`.
 - `dev:all` em `app/package.json` pressupõe `app/web/` da frente
   app-demo; sem ela, `npm run dev` sobe só a API.
+- T029 `.eml` implementado (`app/server/ingest/eml.ts`): anexos
+  elegíveis desembrulham no mesmo pipeline; cabeçalho não é registrado
+  (RF27). Validado ao vivo: `email-nfe.eml` retornou o mesmo pedido do
+  XML solto, idempotente.
+- Correção T023: CC-e passou a evento de correção sem campo vigiado
+  (R-006); `cce-atraso.xml` virou `cce-correcao.xml` e o atraso da
+  suíte passou a vir da `planilha.csv`. 41 testes passando.
