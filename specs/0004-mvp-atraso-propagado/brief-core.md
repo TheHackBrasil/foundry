@@ -63,10 +63,12 @@ critério; "feito" sem evidência não é feito.
 - **D-C7 (D)**: aprovação na fila de revisão reingere o doc guardado
   como se tivesse acabado de chegar, forçando aceite
   (`app/server/pipeline.ts:85`); descarte só marca o status.
-- **D-C8 (R)**: IMAP marca `\Seen` só depois do processamento do
-  anexo; doc rejeitado por parser vai para a fila de revisão e erro
-  de infra deixa a mensagem não lida para o próximo ciclo
-  (`app/server/ingest/imap.ts:56` a `78`).
+- **D-C8 (R)**: IMAP marca `\Seen` só quando a mensagem tinha anexo
+  elegível processado; doc rejeitado por parser vai para a fila de
+  revisão e erro de infra deixa a mensagem não lida para o próximo
+  ciclo. Só mensagens de hoje em diante (`IMAP_DESDE` configurável):
+  caixa pessoal tem histórico grande e mail antigo não é canal
+  (`app/server/ingest/imap.ts:30` a `35`, `60` a `86`).
 - **D-C9 (R)**: âncora grava evento `ancora` só com receipt
   `status === 1`; sem RPC/chave/contrato ou tx revertida, devolve
   `ok:false` com motivo e o ledger local segue

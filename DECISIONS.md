@@ -199,3 +199,15 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   prose-evals verdes na `wt/app-core` antes do merge.
 - Item de P-006 encaminhado: âncora na Base Sepolia antes de 30/11 está
   feita e tem recibo público em `sepolia.basescan.org`.
+| D-025 | 21/11 | IMAP só varre mensagens de hoje em diante (`IMAP_DESDE` configurável) e marca `\Seen` só quando a mensagem tinha anexo elegível processado; validado de ponta a ponta com Gmail real: `nfe-novo-pedido.xml` anexado virou o pedido `...22000000020` no ledger | decidido | A varredura original pegava todas as não lidas e marcava `\Seen` até sem anexo elegível: numa caixa pessoal com 10 mil não lidas, baixaria tudo e marcaria o e-mail do usuário como lido |
+
+### Sessão 9: IMAP ao vivo com Gmail real (21/11)
+
+- Canal de e-mail provado na prática: app password do Gmail em
+  `imap.gmail.com:993`, polling de 30 s, anexo `.xml` ingerido e
+  mensagem marcada como lida. Evento `nfe` criou o segundo pedido do
+  sistema; `/api/pedidos` e o DBeaver refletem.
+- Fix D-025 nasceu do uso real: protege caixa pessoal de varredura em
+  massa e de marcação indevida de lidas. Segredos ficam só no `.env`
+  local; `imap-test.mts` com credencial inline foi removido antes de
+  qualquer commit.
