@@ -77,6 +77,8 @@ critério; "feito" sem evidência não é feito.
   a exclusão de `contracts/` dos testes ficou no filtro posicional do
   script (`app/package.json`, `vitest run shared server`). Pedido à
   integração: incluir um config central se a demo quiser vitest na raiz.
+  Atendido na integração de 22/11: `app/vitest.config.ts` limita a
+  coleta a `shared/` e `server/`, e `npx vitest run` sai com 0.
 - **D-C11 (P)**: CORS aberto e rotas de escrita sem auth são escopo
   de demo local; endurecer (token ou bind localhost) fica para a
   integração se a demo for exposta.
