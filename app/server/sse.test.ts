@@ -37,30 +37,43 @@ const evento: Evento = {
 
 describe('CanalSSE', () => {
   it('dois clientes recebem o evento em <1s', () => {
-    const canal = new CanalSSE();
+    const canal = new CanalSSE('seed');
     const a = respostaFalsa();
     const b = respostaFalsa();
-    canal.registrar(a.reply);
-    canal.registrar(b.reply);
+    canal.registrar(a.reply, 'ws-a');
+    canal.registrar(b.reply, 'ws-b');
     expect(canal.totalClientes).toBe(2);
 
     const t0 = Date.now();
-    canal.evento(evento);
+    canal.evento(evento, 'ws-a');
     const delta = Date.now() - t0;
 
     expect(delta).toBeLessThan(1000);
+    const quadroA = a.escrito.find((s) => s.startsWith('event: evento'));
+    expect(quadroA).toBeDefined();
+    expect(quadroA).toContain(evento.hash);
+    expect(b.escrito.find((s) => s.startsWith('event: evento'))).toBeUndefined();
+    canal.fechar();
+  });
+
+  it('evento do workspace seed alcanca todas as sessoes', () => {
+    const canal = new CanalSSE('seed');
+    const a = respostaFalsa();
+    const b = respostaFalsa();
+    canal.registrar(a.reply, 'ws-a');
+    canal.registrar(b.reply, 'ws-b');
+
+    canal.evento(evento, 'seed');
     for (const c of [a, b]) {
-      const quadro = c.escrito.find((s) => s.startsWith('event: evento'));
-      expect(quadro).toBeDefined();
-      expect(quadro).toContain(evento.hash);
+      expect(c.escrito.find((s) => s.startsWith('event: evento'))).toBeDefined();
     }
     canal.fechar();
   });
 
   it('cliente desconectado sai do registro', () => {
-    const canal = new CanalSSE();
+    const canal = new CanalSSE('seed');
     const a = respostaFalsa();
-    canal.registrar(a.reply);
+    canal.registrar(a.reply, 'ws-a');
     a.fechar();
     expect(canal.totalClientes).toBe(0);
     canal.fechar();

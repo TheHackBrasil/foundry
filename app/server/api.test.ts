@@ -71,7 +71,7 @@ describe('ledger + api (PGlite)', () => {
   let store: LedgerStore;
 
   beforeAll(async () => {
-    const r = await buildServer(await createLiteDb());
+    const r = await buildServer(await createLiteDb(), { workspacePadrao: 'seed' });
     app = r.app;
     store = r.store;
     await app.ready();
@@ -290,5 +290,45 @@ describe('ledger + api (PGlite)', () => {
   it('GET /api/versoes devolve linha do tempo', async () => {
     const res = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/versoes` });
     expect((res.json() as { versoes: unknown[] }).versoes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('isola pedidos por cookie de sessao e compartilha a seed', async () => {
+    const wsA = '11111111-1111-4111-8111-111111111111';
+    const wsB = '22222222-2222-4222-8222-222222222222';
+    const pedidoSessao = 'pedido-so-da-sessao-a';
+    await store.paraWorkspace(wsA).append(pedidoSessao, 'nfe', { fonte: 'nfe' });
+
+    const cookieA = { cookie: `foundry_ws=${wsA}` };
+    const cookieB = { cookie: `foundry_ws=${wsB}` };
+
+    // A ve o proprio pedido e o pedido da seed; B nao ve o da sessao A.
+    const listaA = (await app.inject({ method: 'GET', url: '/api/pedidos', headers: cookieA }))
+      .json() as { pedidos: Array<{ pedidoId: string; workspaceId: string }> };
+    const listaB = (await app.inject({ method: 'GET', url: '/api/pedidos', headers: cookieB }))
+      .json() as { pedidos: Array<{ pedidoId: string; workspaceId: string }> };
+
+    expect(listaA.pedidos.map((p) => p.pedidoId)).toContain(pedidoSessao);
+    expect(listaA.pedidos.map((p) => p.pedidoId)).toContain(CHAVE); // seed compartilhado
+    expect(listaB.pedidos.map((p) => p.pedidoId)).toContain(CHAVE); // seed compartilhado
+    expect(listaB.pedidos.map((p) => p.pedidoId)).not.toContain(pedidoSessao);
+
+    const getB = await app.inject({ method: 'GET', url: `/api/pedidos/${pedidoSessao}`, headers: cookieB });
+    expect(getB.statusCode).toBe(404);
+    const getA = await app.inject({ method: 'GET', url: `/api/pedidos/${pedidoSessao}`, headers: cookieA });
+    expect(getA.statusCode).toBe(200);
+  });
+
+  it('emite cookie foundry_ws quando ausente e respeita um valido', async () => {
+    const sem = await app.inject({ method: 'GET', url: '/api/pedidos' });
+    expect(String(sem.headers['set-cookie'])).toContain('foundry_ws=');
+    expect(String(sem.headers['set-cookie'])).toContain('HttpOnly');
+
+    const ws = '33333333-3333-4333-8333-333333333333';
+    const com = await app.inject({
+      method: 'GET',
+      url: '/api/pedidos',
+      headers: { cookie: `foundry_ws=${ws}` },
+    });
+    expect(com.headers['set-cookie']).toBeUndefined();
   });
 });

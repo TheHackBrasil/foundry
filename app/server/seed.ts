@@ -26,9 +26,10 @@ const PRIORIDADE_TIPO: Record<string, number> = {
 async function main(): Promise<void> {
   await import('dotenv/config');
   const db = await createDb();
-  const store = new LedgerStore(db);
+  const seedWs = process.env['WORKSPACE_SEED'] ?? 'seed';
+  const store = new LedgerStore(db, seedWs, seedWs);
   await store.init();
-  const canal = new CanalSSE();
+  const canal = new CanalSSE(seedWs);
 
   let ingeridos = 0;
   let pulados = 0;

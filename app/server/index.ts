@@ -1,5 +1,11 @@
 // API Fastify (spec 0004): ingest, pedidos, audit, SSE, simulate, anchor, revisao.
+// Sessao: cookie foundry_ws isola o workspace do visitante (regulamento 6.9);
+// WORKSPACE_SEED e o conteudo compartilhado, gravado so por seed.ts e IMAP.
 
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
@@ -15,16 +21,51 @@ import { CanalSSE } from './sse.js';
 import { LedgerStore } from './store.js';
 
 const PORTA = Number(process.env['PORT'] ?? 3000);
+const AQUI = dirname(fileURLToPath(import.meta.url));
 
-export async function buildServer(dbInjetado?: Db) {
+declare module 'fastify' {
+  interface FastifyRequest {
+    workspace: string;
+  }
+}
+
+const COOKIE_WS = 'foundry_ws';
+const REGEX_WS = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface BuildOpts {
+  // Testes fixam o workspace sem precisar de cookie; producao nunca usa.
+  workspacePadrao?: string;
+}
+
+export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
+  const seedWs = process.env['WORKSPACE_SEED'] ?? 'seed';
   const app = Fastify({ logger: true });
-  await app.register(cors, { origin: true });
+  await app.register(cors, {
+    origin: process.env['CORS_ORIGIN']?.split(',').map((o) => o.trim()) ?? true,
+    credentials: true,
+  });
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
   const db = dbInjetado ?? (await createDb());
-  const store = new LedgerStore(db);
+  const store = new LedgerStore(db, seedWs, seedWs);
   await store.init();
-  const canal = new CanalSSE();
+  const canal = new CanalSSE(seedWs);
+
+  // Sessao: workspace vem so do cookie emitido pelo servidor, nunca do body.
+  app.addHook('onRequest', async (req, reply) => {
+    const cookie = req.headers.cookie?.match(new RegExp(`(?:^|;\\s*)${COOKIE_WS}=([^;]+)`))?.[1];
+    const ws = cookie && REGEX_WS.test(cookie) ? cookie : (opts.workspacePadrao ?? randomUUID());
+    req.workspace = ws;
+    if (!cookie || cookie !== ws) {
+      reply.header('set-cookie', `${COOKIE_WS}=${ws}; Path=/; HttpOnly; SameSite=Lax`);
+    }
+  });
+
+  // Store do pedido: sessao do chamador ou workspace dono do pedido (seed).
+  async function storeDoPedido(sessao: LedgerStore, pedidoId: string): Promise<LedgerStore | null> {
+    const dono = await sessao.wsDoPedido(pedidoId);
+    return dono === null ? null : store.paraWorkspace(dono);
+  }
 
   app.get('/api/health', async () => ({ ok: true }));
 
@@ -37,7 +78,11 @@ export async function buildServer(dbInjetado?: Db) {
       const file = await req.file();
       if (!file) return reply.code(400).send({ erro: 'arquivo ausente' });
       nome = file.filename;
-      conteudo = await file.toBuffer();
+      try {
+        conteudo = await file.toBuffer();
+      } catch {
+        return reply.code(413).send({ erro: 'arquivo excede o limite de 10 MB' });
+      }
     } else {
       const body = req.body as { nome?: string; conteudo?: string; conteudoBase64?: string } | undefined;
       nome = body?.nome;
@@ -49,7 +94,7 @@ export async function buildServer(dbInjetado?: Db) {
     }
 
     try {
-      const r = await ingerir(store, canal, nome, conteudo);
+      const r = await ingerir(store.paraWorkspace(req.workspace), canal, nome, conteudo);
       return { ok: true, ...r, eventos: r.eventos.length };
     } catch (e) {
       if (e instanceof ErroParser) {
@@ -59,27 +104,31 @@ export async function buildServer(dbInjetado?: Db) {
     }
   });
 
-  app.get('/api/pedidos', async () => ({ pedidos: await store.listarPedidos() }));
+  app.get('/api/pedidos', async (req) => ({
+    pedidos: await store.paraWorkspace(req.workspace).listarPedidos(),
+    workspace: req.workspace,
+  }));
 
   app.get<{ Params: { id: string } }>('/api/pedidos/:id', async (req, reply) => {
-    const eventos = await store.eventosDoPedido(req.params.id);
-    if (eventos.length === 0) return reply.code(404).send({ erro: 'pedido nao encontrado' });
-    return projetar(eventos);
+    const s = await storeDoPedido(store.paraWorkspace(req.workspace), req.params.id);
+    if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+    return projetar(await s.eventosDoPedido(req.params.id));
   });
 
   app.get<{ Params: { id: string } }>('/api/pedidos/:id/versoes', async (req, reply) => {
-    const eventos = await store.eventosDoPedido(req.params.id);
-    if (eventos.length === 0) return reply.code(404).send({ erro: 'pedido nao encontrado' });
-    return { versoes: projetar(eventos).versoes };
+    const s = await storeDoPedido(store.paraWorkspace(req.workspace), req.params.id);
+    if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+    return { versoes: projetar(await s.eventosDoPedido(req.params.id)).versoes };
   });
 
   // rootConfere: Merkle root sobre os eventos que a ancora cobriu
   // (seq < seq do evento 'ancora'). Eventos novos nao o invalidam (RF15).
   app.get<{ Params: { id: string } }>('/api/pedidos/:id/audit', async (req, reply) => {
-    const eventos = await store.eventosDoPedido(req.params.id);
-    if (eventos.length === 0) return reply.code(404).send({ erro: 'pedido nao encontrado' });
-    const verificacao = await store.auditar(req.params.id);
-    const ancora = await store.ultimoAncora(req.params.id);
+    const s = await storeDoPedido(store.paraWorkspace(req.workspace), req.params.id);
+    if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+    const eventos = await s.eventosDoPedido(req.params.id);
+    const verificacao = await s.auditar(req.params.id);
+    const ancora = await s.ultimoAncora(req.params.id);
     const rootAtual = raizMerkle(eventos.map((e) => e.hash));
     const seqAncora = [...eventos].reverse().find((e) => e.tipo === 'ancora')?.seq;
     const rootHistorico = seqAncora === undefined
@@ -96,9 +145,9 @@ export async function buildServer(dbInjetado?: Db) {
     };
   });
 
-  // SSE: fluxo ao vivo; reconexao reidrata via GET /api/pedidos/:id.
+  // SSE: fluxo ao vivo do workspace da sessao + seed; reconexao reidrata via GET.
   app.get('/api/stream', async (req, reply) => {
-    canal.registrar(reply);
+    canal.registrar(reply, req.workspace);
     return reply;
   });
 
@@ -110,9 +159,9 @@ export async function buildServer(dbInjetado?: Db) {
       if (!pedidoId || !campos || Object.keys(campos).length === 0) {
         return reply.code(400).send({ erro: 'pedidoId e campos obrigatorios' });
       }
-      const eventos = await store.eventosDoPedido(pedidoId);
-      if (eventos.length === 0) return reply.code(404).send({ erro: 'pedido nao encontrado' });
-      const proj = projetar(eventos);
+      const s = await storeDoPedido(store.paraWorkspace(req.workspace), pedidoId);
+      if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+      const proj = projetar(await s.eventosDoPedido(pedidoId));
       const atual = proj.pedido?.campos ?? {};
       const divs: Divergencia[] = [];
       for (const [campo, valorNovo] of Object.entries(campos)) {
@@ -135,13 +184,17 @@ export async function buildServer(dbInjetado?: Db) {
   app.post<{ Body: { pedidoId?: string } }>('/api/anchor', async (req, reply) => {
     const { pedidoId } = req.body ?? {};
     if (!pedidoId) return reply.code(400).send({ erro: 'pedidoId obrigatorio' });
-    const r = await ancorar(store, pedidoId);
-    if (r.ok) canal.enviar('ancora', r);
+    const s = await storeDoPedido(store.paraWorkspace(req.workspace), pedidoId);
+    if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+    const r = await ancorar(s, pedidoId);
+    if (r.ok) canal.enviar('ancora', r, s.workspace);
     return r.ok ? r : reply.code(503).send(r);
   });
 
   // Fila de revisao (RF7/T035): docs sem pedido ou extracao incerta.
-  app.get('/api/revisao', async () => ({ itens: await store.listarRevisao() }));
+  app.get('/api/revisao', async (req) => ({
+    itens: await store.paraWorkspace(req.workspace).listarRevisao(),
+  }));
   app.post<{ Params: { id: string }; Body: { status?: string } }>(
     '/api/revisao/:id/decisao',
     async (req, reply) => {
@@ -153,17 +206,25 @@ export async function buildServer(dbInjetado?: Db) {
         return reply.code(400).send({ erro: 'status deve ser aprovado ou descartado' });
       }
       const id = Number(req.params.id);
+      const s = store.paraWorkspace(req.workspace);
       if (status === 'aprovado') {
-        const eventos = await aprovarRevisao(store, canal, id);
+        const eventos = await aprovarRevisao(s, canal, id);
         if (eventos === null) return reply.code(404).send({ erro: 'item nao encontrado ou ja decidido' });
         return { ok: true, eventos: eventos.length };
       }
-      if (!(await store.resolverRevisao(id, 'descartado'))) {
+      if (!(await s.resolverRevisao(id, 'descartado'))) {
         return reply.code(404).send({ erro: 'item nao encontrado' });
       }
       return { ok: true };
     },
   );
+
+  // Producao: serve o build da web quando app-demo gerar app/web/dist.
+  const webDist = join(AQUI, '..', 'web', 'dist');
+  if (existsSync(webDist)) {
+    const { default: fastifyStatic } = await import('@fastify/static');
+    await app.register(fastifyStatic, { root: webDist });
+  }
 
   app.addHook('onClose', async () => {
     canal.fechar();
@@ -173,18 +234,20 @@ export async function buildServer(dbInjetado?: Db) {
   return { app, store, canal };
 }
 
-// IMAP: polling so liga quando IMAP_HOST esta configurado.
+// IMAP: polling so liga quando IMAP_HOST esta configurado; canal do
+// operador, grava no WORKSPACE_SEED compartilhado.
 async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
   const cfg = imapConfigDoEnv();
   if (!cfg) return;
+  const seedWs = process.env['WORKSPACE_SEED'] ?? 'seed';
   iniciarPolling(
     cfg,
     (nome, conteudo) =>
-      ingerir(store, canal, nome, conteudo).then((r) => {
+      ingerir(store.paraWorkspace(seedWs), canal, nome, conteudo).then((r) => {
         console.log(`imap: ${nome} -> pedido ${r.pedidoId ?? 'revisao'}`);
       }),
     (nome, erro) =>
-      store.enfileirarRevisao('imap', 'anexo_rejeitado', { nome, erro }),
+      store.paraWorkspace(seedWs).enfileirarRevisao('imap', 'anexo_rejeitado', { nome, erro }),
     (msg) => console.log(msg),
   );
   console.log(`imap: polling em ${cfg.host}:${cfg.port} a cada ${cfg.intervaloMs}ms`);
