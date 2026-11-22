@@ -12,8 +12,9 @@ imutável (A9).
 | [0003](0003-site-redesign/spec.md) | Redesign do site: estrutura editorial, logo oficial, stickers | entregue | 2026-11-19 |
 | [0004](0004-mvp-atraso-propagado/spec.md) | MVP da camada de coordenação (atraso propagado) | aprovada | 2026-11-20 |
 | [0005](0005-mvp-frentes/spec.md) | Frentes paralelas do MVP: worktrees, dono por pasta, hook | implementada | 2026-11-20 |
+| [0006](0006-identidade-forseti-v4/spec.md) | Identidade Brandbook v4 no site e nas telas do produto | aprovada | 2026-11-22 |
 
-**Próximo número livre:** `0006`
+**Próximo número livre:** `0007`
 
 ## Lacunas conhecidas
 

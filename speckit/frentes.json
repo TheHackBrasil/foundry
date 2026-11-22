@@ -26,11 +26,18 @@
         "specs/0004-mvp-atraso-propagado/brief-infra.md"
       ]
     },
-    "app-demo": {
-      "brief": "specs/0004-mvp-atraso-propagado/brief-demo.md",
+    "site-forseti": {
+      "brief": "specs/0006-identidade-forseti-v4/brief-site-forseti.md",
+      "paths": [
+        "site/",
+        "specs/0006-identidade-forseti-v4/brief-site-forseti.md"
+      ]
+    },
+    "app-brand": {
+      "brief": "specs/0006-identidade-forseti-v4/brief-app-brand.md",
       "paths": [
         "app/web/",
-        "specs/0004-mvp-atraso-propagado/brief-demo.md"
+        "specs/0006-identidade-forseti-v4/brief-app-brand.md"
       ]
     },
     "escopo-produto": {

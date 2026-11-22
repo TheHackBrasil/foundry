@@ -45,7 +45,19 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-020 | 21/11 | Correções na spec 0004 e nas tasks que valem para qualquer versão do escopo: URL pública (T040) e vídeo (T042) viram P0 pelo regulamento 7.2 e 7.3; o atraso entra pela planilha do fornecedor (T031 sobe para P0) e não por CC-e (R-006); XML enviado por visitante fica isolado na sessão dele (`workspaceId`, T027) pelo regulamento 6.9; escrow fora, vale D-018 sobre D-017; o boot do Vite é da frente demo (spec 0005) | decidido | Conferência contra o regulamento e a regra fiscal em 21/11; as escolhas de escopo (âncora, IMAP, uma tela, dominó) seguem em P-006 |
 | D-021 | 21/11 | Nova divisão do MVP: Thiago na `app-demo` (design); Gui na nova frente `app-infra` (servidor, banco, hospedagem, deploy, contrato da API); `app-core` fica com `app/shared/` e o ingest; Gab e Gui pesquisam campos úteis e aplicabilidade. O e-mail entra como formato (arquivo `.eml` no upload, P0) e a caixa IMAP ao vivo fica para a final ou para o P0 verde | decidido por Thiago; Gab e Gui ainda não confirmaram o e-mail | Gab acha o e-mail frágil e sem sentido. A documentação de ERPs mostra que o recurso de captura de XML por caixa de e-mail existe (Senior, Omie, Dynamics), mas não que o público-alvo o usa, e a pesquisa de campo do time não registra o uso (o Thiago confirmou em 21/11 que a frase "eles já usam caixa de e-mail" da call 2 veio de um assistente de IA); o `.eml` entrega o canal sem depender de credencial nem de hospedagem de caixa |
 | D-022 | 21/11 | A base do código de `app/` é a implementação de Gui na `wt/app-core` (21/11, 00:35): `app/shared/`, `app/server/` com ledger append-only, SSE, anchor e ingest, e `app/contracts/` com Hardhat. Na integração, os conflitos em `app/shared/`, `package.json` e `tsconfig.json` foram resolvidos a favor dela. T002 e T003 de Thiago (commit `d38d173`) ficam no histórico, e o `ingerir()` e o `app/api/contrato.ts` propostos antes foram retirados, porque o despacho (`detectarTipo`) e os tipos de resposta (`app/shared/model.ts`) já existem | decidido | `tsc` limpo e 38 testes passando na integração; cobre o que a spec previa e mais (fila de revisão, simulação, IMAP, PDF); duas implementações paralelas do mesmo núcleo não se sustentam |
-| D-025 | 21/11 | A planilha do fornecedor é só CSV no MVP: `.xlsx` e `.xls` respondem 422 pedindo CSV, e o `xlsx@0.18.5` sai do `package.json` | decidido por subagente seguindo a regra do brief da THE-9; Thiago a confirmar | `xlsx@0.18.5` (a única versão instalável pela npm) tem ReDoS e prototype pollution ao ler arquivo malicioso; a alternativa `read-excel-file` estourou memória e tempo com arquivos pequenos feitos à mão (um `.xlsx` de 39 KB levou cerca de 2 GB em 2,7 s), medições em D-C14 do `brief-core.md`. O juiz sobe arquivo próprio na URL pública. Custo: Excel é o formato comum de planilha e o usuário precisa exportar CSV. Caminho de volta: ler a planilha num `worker_threads` com limite de recursos e checar o zip antes de inflar |
+| D-023 | 21/11 | `GET /audit` compara o root ancorado contra os eventos que a âncora cobriu (`seq < seq` do evento `ancora`): expõe `rootAtual`, `rootHistorico`, `rootConfere` e `eventosAncorados` (`app/server/index.ts`) | decidido | O teste real na Base Sepolia expôs o bug: comparar contra todos os eventos flaggeava o próprio evento `ancora` e `rootConfere` ficava falso para sempre; teste do ataque de reescrita da cadeia cobre o cenário |
+| D-024 | 21/11 | Runtime exige `DATABASE_URL` (Postgres real via Docker): sem ela, `createDb` falha com erro acionável; PGlite sai do runtime e vira só infra de teste via `createLiteDb` injetada no `buildServer`; `dotenv` carrega `.env` só no boot e no seed | decidido | Pedido do usuário: um banco só no produto; PGlite em memória segue nos testes por isolar a suite sem Docker |
+| D-025 | 21/11 | IMAP só varre mensagens de hoje em diante (`IMAP_DESDE` configurável) e marca `\Seen` só quando a mensagem tinha anexo elegível processado; validado de ponta a ponta com Gmail real: `nfe-novo-pedido.xml` anexado virou o pedido `...22000000020` no ledger | decidido | A varredura original pegava todas as não lidas e marcava `\Seen` até sem anexo elegível: numa caixa pessoal com 10 mil não lidas, baixaria tudo e marcaria o e-mail do usuário como lido |
+| D-026 | 21/11 | Extração de PDF via LLM validada de ponta a ponta com OpenRouter (`nvidia/nemotron-3.5-super-vl:free`, confiança 0,98): `pdf.ts` passou a normalizar a chave NF-e vindo com espaços, formato impresso do DANFE; `app/.env.example` documenta todas as envs | decidido | O teste real expôs o bug: regex `\d{44}` rejeitava a chave em grupos de 4 dígitos com espaços e mandava todo PDF para a revisão |
+| D-027 | 21/11 | T029 (`.eml`) e correção da CC-e (T023) implementados: `.eml` desembrulha anexos no mesmo pipeline sem registrar cabeçalho (RF27); CC-e passou a evento de correção sem campo vigiado (R-006), e o atraso da suíte passou a vir da planilha do fornecedor | decidido | A CC-e corrigida pelo regulamento fiscal não é gatilho de atraso; a implementação anterior contradizia a spec; `.eml` era P0 pendente |
+| D-028 | 21/11 | A planilha do fornecedor é só CSV no MVP: `.xlsx` e `.xls` respondem 422 pedindo CSV, no upload e dentro do `.eml`, e pelo IMAP vão para a fila de revisão; o `xlsx@0.18.5` sai do `package.json` e do lockfile. Registrada como D-025 na `main` local do Thiago, número que colide com o D-025 do Gui | decidido por Thiago; Gui a confirmar, porque o `.eml` e o IMAP dele aceitavam `.xlsx` | `xlsx@0.18.5`, a única versão instalável pela npm, tem ReDoS (CVE-2024-22363) e prototype pollution ao ler arquivo malicioso; a alternativa `read-excel-file` estourou memória e tempo com arquivos pequenos feitos à mão (um `.xlsx` de 39 KB levou cerca de 2 GB em 2,7 s), medições em D-C13 do `brief-core.md`. O juiz sobe arquivo próprio na URL pública. Custo: Excel é o formato comum de planilha e o usuário precisa exportar CSV. Caminho de volta: ler a planilha num `worker_threads` com limite de recursos e checar o zip antes de inflar |
+| D-029 | 22/11 | Integração do MVP no branch `integra/mvp-final`: base `origin/main` (D-027) mais a `wt/app-infra` do Gui por merge. Da `main` local do Thiago entram `app/shared/formato.ts`, os textos pt-BR de `rules.ts` com a tarefa fiscal do atraso corrigida, o boot no Linux, o `.env.example` e a planilha só CSV (D-028). O `.eml` e a CC-e ficam com a implementação do Gui (D-027), e do Thiago entram só os testes que passam nela | decidido por Thiago, integração feita por agente; Gui a revisar os pontos do `.eml` | A CC-e do Gui passou em todos os testes de R-006 do Thiago. A divergência de R-006 estava na tarefa fiscal do atraso, que mandava "Conferir CC-e emitida para a correcao", e o `rules.ts` do Thiago a corrige. O `eml.ts` do Gui falha em 18 testes do Thiago, todos sobre pontos que ele não trata: CT-e anexado antes da NF-e cai na fila de revisão; anexo inválido depois de uma NF-e grava a NF-e e responde 422; anexo sem nome de arquivo é ignorado; e-mail aninhado ao lado de outro anexo é ignorado sem aviso; não há limite de quantidade nem de tamanho por anexo; o nome original do anexo segue no pipeline; e `.eml` sem a extensão não é reconhecido. Portar esses pontos fica para o Gui decidir |
+| D-030 | 22/11 | A identidade visual das superfícies é a do Brandbook Forseti v4: petróleo `#163C38`, lavanda `#D7C5EA`, papel mineral `#F5F2EB`, cinza mineral `#52665E`; Manrope para comunicação e Geist Mono para identificadores; gramática de monólitos, cordas e camadas; voz "confiança sem ruído". Ela substitui a direção "Rota 3 Salão" e a marca "Refinada" da spec 0004 (D-W6 a D-W8) | decidido por Thiago | O Brandbook do Gabriel chegou depois do moodboard e é a fonte de verdade da marca; o trabalho anterior fica como evidência de contraste medido e de componentes |
+| D-031 | 22/11 | O site `foundry/site` (projeto Vercel `the-foundry`, único site público) é re-vestido inteiro na v4 sem rota nova: o hero passa a apresentar o produto e as seções seguem com conteúdo factual preservado. Alternativas rejeitadas: `/` de produto com `/diario` separado e página `/forseti` isolada | decidido por Thiago | O diário e a apresentação do projeto já vivem nesse site e não existe segundo deploy; re-vestir uma página única custa menos que manter duas |
+| D-032 | 22/11 | O logo oficial das superfícies é o vetor extraído do Brandbook v4: 5 SVGs em `forseti-brand/brandbook-v4/` (lockup petróleo e negativo, símbolo petróleo, negativo e isolado), copiados sem alteração para os assets de cada superfície. A marca "Refinada" do moodboard é aposentada e a bigorna fica só como crédito da equipe | decidido | O brandbook proíbe redigitar o wordmark e traz o desenho aprovado em vetor; extrair do PDF evita redesenho divergente |
+| D-033 | 22/11 | O `app/web` fica em tema claro por padrão com o alternador preservado; o tema escuro usa a adaptação medida (fundo `#0E1F1D`, texto `#E8F0EE`, coordenação `#C9B2F0` e `#35294A`). O site fica só claro, sem alternador novo | decidido por Thiago | O brandbook não define escuro; no app o dark já existia e custa pouco manter adaptado, no site não existia e não se cria |
+| D-034 | 22/11 | A lavanda clara `#D7C5EA` nunca aparece como texto, ícone de estado ou tinta de divergência; o sinal de coordenação nas telas usa o violeta profundo `#654199` (6,78:1 sobre papel) | decidido | Medido com o colorlib do R4: lavanda sobre papel dá 1,44:1 e reprova WCAG; o papel dela na marca é corda, vidro e preenchimento gráfico |
+| D-035 | 22/11 | Novas frentes `site-forseti` (dona de `site/`) e `app-brand` (dona de `app/web/`), registradas em `speckit/frentes.json` com briefs na spec 0006; a frente `app-demo` é encerrada, com o trabalho integrado na `integra/mvp-final` | decidido | Divisão por superfície sem sobreposição de paths; a `app-demo` não tem trabalho aberto depois da integração |
 
 ## Pendências
 
@@ -60,7 +72,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | P-007 | Quem integra as frentes na `main`, e se o GitHub passa a exigir PR para a `main` (D-005 hoje proíbe proteção de branch) | Com três pessoas e agentes em máquinas diferentes, o hook local não protege a `main` remota | aberto |
 | P-008 | Stack e hospedagem: D-016 fixou linguagem, banco e SSE; falta hospedagem (Heroku em avaliação) e validar o conjunto (sem hibernação até 12/12, Postgres com trigger, SSE atrás do roteador, deploy sem Docker, custo com o crédito disponível) | Demo no ar é entregável (regulamento 7.2 e 7.3) e a hospedagem não está decidida (prazo proposto: 24/11; até lá o código roda em qualquer host: `DATABASE_URL`, `PORT`, heartbeat no SSE) (dono: Gui, frente app-infra) | aberto |
 | P-009 | OCOREN como segundo canal de atraso: arquivo EDI PROCEDA que a transportadora envia ao embarcador (registro 342, código 02 "entrega fora da data programada"), ligado ao pedido por CNPJ do emissor, série e número da NF | O registro não traz a chave de 44 dígitos e o layout varia por versão e por embarcador (R-007); entra como P1 se o Gab confirmar | aberto |
-| P-010 | Antes da URL pública, o servidor precisa de: isolamento por sessão (RF27, hoje inexistente), CORS aberto e escrita sem autenticação (D-C11 do `brief-core.md`), o boot standalone, que no Linux nunca subia (`app/server/index.ts` comparava `file:///` + caminho e produzia `file:////`; corrigido na `main` local em 21/11 com `pathToFileURL`, e o `PORT` do `.env` passou a valer, com teste e validação em Postgres real, falta envio e a confirmação do Gui) e o servidor que sobe sem seed, e o cancelamento gravado com fonte `cce` (a CC-e que virava atraso e o `xlsx` inseguro foram resolvidos em 21/11, R-006 e D-025) | O juiz sobe arquivo próprio na URL pública (regulamento 6.9 e 7.2) e o Heroku é Linux; dono: Gui (app-infra) para as três primeiras, `app-core` para o cancelamento | aberto |
+| P-010 | Antes da URL pública, o servidor ainda precisa resolver duas coisas. CORS aberto e escrita sem autenticação (D-C11 do `brief-core.md`): qualquer visitante decide item da fila de revisão da seed (testado ao vivo em 22/11) e ancora pedido da seed que não tem cópia na sessão dele (leitura de `app/server/index.ts`), então a seed não é só leitura. E o cancelamento gravado com fonte `cce`: ele aparece como "CC-e" nas tarefas, e uma CC-e posterior zera o estado da fonte; no seed, a planilha que chega depois não diverge do `cancelada`. Resolvidos em 22/11: isolamento por sessão (D-I1 a D-I3 do `brief-infra.md`), boot no Linux, `xlsx` (D-028) e CC-e (R-006, D-027) | O juiz sobe arquivo próprio na URL pública (regulamento 6.9 e 7.2); dono: Gui (app-infra) para CORS e autenticação, `app-core` para o cancelamento | aberto |
 
 ## Achados de pesquisa
 
@@ -177,8 +189,6 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   commit) e na `origin/wt/app-core` (primeira versão completa do código).
   Integrado sem force (D-022): `tsc` limpo e 38 testes passando. As
   pendências reais estão em P-010 e no cabeçalho do `tasks.md`.
-| D-023 | 21/11 | `GET /audit` compara o root ancorado contra os eventos que a âncora cobriu (`seq < seq` do evento `ancora`): expõe `rootAtual`, `rootHistorico`, `rootConfere` e `eventosAncorados` (`app/server/index.ts`) | decidido | O teste real na Base Sepolia expôs o bug: comparar contra todos os eventos flaggeava o próprio evento `ancora` e `rootConfere` ficava falso para sempre; teste do ataque de reescrita da cadeia cobre o cenário |
-| D-024 | 21/11 | Runtime exige `DATABASE_URL` (Postgres real via Docker): sem ela, `createDb` falha com erro acionável; PGlite sai do runtime e vira só infra de teste via `createLiteDb` injetada no `buildServer`; `dotenv` carrega `.env` só no boot e no seed | decidido | Pedido do usuário: um banco só no produto; PGlite em memória segue nos testes por isolar a suite sem Docker |
 
 ### Sessão 8: âncora real na Base Sepolia, Postgres real e integração app-core (21/11)
 
@@ -200,3 +210,69 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   prose-evals verdes na `wt/app-core` antes do merge.
 - Item de P-006 encaminhado: âncora na Base Sepolia antes de 30/11 está
   feita e tem recibo público em `sepolia.basescan.org`.
+
+### Sessão 9: IMAP ao vivo com Gmail real (21/11)
+
+- Canal de e-mail provado na prática: app password do Gmail em
+  `imap.gmail.com:993`, polling de 30 s, anexo `.xml` ingerido e
+  mensagem marcada como lida. Evento `nfe` criou o segundo pedido do
+  sistema; `/api/pedidos` e o DBeaver refletem.
+- Fix D-025 nasceu do uso real: protege caixa pessoal de varredura em
+  massa e de marcação indevida de lidas. Segredos ficam só no `.env`
+  local; `imap-test.mts` com credencial inline foi removido antes de
+  qualquer commit.
+
+### Sessão 10: LLM real na extração de PDF (21/11)
+
+- OpenRouter configurado com modelo gratuito; DANFE sintético ingerido
+  via `/api/ingest` produziu 20 eventos no pedido novo (doc + divergências
+  + tarefas). Ollama fica como plano B local para o dia da banca.
+- Bug encontrado e corrigido no caminho (D-026): chave com espaços.
+  Item de revisão residual descartado após o reprocessamento.
+
+### Sessão 11: `.eml` e semântica correta da CC-e (21/11)
+
+- `app/server/ingest/eml.ts` com mailparser: fixture `email-nfe.eml`
+  gera o mesmo pedido do XML solto, provado ao vivo no server.
+- `cce-atraso.xml` virou `cce-correcao.xml` (correção de endereço);
+  CC-e não declara `previsaoEntrega` nem `atrasada`, registrando a
+  correção só em `dados` para trilha. Suíte: 41 testes.
+
+### Sessão 12: integração do MVP (22/11)
+
+- Branch `integra/mvp-final` criado da `origin/main` (`5e0aff7`), com a
+  `origin/wt/app-infra` (`22cb7d0`) por merge e os commits da `main`
+  local do Thiago reaplicados por cima (D-029). Nada foi enviado ao
+  GitHub.
+- Os testes do Thiago rodaram contra o código do Gui antes de qualquer
+  porte: dos 54, passaram 33. Depois dos commits mantidos passam 36, e
+  os 18 que falham são todos do `.eml` (D-029).
+- Boot no Linux: com o `index.ts` da `wt/app-infra`,
+  `PORT=3917 npm start` saía com código 0 em 2 s sem escutar. Com o fix,
+  o servidor sobe e responde em `/api/health`.
+- Verificação ao vivo em Postgres 16 num contêiner descartável: NF-e,
+  CT-e, planilha, CC-e e `.eml` ingeridos; `GET /api/pedidos` e
+  `/api/pedidos/:id` filtram por sessão (a outra sessão recebe 404); o
+  SSE entrega o evento só à sessão do cookie, nos dois sentidos; CT-e e
+  planilha enviados em paralelo no mesmo pedido não bifurcaram a cadeia
+  (ao fim, `seq` de 1 a 42 sem buraco e audit `valida: true`); UPDATE,
+  DELETE e TRUNCATE são recusados pelas triggers; `.xlsx` responde 422.
+- `npx vitest run`: 8 arquivos e 88 testes passando; `tsc --noEmit`
+  limpo; guard e prose-evals com exit 0. O `npm audit` cai de 4 para 3
+  vulnerabilidades com a saída do `xlsx` e ainda acusa
+  `@fastify/static@8.3.0` (high), dependência da `wt/app-infra`.
+
+### Sessão 13: identidade Brandbook v4 registrada (22/11)
+
+- O Brandbook Forseti v4 do Gabriel (`Forseti_Brandbook_V04-1.pdf`)
+  chegou depois da direção "Rota 3" do moodboard e passa a reger as
+  superfícies (D-030): paleta, tipografia, gramática formal, voz e
+  motion definidos pela marca.
+- O logo oficial saiu do próprio PDF por extração vetorial (D-032):
+  lockup e símbolo nas versões petróleo e negativo, sem redesenho.
+- O site `the-foundry` é re-vestido inteiro sem rota nova (D-031) e o
+  app segue claro por padrão com o alternador preservado (D-033). A
+  lavanda clara fica fora de texto e estado (D-034), medido.
+- Spec 0006 aprovada com as frentes `site-forseti` e `app-brand`
+  registradas em `speckit/frentes.json` (D-035); a `app-demo` é
+  encerrada após a integração na `integra/mvp-final`.
