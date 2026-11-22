@@ -115,7 +115,7 @@ critério; "feito" sem evidência não é feito.
   num `worker_threads` com `resourceLimits` e timeout, mais checagem dos
   tamanhos do diretório central do zip antes de inflar.
   Documentos que diziam CSV/XLSX (RF6, `plan.md`, T031, `app/README.md`,
-  P-010) foram ajustados na integração (D-023).
+  P-010) foram ajustados na integração (D-025).
 
 ## Evidência por critério do gate
 
