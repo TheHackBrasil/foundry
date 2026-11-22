@@ -30,6 +30,16 @@ e pela âncora, e a hospedagem. O `npm audit` acusa
 e bypass de guarda de rota, GHSA-pr96-94w5-mx2h e outros três); o
 servidor registra o plugin sem listagem e sem guarda de rota, e a
 correção é a 10.1.12, versão major, a avaliar antes da URL pública.
+O `/api/stream` escreve o cabeçalho com `reply.raw.writeHead` em
+`sse.ts` e perde o que o Fastify preparou: com `Origin` de outra porta,
+`/api/pedidos` responde a origem, `allow-credentials` e o `set-cookie`
+do `foundry_ws`, e o stream responde só `Access-Control-Allow-Origin: *`
+(testado com `curl -i` em 22/11). Efeitos no navegador: `EventSource`
+de outra origem com credenciais é recusado, e sem credenciais o stream
+cai num workspace sorteado e só vê a seed; mesmo na mesma origem, um
+`EventSource` aberto antes do primeiro `fetch` fica num workspace
+diferente do upload. Servir a web pelo Fastify resolve a origem; a
+ordem de abertura é combinada com a `app-demo` (T021).
 Contrato com a `app-core`: a infra chama os parsers de
 `app/server/ingest/` (`detectarTipo` e um parser por tipo, que lançam
 `ErroParser`) em `app/server/pipeline.ts`, e grava os eventos. Mudança
