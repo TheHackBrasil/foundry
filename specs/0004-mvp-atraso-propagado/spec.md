@@ -187,7 +187,7 @@ se sobrar. Corte preserva P0 primeiro, depois P1 na ordem inversa.
   testados).
 - `app/shared/rules.ts`: mapa divergência → tarefas por parte.
 - `app/server/ingest/`: parsers (nfe.ts, cte.ts, eventos.ts, csv.ts,
-  imap.ts, pdf.ts); efeitos isolados aqui.
+  eml.ts, imap.ts, pdf.ts); efeitos isolados aqui.
 - Postgres: tabela `events` append-only com trigger anti
   UPDATE/DELETE.
 - `app/contracts/FoundryAnchor.sol` (P1); escrow é backlog pós-30/11.

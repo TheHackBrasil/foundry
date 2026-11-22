@@ -130,8 +130,11 @@ critério; "feito" sem evidência não é feito.
   `app/server/index.ts:52` a `56`; teste "XML invalido responde 422".
 - CT-e vincula ao pedido pela chave NF-e em `infDoc/infNFe`:
   `app/server/ingest/cte.ts`.
-- CC-e (110110) vira previsaoEntrega/status; cancelamento (110111)
-  vira status `cancelada`: `app/server/ingest/eventos.ts`.
+- CC-e (110110) é evento informativo, com o texto da correção e sem
+  campos observados (R-006, D-027); cancelamento (110111) vira status
+  `cancelada`: `app/server/ingest/eventos.ts`. Testes da CC-e com data
+  no texto, da CC-e no ledger sem divergência e do evento 110190 do
+  CT-e em `app/server/api.test.ts`.
 - UPDATE/DELETE manual rejeitado por trigger e bypass via
   `DISABLE TRIGGER ALL` é pego pelo audit nomeando `seq`: testes
   "trigger do banco rejeita" e "bypass da trigger" em
@@ -182,3 +185,30 @@ critério; "feito" sem evidência não é feito.
 - Correção T023: CC-e passou a evento de correção sem campo vigiado
   (R-006); `cce-atraso.xml` virou `cce-correcao.xml` e o atraso da
   suíte passou a vir da `planilha.csv`. 41 testes passando.
+- Cancelamento e CC-e compartilham `fonte: 'cce'` em `eventos.ts` (P-010).
+  O cancelamento aparece como "CC-e" nas divergências e nas tarefas, e
+  uma CC-e que chega depois (campos vazios) substitui o estado da fonte
+  em `camposPorFonte` e `consolidarCampos`. O seed mostra o efeito:
+  `cancelamento.xml` entra antes de `cce-correcao.xml` e a planilha que
+  chega depois não diverge do `cancelada`. Caminhos: uma
+  `FonteDocumento` própria para o cancelamento (mexe em `model.ts` e nos
+  rótulos da web) ou não deixar um documento sem campos substituir o
+  estado da fonte em `projection.ts`.
+- `app/server/fixtures/cancelamento.xml` tem `dhEvento` 46 h depois da
+  emissão da NF-e: o seed demonstra um cancelamento que a tarefa fiscal
+  do atraso diz não caber (limite de 24 h sem circulação da mercadoria).
+- O ledger é append-only: tarefas já gravadas mantêm o texto antigo
+  ("Conferir CC-e emitida para a correcao"). Só um banco limpo com o
+  seed refeito mostra os textos novos de `app/shared/rules.ts`.
+- `.eml` (D-029): o `eml.ts` daqui não ordena os anexos (um CT-e antes
+  da NF-e cai na fila de revisão), grava a NF-e quando um anexo
+  seguinte falha, ignora anexo sem nome de arquivo e e-mail aninhado ao
+  lado de outro anexo, não limita quantidade nem tamanho por anexo,
+  passa o nome original do anexo ao pipeline e não reconhece `.eml` sem
+  a extensão. Os testes do Thiago que cobrem esses pontos estão em
+  `app/server/ingest/eml.test.ts` da `main` local dele (`10e3ee6`, que
+  não foi enviada ao GitHub).
+- Um `procEventoCTe` (por exemplo o 110190, insucesso na entrega) cai em
+  `eventoNFe` em `detect.ts` e responde 422 com "Evento NF-e: elemento
+  infEvento ausente". Não vira atraso, mas a mensagem confunde quem
+  envia.

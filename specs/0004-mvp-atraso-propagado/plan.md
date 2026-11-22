@@ -58,6 +58,7 @@ app/
       cte.ts             # parser CT-e (RF2)
       eventos.ts         # parser CC-e / cancelamento (RF3)
       csv.ts             # planilha CSV (RF6; XLSX fora, D-028)
+      eml.ts             # e-mail .eml com anexos (RF28)
       imap.ts            # caixa de e-mail dedicada (RF5)
       pdf.ts             # extração por LLM + fila de revisão (RF7)
   web/

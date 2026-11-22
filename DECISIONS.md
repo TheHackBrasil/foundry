@@ -51,6 +51,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-026 | 21/11 | Extração de PDF via LLM validada de ponta a ponta com OpenRouter (`nvidia/nemotron-3.5-super-vl:free`, confiança 0,98): `pdf.ts` passou a normalizar a chave NF-e vindo com espaços, formato impresso do DANFE; `app/.env.example` documenta todas as envs | decidido | O teste real expôs o bug: regex `\d{44}` rejeitava a chave em grupos de 4 dígitos com espaços e mandava todo PDF para a revisão |
 | D-027 | 21/11 | T029 (`.eml`) e correção da CC-e (T023) implementados: `.eml` desembrulha anexos no mesmo pipeline sem registrar cabeçalho (RF27); CC-e passou a evento de correção sem campo vigiado (R-006), e o atraso da suíte passou a vir da planilha do fornecedor | decidido | A CC-e corrigida pelo regulamento fiscal não é gatilho de atraso; a implementação anterior contradizia a spec; `.eml` era P0 pendente |
 | D-028 | 21/11 | A planilha do fornecedor é só CSV no MVP: `.xlsx` e `.xls` respondem 422 pedindo CSV, no upload e dentro do `.eml`, e pelo IMAP vão para a fila de revisão; o `xlsx@0.18.5` sai do `package.json` e do lockfile. Registrada como D-025 na `main` local do Thiago, número que colide com o D-025 do Gui | decidido por Thiago; Gui a confirmar, porque o `.eml` e o IMAP dele aceitavam `.xlsx` | `xlsx@0.18.5`, a única versão instalável pela npm, tem ReDoS (CVE-2024-22363) e prototype pollution ao ler arquivo malicioso; a alternativa `read-excel-file` estourou memória e tempo com arquivos pequenos feitos à mão (um `.xlsx` de 39 KB levou cerca de 2 GB em 2,7 s), medições em D-C13 do `brief-core.md`. O juiz sobe arquivo próprio na URL pública. Custo: Excel é o formato comum de planilha e o usuário precisa exportar CSV. Caminho de volta: ler a planilha num `worker_threads` com limite de recursos e checar o zip antes de inflar |
+| D-029 | 22/11 | Integração do MVP no branch `integra/mvp-final`: base `origin/main` (D-027) mais a `wt/app-infra` do Gui por merge. Da `main` local do Thiago entram `app/shared/formato.ts`, os textos pt-BR de `rules.ts` com a tarefa fiscal do atraso corrigida, o boot no Linux, o `.env.example` e a planilha só CSV (D-028). O `.eml` e a CC-e ficam com a implementação do Gui (D-027), e do Thiago entram só os testes que passam nela | decidido por Thiago, integração feita por agente; Gui a revisar os pontos do `.eml` | A CC-e do Gui passou em todos os testes de R-006 do Thiago. A divergência de R-006 estava na tarefa fiscal do atraso, que mandava "Conferir CC-e emitida para a correcao", e o `rules.ts` do Thiago a corrige. O `eml.ts` do Gui falha em 18 testes do Thiago, todos sobre pontos que ele não trata: CT-e anexado antes da NF-e cai na fila de revisão; anexo inválido depois de uma NF-e grava a NF-e e responde 422; anexo sem nome de arquivo é ignorado; e-mail aninhado ao lado de outro anexo é ignorado sem aviso; não há limite de quantidade nem de tamanho por anexo; o nome original do anexo segue no pipeline; e `.eml` sem a extensão não é reconhecido. Portar esses pontos fica para o Gui decidir |
 
 ## Pendências
 
@@ -65,7 +66,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | P-007 | Quem integra as frentes na `main`, e se o GitHub passa a exigir PR para a `main` (D-005 hoje proíbe proteção de branch) | Com três pessoas e agentes em máquinas diferentes, o hook local não protege a `main` remota | aberto |
 | P-008 | Stack e hospedagem: D-016 fixou linguagem, banco e SSE; falta hospedagem (Heroku em avaliação) e validar o conjunto (sem hibernação até 12/12, Postgres com trigger, SSE atrás do roteador, deploy sem Docker, custo com o crédito disponível) | Demo no ar é entregável (regulamento 7.2 e 7.3) e a hospedagem não está decidida (prazo proposto: 24/11; até lá o código roda em qualquer host: `DATABASE_URL`, `PORT`, heartbeat no SSE) (dono: Gui, frente app-infra) | aberto |
 | P-009 | OCOREN como segundo canal de atraso: arquivo EDI PROCEDA que a transportadora envia ao embarcador (registro 342, código 02 "entrega fora da data programada"), ligado ao pedido por CNPJ do emissor, série e número da NF | O registro não traz a chave de 44 dígitos e o layout varia por versão e por embarcador (R-007); entra como P1 se o Gab confirmar | aberto |
-| P-010 | Antes da URL pública, o servidor precisa de: isolamento por sessão (RF27, hoje inexistente), CORS aberto e escrita sem autenticação (D-C11 do `brief-core.md`), `xlsx@0.18.5` da npm (afetada por ReDoS e por prototype pollution ao ler arquivo malicioso, e a correção sai só pela CDN da SheetJS) e a CC-e que hoje vira atraso (R-006) | O juiz sobe arquivo próprio na URL pública (regulamento 6.9 e 7.2); dono: Gui (app-infra) para as três primeiras, `app-core` para a CC-e e a troca do parser de planilha | aberto |
+| P-010 | Antes da URL pública, o servidor ainda precisa resolver duas coisas. CORS aberto e escrita sem autenticação (D-C11 do `brief-core.md`): qualquer visitante decide item da fila de revisão da seed (testado ao vivo em 22/11) e ancora pedido da seed que não tem cópia na sessão dele (leitura de `app/server/index.ts`), então a seed não é só leitura. E o cancelamento gravado com fonte `cce`: ele aparece como "CC-e" nas tarefas, e uma CC-e posterior zera o estado da fonte; no seed, a planilha que chega depois não diverge do `cancelada`. Resolvidos em 22/11: isolamento por sessão (D-I1 a D-I3 do `brief-infra.md`), boot no Linux, `xlsx` (D-028) e CC-e (R-006, D-027) | O juiz sobe arquivo próprio na URL pública (regulamento 6.9 e 7.2); dono: Gui (app-infra) para CORS e autenticação, `app-core` para o cancelamento | aberto |
 
 ## Achados de pesquisa
 
@@ -230,3 +231,27 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 - `cce-atraso.xml` virou `cce-correcao.xml` (correção de endereço);
   CC-e não declara `previsaoEntrega` nem `atrasada`, registrando a
   correção só em `dados` para trilha. Suíte: 41 testes.
+
+### Sessão 12: integração do MVP (22/11)
+
+- Branch `integra/mvp-final` criado da `origin/main` (`5e0aff7`), com a
+  `origin/wt/app-infra` (`22cb7d0`) por merge e os commits da `main`
+  local do Thiago reaplicados por cima (D-029). Nada foi enviado ao
+  GitHub.
+- Os testes do Thiago rodaram contra o código do Gui antes de qualquer
+  porte: dos 54, passaram 33. Depois dos commits mantidos passam 36, e
+  os 18 que falham são todos do `.eml` (D-029).
+- Boot no Linux: com o `index.ts` da `wt/app-infra`,
+  `PORT=3917 npm start` saía com código 0 em 2 s sem escutar. Com o fix,
+  o servidor sobe e responde em `/api/health`.
+- Verificação ao vivo em Postgres 16 num contêiner descartável: NF-e,
+  CT-e, planilha, CC-e e `.eml` ingeridos; `GET /api/pedidos` e
+  `/api/pedidos/:id` filtram por sessão (a outra sessão recebe 404); o
+  SSE entrega o evento só à sessão do cookie, nos dois sentidos; CT-e e
+  planilha enviados em paralelo no mesmo pedido não bifurcaram a cadeia
+  (ao fim, `seq` de 1 a 42 sem buraco e audit `valida: true`); UPDATE,
+  DELETE e TRUNCATE são recusados pelas triggers; `.xlsx` responde 422.
+- `npx vitest run`: 8 arquivos e 88 testes passando; `tsc --noEmit`
+  limpo; guard e prose-evals com exit 0. O `npm audit` cai de 4 para 3
+  vulnerabilidades com a saída do `xlsx` e ainda acusa
+  `@fastify/static@8.3.0` (high), dependência da `wt/app-infra`.

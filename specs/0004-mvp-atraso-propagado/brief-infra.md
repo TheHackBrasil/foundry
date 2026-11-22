@@ -19,8 +19,17 @@ Estado em 21/11: a primeira versão do servidor existe, escrita por Gui
 na `wt/app-core` (D-022): store com trigger anti UPDATE, DELETE e
 TRUNCATE e trava por pedido, SSE com heartbeat, anchor, carga da seed e
 PGlite quando não há Docker (`brief-core.md`, "Decisões da frente").
-Falta o que o P-010 lista: isolamento por sessão, CORS e escrita sem
-autenticação, a dependência `xlsx` e a hospedagem.
+Estado em 22/11 (integração, D-029): isolamento por sessão, SSE por
+workspace, CORS por ambiente e preparo de deploy estão no branch de
+integração (D-I1 a D-I3); o boot no Linux foi corrigido
+(`ehProcessoPrincipal` com `pathToFileURL`, `app/server/boot.test.ts`)
+e o `xlsx` saiu (D-028). Falta o que o P-010 lista: CORS aberto e
+escrita sem autenticação, que hoje alcança a seed pela fila de revisão
+e pela âncora, e a hospedagem. O `npm audit` acusa
+`@fastify/static@8.3.0` (high: path traversal na listagem de diretório
+e bypass de guarda de rota, GHSA-pr96-94w5-mx2h e outros três); o
+servidor registra o plugin sem listagem e sem guarda de rota, e a
+correção é a 10.1.12, versão major, a avaliar antes da URL pública.
 Contrato com a `app-core`: a infra chama os parsers de
 `app/server/ingest/` (`detectarTipo` e um parser por tipo, que lançam
 `ErroParser`) em `app/server/pipeline.ts`, e grava os eventos. Mudança
