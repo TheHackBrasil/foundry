@@ -1,10 +1,12 @@
 // Parser de mensagem .eml (spec 0004, T029/RF28): desembrulha anexos
-// .xml/.csv/.xlsx/.pdf para o mesmo pipeline do upload. Cabecalho nao
+// .xml/.csv/.pdf para o mesmo pipeline do upload. Cabecalho nao
 // e registrado em lugar nenhum (RF27).
 
 import { simpleParser } from 'mailparser';
 import { ErroParser } from './nfe.js';
 
+// .xlsx fica no filtro de proposito: detectarTipo responde o 422 de D-028
+// ("exporte como CSV") em vez de o anexo sumir em silencio.
 const ANEXO_OK = /\.(xml|csv|xlsx|pdf)$/i;
 
 export interface AnexoEml {
@@ -23,7 +25,7 @@ export async function extrairAnexosEml(conteudo: Buffer): Promise<AnexoEml[]> {
     .filter((a) => a.filename && ANEXO_OK.test(a.filename))
     .map((a) => ({ nome: a.filename as string, conteudo: a.content }));
   if (anexos.length === 0) {
-    throw new ErroParser('EML: sem anexo elegivel (.xml/.csv/.xlsx/.pdf)');
+    throw new ErroParser('EML: sem anexo elegivel (.xml/.csv/.pdf)');
   }
   return anexos;
 }

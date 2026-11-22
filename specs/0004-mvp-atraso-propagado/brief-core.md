@@ -2,7 +2,7 @@
 
 Escopo: núcleo de domínio e ingest da spec 0004: `app/shared/` (modelo,
 cadeia de hashes, divergência, regras, projeção, Merkle) e
-`app/server/ingest/` (parsers de NF-e, CT-e, eventos fiscais, CSV/XLSX,
+`app/server/ingest/` (parsers de NF-e, CT-e, eventos fiscais, CSV,
 IMAP, PDF por LLM e, se o P-009 for aceito, OCOREN). A primeira versão
 foi escrita por Gui na `wt/app-core` em 21/11 e é a base do código
 (D-022).
@@ -87,6 +87,30 @@ critério; "feito" sem evidência não é feito.
   sempre. Eventos legítimos pós-âncora não invalidam a conferência;
   reescrita de cadeia (payload + hash recomputados) é pega por ela
   (`api.test.ts`, "rescrever cadeia inteira").
+- **D-C13 (D)**: o leitor de XLSX sai do MVP e a planilha fica só em
+  CSV (D-028). `xlsx@0.18.5` da npm tem ReDoS (CVE-2024-22363) e
+  prototype pollution, e a correção só sai pela CDN da SheetJS. Duas
+  trocas foram medidas antes de remover. `exceljs@4.4.0` traz 193
+  pacotes (50 MB) e o `npm audit` acusa 2 vulnerabilidades moderadas
+  (`uuid`). `read-excel-file@9.3.14` fecha o audit em 0 e traz 7
+  pacotes, mas em teste local arquivo pequeno derrubou o processo: um
+  `.xlsx` de 39 KB com referência de célula absurda consumiu cerca de
+  2 GB de memória, um de 2,3 MB com 200 mil atributos num elemento levou
+  cerca de 70 s, uma folha de 15 MB só de linhas vazias levou cerca de
+  52 s e um zip de 411 KB que infla para 400 MB levou cerca de 70 s,
+  todos terminando em `RangeError`. Limite de tamanho não resolve,
+  porque o de 39 KB passa em qualquer teto. A demo pública recebe
+  arquivo de qualquer visitante, e um processo só atende o juiz, então
+  `.xlsx` e `.xls` viram 422 com "exporte a planilha como CSV"
+  (`app/server/ingest/detect.ts`). O texto casa com `nao suportad` em
+  `imap.ts`, que manda o anexo para a fila de revisão em vez de retentar
+  para sempre. No `.eml`, o filtro de anexos de `eml.ts` mantém o
+  `.xlsx` para ele chegar ao 422. Como o `.eml` processa um anexo por
+  vez, uma NF-e anexada antes do `.xlsx` já está gravada quando o 422
+  sai; reenviar com a planilha em CSV é seguro, porque a reingestão da
+  NF-e é no-op (D-C4). Caminho de volta, se a demo precisar de XLSX: ler
+  a planilha num `worker_threads` com `resourceLimits` e timeout, mais
+  checagem dos tamanhos do diretório central do zip antes de inflar.
 
 ## Evidência por critério do gate
 

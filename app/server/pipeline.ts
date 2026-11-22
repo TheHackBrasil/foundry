@@ -11,7 +11,7 @@ import { detectarTipo } from './ingest/detect.js';
 import { ErroParser, parseNFe } from './ingest/nfe.js';
 import { parseCTe } from './ingest/cte.js';
 import { parseEventoNFe } from './ingest/eventos.js';
-import { parseCsv, parseXlsx } from './ingest/csv.js';
+import { parseCsv } from './ingest/csv.js';
 import { parsePdf } from './ingest/pdf.js';
 import { extrairAnexosEml } from './ingest/eml.js';
 
@@ -141,9 +141,6 @@ export async function ingerir(
         break;
       case 'csv':
         for (const doc of parseCsv(buf.toString('utf8'))) await processar(doc);
-        break;
-      case 'xlsx':
-        for (const doc of parseXlsx(buf)) await processar(doc);
         break;
       case 'pdf': {
         const r = await parsePdf(buf);

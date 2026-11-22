@@ -1,8 +1,7 @@
-// Parser CSV/XLSX (spec 0004, T031): uma linha = um doc 'planilha';
-// headers tolerados em PT-BR (chave_nf, data_prevista...).
+// Parser CSV (spec 0004, T031): uma linha = um doc 'planilha'; headers
+// tolerados em PT-BR (chave_nf, data_prevista...). XLSX saiu do MVP (D-028).
 
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 import type { CamposObservados, DocData } from '../../shared/model.js';
 import { ErroParser } from './nfe.js';
 
@@ -85,20 +84,5 @@ export function parseCsv(texto: string): DocData[] {
   }
   const docs = normalizar(r.data);
   if (docs.length === 0) throw new ErroParser('CSV: nenhuma linha com chave de pedido');
-  return docs;
-}
-
-export function parseXlsx(buffer: Buffer): DocData[] {
-  let wb: XLSX.WorkBook;
-  try {
-    wb = XLSX.read(buffer, { type: 'buffer' });
-  } catch (e) {
-    throw new ErroParser(`XLSX: falha de parse (${(e as Error).message})`);
-  }
-  const sheet = wb.Sheets[wb.SheetNames[0]!];
-  if (!sheet) throw new ErroParser('XLSX: sem planilha');
-  const linhas = XLSX.utils.sheet_to_json<Linha>(sheet, { defval: '' });
-  const docs = normalizar(linhas.map((l) => Object.fromEntries(Object.entries(l).map(([k, v]) => [k, String(v)]))));
-  if (docs.length === 0) throw new ErroParser('XLSX: nenhuma linha com chave de pedido');
   return docs;
 }

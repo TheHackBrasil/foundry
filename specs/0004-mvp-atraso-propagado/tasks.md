@@ -46,7 +46,7 @@ as demais seguem `speckit/frentes.md`.
 ## Fase 3: Fator wow P1 (seg/qua, 23-26/11)
 
 - [ ] T030 [P] (P1) [core] caixa de e-mail IMAP, só com o P0 verde ou na final (D-021); reaproveita o `.eml` da T029 e a infra agenda a leitura: `app/server/ingest/imap.ts`: e-mail com XML anexo vira pedido/evento
-- [ ] T031 [P] (P0) [core] ingestão de CSV/XLSX fazendo papel de ERP/WMS e de canal do atraso informado pelo fornecedor: `app/server/ingest/csv.ts`: planilha da seed com a nova data gera o evento de atraso
+- [ ] T031 [P] (P0) [core] ingestão de CSV (XLSX saiu do MVP, D-028) fazendo papel de ERP/WMS e de canal do atraso informado pelo fornecedor: `app/server/ingest/csv.ts`: planilha da seed com a nova data gera o evento de atraso
 - [ ] T032 [P] (P1) [core] simulação "e se?" reusando o grafo com entrada hipotética: `app/shared/rules.ts`, `app/server/index.ts`: entrada hipotética gera tarefas sem gravar evento
 - [ ] T033 (P1) [demo] dominó da propagação movido por evento real: `app/web/src/`: evento real anima a queda em cadeia
 - [ ] T034 [P] (P1) [demo] linha do tempo do pedido com versões lado a lado + hashes clicáveis + tela da fila de revisão: `app/web/src/`: divergência legível entre versões
