@@ -77,7 +77,7 @@ gate por critério.
   `app/web/public/exemplos/` enviados pela própria interface criam o pedido,
   com 1, 14 e 26 eventos, e o resultado de cada envio é listado. O
   `exemplo.eml` (a NF-e dentro de um e-mail) cria o mesmo pedido com 1
-  evento, e um `.xlsx` é recusado com a mensagem que pede CSV (D-023).
+  evento, e um `.xlsx` é recusado com a mensagem que pede CSV (D-025).
 - Divergência propaga sem recarregar: a tela busca de novo ao receber o
   evento do SSE (uma busca de lista, uma do pedido e uma da auditoria por
   rajada, agrupadas em 300 ms) e anuncia na região viva, por exemplo
