@@ -45,6 +45,11 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-020 | 21/11 | Correções na spec 0004 e nas tasks que valem para qualquer versão do escopo: URL pública (T040) e vídeo (T042) viram P0 pelo regulamento 7.2 e 7.3; o atraso entra pela planilha do fornecedor (T031 sobe para P0) e não por CC-e (R-006); XML enviado por visitante fica isolado na sessão dele (`workspaceId`, T027) pelo regulamento 6.9; escrow fora, vale D-018 sobre D-017; o boot do Vite é da frente demo (spec 0005) | decidido | Conferência contra o regulamento e a regra fiscal em 21/11; as escolhas de escopo (âncora, IMAP, uma tela, dominó) seguem em P-006 |
 | D-021 | 21/11 | Nova divisão do MVP: Thiago na `app-demo` (design); Gui na nova frente `app-infra` (servidor, banco, hospedagem, deploy, contrato da API); `app-core` fica com `app/shared/` e o ingest; Gab e Gui pesquisam campos úteis e aplicabilidade. O e-mail entra como formato (arquivo `.eml` no upload, P0) e a caixa IMAP ao vivo fica para a final ou para o P0 verde | decidido por Thiago; Gab e Gui ainda não confirmaram o e-mail | Gab acha o e-mail frágil e sem sentido. A documentação de ERPs mostra captura de XML por caixa de e-mail como recurso comum (Senior, Omie, Dynamics), mas a pesquisa de campo do time não registra isso; o `.eml` entrega o canal sem depender de credencial nem de hospedagem de caixa |
 | D-022 | 21/11 | A base do código de `app/` é a implementação de Gui na `wt/app-core` (21/11, 00:35): `app/shared/`, `app/server/` com ledger append-only, SSE, anchor e ingest, e `app/contracts/` com Hardhat. Na integração, os conflitos em `app/shared/`, `package.json` e `tsconfig.json` foram resolvidos a favor dela. T002 e T003 de Thiago (commit `d38d173`) ficam no histórico, e o `ingerir()` e o `app/api/contrato.ts` propostos antes foram retirados, porque o despacho (`detectarTipo`) e os tipos de resposta (`app/shared/model.ts`) já existem | decidido | `tsc` limpo e 38 testes passando na integração; cobre o que a spec previa e mais (fila de revisão, simulação, IMAP, PDF); duas implementações paralelas do mesmo núcleo não se sustentam |
+| D-023 | 21/11 | `GET /audit` compara o root ancorado contra os eventos que a âncora cobriu (`seq < seq` do evento `ancora`): expõe `rootAtual`, `rootHistorico`, `rootConfere` e `eventosAncorados` (`app/server/index.ts`) | decidido | O teste real na Base Sepolia expôs o bug: comparar contra todos os eventos flaggeava o próprio evento `ancora` e `rootConfere` ficava falso para sempre; teste do ataque de reescrita da cadeia cobre o cenário |
+| D-024 | 21/11 | Runtime exige `DATABASE_URL` (Postgres real via Docker): sem ela, `createDb` falha com erro acionável; PGlite sai do runtime e vira só infra de teste via `createLiteDb` injetada no `buildServer`; `dotenv` carrega `.env` só no boot e no seed | decidido | Pedido do usuário: um banco só no produto; PGlite em memória segue nos testes por isolar a suite sem Docker |
+| D-025 | 21/11 | IMAP só varre mensagens de hoje em diante (`IMAP_DESDE` configurável) e marca `\Seen` só quando a mensagem tinha anexo elegível processado; validado de ponta a ponta com Gmail real: `nfe-novo-pedido.xml` anexado virou o pedido `...22000000020` no ledger | decidido | A varredura original pegava todas as não lidas e marcava `\Seen` até sem anexo elegível: numa caixa pessoal com 10 mil não lidas, baixaria tudo e marcaria o e-mail do usuário como lido |
+| D-026 | 21/11 | Extração de PDF via LLM validada de ponta a ponta com OpenRouter (`nvidia/nemotron-3.5-super-vl:free`, confiança 0,98): `pdf.ts` passou a normalizar a chave NF-e vindo com espaços, formato impresso do DANFE; `app/.env.example` documenta todas as envs | decidido | O teste real expôs o bug: regex `\d{44}` rejeitava a chave em grupos de 4 dígitos com espaços e mandava todo PDF para a revisão |
+| D-027 | 21/11 | T029 (`.eml`) e correção da CC-e (T023) implementados: `.eml` desembrulha anexos no mesmo pipeline sem registrar cabeçalho (RF27); CC-e passou a evento de correção sem campo vigiado (R-006), e o atraso da suíte passou a vir da planilha do fornecedor | decidido | A CC-e corrigida pelo regulamento fiscal não é gatilho de atraso; a implementação anterior contradizia a spec; `.eml` era P0 pendente |
 
 ## Pendências
 
@@ -176,8 +181,6 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   commit) e na `origin/wt/app-core` (primeira versão completa do código).
   Integrado sem force (D-022): `tsc` limpo e 38 testes passando. As
   pendências reais estão em P-010 e no cabeçalho do `tasks.md`.
-| D-023 | 21/11 | `GET /audit` compara o root ancorado contra os eventos que a âncora cobriu (`seq < seq` do evento `ancora`): expõe `rootAtual`, `rootHistorico`, `rootConfere` e `eventosAncorados` (`app/server/index.ts`) | decidido | O teste real na Base Sepolia expôs o bug: comparar contra todos os eventos flaggeava o próprio evento `ancora` e `rootConfere` ficava falso para sempre; teste do ataque de reescrita da cadeia cobre o cenário |
-| D-024 | 21/11 | Runtime exige `DATABASE_URL` (Postgres real via Docker): sem ela, `createDb` falha com erro acionável; PGlite sai do runtime e vira só infra de teste via `createLiteDb` injetada no `buildServer`; `dotenv` carrega `.env` só no boot e no seed | decidido | Pedido do usuário: um banco só no produto; PGlite em memória segue nos testes por isolar a suite sem Docker |
 
 ### Sessão 8: âncora real na Base Sepolia, Postgres real e integração app-core (21/11)
 
@@ -199,7 +202,6 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   prose-evals verdes na `wt/app-core` antes do merge.
 - Item de P-006 encaminhado: âncora na Base Sepolia antes de 30/11 está
   feita e tem recibo público em `sepolia.basescan.org`.
-| D-025 | 21/11 | IMAP só varre mensagens de hoje em diante (`IMAP_DESDE` configurável) e marca `\Seen` só quando a mensagem tinha anexo elegível processado; validado de ponta a ponta com Gmail real: `nfe-novo-pedido.xml` anexado virou o pedido `...22000000020` no ledger | decidido | A varredura original pegava todas as não lidas e marcava `\Seen` até sem anexo elegível: numa caixa pessoal com 10 mil não lidas, baixaria tudo e marcaria o e-mail do usuário como lido |
 
 ### Sessão 9: IMAP ao vivo com Gmail real (21/11)
 
@@ -211,7 +213,6 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   massa e de marcação indevida de lidas. Segredos ficam só no `.env`
   local; `imap-test.mts` com credencial inline foi removido antes de
   qualquer commit.
-| D-026 | 21/11 | Extração de PDF via LLM validada de ponta a ponta com OpenRouter (`nvidia/nemotron-3.5-super-vl:free`, confiança 0,98): `pdf.ts` passou a normalizar a chave NF-e vindo com espaços, formato impresso do DANFE; `app/.env.example` documenta todas as envs | decidido | O teste real expôs o bug: regex `\d{44}` rejeitava a chave em grupos de 4 dígitos com espaços e mandava todo PDF para a revisão |
 
 ### Sessão 10: LLM real na extração de PDF (21/11)
 
@@ -220,7 +221,6 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   + tarefas). Ollama fica como plano B local para o dia da banca.
 - Bug encontrado e corrigido no caminho (D-026): chave com espaços.
   Item de revisão residual descartado após o reprocessamento.
-| D-027 | 21/11 | T029 (`.eml`) e correção da CC-e (T023) implementados: `.eml` desembrulha anexos no mesmo pipeline sem registrar cabeçalho (RF27); CC-e passou a evento de correção sem campo vigiado (R-006), e o atraso da suíte passou a vir da planilha do fornecedor | decidido | A CC-e corrigida pelo regulamento fiscal não é gatilho de atraso; a implementação anterior contradizia a spec; `.eml` era P0 pendente |
 
 ### Sessão 11: `.eml` e semântica correta da CC-e (21/11)
 
