@@ -1,6 +1,6 @@
 # Postgres 17 para o ledger append-only (spec 0004).
 # Uso: docker compose up -d  ->  DATABASE_URL=postgres://foundry:foundry@localhost:5432/foundry
-# Sem DATABASE_URL o server cai para PGlite em memoria (dev/test sem Docker).
+# DATABASE_URL e obrigatorio no runtime (D-024); PGlite so roda nos testes.
 services:
   postgres:
     image: postgres:17-alpine
