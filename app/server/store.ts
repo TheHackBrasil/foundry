@@ -35,6 +35,8 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT '
 ALTER TABLE events DROP CONSTRAINT IF EXISTS events_pedido_id_seq_key;
 CREATE UNIQUE INDEX IF NOT EXISTS events_ws_pedido_seq ON events (workspace_id, pedido_id, seq);
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'seed';
+-- Fila e uso por sessao filtram por workspace a cada envio.
+CREATE INDEX IF NOT EXISTS review_queue_ws ON review_queue (workspace_id);
 
 CREATE OR REPLACE FUNCTION rejeita_mutacao_events() RETURNS trigger AS $$
 BEGIN
@@ -54,6 +56,9 @@ DROP TRIGGER IF EXISTS events_no_truncate ON events;
 CREATE TRIGGER events_no_truncate
   BEFORE TRUNCATE ON events FOR EACH STATEMENT EXECUTE FUNCTION rejeita_mutacao_events();
 `;
+
+// Tipos de evento que representam um documento recebido (o resto e derivado).
+const TIPOS_DOCUMENTO: Evento['tipo'][] = ['nfe', 'cte', 'cce', 'cancelamento', 'planilha', 'pdf'];
 
 interface EventoRow {
   id: number;
@@ -225,13 +230,27 @@ export class LedgerStore {
     return rows[0] ?? null;
   }
 
-  // RETURNING id: false significa que o id nao existia (404 na rota).
+  // So o workspace deste store e so item pendente: a seed e lida por todos, mas
+  // decidir um item dela mudaria a fila de todo visitante. false = 404 na rota.
   async resolverRevisao(id: number, status: string): Promise<boolean> {
     const rows = await this.db.query(
-      `UPDATE review_queue SET status = $1 WHERE id = $2 AND workspace_id = ANY($3) RETURNING id`,
-      [status, id, this.visiveis()],
+      `UPDATE review_queue SET status = $1 WHERE id = $2 AND workspace_id = $3 AND status = 'pendente' RETURNING id`,
+      [status, id, this.workspace],
     );
     return rows.length > 0;
+  }
+
+  // Uso da sessao contra os limites da demo: documento = evento de documento
+  // ou item da fila de revisao.
+  async uso(): Promise<{ eventos: number; documentos: number }> {
+    const rows = await this.db.query<{ eventos: number; documentos: number }>(
+      `SELECT
+         (SELECT count(*) FROM events WHERE workspace_id = $1)::int AS eventos,
+         ((SELECT count(*) FROM events WHERE workspace_id = $1 AND tipo = ANY($2::text[]))
+          + (SELECT count(*) FROM review_queue WHERE workspace_id = $1))::int AS documentos`,
+      [this.workspace, TIPOS_DOCUMENTO],
+    );
+    return { eventos: rows[0]?.eventos ?? 0, documentos: rows[0]?.documentos ?? 0 };
   }
 
   async ultimoAncora(pedidoId: string): Promise<Record<string, unknown> | null> {

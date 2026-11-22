@@ -108,11 +108,14 @@ async function enviar(s: Servidor, nome: string, conteudo: Buffer) {
 
 describe('POST /api/ingest com .eml', () => {
   const abertos: Servidor[] = [];
+  // A seed e somente leitura pela API (P-010): cada servidor usa uma sessao
+  // fixa, e o store devolvido le essa sessao.
+  const WS = '00000000-0000-4000-8000-0000000000e1';
   const novo = async (): Promise<Servidor> => {
-    const s = await buildServer(await createLiteDb(), { workspacePadrao: 'seed' });
+    const s = await buildServer(await createLiteDb(), { workspacePadrao: WS });
     await s.app.ready();
     abertos.push(s);
-    return s;
+    return { ...s, store: s.store.paraWorkspace(WS) };
   };
   afterAll(async () => {
     for (const s of abertos) await s.app.close();

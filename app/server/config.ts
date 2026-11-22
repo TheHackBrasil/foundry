@@ -15,6 +15,27 @@ export interface OpcoesSSE {
   retryMs: number;
 }
 
+// Limites por sessão e do banco. Ninguém apaga dado do ledger (trigger
+// append-only), então o crescimento só para aqui; a conta está em
+// app/deploy/README.md.
+export interface Limites {
+  bytesPorArquivo: number;
+  eventosPorWorkspace: number;
+  // Documento = evento de NF-e, CT-e, CC-e, cancelamento, planilha ou PDF, mais
+  // item da fila de revisão. Uma linha de planilha é um documento.
+  documentosPorWorkspace: number;
+  documentosPorEnvio: number;
+  // Acima disto o servidor recusa escrita (507). 0 desliga.
+  bytesBanco: number;
+}
+
+// Por IP. Âncora e PDF gastam carteira de testnet e cota de LLM do time.
+export interface ConfigRateLimit {
+  escritasPorMinuto: number;
+  ancorasPor10Min: number;
+  pdfsPor10Min: number;
+}
+
 export interface ConfigServidor {
   seedWs: string;
   // Vazio = só a mesma origem (nenhum cabeçalho CORS é emitido).
@@ -22,6 +43,10 @@ export interface ConfigServidor {
   // Cabeçalho com o IP real do visitante, posto pelo proxy da hospedagem
   // (x-real-ip na Railway). Vazio = endereço do socket.
   ipHeader: string | null;
+  // Build da web servido pelo Fastify; null = app/web/dist.
+  webDist: string | null;
+  limites: Limites;
+  rateLimit: ConfigRateLimit;
   sse: OpcoesSSE;
 }
 
@@ -79,6 +104,19 @@ export function configDoEnv(env: Ambiente = process.env): ConfigServidor {
     seedWs: workspaceSeed(env),
     corsOrigens: origensCors(env),
     ipHeader,
+    webDist: texto(env, 'WEB_DIST_DIR') ?? null,
+    limites: {
+      bytesPorArquivo: inteiroDoEnv(env, 'MAX_UPLOAD_BYTES', 2 * 1024 * 1024, 1024),
+      eventosPorWorkspace: inteiroDoEnv(env, 'MAX_EVENTS_PER_WORKSPACE', 2_000, 1),
+      documentosPorWorkspace: inteiroDoEnv(env, 'MAX_DOCS_PER_WORKSPACE', 100, 1),
+      documentosPorEnvio: inteiroDoEnv(env, 'MAX_DOCS_PER_UPLOAD', 50, 1),
+      bytesBanco: inteiroDoEnv(env, 'MAX_DB_BYTES', 3 * 1024 ** 3, 0),
+    },
+    rateLimit: {
+      escritasPorMinuto: inteiroDoEnv(env, 'RATE_LIMIT_WRITES_PER_MIN', 20, 1),
+      ancorasPor10Min: inteiroDoEnv(env, 'RATE_LIMIT_ANCHORS_PER_10MIN', 3, 1),
+      pdfsPor10Min: inteiroDoEnv(env, 'RATE_LIMIT_PDFS_PER_10MIN', 5, 1),
+    },
     sse: {
       heartbeatMs: inteiroDoEnv(env, 'SSE_HEARTBEAT_MS', 20_000, 1_000),
       maxConexaoMs: inteiroDoEnv(env, 'SSE_MAX_CONNECTION_MS', 10 * 60_000, 0),

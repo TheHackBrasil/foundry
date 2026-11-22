@@ -112,14 +112,20 @@ describe('parsers', () => {
   });
 });
 
+// A seed e somente leitura pela API (P-010): os envios dos testes caem numa
+// sessao fixa, e o que precisa estar na seed entra pelo store dela.
+const WS = '00000000-0000-4000-8000-00000000a001';
+
 describe('ledger + api (PGlite)', () => {
   let app: Awaited<ReturnType<typeof buildServer>>['app'];
   let store: LedgerStore;
+  let seed: LedgerStore;
 
   beforeAll(async () => {
-    const r = await buildServer(await createLiteDb(), { workspacePadrao: 'seed' });
+    const r = await buildServer(await createLiteDb(), { workspacePadrao: WS });
     app = r.app;
-    store = r.store;
+    seed = r.store;
+    store = r.store.paraWorkspace(WS);
     await app.ready();
   });
   afterAll(async () => {
@@ -414,7 +420,9 @@ describe('ledger + api (PGlite)', () => {
     const wsA = '11111111-1111-4111-8111-111111111111';
     const wsB = '22222222-2222-4222-8222-222222222222';
     const pedidoSessao = 'pedido-so-da-sessao-a';
+    const pedidoSeed = 'pedido-da-seed';
     await store.paraWorkspace(wsA).append(pedidoSessao, 'nfe', { fonte: 'nfe' });
+    await seed.append(pedidoSeed, 'nfe', { fonte: 'nfe' });
 
     const cookieA = { cookie: `foundry_ws=${wsA}` };
     const cookieB = { cookie: `foundry_ws=${wsB}` };
@@ -426,8 +434,8 @@ describe('ledger + api (PGlite)', () => {
       .json() as { pedidos: Array<{ pedidoId: string; workspaceId: string }> };
 
     expect(listaA.pedidos.map((p) => p.pedidoId)).toContain(pedidoSessao);
-    expect(listaA.pedidos.map((p) => p.pedidoId)).toContain(CHAVE); // seed compartilhado
-    expect(listaB.pedidos.map((p) => p.pedidoId)).toContain(CHAVE); // seed compartilhado
+    expect(listaA.pedidos.map((p) => p.pedidoId)).toContain(pedidoSeed); // seed compartilhado
+    expect(listaB.pedidos.map((p) => p.pedidoId)).toContain(pedidoSeed); // seed compartilhado
     expect(listaB.pedidos.map((p) => p.pedidoId)).not.toContain(pedidoSessao);
 
     const getB = await app.inject({ method: 'GET', url: `/api/pedidos/${pedidoSessao}`, headers: cookieB });
@@ -455,7 +463,7 @@ describe('CC-e com texto de data nao vira atraso (R-006, D-020)', () => {
   let app: Awaited<ReturnType<typeof buildServer>>['app'];
 
   beforeAll(async () => {
-    app = (await buildServer(await createLiteDb(), { workspacePadrao: 'seed' })).app;
+    app = (await buildServer(await createLiteDb(), { workspacePadrao: '00000000-0000-4000-8000-00000000a002' })).app;
     await app.ready();
   });
   afterAll(async () => {
