@@ -5,18 +5,25 @@ import { describe, expect, it, vi } from 'vitest';
 import { CanalSSE } from './sse.js';
 import type { Evento } from '../shared/model.js';
 
-function respostaFalsa() {
+function respostaFalsa(preparados: Record<string, string> = {}) {
   const escrito: string[] = [];
   const handlers = new Map<string, () => void>();
+  const writeHead = vi.fn();
+  const end = vi.fn(() => handlers.get('close')?.());
   return {
     escrito,
+    writeHead,
+    end,
     reply: {
+      hijack: vi.fn(),
+      getHeaders: () => preparados,
       raw: {
-        writeHead: vi.fn(),
+        writeHead,
         write: (chunk: string) => {
           escrito.push(chunk);
           return true;
         },
+        end,
         on: (nome: string, fn: () => void) => handlers.set(nome, fn),
       },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -77,5 +84,48 @@ describe('CanalSSE', () => {
     a.fechar();
     expect(canal.totalClientes).toBe(0);
     canal.fechar();
+  });
+
+  it('o cabecalho do stream leva o que os hooks prepararam e nunca CORS aberto', () => {
+    const canal = new CanalSSE('seed');
+    const a = respostaFalsa({ 'set-cookie': 'foundry_ws=abc; Path=/', 'access-control-allow-origin': 'https://demo.exemplo' });
+    canal.registrar(a.reply, 'ws-a');
+    expect(a.reply.hijack).toHaveBeenCalledOnce();
+    const cabecalhos = a.writeHead.mock.calls[0]![1] as Record<string, string>;
+    expect(cabecalhos['set-cookie']).toBe('foundry_ws=abc; Path=/');
+    expect(cabecalhos['access-control-allow-origin']).toBe('https://demo.exemplo');
+    expect(cabecalhos['content-type']).toContain('text/event-stream');
+    expect(Object.values(cabecalhos)).not.toContain('*');
+    expect(a.escrito[0]).toMatch(/^retry: \d+\nevent: hello\n/);
+    canal.fechar();
+  });
+
+  it('recusa acima do teto global e do teto por IP', () => {
+    const canal = new CanalSSE('seed', { maxClientes: 3, maxPorIp: 2 });
+    expect(canal.registrar(respostaFalsa().reply, 'ws-a', '10.0.0.1')).toBe('ok');
+    expect(canal.registrar(respostaFalsa().reply, 'ws-a', '10.0.0.1')).toBe('ok');
+    expect(canal.registrar(respostaFalsa().reply, 'ws-a', '10.0.0.1')).toBe('lotado_ip');
+    expect(canal.registrar(respostaFalsa().reply, 'ws-b', '10.0.0.2')).toBe('ok');
+    expect(canal.registrar(respostaFalsa().reply, 'ws-c', '10.0.0.3')).toBe('lotado');
+    canal.fechar();
+  });
+
+  it('recicla a conexao ao passar do teto de bytes', () => {
+    const canal = new CanalSSE('seed', { maxBytes: 300 });
+    const a = respostaFalsa();
+    canal.registrar(a.reply, 'ws-a');
+    canal.evento({ ...evento, payload: { texto: 'x'.repeat(400) } }, 'ws-a');
+    expect(a.end).toHaveBeenCalled();
+    expect(canal.totalClientes).toBe(0);
+    canal.fechar();
+  });
+
+  it('fechar encerra os streams abertos', () => {
+    const canal = new CanalSSE('seed');
+    const a = respostaFalsa();
+    canal.registrar(a.reply, 'ws-a');
+    canal.fechar();
+    expect(a.end).toHaveBeenCalled();
+    expect(canal.totalClientes).toBe(0);
   });
 });

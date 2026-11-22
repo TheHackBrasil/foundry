@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import { raizMerkle } from '../shared/merkle.js';
@@ -14,6 +14,7 @@ import { propagarTodas } from '../shared/rules.js';
 import type { CamposObservados, Divergencia } from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
 import { ancorar } from './anchor.js';
+import { configDoEnv, type ConfigServidor } from './config.js';
 import { createDb, type Db } from './db.js';
 import { imapConfigDoEnv, iniciarPolling } from './ingest/imap.js';
 import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
@@ -34,29 +35,47 @@ const REGEX_WS = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
 export interface BuildOpts {
   // Testes fixam o workspace sem precisar de cookie; producao nunca usa.
   workspacePadrao?: string;
+  // Padrao: configDoEnv(process.env). Testes injetam limites pequenos.
+  config?: ConfigServidor;
 }
 
 export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
-  const seedWs = process.env['WORKSPACE_SEED'] ?? 'seed';
+  const cfg = opts.config ?? configDoEnv();
+  const seedWs = cfg.seedWs;
   const app = Fastify({ logger: true });
-  await app.register(cors, {
-    origin: process.env['CORS_ORIGIN']?.split(',').map((o) => o.trim()) ?? true,
-    credentials: true,
-  });
+  // Sem CORS_ORIGIN nenhum cabecalho CORS sai, e o navegador so deixa a propria
+  // origem ler a API. O cookie da sessao exige credenciais, entao nunca "*".
+  if (cfg.corsOrigens.length > 0) {
+    await app.register(cors, { origin: cfg.corsOrigens, credentials: true });
+  }
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
   const db = dbInjetado ?? (await createDb());
   const store = new LedgerStore(db, seedWs, seedWs);
   await store.init();
-  const canal = new CanalSSE(seedWs);
+  const canal = new CanalSSE(seedWs, cfg.sse);
+
+  // Atras do proxy da hospedagem o socket e o do proxy; o IP do visitante vem
+  // no cabecalho que o proxy sobrescreve (CLIENT_IP_HEADER).
+  const ipDoCliente = (req: FastifyRequest): string => {
+    if (cfg.ipHeader) {
+      const bruto = req.headers[cfg.ipHeader];
+      const valor = (Array.isArray(bruto) ? bruto[0] : bruto)?.split(',')[0]?.trim();
+      if (valor) return valor;
+    }
+    return req.ip;
+  };
 
   // Sessao: workspace vem so do cookie emitido pelo servidor, nunca do body.
+  // Cookie igual ao WORKSPACE_SEED e recusado: a seed nao e sessao de ninguem.
   app.addHook('onRequest', async (req, reply) => {
     const cookie = req.headers.cookie?.match(new RegExp(`(?:^|;\\s*)${COOKIE_WS}=([^;]+)`))?.[1];
-    const ws = cookie && REGEX_WS.test(cookie) ? cookie : (opts.workspacePadrao ?? randomUUID());
+    const valido = cookie !== undefined && REGEX_WS.test(cookie) && cookie !== seedWs;
+    const ws = valido ? cookie : (opts.workspacePadrao ?? randomUUID());
     req.workspace = ws;
-    if (!cookie || cookie !== ws) {
-      reply.header('set-cookie', `${COOKIE_WS}=${ws}; Path=/; HttpOnly; SameSite=Lax`);
+    if (cookie !== ws) {
+      const https = String(req.headers['x-forwarded-proto'] ?? req.protocol).split(',')[0]?.trim() === 'https';
+      reply.header('set-cookie', `${COOKIE_WS}=${ws}; Path=/; HttpOnly; SameSite=Lax${https ? '; Secure' : ''}`);
     }
   });
 
@@ -145,9 +164,16 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   });
 
   // SSE: fluxo ao vivo do workspace da sessao + seed; reconexao reidrata via GET.
+  // Passa pelo mesmo onRequest das outras rotas: um stream aberto antes de
+  // qualquer outra requisicao recebe o cookie e fica no workspace dele.
   app.get('/api/stream', async (req, reply) => {
-    canal.registrar(reply, req.workspace);
-    return reply;
+    const r = canal.registrar(reply, req.workspace, ipDoCliente(req));
+    if (r === 'ok') return reply;
+    return reply.code(503).header('retry-after', '30').send({
+      erro: r === 'lotado'
+        ? 'O servidor está com muitas conexões ao vivo agora. Recarregue a página em instantes.'
+        : 'Há conexões ao vivo demais abertas a partir deste endereço. Feche abas antigas da demonstração.',
+    });
   });
 
   // "E se?" deterministico: nada e gravado (RF12).
@@ -225,8 +251,11 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     await app.register(fastifyStatic, { root: webDist });
   }
 
-  app.addHook('onClose', async () => {
+  // Streams abertos impedem o close do servidor de terminar: encerra antes.
+  app.addHook('preClose', async () => {
     canal.fechar();
+  });
+  app.addHook('onClose', async () => {
     await db.close();
   });
 
