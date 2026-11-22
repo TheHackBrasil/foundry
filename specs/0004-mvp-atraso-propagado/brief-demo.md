@@ -49,14 +49,15 @@ gate por critério.
 
 ## Pendências para a integração
 
-- `app/server/index.ts:187`: o teste de boot standalone monta
-  `file:///` + caminho. No Linux isso vira `file:////` e nunca casa com
-  `import.meta.url`, então `npm run dev` e `npm start` saem sem subir o
-  servidor e sem erro (os testes passam porque chamam `buildServer()`). No
-  Heroku, que é Linux, o deploy não responderia. Correção sugerida:
-  comparar com `pathToFileURL(process.argv[1]).href`.
-- O seed roda em outro processo e o banco PGlite é em memória: o servidor
-  sobe vazio. Para a URL pública ele precisa semear no boot.
+- `app/server/index.ts`: o teste de boot standalone montava `file:///` +
+  caminho, que no Linux vira `file:////` e nunca casava, então `npm run dev` e
+  `npm start` saíam sem subir o servidor e sem erro. Corrigido na `main` em
+  21/11 com `pathToFileURL`, e o `PORT` do `.env` passou a valer (antes era
+  lido antes do `dotenv`). Validado no Linux com Postgres real. Falta o Gui
+  confirmar e a correção chegar à `origin/main`.
+- O banco agora é Postgres real (D-024), então o dado persiste entre
+  processos e o `npm run seed` funciona. Para a URL pública o servidor ainda
+  precisa semear na primeira subida.
 - `GET /api/pedidos` devolve `{ pedidoId, totalEventos, criadoEm, ultimoEm }`
   sem tipo em `app/shared/model.ts` (a web declara `PedidoResumo` em
   `app/web/src/api.ts` até a infra promover o tipo).
