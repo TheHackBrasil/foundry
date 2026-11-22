@@ -14,7 +14,6 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.17",
     "@fastify/cors": "^11.4.3",
     "@fastify/multipart": "^10.1.9",
     "@fastify/rate-limit": "^11.3.0",
@@ -27,13 +26,14 @@
     "mailparser": "^3.15.0",
     "papaparse": "^5.7.1",
     "pdf-parse": "^2.4.5",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.17",
     "@types/node": "^26.6.6",
     "@types/papaparse": "^5.5.2",
     "@types/pg": "^8.23.1",
-    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.1.1"
   }

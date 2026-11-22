@@ -1,6 +1,8 @@
 // Adaptador de banco (spec 0004): Postgres real via DATABASE_URL.
+// PGlite e so dos testes (D-024): import de tipo aqui e dinamico em
+// createLiteDb, para a imagem de producao instalar sem devDependencies.
 
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
 
 export interface Db {
@@ -19,7 +21,19 @@ class PgDb implements Db {
       this.client = client;
       this.pool = null as unknown as pg.Pool;
     } else {
-      this.pool = new pg.Pool({ connectionString: url });
+      // Timeouts curtos: o healthcheck nao pode pendurar com o banco fora, e
+      // transacao esquecida aberta nao segura trava do ledger.
+      this.pool = new pg.Pool({
+        connectionString: url,
+        max: 10,
+        connectionTimeoutMillis: 5_000,
+        idleTimeoutMillis: 30_000,
+        statement_timeout: 15_000,
+        idle_in_transaction_session_timeout: 30_000,
+        application_name: 'forseti',
+      });
+      // Erro em conexao ociosa (Postgres reiniciou) sem ouvinte derruba o processo.
+      this.pool.on('error', (e) => console.error(`pg: conexao ociosa caiu (${e.message})`));
     }
   }
 
@@ -100,5 +114,6 @@ export async function createDb(url?: string): Promise<Db> {
 
 // Usado so pelos testes (memoria).
 export async function createLiteDb(): Promise<Db> {
-  return new LiteDb(new PGlite());
+  const { PGlite: Lite } = await import('@electric-sql/pglite');
+  return new LiteDb(new Lite());
 }

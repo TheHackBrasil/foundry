@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyError, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
@@ -16,11 +16,13 @@ import { propagarTodas } from '../shared/rules.js';
 import type { CamposObservados, Divergencia } from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
 import { ancorar } from './anchor.js';
-import { configDoEnv, type ConfigServidor } from './config.js';
+import { configDoEnv, inteiroDoEnv, type ConfigServidor } from './config.js';
 import { createDb, type Db } from './db.js';
 import { imapConfigDoEnv, iniciarPolling } from './ingest/imap.js';
 import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
+import { ehProcessoPrincipal } from './processo.js';
 import { ErroRequisicao, GuardaEspaco, JanelaFixa, mensagens } from './protecao.js';
+import { carregarSeed } from './seed.js';
 import { CanalSSE } from './sse.js';
 import { LedgerStore } from './store.js';
 
@@ -378,21 +380,34 @@ async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
   console.log(`imap: polling em ${cfg.host}:${cfg.port} a cada ${cfg.intervaloMs}ms`);
 }
 
-// pathToFileURL cobre POSIX, Windows e caminho com espaço; montar file:/// na
-// mão gerava file://// no Linux e o servidor nunca subia.
-export function ehProcessoPrincipal(metaUrl: string, argv1: string | undefined): boolean {
-  return argv1 !== undefined && metaUrl === pathToFileURL(argv1).href;
-}
+export { ehProcessoPrincipal };
 
-// Boot standalone (tsx server/index.ts).
+// Boot standalone (tsx server/index.ts, ou node --import tsx no container).
 if (ehProcessoPrincipal(import.meta.url, process.argv[1])) {
   await import('dotenv/config'); // carrega .env so no boot, nao nos testes
-  const porta = Number(process.env['PORT'] ?? 3000); // depois do dotenv: PORT do .env vale
+  // Depois do dotenv: PORT do .env vale. Na Railway, PORT vem injetada.
+  const porta = inteiroDoEnv(process.env, 'PORT', 3000, 1);
+  const host = process.env['HOST']?.trim() || '0.0.0.0';
   const { app, store, canal } = await buildServer();
+  // Seed antes do listen: carregada depois, ela mandaria os eventos da seed a
+  // todo stream ja aberto.
+  if (process.env['SEED_ON_BOOT'] === '1') {
+    const r = await carregarSeed(store, canal, (msg) => app.log.info(msg));
+    app.log.info(`seed: ${r.ingeridos} doc(s) processados, ${r.pulados} arquivo(s) sem efeito`);
+  }
   await ligarImap(canal, store);
+  // A hospedagem manda SIGTERM no redeploy: fecha os streams e o pool antes de sair.
+  for (const sinal of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(sinal, () => {
+      app.log.info(`${sinal}: encerrando`);
+      app.close().then(
+        () => process.exit(0),
+        () => process.exit(1),
+      );
+    });
+  }
   try {
-    await app.listen({ port: porta, host: '0.0.0.0' });
-    console.log(`api em http://localhost:${porta}`);
+    await app.listen({ port: porta, host });
   } catch (e) {
     app.log.error(e);
     process.exit(1);

@@ -1,12 +1,15 @@
 // Seed (spec 0004, T041): ingere app/seed/** e app/server/fixtures.
-// Idempotente: pedido ja existente e pulado.
+// Idempotente: pedido ja existente e pulado. Roda pela CLI (npm run seed) ou no
+// boot do servidor com SEED_ON_BOOT=1, antes do listen.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { configDoEnv } from './config.js';
 import { createDb } from './db.js';
 import { detectarTipo } from './ingest/detect.js';
 import { ingerir } from './pipeline.js';
+import { ehProcessoPrincipal } from './processo.js';
 import { CanalSSE } from './sse.js';
 import { LedgerStore } from './store.js';
 
@@ -22,14 +25,12 @@ const PRIORIDADE_TIPO: Record<string, number> = {
   pdf: 4,
 };
 
-async function main(): Promise<void> {
-  await import('dotenv/config');
-  const db = await createDb();
-  const seedWs = process.env['WORKSPACE_SEED'] ?? 'seed';
-  const store = new LedgerStore(db, seedWs, seedWs);
-  await store.init();
-  const canal = new CanalSSE(seedWs);
-
+// store precisa estar no workspace da seed.
+export async function carregarSeed(
+  store: LedgerStore,
+  canal: CanalSSE,
+  log: (msg: string) => void = console.log,
+): Promise<{ ingeridos: number; pulados: number }> {
   let ingeridos = 0;
   let pulados = 0;
   for (const dir of DIRS) {
@@ -54,17 +55,27 @@ async function main(): Promise<void> {
           pulados += 1;
         } else {
           ingeridos += r.docs;
-          console.log(`seed: ${arq} -> pedido ${r.pedidoId ?? '(revisao)'}, ${r.eventos.length} eventos`);
+          log(`seed: ${arq} -> pedido ${r.pedidoId ?? '(revisao)'}, ${r.eventos.length} eventos`);
         }
       } catch (e) {
         // Doc invalido vai como rejeitado, nao derruba o seed.
         pulados += 1;
-        console.log(`seed: ${arq} rejeitado (${(e as Error).message})`);
+        log(`seed: ${arq} rejeitado (${(e as Error).message})`);
       }
     }
   }
+  return { ingeridos, pulados };
+}
+
+async function main(): Promise<void> {
+  await import('dotenv/config');
+  const db = await createDb();
+  const { seedWs } = configDoEnv();
+  const store = new LedgerStore(db, seedWs, seedWs);
+  await store.init();
+  const { ingeridos, pulados } = await carregarSeed(store, new CanalSSE(seedWs));
   console.log(`seed: ${ingeridos} doc(s) processados, ${pulados} arquivo(s) sem efeito`);
   await db.close();
 }
 
-await main();
+if (ehProcessoPrincipal(import.meta.url, process.argv[1])) await main();
