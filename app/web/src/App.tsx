@@ -2,10 +2,17 @@ import { Cabecalho } from './components/Cabecalho.tsx';
 import { EnvioArquivos } from './components/EnvioArquivos.tsx';
 import { PainelPedido } from './components/PainelPedido.tsx';
 import { PedidoLista } from './components/PedidoLista.tsx';
+import { useState } from 'react';
+import { aplicarTema, temaInicial, type Tema } from './tema.ts';
 import { useTorre } from './useTorre.ts';
 
 export function App() {
   const torre = useTorre();
+  const [tema, setTema] = useState<Tema>(temaInicial);
+  const trocarTema = (t: Tema) => {
+    aplicarTema(t);
+    setTema(t);
+  };
   const vazio = torre.pedidos.estado === 'ok' && torre.pedidos.dados.length === 0;
 
   return (
@@ -20,11 +27,18 @@ export function App() {
       >
         Ir para o conteúdo
       </a>
-      <Cabecalho stream={torre.estadoStream} />
+      <Cabecalho
+        stream={torre.estadoStream}
+        pausado={torre.pausado}
+        pendentes={torre.pendentes}
+        aoPausar={torre.alternarPausa}
+        tema={tema}
+        aoTema={trocarTema}
+      />
       <div className="corpo">
         <aside className="lateral" aria-label="Envio e lista de pedidos">
-          <EnvioArquivos aoEnviar={torre.selecionar} />
           <PedidoLista pedidos={torre.pedidos} selecionado={torre.selecionado} aoTentarDeNovo={torre.recarregarLista} />
+          <EnvioArquivos aoEnviar={torre.selecionar} />
         </aside>
         <main id="conteudo" tabIndex={-1}>
           {torre.selecionado ? (
@@ -37,10 +51,10 @@ export function App() {
               aoVerificar={torre.verificarDeNovo}
             />
           ) : (
-            <section aria-labelledby="vazio-titulo">
+            <section aria-labelledby="vazio-titulo" className="vazio">
               <h2 id="vazio-titulo">{vazio ? 'Nada para mostrar ainda' : 'Escolha um pedido'}</h2>
               <p className="dica">
-                Envie uma NF-e em XML no painel ao lado. A tela mostra o que cada documento declara, aponta onde as fontes
+                Envie uma NF-e em XML no painel ao lado. O Forseti mostra o que cada documento declara, aponta onde as fontes
                 divergem e diz o que cada parte precisa fazer.
               </p>
             </section>

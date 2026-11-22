@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Divergencia, Tarefa, VersaoPedido } from '../../shared/model.ts';
+import { variacao, chaveAgrupada } from './format.ts';
 import { FILTRO_TODAS, agruparTarefas, chaveTarefa, montarMatriz, tarefasDaParte } from './matriz.ts';
 
 const versao = (n: number, fonte: VersaoPedido['fonte'], campos: VersaoPedido['campos']): VersaoPedido => ({
@@ -107,5 +108,80 @@ describe('agruparTarefas', () => {
     const grupos = agruparTarefas([tarefa('cd', 'B', '1'), tarefa('cd', 'A', '1'), tarefa('cd', 'B', '2')]);
 
     expect(grupos.map((g) => g.titulo)).toEqual(['B', 'A']);
+  });
+});
+
+describe('origem, valor anterior e referência na matriz', () => {
+  const v = (n: number, fonte: VersaoPedido['fonte'], campos: VersaoPedido['campos'], geradaEm: string): VersaoPedido => ({
+    pedidoId: 'p1',
+    versao: n,
+    fonte,
+    campos,
+    geradaEm,
+  });
+
+  it('guarda versão e momento da última versão de cada fonte', () => {
+    const m = montarMatriz(
+      [v(1, 'nfe', { pesoTotal: 510 }, '2026-11-18T09:12:00Z'), v(1, 'cte', { pesoTotal: 520 }, '2026-11-20T17:40:00Z')],
+      [],
+    );
+    const cte = m.linhas.find((l) => l.campo === 'pesoTotal')?.celulas[1];
+    expect(cte?.versao).toBe(1);
+    expect(cte?.em).toBe('2026-11-20T17:40:00Z');
+  });
+
+  it('mostra o valor anterior só quando a mesma fonte mudou de valor', () => {
+    const m = montarMatriz(
+      [
+        v(1, 'nfe', { previsaoEntrega: '2026-11-22' }, '2026-11-18T09:12:00Z'),
+        v(1, 'planilha', { previsaoEntrega: '2026-11-22' }, '2026-11-19T10:00:00Z'),
+        v(2, 'planilha', { previsaoEntrega: '2026-11-25' }, '2026-11-21T14:02:00Z'),
+      ],
+      [],
+    );
+    const celulas = m.linhas.find((l) => l.campo === 'previsaoEntrega')?.celulas ?? [];
+    expect(celulas[0]?.antes).toBeUndefined();
+    expect(celulas[1]?.antes).toBe('2026-11-22');
+    expect(celulas[1]?.versao).toBe(2);
+  });
+
+  it('não confunde versão repetida com mudança de valor', () => {
+    const m = montarMatriz(
+      [v(1, 'nfe', { volumes: 10 }, '2026-11-18T09:12:00Z'), v(2, 'nfe', { volumes: 10 }, '2026-11-19T09:12:00Z')],
+      [],
+    );
+    expect(m.linhas.find((l) => l.campo === 'volumes')?.celulas[0]?.antes).toBeUndefined();
+  });
+
+  it('a referência da linha é a primeira fonte que declara o campo', () => {
+    const m = montarMatriz([v(1, 'nfe', {}, '2026-11-18T09:12:00Z'), v(1, 'cte', { pesoTotal: 520 }, '2026-11-20T17:40:00Z')], []);
+    const linha = m.linhas.find((l) => l.campo === 'pesoTotal');
+    expect(linha?.referencia?.fonte).toBe('cte');
+    expect(linha?.celulas.map((c) => c.referencia)).toEqual([false, true]);
+  });
+});
+
+describe('variacao e chave agrupada', () => {
+  it('data: diferença em dias, com sinal e plural', () => {
+    expect(variacao('previsaoEntrega', '2026-11-25', '2026-11-22')).toBe('+3 dias');
+    expect(variacao('previsaoEntrega', '2026-11-23', '2026-11-22')).toBe('+1 dia');
+    expect(variacao('previsaoEntrega', '2026-11-20', '2026-11-22')).toBe('\u22122 dias');
+    expect(variacao('previsaoEntrega', '2026-11-22', '2026-11-22')).toBeNull();
+  });
+
+  it('peso e volumes: diferença com vírgula decimal pt-BR', () => {
+    expect(variacao('pesoTotal', 520, 510)).toBe('+10 kg');
+    expect(variacao('pesoTotal', 1312, 1284.5)).toBe('+27,5 kg');
+    expect(variacao('volumes', 8, 10)).toBe('\u22122');
+  });
+
+  it('status e valores ausentes não têm variação', () => {
+    expect(variacao('status', 'em_transito', 'emitida')).toBeNull();
+    expect(variacao('pesoTotal', undefined, 510)).toBeNull();
+  });
+
+  it('agrupa a chave de 44 dígitos de quatro em quatro', () => {
+    expect(chaveAgrupada('31261112345678000123550010000447110000004471')).toBe('3126 1112 3456 7800 0123 5500 1000 0447 1100 0000 4471');
+    expect(chaveAgrupada('pedido-x')).toBe('pedido-x');
   });
 });

@@ -1,0 +1,62 @@
+/* Tokens do Forseti: Rota 3 (Salão), tom sóbrio. Valores medidos por
+   forseti-brand/moodboard/scripts/build.py (WCAG 2.2, 198 pares exigidos, todos passam).
+   Nomes por papel, não por cor. Ouro e prata só decoram: nunca marcam estado. */
+
+:root {
+  --bg: #f5f3f1;
+  --surface: #fdfcfb;
+  --surface2: #eeebe7;
+  --border: #d8d3cf;
+  --border-strong: #79736d; /* borda de controle: 3:1 sobre a superfície */
+  --text: #231e1b;
+  --text2: #605a54;
+  --primary: #2d2824;
+  --on-primary: #faf8f6;
+  --rail-soft: #dddbd9; /* texto secundário sobre a coluna lateral (10,56:1) */
+  --focus: #231e1b;
+  --change: #056374; /* a única cor de "mudou": rótulo, ícone e fio */
+  --change-bg: #e9f2f4;
+  --ok: #31693f;
+  --ok-bg: #dff3e2;
+  --warn: #865812;
+  --warn-bg: #fbebcf;
+  --error: #ac3031;
+  --error-bg: #fee6e6;
+  --gold: #bda973;
+  --gold-deep: #927e4a;
+  --silver: #dbdee2;
+  --silver-deep: #a7abb0;
+
+  --font-title: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
+  --font-ui: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif;
+  --font-mono: 'Source Code Pro', ui-monospace, 'SFMono-Regular', monospace;
+  --radius: 2px;
+  color-scheme: light;
+}
+
+:root[data-tema='dark'] {
+  --bg: #141211;
+  --surface: #1e1b19;
+  --surface2: #272522;
+  --border: #383532;
+  --border-strong: #79736f;
+  --text: #edebe8;
+  --text2: #b4b0ac;
+  --primary: #e0ddda;
+  --on-primary: #181614;
+  --rail-soft: #343230; /* sobre a coluna clara do tema escuro (9,44:1) */
+  --focus: #edebe8;
+  --change: #7cd8e8;
+  --change-bg: #182a2e;
+  --ok: #95d7a2;
+  --ok-bg: #1c3422;
+  --warn: #f0c374;
+  --warn-bg: #3f2c10;
+  --error: #ffa098;
+  --error-bg: #4e201e;
+  --gold: #b2a572;
+  --gold-deep: #817443;
+  --silver: #c7cbd0;
+  --silver-deep: #8f9397;
+  color-scheme: dark;
+}

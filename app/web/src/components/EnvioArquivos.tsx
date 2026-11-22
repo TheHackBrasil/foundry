@@ -107,9 +107,10 @@ export function EnvioArquivos({ aoEnviar }: { aoEnviar: (pedidoId: string) => vo
         {resultados.length > 0 && (
           <ul className="resultados" aria-label="Resultado dos envios">
             {resultados.map((r, i) => (
-              <li key={`${r.nome}-${i}`} className={r.ok ? 'res-ok' : 'res-erro'}>
+              <li key={`${r.nome}-${i}`}>
                 {r.ok ? <IconeOk /> : <IconeErro />}
                 <span>
+                  <span className="so-leitor">{r.ok ? 'Enviado. ' : 'Falhou. '}</span>
                   <strong>{r.nome}</strong>: {r.texto}
                 </span>
               </li>

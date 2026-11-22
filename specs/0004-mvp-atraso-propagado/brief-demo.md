@@ -104,3 +104,12 @@ gate por critério.
   a recuperação foi testada com rede real), `forced-colors`, zoom de 200%
   e 400% do navegador, Firefox e Safari, toque real e tema claro (não
   existe).
+
+## Direção visual Forseti (22/11/2026)
+
+- D-W6: a interface passa para a direção Rota 3 (Salão), tom sóbrio, com a marca Refinada. Os tokens estão em `app/web/src/tokens.css` e foram medidos por `forseti-brand/moodboard/scripts/build.py` (198 pares exigidos, todos passam). As fontes vêm empacotadas por `@fontsource` (Source Sans 3, Source Serif 4 e Source Code Pro, todas OFL), sem depender de CDN. O tema claro é o padrão e há alternador para o escuro. Isso substitui o tema preto e laranja da primeira versão.
+- D-W7: botão "Pausar atualizações" (WCAG 2.2.2, nível A). Pausado, os eventos viram contagem ("Pausado: 26 eventos na fila") e a tela só muda ao retomar, quando aplica tudo e anuncia o resultado.
+- D-W8: na matriz, só a célula que difere da fonte de referência (a primeira que declara o campo) recebe tinta; a referência fica neutra. Cada célula mostra a origem com versão, o valor anterior da mesma fonte e a variação em unidade humana. Linha com menos de duas fontes declaradas diz "Sem comparação", nunca "Confere".
+- Tarefas por parte viram abas, uma parte por vez, abrindo na primeira parte que tem tarefa. "Todas" continua à mão.
+- Verificado com `agent-browser`, Postgres real e os 41 eventos dos arquivos de exemplo: axe-core 4.10.2 com 0 violações e 0 incompletos nos temas claro e escuro, a 1440 e a 390 px; setas, Home e End nas abas; pausa e retomada com 26 eventos reais e os dois avisos para leitor de tela. Capturas em `app/web/evidencias/forseti-*.png`.
+- Não verificado: leitor de tela real, Firefox e Safari, zoom de 200% e 400%, toque real.

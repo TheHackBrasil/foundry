@@ -30,6 +30,12 @@ export function useTorre() {
   const [auditoria, setAuditoria] = useState<Carga<RespostaAuditoria>>({ estado: 'carregando' });
   const [anuncio, setAnuncio] = useState('');
   const [novas, setNovas] = useState<ReadonlySet<string>>(new Set());
+  // Pausa das atualizações ao vivo (WCAG 2.2.2): enquanto pausado, eventos viram contagem
+  // e a tela só se atualiza quando a pessoa retoma.
+  const [pausado, setPausado] = useState(false);
+  const [pendentes, setPendentes] = useState(0);
+  const pausadoRef = useRef(false);
+  const fila = useRef(0);
 
   const atual = useRef<string | null>(selecionado);
   const conhecidas = useRef<ReadonlySet<string> | null>(null);
@@ -141,6 +147,11 @@ export function useTorre() {
 
   const aoEvento = useCallback(
     (evento: Evento) => {
+      if (pausadoRef.current) {
+        fila.current += 1;
+        setPendentes(fila.current);
+        return;
+      }
       const r = rajada.current;
       r.n += 1;
       r.pedidos.add(evento.pedidoId);
@@ -163,6 +174,7 @@ export function useTorre() {
   );
 
   const aoConectar = useCallback(() => {
+    if (pausadoRef.current) return;
     void recarregarLista();
     if (atual.current) void carregarPedido(atual.current);
   }, [recarregarLista, carregarPedido]);
@@ -191,7 +203,29 @@ export function useTorre() {
     await verificarCadeia(id, true);
   }, [verificarCadeia]);
 
+  const alternarPausa = useCallback(() => {
+    if (!pausadoRef.current) {
+      pausadoRef.current = true;
+      setPausado(true);
+      anunciar('Atualizações pausadas. Os eventos novos ficam na fila até você retomar.');
+      return;
+    }
+    pausadoRef.current = false;
+    setPausado(false);
+    const n = fila.current;
+    fila.current = 0;
+    setPendentes(0);
+    void recarregarLista();
+    const aberto = atual.current;
+    const aviso = n > 0 ? `Atualizações retomadas: ${plural(n, 'evento aplicado', 'eventos aplicados')}.` : 'Atualizações retomadas.';
+    if (aberto) void carregarPedido(aberto, aviso);
+    else anunciar(aviso);
+  }, [anunciar, recarregarLista, carregarPedido]);
+
   return {
+    pausado,
+    pendentes,
+    alternarPausa,
     pedidos,
     selecionado,
     projecao,

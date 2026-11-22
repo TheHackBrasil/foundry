@@ -83,3 +83,30 @@ export function formatarMomento(texto: string): string {
     minute: '2-digit',
   });
 }
+
+// "3126 1112 ..." em grupos de quatro, como a chave de acesso no documento fiscal.
+export const chaveAgrupada = (id: string): string => (/^\d+$/.test(id) ? (id.match(/.{1,4}/g) ?? [id]).join(' ') : id);
+
+const DIA_MS = 86_400_000;
+const sinal = (n: number): string => (n > 0 ? '+' : '\u2212');
+
+// Quanto o valor da célula se afasta da referência, em unidade humana. Sem variação
+// para status (texto) nem para valores que não dá para subtrair.
+export function variacao(campo: CampoVigiado, valor: unknown, referencia: unknown): string | null {
+  if (valor === undefined || referencia === undefined) return null;
+  if (campo === 'previsaoEntrega') {
+    const a = Date.parse(`${String(valor).slice(0, 10)}T00:00:00Z`);
+    const b = Date.parse(`${String(referencia).slice(0, 10)}T00:00:00Z`);
+    if (Number.isNaN(a) || Number.isNaN(b)) return null;
+    const dias = Math.round((a - b) / DIA_MS);
+    if (dias === 0) return null;
+    return `${sinal(dias)}${Math.abs(dias)} ${Math.abs(dias) === 1 ? 'dia' : 'dias'}`;
+  }
+  if (campo === 'pesoTotal' || campo === 'volumes') {
+    const dif = Number(valor) - Number(referencia);
+    if (!Number.isFinite(dif) || dif === 0) return null;
+    const num = Math.abs(dif).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    return `${sinal(dif)}${num}${campo === 'pesoTotal' ? ' kg' : ''}`;
+  }
+  return null;
+}

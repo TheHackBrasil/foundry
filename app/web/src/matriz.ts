@@ -13,14 +13,23 @@ import type {
 } from '../../shared/model.ts';
 
 export interface Celula {
+  fonte: FonteDocumento;
   valor: unknown;
   emConflito: boolean;
+  // Origem do valor mostrado: versão e momento do documento mais recente da fonte.
+  versao?: number;
+  em?: string;
+  // Valor que a mesma fonte declarava na versão anterior, quando mudou.
+  antes?: unknown;
+  // Fonte de referência da linha: as outras células comparam com ela.
+  referencia: boolean;
 }
 
 export interface LinhaMatriz {
   campo: CampoVigiado;
   celulas: Celula[];
   divergente: boolean;
+  referencia?: Celula;
 }
 
 export interface Matriz {
@@ -35,11 +44,19 @@ export function montarMatriz(
   divergencias: readonly Divergencia[],
 ): Matriz {
   const primeira = new Map<FonteDocumento, number>();
-  const ultima = new Map<FonteDocumento, VersaoPedido>();
+  const porFonte = new Map<FonteDocumento, VersaoPedido[]>();
   for (const v of versoes) {
     if (!primeira.has(v.fonte)) primeira.set(v.fonte, v.versao);
-    const atual = ultima.get(v.fonte);
-    if (!atual || v.versao > atual.versao) ultima.set(v.fonte, v);
+    porFonte.set(v.fonte, [...(porFonte.get(v.fonte) ?? []), v]);
+  }
+  const ultima = new Map<FonteDocumento, VersaoPedido>();
+  const anterior = new Map<FonteDocumento, VersaoPedido>();
+  for (const [fonte, lista] of porFonte) {
+    const ordenada = [...lista].sort((a, b) => a.versao - b.versao);
+    const u = ordenada.at(-1);
+    const a = ordenada.at(-2);
+    if (u) ultima.set(fonte, u);
+    if (a) anterior.set(fonte, a);
   }
   const fontes = [...primeira.entries()].sort((a, b) => a[1] - b[1]).map(([fonte]) => fonte);
 
@@ -53,14 +70,26 @@ export function montarMatriz(
   );
 
   const linhas = CAMPOS_VIGIADOS.map((campo): LinhaMatriz => {
+    const refFonte = fontes.find((f) => valorAtual(f, campo) !== undefined);
     const celulas = fontes.map((fonte): Celula => {
       const valor = valorAtual(fonte, campo);
       const emConflito = ativas.some(
         (d) => d.campo === campo && (d.fonteA === fonte || d.fonteB === fonte),
       );
-      return { valor, emConflito };
+      const v = ultima.get(fonte);
+      const antes = anterior.get(fonte)?.campos[campo];
+      const mudou = valor !== undefined && antes !== undefined && !igual(antes, valor);
+      return {
+        fonte,
+        valor,
+        emConflito,
+        ...(v && valor !== undefined ? { versao: v.versao, em: v.geradaEm } : {}),
+        ...(mudou ? { antes } : {}),
+        referencia: fonte === refFonte,
+      };
     });
-    return { campo, celulas, divergente: celulas.some((c) => c.emConflito) };
+    const referencia = celulas.find((c) => c.referencia && c.valor !== undefined);
+    return { campo, celulas, divergente: celulas.some((c) => c.emConflito), ...(referencia ? { referencia } : {}) };
   });
 
   return { fontes, linhas };
