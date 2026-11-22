@@ -19,6 +19,40 @@ import type { LedgerStore } from './store.js';
 const FIX = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const ler = (f: string): string => readFileSync(join(FIX, f), 'utf8');
 const CHAVE = '35260123456789000123550010000000011000000019';
+const TEXTO_CCE = 'O endereco de entrega consta Rua das Acacias 100; o correto e Rua das Acacias 1000';
+// Texto que o parser antigo transformava em atraso: tem data e a palavra "atraso".
+const TEXTO_CCE_COM_DATA = 'Nova previsao de entrega: 25/01/2026 em razao de atraso na expedicao';
+
+// A CC-e do corpus tem texto sem data; este helper troca o texto da correcao.
+const cceComTexto = (texto: string): string =>
+  ler('cce-correcao.xml').replace(/<xCorrecao>.*<\/xCorrecao>/, `<xCorrecao>${texto}</xCorrecao>`);
+
+// Evento de insucesso na entrega do CT-e (110190), sintetico, ligado a NF-e
+// do corpus. R-006: e tentativa de entrega que falhou, nao atraso.
+const INSUCESSO_CTE = `<?xml version="1.0" encoding="UTF-8"?>
+<procEventoCTe xmlns="http://www.portalfiscal.inf.br/cte" versao="4.00">
+  <eventoCTe versao="4.00">
+    <infEvento Id="ID11019035260155566677000188570010000000021000000025001">
+      <cOrgao>35</cOrgao><tpAmb>2</tpAmb><CNPJ>55566677000188</CNPJ>
+      <chCTe>35260155566677000188570010000000021000000025</chCTe>
+      <dhEvento>2026-01-22T15:00:00-03:00</dhEvento>
+      <tpEvento>110190</tpEvento><nSeqEvento>1</nSeqEvento>
+      <detEvento versaoEvento="4.00"><evIECTe>
+        <descEvento>Insucesso na Entrega do CT-e</descEvento>
+        <dhTentativaEntrega>2026-01-22T14:30:00-03:00</dhTentativaEntrega>
+        <tpMotivo>1</tpMotivo>
+        <infEntrega><chNFe>${CHAVE}</chNFe></infEntrega>
+      </evIECTe></detEvento>
+    </infEvento>
+  </eventoCTe>
+</procEventoCTe>`;
+
+interface Projecao {
+  pedido: { campos: Record<string, unknown> };
+  versoes: Array<{ fonte: string }>;
+  divergencias: Array<{ campo: string; fonteA: string; fonteB: string; valorA: unknown; valorB: unknown }>;
+  tarefas: Array<{ parte: string; titulo: string; detalhe: string; divergencia: { campo: string } }>;
+}
 
 describe('parsers', () => {
   it('NF-e -> chave 44, emitente, destinatario, itens, peso, data', () => {
@@ -45,6 +79,18 @@ describe('parsers', () => {
     expect(d.campos.previsaoEntrega).toBeUndefined();
     expect(d.campos.status).toBeUndefined();
     expect(d.dados['correcao']).toContain('Acacias');
+  });
+
+  it.each([
+    ['data DD/MM/AAAA e palavra atraso', TEXTO_CCE_COM_DATA],
+    ['data ISO', 'Previsao de entrega corrigida para 2026-01-25'],
+    ['adiamento', 'Entrega adiada por reagendamento da doca'],
+    ['postergacao', 'Coleta postergada a pedido do cliente'],
+  ])('CC-e com texto de %s nao produz previsaoEntrega nem status (R-006)', (_nome, texto) => {
+    const d = parseEventoNFe(cceComTexto(texto));
+    expect(d.campos).toEqual({});
+    expect(d.dados['correcao']).toBe(texto);
+    expect(d.dados).not.toHaveProperty('novaData');
   });
 
   it('cancelamento vira status cancelada', () => {
@@ -110,19 +156,76 @@ describe('ledger + api (PGlite)', () => {
     expect(new Set(proj.tarefas.map((t) => t.parte))).toContain('transportadora');
   });
 
-  it('planilha do fornecedor propaga tarefa para as 5 partes no atraso', async () => {
-    await app.inject({
+  it('CC-e entra no ledger como evento informativo, sem divergencia nem tarefa (R-006)', async () => {
+    const antes = await store.eventosDoPedido(CHAVE);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'cce-correcao.xml', conteudo: ler('cce-correcao.xml') },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { eventos: number }).eventos).toBe(1);
+
+    const depois = await store.eventosDoPedido(CHAVE);
+    expect(depois).toHaveLength(antes.length + 1);
+    const ev = depois.at(-1)!;
+    expect(ev.tipo).toBe('cce');
+    expect(ev.payload['campos']).toEqual({});
+    expect((ev.payload['dados'] as { correcao: string }).correcao).toBe(TEXTO_CCE);
+
+    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
+    expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cte', 'cce']);
+    expect(proj.divergencias.filter((d) => d.campo === 'previsaoEntrega')).toEqual([]);
+    expect(proj.tarefas.filter((t) => t.divergencia.campo === 'previsaoEntrega')).toEqual([]);
+    expect(proj.pedido.campos['previsaoEntrega']).toBe('2026-01-20');
+    expect(proj.pedido.campos['status']).toBe('em_transito');
+  });
+
+  it('evento 110190 do CT-e (insucesso na entrega) nao vira atraso: 422 e nada gravado (R-006)', async () => {
+    const antes = await store.eventosDoPedido(CHAVE);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'insucesso-entrega.xml', conteudo: INSUCESSO_CTE },
+    });
+    expect(res.statusCode).toBe(422);
+    expect((res.json() as { tipo: string }).tipo).toBe('parser');
+    expect(await store.eventosDoPedido(CHAVE)).toHaveLength(antes.length);
+  });
+
+  it('planilha com data nova gera a divergencia de data e as 5 tarefas, uma por parte', async () => {
+    const res = await app.inject({
       method: 'POST',
       url: '/api/ingest',
       payload: { nome: 'planilha.csv', conteudo: ler('planilha.csv') },
     });
-    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as {
-      tarefas: Array<{ parte: string; divergencia: { campo: string } }>;
-      versoes: unknown[];
-    };
+    expect(res.statusCode).toBe(200);
+
+    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
+    // A planilha tambem diverge em peso, volumes e status: filtra pelo campo de data.
+    expect(proj.divergencias.filter((d) => d.campo === 'previsaoEntrega')).toEqual([
+      { campo: 'previsaoEntrega', fonteA: 'nfe', fonteB: 'planilha', valorA: '2026-01-20', valorB: '2026-01-25' },
+    ]);
     const deData = proj.tarefas.filter((t) => t.divergencia.campo === 'previsaoEntrega');
-    expect(new Set(deData.map((t) => t.parte)).size).toBe(5);
-    expect(proj.versoes.length).toBe(3); // nfe, cte, planilha
+    expect(deData.map((t) => t.parte)).toEqual(['transportadora', 'cd', 'fiscal', 'financeiro', 'fornecedor']);
+    expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cte', 'cce', 'planilha']);
+
+    const fiscal = deData.find((t) => t.parte === 'fiscal')!;
+    expect(fiscal.titulo).toBe('Conferir se o atraso exige ação fiscal');
+    expect(fiscal.detalhe).toBe(
+      'A previsão passou de 20/01/2026 para 25/01/2026. O cancelamento da NF-e só cabe em até 24 h e sem circulação da mercadoria, e a CC-e não corrige data de saída.',
+    );
+  });
+
+  it('detalhes das tarefas saem com data brasileira, status legivel e acentos', async () => {
+    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
+    const detalhes = proj.tarefas.map((t) => t.detalhe);
+    expect(detalhes).toContain('Previsão divergente: NF-e diz 20/01/2026, planilha diz 25/01/2026.');
+    expect(detalhes).toContain('Status divergente: NF-e diz Emitida, CT-e diz Em trânsito.');
+    expect(detalhes).toContain('Status divergente: CT-e diz Em trânsito, planilha diz Atrasada.');
+    for (const t of proj.tarefas) {
+      expect(t.detalhe).not.toMatch(/\d{4}-\d{2}-\d{2}|\w_\w|\b(nfe|cte|cce)\b/);
+    }
   });
 
   it('.eml desembrulha anexo XML e joga no mesmo pipeline', async () => {
@@ -345,5 +448,43 @@ describe('ledger + api (PGlite)', () => {
       headers: { cookie: `foundry_ws=${ws}` },
     });
     expect(com.headers['set-cookie']).toBeUndefined();
+  });
+});
+
+describe('CC-e com texto de data nao vira atraso (R-006, D-020)', () => {
+  let app: Awaited<ReturnType<typeof buildServer>>['app'];
+
+  beforeAll(async () => {
+    app = (await buildServer(await createLiteDb(), { workspacePadrao: 'seed' })).app;
+    await app.ready();
+  });
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('data e palavra atraso no texto: so o evento informativo, sem divergencia, tarefa nem status atrasada', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'nfe-ok.xml', conteudo: ler('nfe-ok.xml') },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'cce-com-data.xml', conteudo: cceComTexto(TEXTO_CCE_COM_DATA) },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { eventos: number }).eventos).toBe(1);
+
+    const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
+    expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cce']);
+    expect(proj.divergencias).toEqual([]);
+    expect(proj.tarefas).toEqual([]);
+    expect(proj.pedido.campos).toEqual({
+      previsaoEntrega: '2026-01-20',
+      pesoTotal: 510,
+      volumes: 10,
+      status: 'emitida',
+    });
   });
 });
