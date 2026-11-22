@@ -70,7 +70,9 @@ export async function parsePdf(buffer: Buffer): Promise<ResultadoPdf> {
     const ext = JSON.parse(conteudo) as RespostaLlm;
     const conf = ext.confianca ?? 0;
 
-    const pedidoId = ext.chave_nfe?.match(/\d{44}/)?.[0];
+    // DANFE imprime a chave em grupos de 4 com espacos; normaliza para digitos.
+    const chaveDigitos = ext.chave_nfe?.replace(/\D/g, '') ?? '';
+    const pedidoId = /^\d{44}$/.test(chaveDigitos) ? chaveDigitos : null;
     if (!pedidoId || conf < 0.7) {
       return {
         doc: null,

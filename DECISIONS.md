@@ -211,3 +211,12 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   massa e de marcação indevida de lidas. Segredos ficam só no `.env`
   local; `imap-test.mts` com credencial inline foi removido antes de
   qualquer commit.
+| D-026 | 21/11 | Extração de PDF via LLM validada de ponta a ponta com OpenRouter (`nvidia/nemotron-3.5-super-vl:free`, confiança 0,98): `pdf.ts` passou a normalizar a chave NF-e vindo com espaços, formato impresso do DANFE; `app/.env.example` documenta todas as envs | decidido | O teste real expôs o bug: regex `\d{44}` rejeitava a chave em grupos de 4 dígitos com espaços e mandava todo PDF para a revisão |
+
+### Sessão 10: LLM real na extração de PDF (21/11)
+
+- OpenRouter configurado com modelo gratuito; DANFE sintético ingerido
+  via `/api/ingest` produziu 20 eventos no pedido novo (doc + divergências
+  + tarefas). Ollama fica como plano B local para o dia da banca.
+- Bug encontrado e corrigido no caminho (D-026): chave com espaços.
+  Item de revisão residual descartado após o reprocessamento.
