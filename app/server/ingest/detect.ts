@@ -3,12 +3,13 @@
 
 import { ErroParser } from './nfe.js';
 
-export type TipoDoc = 'nfe' | 'cte' | 'eventoNFe' | 'csv' | 'xlsx' | 'pdf';
+export type TipoDoc = 'nfe' | 'cte' | 'eventoNFe' | 'csv' | 'xlsx' | 'pdf' | 'eml';
 
 export function detectarTipo(nome: string, conteudo: Buffer): TipoDoc {
   const ext = nome.toLowerCase().split('.').pop() ?? '';
   const inicio = conteudo.subarray(0, 2048).toString('utf8');
 
+  if (ext === 'eml') return 'eml';
   if (ext === 'pdf' || inicio.startsWith('%PDF')) return 'pdf';
   if (ext === 'xlsx' || ext === 'xls') return 'xlsx';
   if (ext === 'csv' || ext === 'txt') return 'csv';
