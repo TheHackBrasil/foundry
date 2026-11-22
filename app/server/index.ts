@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
@@ -20,7 +20,6 @@ import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
 import { CanalSSE } from './sse.js';
 import { LedgerStore } from './store.js';
 
-const PORTA = Number(process.env['PORT'] ?? 3000);
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
 declare module 'fastify' {
@@ -253,14 +252,21 @@ async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
   console.log(`imap: polling em ${cfg.host}:${cfg.port} a cada ${cfg.intervaloMs}ms`);
 }
 
+// pathToFileURL cobre POSIX, Windows e caminho com espaço; montar file:/// na
+// mão gerava file://// no Linux e o servidor nunca subia.
+export function ehProcessoPrincipal(metaUrl: string, argv1: string | undefined): boolean {
+  return argv1 !== undefined && metaUrl === pathToFileURL(argv1).href;
+}
+
 // Boot standalone (tsx server/index.ts).
-if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
+if (ehProcessoPrincipal(import.meta.url, process.argv[1])) {
   await import('dotenv/config'); // carrega .env so no boot, nao nos testes
+  const porta = Number(process.env['PORT'] ?? 3000); // depois do dotenv: PORT do .env vale
   const { app, store, canal } = await buildServer();
   await ligarImap(canal, store);
   try {
-    await app.listen({ port: PORTA, host: '0.0.0.0' });
-    console.log(`api em http://localhost:${PORTA}`);
+    await app.listen({ port: porta, host: '0.0.0.0' });
+    console.log(`api em http://localhost:${porta}`);
   } catch (e) {
     app.log.error(e);
     process.exit(1);
