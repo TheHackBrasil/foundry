@@ -32,6 +32,9 @@ export function useTorre() {
   const [novas, setNovas] = useState<ReadonlySet<string>>(new Set());
   // Pausa das atualizações ao vivo (WCAG 2.2.2): enquanto pausado, eventos viram contagem
   // e a tela só se atualiza quando a pessoa retoma.
+  // Vira verdadeiro quando a primeira busca da lista responde (com sucesso ou erro): a
+  // resposta traz o cookie da sessão, e só então o stream pode abrir.
+  const [primeiraRespostaDaApi, setPrimeiraRespostaDaApi] = useState(false);
   const [pausado, setPausado] = useState(false);
   const [pendentes, setPendentes] = useState(0);
   const pausadoRef = useRef(false);
@@ -70,6 +73,8 @@ export function useTorre() {
       setPedidos({ estado: 'ok', dados: await listarPedidos() });
     } catch (e) {
       setPedidos({ estado: 'erro', mensagem: mensagemDe(e) });
+    } finally {
+      setPrimeiraRespostaDaApi(true);
     }
   }, []);
 
@@ -179,7 +184,7 @@ export function useTorre() {
     if (atual.current) void carregarPedido(atual.current);
   }, [recarregarLista, carregarPedido]);
 
-  const estadoStream = useStream(aoEvento, aoConectar);
+  const estadoStream = useStream(aoEvento, aoConectar, primeiraRespostaDaApi);
 
   const streamAnterior = useRef(estadoStream);
   useEffect(() => {
