@@ -98,7 +98,7 @@ const fmt = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR');
     <aside class="gh-side">
       <div class="gh-about">
         <h3>About</h3>
-        <p>{state?.meta.description || 'The Foundry, HackBrasil 2026.'}</p>
+        <p>Forseti, da equipe The Foundry, no HackBrasil 2026.</p>
         <p class="gh-meter"><span><b data-done>{state?.done ?? 0}</b> de <span data-total>{state?.total ?? 0}</span> etapas feitas</span><i aria-hidden="true"><i data-bar style={`--v:${state ? state.done / Math.max(1, state.total) : 0}`}></i></i></p>
       </div>
       <div class="gh-rel">

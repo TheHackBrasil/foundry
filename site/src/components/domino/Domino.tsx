@@ -71,7 +71,7 @@ export default function Domino() {
             Hoje
           </button>
           <button type="button" aria-pressed={layer} onClick={() => setLayer(true)}>
-            Com a camada
+            Com o Forseti
           </button>
         </div>
         <p className={cx(styles.verdict, model.wrong > 0 && styles.bad, layer && delay > 0 && styles.good)} role="status" aria-live="polite">

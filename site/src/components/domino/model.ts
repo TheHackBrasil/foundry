@@ -64,7 +64,7 @@ export function computeModel(h: number, layer: boolean): Model {
       { shows: stamp(leaves), real: told, state: 'synced' },
       { shows: stamp(Math.max(fin.plan, arrives)), real: told, state: 'synced' },
     ];
-    return { rows, wrong: 0, verdict: 'Os cinco sistemas mostram o mesmo pedido, atualizado no minuto do atraso.' };
+    return { rows, wrong: 0, verdict: 'O fornecedor registra o atraso e as outras quatro empresas veem a mudança na hora, cada uma com a sua tarefa.' };
   }
 
   const waits = leaves - transp.plan;
