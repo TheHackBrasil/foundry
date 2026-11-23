@@ -195,7 +195,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       else if (body?.conteudo) conteudo = Buffer.from(body.conteudo, 'utf8');
     }
     if (!nome || !conteudo || conteudo.length === 0) {
-      return reply.code(400).send({ erro: 'nome e conteudo obrigatorios' });
+      return reply.code(400).send({ erro: 'nome e conteúdo obrigatórios' });
     }
     if (conteudo.length > limites.bytesPorArquivo) {
       throw new ErroRequisicao(413, mensagens.arquivoGrande(limites.bytesPorArquivo));
@@ -236,13 +236,13 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
 
   app.get<{ Params: { id: string } }>('/api/pedidos/:id', async (req, reply) => {
     const s = await storeDoPedido(store.paraWorkspace(req.workspace), req.params.id);
-    if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+    if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
     return projetar(await s.eventosDoPedido(req.params.id));
   });
 
   app.get<{ Params: { id: string } }>('/api/pedidos/:id/versoes', async (req, reply) => {
     const s = await storeDoPedido(store.paraWorkspace(req.workspace), req.params.id);
-    if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+    if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
     return { versoes: projetar(await s.eventosDoPedido(req.params.id)).versoes };
   });
 
@@ -250,7 +250,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   // (seq < seq do evento 'ancora'). Eventos novos nao o invalidam (RF15).
   app.get<{ Params: { id: string } }>('/api/pedidos/:id/audit', async (req, reply) => {
     const s = await storeDoPedido(store.paraWorkspace(req.workspace), req.params.id);
-    if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+    if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
     const eventos = await s.eventosDoPedido(req.params.id);
     const verificacao = await s.auditar(req.params.id);
     const ancora = await s.ultimoAncora(req.params.id);
@@ -289,10 +289,10 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     async (req, reply) => {
       const { pedidoId, campos } = req.body ?? {};
       if (!pedidoId || !campos || Object.keys(campos).length === 0) {
-        return reply.code(400).send({ erro: 'pedidoId e campos obrigatorios' });
+        return reply.code(400).send({ erro: 'pedidoId e campos obrigatórios' });
       }
       const s = await storeDoPedido(store.paraWorkspace(req.workspace), pedidoId);
-      if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+      if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
       const proj = projetar(await s.eventosDoPedido(pedidoId));
       const atual = proj.pedido?.campos ?? {};
       const divs: Divergencia[] = [];
@@ -317,9 +317,9 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   // o 503 de ancoragem nao configurada.
   app.post<{ Body: { pedidoId?: string } }>('/api/anchor', { config: limiteAncora }, async (req, reply) => {
     const { pedidoId } = req.body ?? {};
-    if (!pedidoId) return reply.code(400).send({ erro: 'pedidoId obrigatorio' });
+    if (!pedidoId) return reply.code(400).send({ erro: 'pedidoId obrigatório' });
     const s = await storeDoPedido(store.paraWorkspace(req.workspace), pedidoId);
-    if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
+    if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
     exigirGravavel(s.workspace, 'ancorar um pedido de exemplo');
     await guarda.exigirEspaco();
     const r = await ancorar(s, pedidoId, configAncoraDoEnv(), (e) => req.log.error(e, 'ancoragem'));
@@ -346,16 +346,16 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       const id = Number(req.params.id);
       const s = store.paraWorkspace(req.workspace);
       const item = await s.buscarRevisao(id);
-      if (!item) return reply.code(404).send({ erro: 'item nao encontrado' });
+      if (!item) return reply.code(404).send({ erro: 'item não encontrado' });
       exigirGravavel(String(item['workspace_id']), 'decidir itens da fila de revisão de exemplo');
       if (status === 'aprovado') {
         await guarda.exigirEspaco();
         const eventos = await aprovarRevisao(s, canal, id);
-        if (eventos === null) return reply.code(404).send({ erro: 'item nao encontrado ou ja decidido' });
+        if (eventos === null) return reply.code(404).send({ erro: 'item não encontrado ou já decidido' });
         return { ok: true, eventos: eventos.length };
       }
       if (!(await s.resolverRevisao(id, 'descartado'))) {
-        return reply.code(404).send({ erro: 'item nao encontrado ou ja decidido' });
+        return reply.code(404).send({ erro: 'item não encontrado ou já decidido' });
       }
       return { ok: true };
     },

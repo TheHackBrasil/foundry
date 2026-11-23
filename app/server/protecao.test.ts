@@ -39,7 +39,7 @@ describe('JanelaFixa', () => {
 
 describe('GuardaEspaco', () => {
   const dbCom = (bytes: string, falha?: Error): Db => ({
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (_sql: string) => {
       if (falha) throw falha;
       return [{ bytes }] as never;
     }),

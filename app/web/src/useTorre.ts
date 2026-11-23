@@ -16,7 +16,13 @@ const AGRUPA_EVENTOS_MS = 300;
 
 function lerHash(): string | null {
   const m = /^#\/pedido\/([^/]+)$/.exec(window.location.hash);
-  return m?.[1] ? decodeURIComponent(m[1]) : null;
+  if (!m?.[1]) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    // % solto ou sequência inválida na URL: usa o texto como veio, sem derrubar.
+    return m[1];
+  }
 }
 
 const mensagemDe = (e: unknown): string => (e instanceof Error ? e.message : 'Erro inesperado.');

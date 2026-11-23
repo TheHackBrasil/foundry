@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { configDoEnv } from './config.js';
 import { createDb } from './db.js';
 import { detectarTipo } from './ingest/detect.js';
+import { nomeAnexoSeguro } from './ingest/imap.js';
 import { ingerir } from './pipeline.js';
 import { ehProcessoPrincipal } from './processo.js';
 import { CanalSSE } from './sse.js';
@@ -49,18 +50,21 @@ export async function carregarSeed(
       .sort((a, b) => a.prioridade - b.prioridade)
       .map((x) => x.f);
     for (const arq of arquivos) {
+      // Nome vem do disco: no log entra so a forma segura (basename, sem
+      // controle, truncado) — mesmo cuidado do anexo de e-mail.
+      const seguro = nomeAnexoSeguro(arq);
       try {
         const r = await ingerir(store, canal, arq, readFileSync(join(dir, arq)));
         if (r.docs > 0 && r.eventos.length === 0 && r.revisaoId === null) {
           pulados += 1;
         } else {
           ingeridos += r.docs;
-          log(`seed: ${arq} -> pedido ${r.pedidoId ?? '(revisao)'}, ${r.eventos.length} eventos`);
+          log(`seed: ${seguro} -> pedido ${r.pedidoId ?? '(revisao)'}, ${r.eventos.length} eventos`);
         }
       } catch (e) {
         // Doc invalido vai como rejeitado, nao derruba o seed.
         pulados += 1;
-        log(`seed: ${arq} rejeitado (${(e as Error).message})`);
+        log(`seed: ${seguro} rejeitado (${(e as Error).message})`);
       }
     }
   }

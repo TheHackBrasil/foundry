@@ -82,6 +82,17 @@ describe('tarefasDaParte', () => {
   it('gera chaves diferentes para tarefas de partes diferentes', () => {
     expect(chaveTarefa(tarefa('cd'))).not.toBe(chaveTarefa(tarefa('fiscal')));
   });
+
+  it('mesma divergência de campo e valor com fontes distintas gera chaves distintas', () => {
+    const entre = (fonteA: Tarefa['divergencia']['fonteA'], fonteB: Tarefa['divergencia']['fonteB']): Tarefa => ({
+      parte: 'cd',
+      titulo: 't',
+      detalhe: 'd',
+      divergencia: { ...atraso, fonteA, fonteB },
+    });
+    expect(chaveTarefa(entre('nfe', 'planilha'))).not.toBe(chaveTarefa(entre('nfe', 'pdf')));
+    expect(chaveTarefa(entre('cte', 'planilha'))).not.toBe(chaveTarefa(entre('planilha', 'cte')));
+  });
 });
 
 describe('agruparTarefas', () => {

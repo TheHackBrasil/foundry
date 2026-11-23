@@ -121,5 +121,7 @@ export function agruparTarefas(tarefas: readonly Tarefa[]): GrupoTarefa[] {
   return [...grupos.values()];
 }
 
+// A mesma divergência de campo e valor entre pares de fontes diferentes gera
+// tarefas diferentes: sem fonteA/fonteB elas colapsavam numa chave só.
 export const chaveTarefa = (t: Tarefa): string =>
-  `${t.parte}|${t.titulo}|${t.divergencia.campo}|${String(t.divergencia.valorB)}`;
+  `${t.parte}|${t.titulo}|${t.divergencia.fonteA}|${t.divergencia.fonteB}|${t.divergencia.campo}|${String(t.divergencia.valorB)}`;
