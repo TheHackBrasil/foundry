@@ -138,12 +138,16 @@ produto: torre de pedidos, confiança sem ruído, zero hype de IA.
 - Paleta restrita aos tokens medidos de `tokens.css` (papel `#F5F2EB`,
   petróleo `#163C38`, cinza `#52665E`, lavanda profunda `#654199` /
   `#C9B2F0` só para coordenação, divergência e sinal de ação). Nenhuma cor
-  nova, nenhum gradiente, brilho, sombra difusa, pílula `999px` ou emoji.
-- Raios em `--radius` (`2px`), tipografia Manrope + Geist Mono, ícones
-  geométricos em `icones.tsx` (`strokeWidth: 1.75`, cantos retos).
-- Movimento produtivo até `240 ms` em `transform`/`opacity`; respeito a
-  `prefers-reduced-motion` (CSS e `matchMedia` no hook de voz) e
-  `forced-colors`.
+  nova em `tokens.css`, nenhum gradiente neon, brilho ou emoji.
+- Hierarquia por espaço, superfícies tonais, fios sutis e raios
+  concêntricos (`12px` superfície externa, `8px` controles, `6px` chips e
+  pílulas), eliminando caixas aninhadas e bordas duras em repouso.
+- Movimento produtivo com `cubic-bezier(0.22, 1, 0.36, 1)` e
+  `transform`/`opacity`/`filter`: troca contextual de ícones
+  (`scale 0.25 -> 1`, `blur 4px -> 0`), gavetas suaves por grid
+  (`0fr -> 1fr`), abas em linha única com indicador deslizante, stagger na
+  materialização da lente e supressão de transições na troca de tema.
+  Respeito em camadas a `prefers-reduced-motion` e `forced-colors`.
 - Zero dependência nova em `app/web/package.json`.
 
 ## Fora de escopo
@@ -228,4 +232,16 @@ Base: `main` pós-0007 (`ViewSpec`, `sinais`, `notificacoes`,
 - D-W8: `EnvioArquivos.tsx` passa a aceitar `.xlsx` no `input` e no texto
   de ajuda, alinhado ao RF1 da spec 0007. Nenhuma cor nova foi criada em
   `tokens.css`; os 52 pares de `check_contrast.py` seguem verdes.
+- D-W9: `useVoz` abre e retoma o `AudioContext` sincronamente dentro do
+  gesto de clique (evitando `AnalyserNode` suspenso), usa `continuous: true`
+  com pausa pós-fala de 2,6 s, libera o `MediaStream` e retenta sozinho se
+  houver disputa de microfone (`audio-capture`), e informa claramente
+  falha de `network` (Brave/Chromium sem chave Google). O visualizador
+  passa a rodar em `<canvas>` 20 barras simétricas a 60 fps via refs, sem
+  re-renderizar o React (`VisualizadorVoz.tsx`).
+- D-W10: `listarPedidos` (`api.ts`) deduplica `pedidoId` priorizando a
+  entrada da sessão do visitante sobre a seed; `aplicarTema` (`tema.ts`)
+  suprime transições por 1 quadro na troca de tema; `BarraMandatos` e
+  `TarefasPorParte` adotam superfície única acoplada, abas em linha única
+  com indicador deslizante e elevação sutil sem caixas aninhadas.
 
