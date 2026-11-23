@@ -62,6 +62,10 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-036 | 22/11 | Correção de rota: a landing do produto é um site novo do zero em `lp/` (estrutura de empresa real), com deploy Vercel próprio; o site `the-foundry` re-vestido na v4 fica como bônus (site do time). Emenda D-031, que chegou a descartar site separado | decidido por Thiago | O the-foundry apresenta a equipe; a LP apresenta o produto: são superfícies diferentes |
 | D-037 | 23/11 | Hospedagem do app no Railway Hobby: um projeto `forseti` com dois serviços, o app construído por `app/deploy/Dockerfile` (build Vite + servidor Fastify na mesma imagem, `tsx` em produção, seed no boot, porta pela env `PORT`) e um Postgres oficial na rede privada (`DATABASE_URL` por reference variable). Sem bucket e sem volume próprio do app: o ledger fica no Postgres e o app é efêmero. `CLIENT_IP_HEADER=x-real-ip`; heartbeat e reciclagem do SSE contra o teto de stream do proxy (`SSE_HEARTBEAT_MS=20000`, `SSE_MAX_CONNECTION_MS=600000`, `SSE_MAX_BYTES=524288`) | decidido por Thiago | Heroku e Supabase saíram na pesquisa de hospedagem da sessão anterior; o Railway sobe app e banco num projeto, resolve a escolha de P-008, e o smoke público já rodou na URL gerada |
 | D-038 | 23/11 | URLs públicas: a demo do app responde em `https://forseti-production-fcb91f35.up.railway.app` (domínio gerado pelo Railway) e a LP em `https://forseti-br.vercel.app` (a `forseti.vercel.app` estava tomada por outro projeto; `forseti-br` foi a escolha do usuário). O `the-foundry-alpha.vercel.app` segue como site da equipe | decidido por Thiago | A LP precisava linkar a demo real; os domínios gerados são o que existe sem contratar domínio próprio |
+| D-039 | 23/11 | Spec 0008 `blindagem-publica` aprovada: correção dos achados das cinco auditorias independentes (SOLID, segurança, TypeScript, testes, brandbook). Decisões dela: planilha solitária vira `pedido` mínimo na projeção; quota de sessões com teto por IP por janela e cap global; os itens de marca em `site/` entram na frente `hardening` | decidido por Thiago | A planilha é o papel de ERP/WMS e pode chegar antes da NF-e (RF6 da spec 0004); o por-IP cobre abuso concentrado e o global cobre o distribuído; a `site-forseti` está parada |
+| D-040 | 23/11 | Spec 0007 `camada-ai-operacional` aprovada: a LLM é camada de acesso e universalidade, nunca de verdade (três empregos fechados: traduzir intenção para ação tipada de conjunto fechado, extrair campos de documento sem parser, escrever texto para humanos). Tudo que ela toca vira evento auditável ou cai na fila de revisão, no padrão de `pdf.ts`. Mandatos executam só pelo motor determinístico e gravam evento `mandato` por pedido alvo; `propagar` é repropagação idempotente; contatos por workspace com bootstrap por `fone` de emitente; Nvoip desligada por padrão (`NVOIP_NOTIFY_ON_TASK` global); sinal consultivo respeitando R-006; contrato `view-spec` com front reservado ao usuário | decidido por Thiago | O núcleo determinístico (ledger, comparação, regras) é o fosso; a LLM é a portaria. A tese do produto aplicada a si mesma: comando agentic auditável |
+| D-041 | 23/11 | O `.xlsx` volta por emenda de D-028: `exceljs` em versão pinned (>7 dias de publicação) dentro de `worker_threads` com `resourceLimits` e checagem estrutural do zip antes de inflar (o caminho de volta que a própria D-028 declara); o worker converte a planilha em texto CSV com valores formatados e o `parseCsv` segue como único parser tabular; layout desconhecido vai para a revisão com mapeamento coluna a campo proposto por LLM, e o mapeamento aprovado persiste como template por `(workspace, remetente)` | decidido por Thiago | `exceljs` resolve a serial de datas (precisa de `numFmt`); converter para CSV reaproveita parser, mapeamento e testes existentes; a escolha da LLM para layout é aprovada com revisão humana, nunca escrevendo dado |
+| D-042 | 23/11 | Novas frentes `hardening` (spec 0008, dona de `app/` e três paths de `site/`), `ai-ingest`, `ai-mandatos` e `ai-web` (reservada, só contrato `view-spec`) em `speckit/frentes.json`. Ordem dura: a 0008 integra inteira antes das frentes da 0007 | decidido | A blindagem corrige a base que a camada AI vai usar (lock de idempotência, helper doc->tarefas, `ItemRevisao`); `ai-web` fica sem código porque a renderização do `view-spec` é do usuário com outro agente |
 
 ## Pendências
 
@@ -312,3 +316,34 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   real e `SITE_URL`/`og:` absolutos; `forseti.vercel.app` indisponível.
 - Pendente: soak de SSE na URL pública, push da `main` (ainda local)
   e a correção do 413.
+
+### Sessão 15: cinco auditorias, specs 0007 e 0008 aprovadas (23/11)
+
+- Cinco auditorias independentes sobre a `main` integrada: SOLID e
+  arquitetura, segurança da demo pública, TypeScript e qualidade,
+  testes e cobertura, conformidade com o Brandbook v4 nos dois sites.
+  Achados altos confirmados no código: race de idempotência no ingest
+  (`pipeline.ts` checa `eventoExiste` antes do advisory lock de
+  `store.ts`), bypass de quota por rotação de cookie, lookup de
+  `ROTULO_STATUS` que resolve via `Object.prototype`, IMAP sem
+  listener de `error` e classificação por regex na mensagem, campos
+  da LLM sem validação de tipo (`peso_kg:"12kg"` vira `NaN`),
+  `/api/simulate` que diverge de `diverge()` e `pedido: null` com
+  planilha solitária. Zero vulnerabilidade de dependência nos dois
+  `package.json`; XXE e ReDoS testados e negados.
+- Spec 0008 `blindagem-publica` (D-039): corrige o que o juiz pode
+  disparar (P0/P1) e o polimento que ele lê (P2), frente única
+  `hardening`, integra primeiro.
+- Spec 0007 `camada-ai-operacional` (D-040, D-041): mandatos em
+  pt-BR viram ações tipadas do conjunto fechado executadas pelo motor
+  e gravam evento `mandato` por pedido; agenda de contatos com
+  bootstrap por `fone` dos XMLs; notificação Nvoip desligada por
+  padrão; sinal consultivo de corpo de e-mail e CC-e; `.xlsx` volta
+  pela conversão para CSV em worker blindado (D-041); layout
+  desconhecido resolve por mapeamento proposto pela LLM com
+  aprovação na revisão e template por remetente; contrato
+  `view-spec` com front reservado ao usuário.
+- Frentes novas em `speckit/frentes.json` (D-042): `hardening`,
+  `ai-ingest`, `ai-mandatos`, `ai-web` (reservada).
+- O conceito "cadeia viva" (dominó por evento real + simulate) ficou
+  registrado no `BACKLOG.md` item 19, sem implementação nesta rodada.

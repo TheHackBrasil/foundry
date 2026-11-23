@@ -54,6 +54,61 @@
         "specs/0004-mvp-atraso-propagado/roteiro*.md",
         "specs/0004-mvp-atraso-propagado/brief-produto.md"
       ]
+    },
+    "hardening": {
+      "brief": "specs/0008-blindagem-publica/brief-hardening.md",
+      "paths": [
+        "app/server/",
+        "app/shared/",
+        "app/web/",
+        "app/contracts/",
+        "app/package.json",
+        "app/package-lock.json",
+        "app/tsconfig.json",
+        "app/vitest.config.ts",
+        "site/src/components/domino/",
+        "site/src/components/stickers/",
+        "site/public/assets/",
+        "specs/0008-blindagem-publica/brief-hardening.md"
+      ]
+    },
+    "ai-ingest": {
+      "brief": "specs/0007-camada-ai-operacional/brief-ai-ingest.md",
+      "paths": [
+        "app/server/ingest/",
+        "app/server/pipeline.ts",
+        "app/server/seed.ts",
+        "app/server/fixtures/",
+        "app/package.json",
+        "app/package-lock.json",
+        "specs/0007-camada-ai-operacional/brief-ai-ingest.md"
+      ]
+    },
+    "ai-mandatos": {
+      "brief": "specs/0007-camada-ai-operacional/brief-ai-mandatos.md",
+      "paths": [
+        "app/server/llm.ts",
+        "app/server/mandatos.ts",
+        "app/server/contatos.ts",
+        "app/server/nvoip.ts",
+        "app/server/sinal.ts",
+        "app/server/viewspec.ts",
+        "app/server/mapeamento.ts",
+        "app/server/index.ts",
+        "app/server/store.ts",
+        "app/server/config.ts",
+        "app/server/protecao.ts",
+        "app/shared/",
+        "app/.env.example",
+        "specs/0007-camada-ai-operacional/brief-ai-mandatos.md"
+      ]
+    },
+    "ai-web": {
+      "brief": "specs/0007-camada-ai-operacional/brief-ai-web.md",
+      "paths": [
+        "app/web/",
+        "specs/0007-camada-ai-operacional/brief-ai-web.md"
+      ]
     }
   }
 }
