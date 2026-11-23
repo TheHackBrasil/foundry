@@ -26,7 +26,7 @@ if (!REDUCED) {
 
 /* ---------- scroll progress bar ---------- */
 const hero = $('#hero')!;
-const bar = $('#progress span');
+const bar = $('#progress');
 const onScroll = () => {
   const max = root.scrollHeight - innerHeight;
   const p = max > 0 ? Math.min(1, scrollY / max) : 0;

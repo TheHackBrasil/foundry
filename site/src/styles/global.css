@@ -134,7 +134,7 @@ time, .num { font-variant-numeric: tabular-nums; }
   font-family: var(--font-m); font-size: 13px; font-weight: 500; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--ink);
 }
-.hero-verbs li + li::before { content: '◆'; margin-right: 18px; font-size: 7px; color: var(--cord); vertical-align: 2px; }
+.hero-verbs li + li::before { content: '◆'; margin-right: 18px; font-size: 7px; color: var(--violet); vertical-align: 2px; }
 .hero-not { margin-top: 22px; max-width: 520px; font-size: 15px; color: var(--ink-dim); }
 .hero-not b {
   display: inline-block; margin-right: 10px; padding: 3px 9px;
