@@ -63,10 +63,12 @@ critério; "feito" sem evidência não é feito.
 - **D-C7 (D)**: aprovação na fila de revisão reingere o doc guardado
   como se tivesse acabado de chegar, forçando aceite
   (`app/server/pipeline.ts:85`); descarte só marca o status.
-- **D-C8 (R)**: IMAP marca `\Seen` só depois do processamento do
-  anexo; doc rejeitado por parser vai para a fila de revisão e erro
-  de infra deixa a mensagem não lida para o próximo ciclo
-  (`app/server/ingest/imap.ts:56` a `78`).
+- **D-C8 (R)**: IMAP marca `\Seen` só quando a mensagem tinha anexo
+  elegível processado; doc rejeitado por parser vai para a fila de
+  revisão e erro de infra deixa a mensagem não lida para o próximo
+  ciclo. Só mensagens de hoje em diante (`IMAP_DESDE` configurável):
+  caixa pessoal tem histórico grande e mail antigo não é canal
+  (`app/server/ingest/imap.ts:30` a `35`, `60` a `86`).
 - **D-C9 (R)**: âncora grava evento `ancora` só com receipt
   `status === 1`; sem RPC/chave/contrato ou tx revertida, devolve
   `ok:false` com motivo e o ledger local segue
@@ -75,6 +77,8 @@ critério; "feito" sem evidência não é feito.
   a exclusão de `contracts/` dos testes ficou no filtro posicional do
   script (`app/package.json`, `vitest run shared server`). Pedido à
   integração: incluir um config central se a demo quiser vitest na raiz.
+  Atendido na integração de 22/11: `app/vitest.config.ts` limita a
+  coleta a `shared/` e `server/`, e `npx vitest run` sai com 0.
 - **D-C11 (P)**: CORS aberto e rotas de escrita sem auth são escopo
   de demo local; endurecer (token ou bind localhost) fica para a
   integração se a demo for exposta.
@@ -85,45 +89,30 @@ critério; "feito" sem evidência não é feito.
   sempre. Eventos legítimos pós-âncora não invalidam a conferência;
   reescrita de cadeia (payload + hash recomputados) é pega por ela
   (`api.test.ts`, "rescrever cadeia inteira").
-- **D-C13 (D)**: `.eml` entra como formato (RF28, D-021). `detectarTipo`
-  reconhece a extensão ou, fora de `.xml`, um `MIME-Version:` ou
-  `Content-Type: multipart/` no começo de linha nos primeiros 2 KB
-  (`app/server/ingest/detect.ts`). `extrairAnexos`
-  (`app/server/ingest/eml.ts`) devolve só anexos `.xml`, `.csv` e `.pdf`
-  (ou o content-type equivalente; um `.xlsx` derruba o e-mail com o 422
-  de D-C14), no máximo 10 por e-mail e 5 MB cada, renomeados
-  `anexo-N.<ext>` e com a NF-e antes do CT-e. E-mail
-  dentro de e-mail é rejeitado, sem recursão. Nenhum cabeçalho é lido,
-  devolvido nem repetido em erro (RF27); o erro do `mailparser` também
-  não é repassado, porque pode citar trecho da mensagem. Tipo de anexo
-  desconhecido derruba o e-mail antes de gravar qualquer um; um erro de
-  parser num anexo depois de outro já gravado deixa o anterior no
-  ledger, e reenviar é seguro porque a reingestão é no-op (D-C4). Em
-  `app/server/pipeline.ts` (frente app-infra) entrou só o `case 'eml'`
-  de `ingerir`, que passa cada anexo pelo mesmo caminho do upload solto.
-- **D-C14 (D)**: o leitor de XLSX sai do MVP e a planilha fica só em
-  CSV. `xlsx@0.18.5` da npm tem ReDoS (CVE-2024-22363) e prototype
-  pollution, e a correção só sai pela CDN da SheetJS. Duas trocas foram
-  medidas antes de remover. `exceljs@4.4.0` traz 193 pacotes (50 MB) e
-  o `npm audit` acusa 2 vulnerabilidades moderadas (`uuid`).
-  `read-excel-file@9.3.14` fecha o audit em 0 e traz 7 pacotes, mas em
-  teste local arquivo pequeno derrubou o processo: um `.xlsx` de 39 KB
-  com referência de célula absurda consumiu cerca de 2 GB de memória, um
-  de 2,3 MB com 200 mil atributos num elemento levou cerca de 70 s, uma
-  folha de 15 MB só de linhas vazias levou cerca de 52 s e um zip de
-  411 KB que infla para 400 MB levou cerca de 70 s, todos terminando em
-  `RangeError`. Limite de tamanho não resolve, porque o de 39 KB passa em
-  qualquer teto. A demo pública recebe arquivo de qualquer visitante, e
-  um processo só atende o juiz, então `.xlsx` e `.xls` viram 422 com
-  "exporte a planilha como CSV" (`app/server/ingest/detect.ts`). O texto
-  casa com `nao suportad` em `imap.ts`, que manda o anexo para a fila de
-  revisão em vez de retentar para sempre. Como o erro sai de
-  `detectarTipo`, um `.eml` com NF-e e `.xlsx` falha inteiro antes de
-  gravar. Caminho de volta, se a demo precisar de XLSX: ler a planilha
-  num `worker_threads` com `resourceLimits` e timeout, mais checagem dos
-  tamanhos do diretório central do zip antes de inflar.
-  Documentos que diziam CSV/XLSX (RF6, `plan.md`, T031, `app/README.md`,
-  P-010) foram ajustados na integração (D-025).
+- **D-C13 (D)**: o leitor de XLSX sai do MVP e a planilha fica só em
+  CSV (D-028). `xlsx@0.18.5` da npm tem ReDoS (CVE-2024-22363) e
+  prototype pollution, e a correção só sai pela CDN da SheetJS. Duas
+  trocas foram medidas antes de remover. `exceljs@4.4.0` traz 193
+  pacotes (50 MB) e o `npm audit` acusa 2 vulnerabilidades moderadas
+  (`uuid`). `read-excel-file@9.3.14` fecha o audit em 0 e traz 7
+  pacotes, mas em teste local arquivo pequeno derrubou o processo: um
+  `.xlsx` de 39 KB com referência de célula absurda consumiu cerca de
+  2 GB de memória, um de 2,3 MB com 200 mil atributos num elemento levou
+  cerca de 70 s, uma folha de 15 MB só de linhas vazias levou cerca de
+  52 s e um zip de 411 KB que infla para 400 MB levou cerca de 70 s,
+  todos terminando em `RangeError`. Limite de tamanho não resolve,
+  porque o de 39 KB passa em qualquer teto. A demo pública recebe
+  arquivo de qualquer visitante, e um processo só atende o juiz, então
+  `.xlsx` e `.xls` viram 422 com "exporte a planilha como CSV"
+  (`app/server/ingest/detect.ts`). O texto casa com `nao suportad` em
+  `imap.ts`, que manda o anexo para a fila de revisão em vez de retentar
+  para sempre. No `.eml`, o filtro de anexos de `eml.ts` mantém o
+  `.xlsx` para ele chegar ao 422. Como o `.eml` processa um anexo por
+  vez, uma NF-e anexada antes do `.xlsx` já está gravada quando o 422
+  sai; reenviar com a planilha em CSV é seguro, porque a reingestão da
+  NF-e é no-op (D-C4). Caminho de volta, se a demo precisar de XLSX: ler
+  a planilha num `worker_threads` com `resourceLimits` e timeout, mais
+  checagem dos tamanhos do diretório central do zip antes de inflar.
 
 ## Evidência por critério do gate
 
@@ -142,8 +131,10 @@ critério; "feito" sem evidência não é feito.
 - CT-e vincula ao pedido pela chave NF-e em `infDoc/infNFe`:
   `app/server/ingest/cte.ts`.
 - CC-e (110110) é evento informativo, com o texto da correção e sem
-  campos observados (R-006, corrigido em 21/11); cancelamento (110111)
-  vira status `cancelada`: `app/server/ingest/eventos.ts`.
+  campos observados (R-006, D-027); cancelamento (110111) vira status
+  `cancelada`: `app/server/ingest/eventos.ts`. Testes da CC-e com data
+  no texto, da CC-e no ledger sem divergência e do evento 110190 do
+  CT-e em `app/server/api.test.ts`.
 - UPDATE/DELETE manual rejeitado por trigger e bypass via
   `DISABLE TRIGGER ALL` é pego pelo audit nomeando `seq`: testes
   "trigger do banco rejeita" e "bypass da trigger" em
@@ -187,15 +178,37 @@ critério; "feito" sem evidência não é feito.
   para a fila de revisão com motivo `llm_nao_configurada`.
 - `dev:all` em `app/package.json` pressupõe `app/web/` da frente
   app-demo; sem ela, `npm run dev` sobe só a API.
-- Cancelamento e CC-e compartilham `fonte: 'cce'` em `eventos.ts`. Efeitos:
-  o cancelamento aparece como "CC-e" nas divergências e nas tarefas, e uma
-  CC-e que chega depois (campos vazios) substitui o estado da fonte em
-  `camposPorFonte` e `consolidarCampos`, apagando o status `cancelada`.
-  Caminhos: uma `FonteDocumento` própria para o cancelamento (mexe em
-  `model.ts` e nos rótulos da web) ou não deixar um documento sem campos
-  substituir o estado da fonte em `projection.ts`.
-- `app/server/fixtures/cancelamento.xml` tem `dhEvento` cerca de 46 h depois
-  da emissão da NF-e: o seed demonstra um cancelamento que a tarefa fiscal
+- T029 `.eml` implementado (`app/server/ingest/eml.ts`): anexos
+  elegíveis desembrulham no mesmo pipeline; cabeçalho não é registrado
+  (RF27). Validado ao vivo: `email-nfe.eml` retornou o mesmo pedido do
+  XML solto, idempotente.
+- Correção T023: CC-e passou a evento de correção sem campo vigiado
+  (R-006); `cce-atraso.xml` virou `cce-correcao.xml` e o atraso da
+  suíte passou a vir da `planilha.csv`. 41 testes passando.
+- Cancelamento e CC-e compartilham `fonte: 'cce'` em `eventos.ts` (P-010).
+  O cancelamento aparece como "CC-e" nas divergências e nas tarefas, e
+  uma CC-e que chega depois (campos vazios) substitui o estado da fonte
+  em `camposPorFonte` e `consolidarCampos`. O seed mostra o efeito:
+  `cancelamento.xml` entra antes de `cce-correcao.xml` e a planilha que
+  chega depois não diverge do `cancelada`. Caminhos: uma
+  `FonteDocumento` própria para o cancelamento (mexe em `model.ts` e nos
+  rótulos da web) ou não deixar um documento sem campos substituir o
+  estado da fonte em `projection.ts`.
+- `app/server/fixtures/cancelamento.xml` tem `dhEvento` 46 h depois da
+  emissão da NF-e: o seed demonstra um cancelamento que a tarefa fiscal
   do atraso diz não caber (limite de 24 h sem circulação da mercadoria).
-- O ledger é append-only: tarefas já gravadas mantêm o texto antigo. Só um
-  seed em banco limpo gera os textos novos de `app/shared/rules.ts`.
+- O ledger é append-only: tarefas já gravadas mantêm o texto antigo
+  ("Conferir CC-e emitida para a correcao"). Só um banco limpo com o
+  seed refeito mostra os textos novos de `app/shared/rules.ts`.
+- `.eml` (D-029): o `eml.ts` daqui não ordena os anexos (um CT-e antes
+  da NF-e cai na fila de revisão), grava a NF-e quando um anexo
+  seguinte falha, ignora anexo sem nome de arquivo e e-mail aninhado ao
+  lado de outro anexo, não limita quantidade nem tamanho por anexo,
+  passa o nome original do anexo ao pipeline e não reconhece `.eml` sem
+  a extensão. Os testes do Thiago que cobrem esses pontos estão em
+  `app/server/ingest/eml.test.ts` da `main` local dele (`10e3ee6`, que
+  não foi enviada ao GitHub).
+- Um `procEventoCTe` (por exemplo o 110190, insucesso na entrega) cai em
+  `eventoNFe` em `detect.ts` e responde 422 com "Evento NF-e: elemento
+  infEvento ausente". Não vira atraso, mas a mensagem confunde quem
+  envia.

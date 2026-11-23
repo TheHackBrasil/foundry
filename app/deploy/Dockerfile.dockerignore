@@ -1,0 +1,13 @@
+# Ignore do deploy/Dockerfile (o BuildKit lê <Dockerfile>.dockerignore quando o
+# contexto é a pasta app/). O Dockerfile já copia pasta por pasta; isto encolhe
+# o contexto e barra segredo local antes de ele sair da máquina.
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/dist
+**/*.log
+**/.DS_Store
+contracts/*
+!contracts/abi
+web/evidencias

@@ -19,8 +19,27 @@ Estado em 21/11: a primeira versão do servidor existe, escrita por Gui
 na `wt/app-core` (D-022): store com trigger anti UPDATE, DELETE e
 TRUNCATE e trava por pedido, SSE com heartbeat, anchor, carga da seed e
 PGlite quando não há Docker (`brief-core.md`, "Decisões da frente").
-Falta o que o P-010 lista: isolamento por sessão, CORS e escrita sem
-autenticação, o boot no Linux e a hospedagem.
+Estado em 22/11 (integração, D-029): isolamento por sessão, SSE por
+workspace, CORS por ambiente e preparo de deploy estão no branch de
+integração (D-I1 a D-I3); o boot no Linux foi corrigido
+(`ehProcessoPrincipal` com `pathToFileURL`, `app/server/boot.test.ts`)
+e o `xlsx` saiu (D-028). Falta o que o P-010 lista: CORS aberto e
+escrita sem autenticação, que hoje alcança a seed pela fila de revisão
+e pela âncora, e a hospedagem. O `npm audit` acusa
+`@fastify/static@8.3.0` (high: path traversal na listagem de diretório
+e bypass de guarda de rota, GHSA-pr96-94w5-mx2h e outros três); o
+servidor registra o plugin sem listagem e sem guarda de rota, e a
+correção é a 10.1.12, versão major, a avaliar antes da URL pública.
+O `/api/stream` escreve o cabeçalho com `reply.raw.writeHead` em
+`sse.ts` e perde o que o Fastify preparou: com `Origin` de outra porta,
+`/api/pedidos` responde a origem, `allow-credentials` e o `set-cookie`
+do `foundry_ws`, e o stream responde só `Access-Control-Allow-Origin: *`
+(testado com `curl -i` em 22/11). Efeitos no navegador: `EventSource`
+de outra origem com credenciais é recusado, e sem credenciais o stream
+cai num workspace sorteado e só vê a seed; mesmo na mesma origem, um
+`EventSource` aberto antes do primeiro `fetch` fica num workspace
+diferente do upload. Servir a web pelo Fastify resolve a origem; a
+ordem de abertura é combinada com a `app-demo` (T021).
 Contrato com a `app-core`: a infra chama os parsers de
 `app/server/ingest/` (`detectarTipo` e um parser por tipo, que lançam
 `ErroParser`) em `app/server/pipeline.ts`, e grava os eventos. Mudança
@@ -68,3 +87,32 @@ Setup no clone: `git pull`, `git config core.hooksPath scripts/hooks`,
 `git fetch && git worktree add ../foundry-wt-infra wt/app-infra`.
 Reporte: conclusão + evidência `arquivo:linha` e saídas de comando por
 critério; "feito" sem evidência não é feito.
+
+## Decisões da frente
+
+- D-I1 (21/11): workspace implementado como `workspace_id` em `events` e
+  `review_queue`, unicidade por `(workspace_id, pedido_id, seq)` via
+  índice; migração `ALTER TABLE ... IF NOT EXISTS` marca linhas antigas
+  como `seed`. `LedgerStore` carrega o workspace e `paraWorkspace(ws)`
+  escopa; trava por `hashtext(ws:pedido)`. Cookie `foundry_ws` UUID
+  emitido no `onRequest`, HttpOnly; workspace nunca vem do body.
+  Leituras: sessão + `WORKSPACE_SEED`; escritas de ingest sempre na
+  sessão; âncora e aprovação de revisão gravam no workspace dono do
+  pedido/item. IMAP e `seed.ts` gravam em `WORKSPACE_SEED`.
+- D-I2 (21/11): SSE por workspace: cliente recebe eventos da própria
+  sessão e da seed (broadcast quando `ws === seed`); heartbeat 20 s.
+- D-I3 (21/11): CORS com `credentials: true` e `CORS_ORIGIN` por env
+  (vazio = qualquer origem, só uso local); upload acima de 10 MB vira
+  413 explícito; `@fastify/static` serve `app/web/dist` quando existir;
+  `Procfile` + `app.json` prontos para deploy subpasta `app/`.
+
+## Evidência (21/11)
+
+- `tsc --noEmit` limpo; `vitest`: 5 arquivos, 44 testes, incluindo
+  isolamento por cookie (`api.test.ts`) e SSE por workspace
+  (`sse.test.ts`).
+- Postgres real (container `foundry-postgres`): 96 eventos legados
+  migrados como `seed`; índice `events_ws_pedido_seq` criado.
+- Ao vivo: ingest sem cookie emitiu `foundry_ws=3c74c882-...`; sessão A
+  vê própria cópia do pedido + seed; sessão B (`9999...`) vê só seed.
+  Regulamento 6.9 cumprido.

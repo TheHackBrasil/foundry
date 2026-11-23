@@ -1,7 +1,7 @@
 // Eventos fiscais NF-e (spec 0004, T023): CC-e (110110) e cancelamento
-// (110111). A CC-e e informativa e nao vira campo: ela nao corrige data de
-// emissao nem de saida (R-006, D-020). O atraso entra pela planilha.
-// Cancelamento vira status 'cancelada'.
+// (110111). CC-e e evento de correcao, nunca gatilho de atraso (R-006):
+// o atraso entra pela planilha do fornecedor. Cancelamento vira
+// status 'cancelada'.
 
 import { XMLParser } from 'fast-xml-parser';
 import type { DocData } from '../../shared/model.js';
@@ -44,7 +44,8 @@ export function parseEventoNFe(xml: string): DocData {
   const dhEvento = texto(inf['dhEvento']);
 
   if (tp === '110110') {
-    // Texto livre da CC-e nunca vira campo, mesmo com data ou 'atraso'.
+    // CC-e registra a correcao em dados (trilha), mas nao declara campo
+    // vigiado: nao e a fonte do atraso (R-006).
     return {
       fonte: 'cce',
       docTipo: 'cce',

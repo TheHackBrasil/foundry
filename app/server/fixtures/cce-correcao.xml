@@ -12,7 +12,7 @@
       <verEvento>1.00</verEvento>
       <detEvento versao="1.00">
         <descEvento>Carta de Correcao</descEvento>
-        <xCorrecao>Correcao da razao social da transportadora: onde consta Transportadora Ficticia, leia-se Transportadora Ficticia Ltda</xCorrecao>
+        <xCorrecao>O endereco de entrega consta Rua das Acacias 100; o correto e Rua das Acacias 1000</xCorrecao>
       </detEvento>
     </infEvento>
   </evento>

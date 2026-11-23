@@ -11,6 +11,7 @@ export interface ImapConfig {
   pass: string;
   mailbox: string;
   intervaloMs: number;
+  desde: Date;
 }
 
 export function imapConfigDoEnv(): ImapConfig | null {
@@ -18,6 +19,7 @@ export function imapConfigDoEnv(): ImapConfig | null {
   const user = process.env['IMAP_USER'];
   const pass = process.env['IMAP_PASS'];
   if (!host || !user || !pass) return null;
+  const agora = new Date();
   return {
     host,
     port: Number(process.env['IMAP_PORT'] ?? 993),
@@ -25,6 +27,11 @@ export function imapConfigDoEnv(): ImapConfig | null {
     pass,
     mailbox: process.env['IMAP_MAILBOX'] ?? 'INBOX',
     intervaloMs: Number(process.env['IMAP_POLL_MS'] ?? 30_000),
+    // So mensagens de hoje em diante: caixa pessoal tem historico
+    // grande e mail antigo nao e canal do sistema.
+    desde: process.env['IMAP_DESDE']
+      ? new Date(process.env['IMAP_DESDE'])
+      : new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()),
   };
 }
 
@@ -50,19 +57,22 @@ async function coletarEIngerir(
   try {
     const lock = await client.getMailboxLock(cfg.mailbox);
     try {
-      for await (const msg of client.fetch({ seen: false }, { source: true, uid: true })) {
+      for await (const msg of client.fetch({ seen: false, since: cfg.desde }, { source: true, uid: true })) {
         if (!msg.source) continue;
         const parsed = await simpleParser(msg.source);
         let falhaDeInfra = false;
+        let elegivel = false;
         for (const att of parsed.attachments) {
           if (!att.filename || !ANEXO_OK.test(att.filename)) continue;
           try {
             await ingerir(att.filename, att.content);
+            elegivel = true;
             processados += 1;
           } catch (e) {
             const erro = (e as Error).message;
             if (/malformado|ausente|nao suportad|nao reconhecido|falha de parse|sem planilha|nenhuma linha/i.test(erro)) {
               await revisar(att.filename, erro); // doc ruim: revisao, mensagem lida
+              elegivel = true;
               processados += 1;
             } else {
               falhaDeInfra = true; // infra: nao marca lido, retenta
@@ -70,7 +80,8 @@ async function coletarEIngerir(
             }
           }
         }
-        if (!falhaDeInfra) {
+        // Sem anexo elegivel nao e nosso: deixa nao lida (caixa pessoal).
+        if (elegivel && !falhaDeInfra) {
           await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'], { uid: true });
         }
       }

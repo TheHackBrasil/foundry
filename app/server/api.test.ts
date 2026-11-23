@@ -19,13 +19,33 @@ import type { LedgerStore } from './store.js';
 const FIX = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const ler = (f: string): string => readFileSync(join(FIX, f), 'utf8');
 const CHAVE = '35260123456789000123550010000000011000000019';
-const TEXTO_CCE = 'Correcao da razao social da transportadora: onde consta Transportadora Ficticia, leia-se Transportadora Ficticia Ltda';
+const TEXTO_CCE = 'O endereco de entrega consta Rua das Acacias 100; o correto e Rua das Acacias 1000';
 // Texto que o parser antigo transformava em atraso: tem data e a palavra "atraso".
 const TEXTO_CCE_COM_DATA = 'Nova previsao de entrega: 25/01/2026 em razao de atraso na expedicao';
 
 // A CC-e do corpus tem texto sem data; este helper troca o texto da correcao.
 const cceComTexto = (texto: string): string =>
   ler('cce-correcao.xml').replace(/<xCorrecao>.*<\/xCorrecao>/, `<xCorrecao>${texto}</xCorrecao>`);
+
+// Evento de insucesso na entrega do CT-e (110190), sintetico, ligado a NF-e
+// do corpus. R-006: e tentativa de entrega que falhou, nao atraso.
+const INSUCESSO_CTE = `<?xml version="1.0" encoding="UTF-8"?>
+<procEventoCTe xmlns="http://www.portalfiscal.inf.br/cte" versao="4.00">
+  <eventoCTe versao="4.00">
+    <infEvento Id="ID11019035260155566677000188570010000000021000000025001">
+      <cOrgao>35</cOrgao><tpAmb>2</tpAmb><CNPJ>55566677000188</CNPJ>
+      <chCTe>35260155566677000188570010000000021000000025</chCTe>
+      <dhEvento>2026-01-22T15:00:00-03:00</dhEvento>
+      <tpEvento>110190</tpEvento><nSeqEvento>1</nSeqEvento>
+      <detEvento versaoEvento="4.00"><evIECTe>
+        <descEvento>Insucesso na Entrega do CT-e</descEvento>
+        <dhTentativaEntrega>2026-01-22T14:30:00-03:00</dhTentativaEntrega>
+        <tpMotivo>1</tpMotivo>
+        <infEntrega><chNFe>${CHAVE}</chNFe></infEntrega>
+      </evIECTe></detEvento>
+    </infEvento>
+  </eventoCTe>
+</procEventoCTe>`;
 
 interface Projecao {
   pedido: { campos: Record<string, unknown> };
@@ -52,13 +72,13 @@ describe('parsers', () => {
     expect(d.campos.volumes).toBe(12);
   });
 
-  it('CC-e vira evento informativo: texto da correcao no payload, nenhum campo', () => {
+  it('CC-e vira evento de correcao, sem declarar campo de atraso', () => {
     const d = parseEventoNFe(ler('cce-correcao.xml'));
-    expect(d.fonte).toBe('cce');
     expect(d.docTipo).toBe('cce');
     expect(d.pedidoId).toBe(CHAVE);
-    expect(d.campos).toEqual({});
-    expect(d.dados['correcao']).toBe(TEXTO_CCE);
+    expect(d.campos.previsaoEntrega).toBeUndefined();
+    expect(d.campos.status).toBeUndefined();
+    expect(d.dados['correcao']).toContain('Acacias');
   });
 
   it.each([
@@ -66,7 +86,7 @@ describe('parsers', () => {
     ['data ISO', 'Previsao de entrega corrigida para 2026-01-25'],
     ['adiamento', 'Entrega adiada por reagendamento da doca'],
     ['postergacao', 'Coleta postergada a pedido do cliente'],
-  ])('CC-e com texto de %s nao produz previsaoEntrega nem status', (_nome, texto) => {
+  ])('CC-e com texto de %s nao produz previsaoEntrega nem status (R-006)', (_nome, texto) => {
     const d = parseEventoNFe(cceComTexto(texto));
     expect(d.campos).toEqual({});
     expect(d.dados['correcao']).toBe(texto);
@@ -92,14 +112,20 @@ describe('parsers', () => {
   });
 });
 
+// A seed e somente leitura pela API (P-010): os envios dos testes caem numa
+// sessao fixa, e o que precisa estar na seed entra pelo store dela.
+const WS = '00000000-0000-4000-8000-00000000a001';
+
 describe('ledger + api (PGlite)', () => {
   let app: Awaited<ReturnType<typeof buildServer>>['app'];
   let store: LedgerStore;
+  let seed: LedgerStore;
 
   beforeAll(async () => {
-    const r = await buildServer(await createLiteDb());
+    const r = await buildServer(await createLiteDb(), { workspacePadrao: WS });
     app = r.app;
-    store = r.store;
+    seed = r.store;
+    store = r.store.paraWorkspace(WS);
     await app.ready();
   });
   afterAll(async () => {
@@ -136,7 +162,7 @@ describe('ledger + api (PGlite)', () => {
     expect(new Set(proj.tarefas.map((t) => t.parte))).toContain('transportadora');
   });
 
-  it('CC-e entra no ledger como evento informativo, sem divergencia nem tarefa', async () => {
+  it('CC-e entra no ledger como evento informativo, sem divergencia nem tarefa (R-006)', async () => {
     const antes = await store.eventosDoPedido(CHAVE);
     const res = await app.inject({
       method: 'POST',
@@ -159,6 +185,18 @@ describe('ledger + api (PGlite)', () => {
     expect(proj.tarefas.filter((t) => t.divergencia.campo === 'previsaoEntrega')).toEqual([]);
     expect(proj.pedido.campos['previsaoEntrega']).toBe('2026-01-20');
     expect(proj.pedido.campos['status']).toBe('em_transito');
+  });
+
+  it('evento 110190 do CT-e (insucesso na entrega) nao vira atraso: 422 e nada gravado (R-006)', async () => {
+    const antes = await store.eventosDoPedido(CHAVE);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'insucesso-entrega.xml', conteudo: INSUCESSO_CTE },
+    });
+    expect(res.statusCode).toBe(422);
+    expect((res.json() as { tipo: string }).tipo).toBe('parser');
+    expect(await store.eventosDoPedido(CHAVE)).toHaveLength(antes.length);
   });
 
   it('planilha com data nova gera a divergencia de data e as 5 tarefas, uma por parte', async () => {
@@ -196,6 +234,19 @@ describe('ledger + api (PGlite)', () => {
     }
   });
 
+  it('.eml desembrulha anexo XML e joga no mesmo pipeline', async () => {
+    const eml = readFileSync(join(FIX, 'email-nfe.eml'));
+    const r = await app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      payload: { nome: 'email-nfe.eml', conteudoBase64: eml.toString('base64') },
+    });
+    const body = r.json() as { ok: boolean; pedidoId: string | null; docs: number };
+    expect(body.ok).toBe(true);
+    expect(body.pedidoId).toBe(CHAVE);
+    expect(body.docs).toBe(1); // o anexo vira doc; idempotente, sem evento novo
+  });
+
   it('reingestao identica e no-op (idempotente)', async () => {
     const antes = (await store.eventosDoPedido(CHAVE)).length;
     await app.inject({
@@ -230,7 +281,7 @@ describe('ledger + api (PGlite)', () => {
     expect((res.json() as { erro: string }).erro).toContain('XML');
   });
 
-  it('XLSX e XLS respondem 422 pedindo CSV, sem ler o arquivo (D-C14)', async () => {
+  it('XLSX e XLS respondem 422 pedindo CSV, sem ler o arquivo (D-028)', async () => {
     for (const nome of ['planilha.xlsx', 'planilha.XLS']) {
       const res = await app.inject({
         method: 'POST',
@@ -364,13 +415,55 @@ describe('ledger + api (PGlite)', () => {
     const res = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/versoes` });
     expect((res.json() as { versoes: unknown[] }).versoes.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('isola pedidos por cookie de sessao e compartilha a seed', async () => {
+    const wsA = '11111111-1111-4111-8111-111111111111';
+    const wsB = '22222222-2222-4222-8222-222222222222';
+    const pedidoSessao = 'pedido-so-da-sessao-a';
+    const pedidoSeed = 'pedido-da-seed';
+    await store.paraWorkspace(wsA).append(pedidoSessao, 'nfe', { fonte: 'nfe' });
+    await seed.append(pedidoSeed, 'nfe', { fonte: 'nfe' });
+
+    const cookieA = { cookie: `foundry_ws=${wsA}` };
+    const cookieB = { cookie: `foundry_ws=${wsB}` };
+
+    // A ve o proprio pedido e o pedido da seed; B nao ve o da sessao A.
+    const listaA = (await app.inject({ method: 'GET', url: '/api/pedidos', headers: cookieA }))
+      .json() as { pedidos: Array<{ pedidoId: string; workspaceId: string }> };
+    const listaB = (await app.inject({ method: 'GET', url: '/api/pedidos', headers: cookieB }))
+      .json() as { pedidos: Array<{ pedidoId: string; workspaceId: string }> };
+
+    expect(listaA.pedidos.map((p) => p.pedidoId)).toContain(pedidoSessao);
+    expect(listaA.pedidos.map((p) => p.pedidoId)).toContain(pedidoSeed); // seed compartilhado
+    expect(listaB.pedidos.map((p) => p.pedidoId)).toContain(pedidoSeed); // seed compartilhado
+    expect(listaB.pedidos.map((p) => p.pedidoId)).not.toContain(pedidoSessao);
+
+    const getB = await app.inject({ method: 'GET', url: `/api/pedidos/${pedidoSessao}`, headers: cookieB });
+    expect(getB.statusCode).toBe(404);
+    const getA = await app.inject({ method: 'GET', url: `/api/pedidos/${pedidoSessao}`, headers: cookieA });
+    expect(getA.statusCode).toBe(200);
+  });
+
+  it('emite cookie foundry_ws quando ausente e respeita um valido', async () => {
+    const sem = await app.inject({ method: 'GET', url: '/api/pedidos' });
+    expect(String(sem.headers['set-cookie'])).toContain('foundry_ws=');
+    expect(String(sem.headers['set-cookie'])).toContain('HttpOnly');
+
+    const ws = '33333333-3333-4333-8333-333333333333';
+    const com = await app.inject({
+      method: 'GET',
+      url: '/api/pedidos',
+      headers: { cookie: `foundry_ws=${ws}` },
+    });
+    expect(com.headers['set-cookie']).toBeUndefined();
+  });
 });
 
 describe('CC-e com texto de data nao vira atraso (R-006, D-020)', () => {
   let app: Awaited<ReturnType<typeof buildServer>>['app'];
 
   beforeAll(async () => {
-    app = (await buildServer(await createLiteDb())).app;
+    app = (await buildServer(await createLiteDb(), { workspacePadrao: '00000000-0000-4000-8000-00000000a002' })).app;
     await app.ready();
   });
   afterAll(async () => {

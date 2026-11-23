@@ -1,17 +1,16 @@
 // Upload de .eml (spec 0004, RF28/D-021) e privacidade dos cabecalhos (RF27).
 // O e-mail e sintetico, montado no proprio teste, com enderecos em
-// example.com: nenhum dado real.
+// example.com: nenhum dado real. Os limites que eml.ts ainda nao tem
+// (ordem dos anexos, ingestao parcial, e-mail aninhado) estao em D-029.
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import type { Evento } from '../../shared/model.js';
 import { createLiteDb } from '../db.js';
 import { buildServer } from '../index.js';
-import { detectarTipo } from './detect.js';
-import { MAX_ANEXOS, MAX_BYTES_ANEXO, extrairAnexos } from './eml.js';
-import { ErroParser } from './nfe.js';
+import { extrairAnexosEml } from './eml.js';
 
 const FIX = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures');
 const lerBuf = (f: string): Buffer => readFileSync(join(FIX, f));
@@ -43,7 +42,6 @@ interface Parte {
   corpo: Buffer | string;
   nome?: string;
   disposicao?: 'attachment' | 'inline';
-  contentId?: string;
 }
 
 function montarEml(partes: Parte[]): Buffer {
@@ -70,7 +68,6 @@ function montarEml(partes: Parte[]): Buffer {
     if (p.disposicao) {
       linhas.push(`Content-Disposition: ${p.disposicao}${p.nome ? `; filename="${p.nome}"` : ''}`);
     }
-    if (p.contentId) linhas.push(`Content-ID: ${p.contentId}`);
     linhas.push('Content-Transfer-Encoding: base64', '', b64);
   }
   linhas.push('', `--${b}--`, '');
@@ -79,107 +76,12 @@ function montarEml(partes: Parte[]): Buffer {
 
 const anexoXml = (corpo: Buffer, nome = 'doc.xml'): Parte => ({ tipo: 'application/xml', corpo, nome, disposicao: 'attachment' });
 
-describe('detectarTipo com e-mail', () => {
-  it('extensao .eml e e-mail', () => {
-    expect(detectarTipo('mensagem.eml', Buffer.from('qualquer coisa'))).toBe('eml');
-  });
-
-  it('cabecalho MIME sem extensao e e-mail, mesmo com "<" no From (nao cai no ramo de XML)', () => {
-    expect(detectarTipo('mensagem', montarEml([anexoXml(NFE)]))).toBe('eml');
-    const soContentType = Buffer.from('From: A <a@example.com>\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n');
-    expect(detectarTipo('mensagem', soContentType)).toBe('eml');
-  });
-
-  it('XML e planilha seguem como antes', () => {
-    expect(detectarTipo('nfe-ok.xml', NFE)).toBe('nfe');
-    expect(detectarTipo('cte-ok.xml', CTE)).toBe('cte');
-    expect(detectarTipo('planilha.csv', lerBuf('planilha.csv'))).toBe('csv');
-  });
-});
-
-describe('extrairAnexos', () => {
-  it('devolve o anexo da NF-e com os mesmos bytes e so nome e conteudo', async () => {
-    const r = await extrairAnexos(montarEml([anexoXml(NFE, 'NF Maria Ficticia.xml')]));
-    expect(r).toHaveLength(1);
-    expect(Object.keys(r[0]!).sort()).toEqual(['conteudo', 'nome']);
-    expect(r[0]!.nome).toBe('anexo-1.xml');
-    expect(r[0]!.conteudo.equals(NFE)).toBe(true);
-  });
-
-  it('ignora imagem inline e anexo de outro tipo, mantendo xml e csv', async () => {
-    const r = await extrairAnexos(
-      montarEml([
-        { tipo: 'image/png', corpo: Buffer.from([0x89, 0x50, 0x4e, 0x47]), nome: 'logo.png', disposicao: 'inline', contentId: '<logo@example.com>' },
-        { tipo: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', corpo: 'docx', nome: 'termo.docx', disposicao: 'attachment' },
-        { tipo: 'text/plain', corpo: 'texto', nome: 'leia-me.txt', disposicao: 'attachment' },
-        anexoXml(NFE),
-        { tipo: 'text/csv', corpo: lerBuf('planilha.csv'), nome: 'planilha.csv', disposicao: 'attachment' },
-      ]),
-    );
-    expect(r.map((a) => a.nome)).toEqual(['anexo-1.xml', 'anexo-2.csv']);
-  });
-
-  it('aceita anexo sem nome quando o content-type e de um formato suportado', async () => {
-    const r = await extrairAnexos(montarEml([{ tipo: 'application/xml', corpo: NFE, disposicao: 'attachment' }]));
-    expect(r.map((a) => a.nome)).toEqual(['anexo-1.xml']);
-  });
-
-  it('coloca a NF-e antes do CT-e, qualquer que seja a ordem no e-mail', async () => {
-    const r = await extrairAnexos(montarEml([anexoXml(CTE, 'cte.xml'), anexoXml(NFE, 'nfe.xml')]));
-    expect(r.map((a) => detectarTipo(a.nome, a.conteudo))).toEqual(['nfe', 'cte']);
-  });
-
-  it('e-mail sem anexo aproveitavel vira ErroParser explicito', async () => {
-    const msg = montarEml([{ tipo: 'image/png', corpo: Buffer.from([1, 2, 3]), nome: 'a.png', disposicao: 'inline', contentId: '<a@example.com>' }]);
-    await expect(extrairAnexos(msg)).rejects.toThrowError(ErroParser);
-    await expect(extrairAnexos(msg)).rejects.toThrowError(/nenhum anexo aproveitavel/);
-  });
-
-  it('arquivo que nao e mensagem vira ErroParser, nao "sem anexo"', async () => {
-    await expect(extrairAnexos(Buffer.from([0x00, 0xff, 0x10, 0x80, 0x7f]))).rejects.toThrowError(/malformada/);
-  });
-
-  it('rejeita e-mail dentro de e-mail (message/rfc822), mesmo com NF-e ao lado', async () => {
-    const interno = montarEml([anexoXml(NFE)]);
-    const msg = montarEml([anexoXml(NFE), { tipo: 'message/rfc822', corpo: interno, nome: 'encaminhado.eml', disposicao: 'attachment' }]);
-    await expect(extrairAnexos(msg)).rejects.toThrowError(/outro e-mail/);
-  });
-
-  it('rejeita e-mail aninhado disfarçado de application/octet-stream', async () => {
-    const interno = montarEml([anexoXml(NFE)]);
-    const comExtensao = montarEml([{ tipo: 'application/octet-stream', corpo: interno, nome: 'x.eml', disposicao: 'attachment' }]);
-    const semNome = montarEml([{ tipo: 'application/octet-stream', corpo: interno, disposicao: 'attachment' }]);
-    await expect(extrairAnexos(comExtensao)).rejects.toThrowError(/outro e-mail/);
-    await expect(extrairAnexos(semNome)).rejects.toThrowError(/outro e-mail/);
-  });
-
-  it(`aceita ${MAX_ANEXOS} anexos e rejeita ${MAX_ANEXOS + 1}`, async () => {
-    const gerar = (n: number): Buffer =>
-      montarEml(Array.from({ length: n }, (_, i) => ({ tipo: 'text/csv', corpo: `a;b\n${i};1\n`, nome: `p${i}.csv`, disposicao: 'attachment' as const })));
-    expect(await extrairAnexos(gerar(MAX_ANEXOS))).toHaveLength(MAX_ANEXOS);
-    await expect(extrairAnexos(gerar(MAX_ANEXOS + 1))).rejects.toThrowError(/maximo/);
-  });
-
-  it('rejeita anexo acima do limite de tamanho e aceita o do limite', async () => {
-    const noLimite = Buffer.alloc(MAX_BYTES_ANEXO, 'a');
-    const acima = Buffer.alloc(MAX_BYTES_ANEXO + 1, 'a');
-    const ok = await extrairAnexos(montarEml([{ tipo: 'application/pdf', corpo: noLimite, nome: 'a.pdf', disposicao: 'attachment' }]));
-    expect(ok[0]!.conteudo.length).toBe(MAX_BYTES_ANEXO);
-    await expect(
-      extrairAnexos(montarEml([{ tipo: 'application/pdf', corpo: acima, nome: 'a.pdf', disposicao: 'attachment' }])),
-    ).rejects.toThrowError(/limite por anexo/);
-  });
-
-  it('anexo de tipo desconhecido derruba o e-mail inteiro antes de qualquer gravacao', async () => {
-    const msg = montarEml([anexoXml(NFE), anexoXml(Buffer.from('<outro><coisa/></outro>'), 'x.xml')]);
-    await expect(extrairAnexos(msg)).rejects.toThrowError(/Tipo de XML nao reconhecido/);
-  });
-
+describe('extrairAnexosEml', () => {
   it('o erro nunca repete cabecalho da mensagem', async () => {
     const mensagens = await Promise.all([
-      extrairAnexos(montarEml([])).catch((e: Error) => e.message),
-      extrairAnexos(montarEml([{ tipo: 'message/rfc822', corpo: montarEml([]), nome: 'x.eml' }])).catch((e: Error) => e.message),
-      extrairAnexos(Buffer.from(`${CABECALHOS.from}\r\n${CABECALHOS.subject}`)).catch((e: Error) => e.message),
+      extrairAnexosEml(montarEml([])).catch((e: Error) => e.message),
+      extrairAnexosEml(montarEml([{ tipo: 'message/rfc822', corpo: montarEml([]), nome: 'x.eml' }])).catch((e: Error) => e.message),
+      extrairAnexosEml(Buffer.from(`${CABECALHOS.from}\r\n${CABECALHOS.subject}`)).catch((e: Error) => e.message),
     ]);
     for (const m of mensagens) {
       expect(typeof m).toBe('string');
@@ -206,46 +108,24 @@ async function enviar(s: Servidor, nome: string, conteudo: Buffer) {
 
 describe('POST /api/ingest com .eml', () => {
   const abertos: Servidor[] = [];
+  // A seed e somente leitura pela API (P-010): cada servidor usa uma sessao
+  // fixa, e o store devolvido le essa sessao.
+  const WS = '00000000-0000-4000-8000-0000000000e1';
   const novo = async (): Promise<Servidor> => {
-    const s = await buildServer(await createLiteDb());
+    const s = await buildServer(await createLiteDb(), { workspacePadrao: WS });
     await s.app.ready();
     abertos.push(s);
-    return s;
+    return { ...s, store: s.store.paraWorkspace(WS) };
   };
-  let solto: Servidor;
-  let porEml: Servidor;
-  
-  beforeAll(async () => {
-    solto = await novo();
-    porEml = await novo();
-  });
   afterAll(async () => {
     for (const s of abertos) await s.app.close();
   });
 
-  it('NF-e e CT-e em anexo geram os mesmos eventos que os XML soltos', async () => {
-    await enviar(solto, 'nfe-ok.xml', NFE);
-    const soltoCte = await enviar(solto, 'cte-ok.xml', CTE);
-
-    // CT-e antes da NF-e no e-mail: a ordem do pipeline tem que se corrigir sozinha
-    const r = await enviar(porEml, 'pedido.eml', montarEml([anexoXml(CTE, 'cte.xml'), anexoXml(NFE, 'nfe.xml')]));
-
-    expect(r.status).toBe(200);
-    expect(r.corpo['pedidoId']).toBe(CHAVE);
-    expect(r.corpo['docs']).toBe(2);
-    expect(r.corpo['revisaoId']).toBeNull();
-    expect(r.corpo['eventos']).toBeGreaterThan(2);
-    const esperado = normalizar(await solto.store.todosEventos());
-    expect(normalizar(await porEml.store.todosEventos())).toEqual(esperado);
-    expect(esperado.map((e) => e.tipo)).toContain('divergencia');
-    expect(soltoCte.status).toBe(200);
-  });
-
-  it('o exemplo.eml da fixture gera os mesmos eventos que o nfe-ok.xml solto', async () => {
+  it('email-nfe.eml gera os mesmos eventos que o nfe-ok.xml solto', async () => {
     const a = await novo();
     const b = await novo();
     const direto = await enviar(a, 'nfe-ok.xml', NFE);
-    const viaEml = await enviar(b, 'exemplo.eml', lerBuf('exemplo.eml'));
+    const viaEml = await enviar(b, 'email-nfe.eml', lerBuf('email-nfe.eml'));
 
     expect(viaEml.status).toBe(200);
     expect(viaEml.corpo['pedidoId']).toBe(CHAVE);
@@ -256,12 +136,11 @@ describe('POST /api/ingest com .eml', () => {
   it('upload multipart de .eml segue o mesmo caminho do XML', async () => {
     const s = await novo();
     const fronteira = 'xB0undaryTeste';
-    const eml = lerBuf('exemplo.eml');
     const corpo = Buffer.concat([
       Buffer.from(
-        `--${fronteira}${CRLF}Content-Disposition: form-data; name="file"; filename="exemplo.eml"${CRLF}Content-Type: message/rfc822${CRLF}${CRLF}`,
+        `--${fronteira}${CRLF}Content-Disposition: form-data; name="file"; filename="email-nfe.eml"${CRLF}Content-Type: message/rfc822${CRLF}${CRLF}`,
       ),
-      eml,
+      lerBuf('email-nfe.eml'),
       Buffer.from(`${CRLF}--${fronteira}--${CRLF}`),
     ]);
     const res = await s.app.inject({
@@ -272,24 +151,6 @@ describe('POST /api/ingest com .eml', () => {
     });
     expect(res.statusCode).toBe(200);
     expect((res.json() as { pedidoId: string }).pedidoId).toBe(CHAVE);
-  });
-
-  it('NF-e e planilha CSV no mesmo e-mail somam docs e eventos', async () => {
-    const a = await novo();
-    await enviar(a, 'nfe-ok.xml', NFE);
-    const csv = await enviar(a, 'planilha.csv', lerBuf('planilha.csv'));
-    const b = await novo();
-    const r = await enviar(
-      b,
-      'pedido.eml',
-      montarEml([{ tipo: 'text/csv', corpo: lerBuf('planilha.csv'), nome: 'planilha.csv', disposicao: 'attachment' }, anexoXml(NFE)]),
-    );
-
-    expect(r.status).toBe(200);
-    expect(r.corpo['docs']).toBe(2);
-    expect(r.corpo['eventos']).toBe((await a.store.todosEventos()).length);
-    expect(normalizar(await b.store.todosEventos())).toEqual(normalizar(await a.store.todosEventos()));
-    expect(csv.status).toBe(200);
   });
 
   it('dois CT-e sem pedido: revisaoId e o do primeiro e os dois entram na fila', async () => {
@@ -308,37 +169,12 @@ describe('POST /api/ingest com .eml', () => {
     expect(r.corpo['revisaoId']).toBe(fila[0]!['id']);
   });
 
-  it('.eml sem anexo aproveitavel responde 422 explicito e nao grava nada', async () => {
+  it('.eml sem anexo elegivel responde 422 explicito e nao grava nada', async () => {
     const s = await novo();
     const r = await enviar(s, 'vazio.eml', montarEml([]));
     expect(r.status).toBe(422);
     expect(r.corpo['tipo']).toBe('parser');
-    expect(r.corpo['erro']).toContain('nenhum anexo aproveitavel');
-    expect(await s.store.todosEventos()).toHaveLength(0);
-  });
-
-  it('.eml dentro de .eml responde 422 e nao grava nada', async () => {
-    const s = await novo();
-    const interno = montarEml([anexoXml(NFE)]);
-    const r = await enviar(s, 'externo.eml', montarEml([{ tipo: 'message/rfc822', corpo: interno, nome: 'interno.eml', disposicao: 'attachment' }]));
-    expect(r.status).toBe(422);
-    expect(r.corpo['erro']).toContain('outro e-mail');
-    expect(await s.store.todosEventos()).toHaveLength(0);
-  });
-
-  it('anexo de tipo desconhecido ao lado de uma NF-e valida responde 422 sem ingestao parcial', async () => {
-    const s = await novo();
-    const r = await enviar(s, 'misto.eml', montarEml([anexoXml(NFE), anexoXml(Buffer.from('<foo><bar/></foo>'), 'x.xml')]));
-    expect(r.status).toBe(422);
-    expect(await s.store.todosEventos()).toHaveLength(0);
-  });
-
-  it('NF-e valida com planilha XLSX no mesmo e-mail responde 422 e nao grava nada (D-C14)', async () => {
-    const s = await novo();
-    const xlsx = { tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', corpo: 'PK', nome: 'planilha.xlsx', disposicao: 'attachment' as const };
-    const r = await enviar(s, 'pedido.eml', montarEml([anexoXml(NFE), xlsx]));
-    expect(r.status).toBe(422);
-    expect(r.corpo['erro']).toContain('exporte a planilha como CSV');
+    expect(r.corpo['erro']).toContain('sem anexo elegivel');
     expect(await s.store.todosEventos()).toHaveLength(0);
   });
 

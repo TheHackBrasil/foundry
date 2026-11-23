@@ -93,8 +93,9 @@ se sobrar. Corte preserva P0 primeiro, depois P1 na ordem inversa.
 - **RF5 [P1]**: caixa de e-mail dedicada via IMAP: documento enviado
   por e-mail entra sozinho na camada. Só com o P0 verde ou na final; o
   e-mail como formato já está no P0 (RF28).
-- **RF6 [P0]**: ingestão de planilha CSV (o XLSX saiu do MVP, D-025) fazendo o papel de
-  ERP/WMS do CD e de canal do atraso informado pelo fornecedor.
+- **RF6 [P0]**: ingestão de planilha CSV (o XLSX saiu do MVP, D-028)
+  fazendo o papel de ERP/WMS do CD e de canal do atraso informado pelo
+  fornecedor.
 - **RF7 [P1]**: extração de PDF por LLM com fila de revisão humana
   visível na UI (o erro de extração é confessado, não escondido).
 
@@ -186,7 +187,7 @@ se sobrar. Corte preserva P0 primeiro, depois P1 na ordem inversa.
   testados).
 - `app/shared/rules.ts`: mapa divergência → tarefas por parte.
 - `app/server/ingest/`: parsers (nfe.ts, cte.ts, eventos.ts, csv.ts,
-  imap.ts, pdf.ts); efeitos isolados aqui.
+  eml.ts, imap.ts, pdf.ts); efeitos isolados aqui.
 - Postgres: tabela `events` append-only com trigger anti
   UPDATE/DELETE.
 - `app/contracts/FoundryAnchor.sol` (P1); escrow é backlog pós-30/11.
