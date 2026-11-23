@@ -72,7 +72,7 @@ export async function chatJson(mensagens: MensagemChat[], opcoes: OpcoesChat = {
         model: cfg.modelo,
         messages: mensagens,
         response_format: { type: 'json_object' },
-        ...(opcoes.maxTokens !== undefined ? { max_tokens: opcoes.maxTokens } : {}),
+        ...(opcoes.maxTokens !== undefined ? { max_completion_tokens: opcoes.maxTokens } : {}),
       }),
     });
   } catch (e) {
