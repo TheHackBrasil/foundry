@@ -1,0 +1,664 @@
+// Testes da camada AI operacional (spec 0007). Moram em shared/ porque os
+// paths da frente ai-mandatos (speckit/frentes.json) cobrem shared/ inteiro
+// e so os .ts nomeados de server/. LLM e Nvoip sempre com fetch mockado;
+// banco PGlite em memoria como nos testes do core.
+
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { verificarCadeia } from './chain.js';
+import { simularHipotese } from './divergence.js';
+import type { Contato, Evento, Tarefa } from './model.js';
+import { docDataParaPayload, projetar } from './projection.js';
+import { bootstrapContatos, listarAgenda, validarContato } from '../server/contatos.js';
+import { createLiteDb } from '../server/db.js';
+import { buildServer } from '../server/index.js';
+import { parseNFe } from '../server/ingest/nfe.js';
+import { ErroLlm, chatJson } from '../server/llm.js';
+import { executarMandato, validarMandato } from '../server/mandatos.js';
+import { aplicarMapeamento, aplicarTemplate, proporMapeamento } from '../server/mapeamento.js';
+import { notificarTarefa } from '../server/nvoip.js';
+import { extrairSinais } from '../server/sinal.js';
+import { gerarViewSpec, validarViewSpec, viewSpecPadrao } from '../server/viewspec.js';
+import type { LedgerStore } from '../server/store.js';
+
+const CHAVE = '35260123456789000123550010000000011000000019';
+const FIX = join(dirname(fileURLToPath(import.meta.url)), '../server/fixtures');
+const ler = (f: string): string => readFileSync(join(FIX, f), 'utf8');
+const WS = '00000000-0000-4000-8000-00000000bb01';
+
+const ENV_KEYS = [
+  'LLM_API_URL',
+  'LLM_API_KEY',
+  'LLM_MODEL',
+  'LLM_TIMEOUT_MS',
+  'NVOIP_API_URL',
+  'NVOIP_API_KEY',
+  'NVOIP_CANAL_PADRAO',
+  'NVOIP_TIMEOUT_MS',
+  'NVOIP_NOTIFY_ON_TASK',
+  'RATE_LIMIT_VIEWSPEC_PER_10MIN',
+] as const;
+
+const envLlm = (): void => {
+  process.env['LLM_API_URL'] = 'http://llm.test/chat';
+  process.env['LLM_API_KEY'] = 'chave-teste';
+};
+const envNvoip = (): void => {
+  process.env['NVOIP_API_URL'] = 'http://nvoip.test/send';
+  process.env['NVOIP_API_KEY'] = 'chave-teste';
+};
+
+// Os mocks de fetch nao declaram parametros; o cast expoe url e init da chamada.
+const chamada = (f: ReturnType<typeof vi.fn>, i = 0): [string, { body: string; headers: Record<string, string> }] =>
+  f.mock.calls[i] as unknown as [string, { body: string; headers: Record<string, string> }];
+
+// Envelope OpenAI-compativel com o conteudo JSON do assistente dentro.
+const respostaChat = (conteudo: unknown): Response =>
+  ({
+    ok: true,
+    status: 200,
+    json: async () => ({ choices: [{ message: { content: JSON.stringify(conteudo) } }] }),
+  }) as Response;
+
+const evFake = (tipo: Evento['tipo'], payload: Record<string, unknown>): Evento => ({
+  pedidoId: 'pedido-x',
+  tipo,
+  payload,
+  ts: '2026-01-20T12:00:00.000Z',
+  prevHash: '',
+  hash: '',
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  for (const k of ENV_KEYS) delete process.env[k];
+});
+
+describe('simularHipotese', () => {
+  const versoes = [
+    { fonte: 'nfe' as const, campos: { previsaoEntrega: '2026-01-20', pesoTotal: 510, status: 'emitida' } },
+    { fonte: 'cte' as const, campos: { pesoTotal: 520, status: 'em_transito' } },
+  ];
+
+  it('fonteA e a ultima fonte que declarou o campo; fonteB e manual', () => {
+    expect(simularHipotese(versoes, { previsaoEntrega: '2026-02-01' })).toEqual([
+      { campo: 'previsaoEntrega', fonteA: 'nfe', fonteB: 'manual', valorA: '2026-01-20', valorB: '2026-02-01' },
+    ]);
+    expect(simularHipotese(versoes, { pesoTotal: 900 })[0]?.fonteA).toBe('cte');
+  });
+
+  it('peso respeita a tolerancia de 0,01 kg', () => {
+    expect(simularHipotese(versoes, { pesoTotal: 520.005 })).toEqual([]);
+    expect(simularHipotese(versoes, { pesoTotal: 520.02 })).toHaveLength(1);
+  });
+
+  it('campo sem declaracao e campo desconhecido nao divergem', () => {
+    expect(simularHipotese(versoes, { volumes: 5 })).toEqual([]);
+    expect(simularHipotese(versoes, { previsaoEntrega: '2026-01-20' })).toEqual([]);
+  });
+});
+
+describe('projecao com sinal, notificacao e mandato', () => {
+  it('sinal e notificacao caem nos campos proprios; mandato nao altera nada', () => {
+    const proj = projetar([
+      evFake('nfe', { fonte: 'nfe', campos: { status: 'emitida' }, dados: {} }),
+      evFake('sinal', { tipo: 'atraso_avisado', resumo: 'fornecedor avisou atraso', confianca: 0.9, fonte: 'imap' }),
+      evFake('notificacao', { parte: 'cd', canal: 'sms', destino: '+55 11', mensagem: 'oi', status: 'entregue' }),
+      evFake('mandato', { ator: 'workspace', texto: 'propague', acao: 'propagar', filtros: {}, resultado: {} }),
+    ]);
+    expect(proj.sinais).toHaveLength(1);
+    expect(proj.sinais[0]?.tipo).toBe('atraso_avisado');
+    expect(proj.notificacoes).toHaveLength(1);
+    expect(proj.divergencias).toEqual([]);
+    expect(proj.tarefas).toEqual([]);
+    expect(proj.totalEventos).toBe(4);
+  });
+});
+
+describe('chatJson', () => {
+  it('sem URL/chave lanca indisponivel sem tocar a rede', async () => {
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    await expect(chatJson([{ role: 'user', content: 'x' }])).rejects.toMatchObject({ tipo: 'indisponivel' });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('envia response_format json_object e devolve o conteudo parseado', async () => {
+    envLlm();
+    const f = vi.fn(async () => respostaChat({ ok: 1 }));
+    vi.stubGlobal('fetch', f);
+    const r = await chatJson([{ role: 'user', content: 'x' }], { maxTokens: 50 });
+    expect(r).toEqual({ ok: 1 });
+    const init = chamada(f)[1];
+    expect(JSON.parse(init.body).response_format).toEqual({ type: 'json_object' });
+    expect(init.headers['Authorization']).toBe('Bearer chave-teste');
+  });
+
+  it('HTTP nao-ok e erro de rede sao indisponivel; envelope ruim e invalido', async () => {
+    envLlm();
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) }) as Response));
+    await expect(chatJson([{ role: 'user', content: 'x' }])).rejects.toMatchObject({ tipo: 'indisponivel' });
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new Error('rede caiu'))));
+    await expect(chatJson([{ role: 'user', content: 'x' }])).rejects.toMatchObject({ tipo: 'indisponivel' });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ choices: [] }) }) as Response));
+    await expect(chatJson([{ role: 'user', content: 'x' }])).rejects.toMatchObject({ tipo: 'invalido' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'nao-json' } }] }) }) as Response),
+    );
+    await expect(chatJson([{ role: 'user', content: 'x' }])).rejects.toMatchObject({ tipo: 'invalido' });
+    expect(ErroLlm).toBeDefined();
+  });
+});
+
+describe('extrairSinais', () => {
+  it('sem LLM devolve [] e nao chama a rede', async () => {
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    await expect(extrairSinais('previsao furou', 'imap')).resolves.toEqual([]);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('filtra por tipo conhecido e pelo limiar de confianca', async () => {
+    envLlm();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        respostaChat({
+          sinais: [
+            { tipo: 'atraso_avisado', resumo: 'entrega atrasa dois dias', confianca: 0.9 },
+            { tipo: 'outro', resumo: 'talvez algo', confianca: 0.3 },
+            { tipo: 'apocalipse', resumo: 'tipo inventado', confianca: 0.99 },
+          ],
+        }),
+      ),
+    );
+    const sinais = await extrairSinais('a entrega atrasa dois dias', 'imap');
+    expect(sinais).toHaveLength(1);
+    expect(sinais[0]).toMatchObject({ tipo: 'atraso_avisado', fonte: 'imap', confianca: 0.9 });
+  });
+
+  it('resposta invalida da LLM devolve [] sem lancar', async () => {
+    envLlm();
+    vi.stubGlobal('fetch', vi.fn(async () => respostaChat({ sinais: 'nao-lista' })));
+    await expect(extrairSinais('texto', 'cce')).resolves.toEqual([]);
+  });
+});
+
+describe('validarMandato', () => {
+  it('aceita o schema fechado e normaliza filtros', () => {
+    expect(validarMandato({ acao: 'propagar', filtros: { pedidoId: CHAVE, parte: 'cd' } })).toEqual({
+      acao: 'propagar',
+      filtros: { pedidoId: CHAVE, parte: 'cd' },
+    });
+    expect(validarMandato({ acao: 'notificar', filtros: {}, alvo: 'cd' }).alvo).toBe('cd');
+  });
+
+  it('acao fora do conjunto e acao_ambigua (inclusive "nenhuma")', () => {
+    for (const acao of ['nenhuma', 'apagar', 'cancelar_pedido']) {
+      expect(() => validarMandato({ acao, filtros: {} })).toThrowError(
+        expect.objectContaining({ motivo: 'acao_ambigua' }) as object,
+      );
+    }
+  });
+
+  it('forma quebrada e enum inventado sao parse_falhou', () => {
+    const casos: unknown[] = [
+      null,
+      'propagar',
+      { acao: 5 },
+      { acao: 'propagar', filtros: 'x' },
+      { acao: 'propagar', filtros: { parte: 'gerente' } },
+      { acao: 'propagar', filtros: { campo: 'cnpj' } },
+      { acao: 'simular', filtros: { campo: 'status', valor: { rico: true } } },
+    ];
+    for (const c of casos) {
+      expect(() => validarMandato(c)).toThrowError(expect.objectContaining({ motivo: 'parse_falhou' }) as object);
+    }
+  });
+});
+
+describe('validarContato', () => {
+  it('normaliza e fixa fonte manual; parte/canal/texto errado lanca 400', () => {
+    expect(validarContato({ parte: 'cd', nome: ' CD ', canal: 'sms', destino: ' +55 ' })).toEqual({
+      parte: 'cd',
+      nome: 'CD',
+      canal: 'sms',
+      destino: '+55',
+      fonte: 'manual',
+    });
+    for (const ruim of [
+      { parte: 'gerente', nome: 'x', canal: 'sms', destino: '1' },
+      { parte: 'cd', nome: 'x', canal: 'pombo', destino: '1' },
+      { parte: 'cd', nome: '', canal: 'sms', destino: '1' },
+      { parte: 'cd', nome: 'x', canal: 'sms', destino: 'a'.repeat(200) },
+    ]) {
+      expect(() => validarContato(ruim)).toThrowError(expect.objectContaining({ status: 400 }) as object);
+    }
+  });
+});
+
+describe('camada ai com PGlite', () => {
+  let app: Awaited<ReturnType<typeof buildServer>>['app'];
+  let store: LedgerStore;
+  let sessao: LedgerStore;
+
+  beforeAll(async () => {
+    const r = await buildServer(await createLiteDb(), { workspacePadrao: WS });
+    app = r.app;
+    store = r.store;
+    await app.ready();
+    sessao = store.paraWorkspace(WS);
+    // Pedido da sessao: NF-e + planilha com previsao divergente.
+    const nfe = parseNFe(ler('nfe-ok.xml'));
+    await sessao.append(CHAVE, 'nfe', docDataParaPayload(nfe));
+    await sessao.append(CHAVE, 'planilha', {
+      fonte: 'planilha',
+      campos: { previsaoEntrega: '2026-01-25' },
+      dados: { linha: 2 },
+    });
+  });
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('mandato propagar repropaga divergencias pelo motor e grava evento mandato', async () => {
+    const exec = await executarMandato(
+      sessao,
+      'propague o atraso',
+      { acao: 'propagar', filtros: { pedidoId: CHAVE } },
+      { maxAlvos: 5 },
+    );
+    expect(exec.alvos).toEqual([CHAVE]);
+    const porPedido = (exec.resultado['porPedido'] as Array<{ divergencias: unknown[]; tarefas: Tarefa[] }>)[0]!;
+    expect(porPedido.divergencias).toHaveLength(1);
+    expect(porPedido.tarefas).toHaveLength(5); // uma por parte, como no ingest
+
+    const evs = await sessao.eventosDoPedido(CHAVE);
+    const mandato = evs.at(-1)!;
+    expect(mandato.tipo).toBe('mandato');
+    expect(mandato.payload).toMatchObject({ acao: 'propagar', ator: 'workspace' });
+    expect((await verificarCadeia(evs)).valida).toBe(true);
+
+    // Idempotente: segunda execucao nao duplica divergencia nem tarefa. A
+    // corrida real (dois propagar simultaneos lendo eventoExiste=false) e
+    // serializada por tx.travarPedido no topo da transacao, mesmo advisory
+    // lock do pipeline: depende de pg.Pool e fica pinada por inspecao, pois
+    // a PGlite serializa numa conexao so.
+    const exec2 = await executarMandato(sessao, 'propague de novo', { acao: 'propagar', filtros: { pedidoId: CHAVE } }, { maxAlvos: 5 });
+    expect(exec2.resultado['novosEventos']).toBe(0);
+    expect((await sessao.eventosDoPedido(CHAVE)).filter((e) => e.tipo === 'divergencia')).toHaveLength(1);
+  });
+
+  it('mandato propagar resolve pedido pelo nome do fornecedor', async () => {
+    const exec = await executarMandato(
+      sessao,
+      'propague o atraso pros pedidos do fornecedor Ficticio',
+      { acao: 'propagar', filtros: { fornecedor: 'Ficticio' } },
+      { maxAlvos: 5 },
+    );
+    expect(exec.alvos).toEqual([CHAVE]);
+  });
+
+  it('fornecedor inexistente e filtro largo recusam com motivo', async () => {
+    await expect(
+      executarMandato(sessao, 'x', { acao: 'propagar', filtros: { fornecedor: 'Nao Existe SA' } }, { maxAlvos: 5 }),
+    ).rejects.toMatchObject({ motivo: 'sem_alvo' });
+
+    const outro = 'pedido-largo-2';
+    await sessao.append(outro, 'nfe', { fonte: 'nfe', campos: {}, dados: {} });
+    await expect(
+      executarMandato(sessao, 'propague tudo', { acao: 'propagar', filtros: {} }, { maxAlvos: 1 }),
+    ).rejects.toMatchObject({ motivo: 'filtro_largo' });
+  });
+
+  it('mandato simular grava so o evento mandato e usa a fonte real', async () => {
+    const antes = (await sessao.eventosDoPedido(CHAVE)).length;
+    const exec = await executarMandato(
+      sessao,
+      'simule a entrega dia primeiro',
+      { acao: 'simular', filtros: { pedidoId: CHAVE, campo: 'previsaoEntrega', valor: '2026-02-01' } },
+      { maxAlvos: 5 },
+    );
+    const porPedido = (
+      exec.resultado['porPedido'] as Array<{ divergencias: Array<{ fonteA: string; fonteB: string; valorB: string }> }>
+    )[0]!;
+    // fonteA e a fonte real do valor atual: a planilha declarou a data por ultimo.
+    expect(porPedido.divergencias[0]).toMatchObject({ fonteA: 'planilha', fonteB: 'manual', valorA: '2026-01-25', valorB: '2026-02-01' });
+    expect(exec.resultado['simulacao']).toBe(true);
+    const evs = await sessao.eventosDoPedido(CHAVE);
+    expect(evs).toHaveLength(antes + 1); // so o mandato
+    expect(evs.at(-1)!.tipo).toBe('mandato');
+  });
+
+  it('mandato simular sem valor e acao_ambigua', async () => {
+    await expect(
+      executarMandato(sessao, 'simule', { acao: 'simular', filtros: { pedidoId: CHAVE, campo: 'status' } }, { maxAlvos: 5 }),
+    ).rejects.toMatchObject({ motivo: 'acao_ambigua' });
+  });
+
+  it('mandato resumir sem LLM cai no texto deterministico', async () => {
+    const exec = await executarMandato(
+      sessao,
+      'resuma o pedido para o cd',
+      { acao: 'resumir', filtros: { pedidoId: CHAVE, parte: 'cd' } },
+      { maxAlvos: 5 },
+    );
+    const porPedido = (exec.resultado['porPedido'] as Array<{ resumo: string; via: string }>)[0]!;
+    expect(porPedido.via).toBe('deterministico');
+    expect(porPedido.resumo).toContain('divergência');
+  });
+
+  it('mandato notificar com Nvoip desligada registra nao_entregue sem rede', async () => {
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    const exec = await executarMandato(
+      sessao,
+      'avise o CD',
+      { acao: 'notificar', filtros: { pedidoId: CHAVE, parte: 'cd' } },
+      { maxAlvos: 5 },
+    );
+    const porPedido = (exec.resultado['porPedido'] as Array<{ status: string; motivo?: string }>)[0]!;
+    expect(porPedido.status).toBe('nao_entregue');
+    expect(porPedido.motivo).toBe('desligado');
+    expect(f).not.toHaveBeenCalled();
+    const notif = (await sessao.eventosDoPedido(CHAVE)).filter((e) => e.tipo === 'notificacao').at(-1)!;
+    expect(notif.payload).toMatchObject({ parte: 'cd', status: 'nao_entregue', motivo: 'desligado' });
+  });
+
+  it('mandato notificar ligada entrega pelo canal do contato', async () => {
+    envNvoip();
+    const f = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }) as Response);
+    vi.stubGlobal('fetch', f);
+    // A propagacao anterior criou tarefa para a parte cd (contato seed: sms).
+    const exec = await executarMandato(
+      sessao,
+      'avise o CD',
+      { acao: 'notificar', filtros: { pedidoId: CHAVE, parte: 'cd' } },
+      { maxAlvos: 5 },
+    );
+    const porPedido = (exec.resultado['porPedido'] as Array<{ status: string }>)[0]!;
+    expect(porPedido.status).toBe('entregue');
+    expect(f).toHaveBeenCalledTimes(1);
+    const corpo = JSON.parse(chamada(f)[1].body) as { canal: string; destino: string };
+    expect(corpo).toMatchObject({ canal: 'sms', destino: '+55 11 90000-0003' });
+    const notif = (await sessao.eventosDoPedido(CHAVE)).filter((e) => e.tipo === 'notificacao').at(-1)!;
+    expect(notif.payload).toMatchObject({ status: 'entregue', canal: 'sms' });
+  });
+
+  it('canal incompativel (email) registra motivo sem chamar a rede', async () => {
+    envNvoip();
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    const exec = await executarMandato(
+      sessao,
+      'avise o financeiro',
+      { acao: 'notificar', filtros: { pedidoId: CHAVE, parte: 'financeiro' } },
+      { maxAlvos: 5 },
+    );
+    const porPedido = (exec.resultado['porPedido'] as Array<{ status: string; motivo?: string }>)[0]!;
+    expect(porPedido).toMatchObject({ status: 'nao_entregue', motivo: 'canal_incompativel' });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('notificar sem parte no filtro e sem_alvo', async () => {
+    await expect(
+      executarMandato(sessao, 'avise alguem', { acao: 'notificar', filtros: { pedidoId: CHAVE } }, { maxAlvos: 5 }),
+    ).rejects.toMatchObject({ motivo: 'sem_alvo' });
+  });
+
+  it('notificarTarefa desligada sem registrarSempre devolve null e nao grava', async () => {
+    const antes = (await sessao.eventosDoPedido(CHAVE)).length;
+    const tarefa: Tarefa = {
+      parte: 'cd',
+      titulo: 'Conferir doca',
+      detalhe: 'Detalhe',
+      divergencia: { campo: 'previsaoEntrega', fonteA: 'nfe', fonteB: 'planilha', valorA: 'a', valorB: 'b' },
+    };
+    expect(await notificarTarefa(sessao, CHAVE, tarefa)).toBeNull();
+    expect((await sessao.eventosDoPedido(CHAVE)).length).toBe(antes);
+  });
+
+  // Motivos fixos de nao_entregue: o contrato que T141 consumira na
+  // propagacao. Todos pinados com Nvoip ligada e fetch mockado.
+  it('notificarTarefa registra sem_tarefa, sem_contato e falha_envio sem quebrar', async () => {
+    envNvoip();
+    // sem_tarefa: pedido sem tarefa da parte (pedido-largo-2 so tem a NF-e).
+    const f = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }) as Response);
+    vi.stubGlobal('fetch', f);
+    let ev = await notificarTarefa(sessao, 'pedido-largo-2', null, { registrarSempre: true, parte: 'cd' });
+    expect(ev?.payload).toMatchObject({ status: 'nao_entregue', motivo: 'sem_tarefa' });
+    expect(f).not.toHaveBeenCalled();
+
+    // sem_contato: tarefa existe, mas 'fiscal' nao tem contato na agenda
+    // (a seed cobre so 4 partes).
+    const tarefaFiscal: Tarefa = {
+      parte: 'fiscal',
+      titulo: 'Conferir escrituracao',
+      detalhe: 'Detalhe',
+      divergencia: { campo: 'previsaoEntrega', fonteA: 'nfe', fonteB: 'planilha', valorA: 'a', valorB: 'b' },
+    };
+    ev = await notificarTarefa(sessao, CHAVE, tarefaFiscal, { registrarSempre: true });
+    expect(ev?.payload).toMatchObject({ parte: 'fiscal', status: 'nao_entregue', motivo: 'sem_contato' });
+    expect(f).not.toHaveBeenCalled();
+
+    // falha_envio: contato e canal existem (cd, sms), a provedora responde nao-ok.
+    const tarefaCd: Tarefa = { ...tarefaFiscal, parte: 'cd' };
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502, json: async () => ({}) }) as Response));
+    ev = await notificarTarefa(sessao, CHAVE, tarefaCd, { registrarSempre: true });
+    expect(ev?.payload).toMatchObject({ parte: 'cd', canal: 'sms', status: 'nao_entregue', motivo: 'falha_envio' });
+  });
+
+  it('notificarTarefa sem parte nem tarefa nao lanca: nao_entregue sem_parte', async () => {
+    const ev = await notificarTarefa(sessao, CHAVE, null, { registrarSempre: true });
+    expect(ev?.payload).toMatchObject({ parte: null, status: 'nao_entregue', motivo: 'sem_parte' });
+    // Sem registrarSempre a mesma entrada e no-op silencioso.
+    expect(await notificarTarefa(sessao, CHAVE, null)).toBeNull();
+  });
+
+  it('POST /api/mandatos sem LLM responde 503 declarativo', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/mandatos', payload: { texto: 'propague' } });
+    expect(res.statusCode).toBe(503);
+    expect((res.json() as { erro: string }).erro).toBe('indisponivel');
+  });
+
+  it('POST /api/mandatos executa e grava o evento na cadeia', async () => {
+    envLlm();
+    vi.stubGlobal('fetch', vi.fn(async () => respostaChat({ acao: 'propagar', filtros: { pedidoId: CHAVE } })));
+    const res = await app.inject({ method: 'POST', url: '/api/mandatos', payload: { texto: 'propague o atraso' } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { acao: string; alvos: string[] };
+    expect(body.acao).toBe('propagar');
+    expect(body.alvos).toContain(CHAVE);
+    const evs = await sessao.eventosDoPedido(CHAVE);
+    expect(evs.at(-1)!.tipo).toBe('mandato');
+    expect((await verificarCadeia(evs)).valida).toBe(true);
+  });
+
+  it('POST /api/mandatos com comando fora das acoes responde 422 acao_ambigua', async () => {
+    envLlm();
+    vi.stubGlobal('fetch', vi.fn(async () => respostaChat({ acao: 'nenhuma' })));
+    const res = await app.inject({ method: 'POST', url: '/api/mandatos', payload: { texto: 'apague tudo' } });
+    expect(res.statusCode).toBe(422);
+    expect((res.json() as { motivo: string }).motivo).toBe('acao_ambigua');
+  });
+
+  it('POST /api/mandatos com JSON quebrado da LLM responde 422 parse_falhou', async () => {
+    envLlm();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{' } }] }) }) as Response),
+    );
+    const res = await app.inject({ method: 'POST', url: '/api/mandatos', payload: { texto: 'qualquer' } });
+    expect(res.statusCode).toBe(422);
+    const body = res.json() as { motivo: string; mensagem: string };
+    expect(body.motivo).toBe('parse_falhou');
+    expect(body.mensagem).toContain('formato esperado');
+  });
+
+  it('POST /api/mandatos com texto nao-string responde 400, nao 500', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/mandatos', payload: { texto: 123 } });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /api/contatos devolve a seed; PUT sobrescreve so na sessao', async () => {
+    const lista = (await app.inject({ method: 'GET', url: '/api/contatos' })).json() as Contato[];
+    expect(lista).toHaveLength(4);
+    expect(lista.every((c) => c.fonte === 'seed')).toBe(true);
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/contatos',
+      payload: { parte: 'cd', nome: 'CD da Sessao', canal: 'whatsapp', destino: '+55 11 97777-0000' },
+    });
+    expect(res.statusCode).toBe(200);
+    const depois = (await app.inject({ method: 'GET', url: '/api/contatos' })).json() as Contato[];
+    const cd = depois.find((c) => c.parte === 'cd')!;
+    expect(cd).toMatchObject({ nome: 'CD da Sessao', canal: 'whatsapp', fonte: 'manual' });
+    // A seed continua intacta para outro workspace.
+    const agendaOutro = await listarAgenda(store.paraWorkspace('00000000-0000-4000-8000-00000000cccc'));
+    expect(agendaOutro.find((c) => c.parte === 'cd')?.nome).toBe('CD Ficticio (seed)');
+  });
+
+  it('PUT /api/contatos com parte invalida responde 400', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/contatos',
+      payload: { parte: 'gerente', nome: 'x', canal: 'sms', destino: '1' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('bootstrap por documento insere fornecedor e nao toca contato manual', async () => {
+    const doc = parseNFe(ler('nfe-ok.xml'));
+    (doc.dados['emitente'] as { fone?: string }).fone = '+55 11 91234-0000';
+    expect(await bootstrapContatos(sessao, doc)).toBe(1);
+    let contato = await sessao.contatoDaParte('fornecedor');
+    expect(contato).toMatchObject({ fonte: 'documento', destino: '+55 11 91234-0000' });
+
+    // Documento repetido nao duplica nem sobrescreve.
+    expect(await bootstrapContatos(sessao, doc)).toBe(0);
+    await sessao.upsertContato({ parte: 'fornecedor', nome: 'Meu Fornecedor', canal: 'whatsapp', destino: '+55 11 90000-9999', fonte: 'manual' });
+    expect(await bootstrapContatos(sessao, doc)).toBe(0);
+    contato = await sessao.contatoDaParte('fornecedor');
+    expect(contato).toMatchObject({ fonte: 'manual', nome: 'Meu Fornecedor' });
+  });
+
+  it('view-spec sem LLM e padrao deterministico; papel invalido e 400', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/view-spec?papel=cd` });
+    expect(res.statusCode).toBe(200);
+    const spec = res.json() as { versao: number; lente: string; destacarDivergencias: boolean };
+    expect(spec).toMatchObject({ versao: 1, lente: 'cd', destacarDivergencias: true });
+    const ruim = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/view-spec?papel=gerente` });
+    expect(ruim.statusCode).toBe(400);
+  });
+
+  it('gerarViewSpec valida a LLM e cai no padrao quando sai do schema', async () => {
+    const proj = projetar(await sessao.eventosDoPedido(CHAVE));
+    envLlm();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        respostaChat({ versao: 1, fontesVisiveis: ['nfe', 'planilha'], colunas: ['previsaoEntrega'], lente: 'cd', destacarDivergencias: true }),
+      ),
+    );
+    const boa = await gerarViewSpec(proj, 'cd');
+    expect(boa.fontesVisiveis).toEqual(['nfe', 'planilha']);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => respostaChat({ versao: 1, fontesVisiveis: ['alien'], colunas: ['previsaoEntrega'], lente: 'cd', destacarDivergencias: true })),
+    );
+    expect(await gerarViewSpec(proj, 'cd')).toEqual(viewSpecPadrao('cd'));
+  });
+
+  it('validarViewSpec recusa forma quebrada e enums inventados', () => {
+    const boa = { versao: 1, fontesVisiveis: ['nfe'], colunas: ['status'], lente: 'fiscal', destacarDivergencias: false };
+    expect(validarViewSpec(boa)).toMatchObject({ lente: 'fiscal' });
+    for (const ruim of [
+      null,
+      {},
+      { ...boa, versao: 2 },
+      { ...boa, fontesVisiveis: [] },
+      { ...boa, colunas: ['cnpj'] },
+      { ...boa, lente: 'diretor' },
+      { ...boa, destacarDivergencias: 'sim' },
+    ]) {
+      expect(validarViewSpec(ruim)).toBeNull();
+    }
+  });
+
+  it('proporMapeamento valida a LLM; saida ruim nao gera proposta', async () => {
+    expect(await proporMapeamento(['NF', 'DATA'], [['1', '2026-01-30']])).toBeNull(); // sem LLM
+    envLlm();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        respostaChat({ mapeamento: { NF: 'pedidoId', DATA: 'previsaoEntrega' }, confianca: 0.8, motivo: 'cabecalho direto' }),
+      ),
+    );
+    const prop = await proporMapeamento(['NF', 'DATA'], [['1', '2026-01-30']]);
+    expect(prop).toMatchObject({ mapeamento: { NF: 'pedidoId', DATA: 'previsaoEntrega' }, confianca: 0.8 });
+    vi.stubGlobal('fetch', vi.fn(async () => respostaChat({ mapeamento: { NF: 'cnpj' }, confianca: 0.9, motivo: 'x' })));
+    expect(await proporMapeamento(['NF'], [['1']])).toBeNull();
+    vi.stubGlobal('fetch', vi.fn(async () => respostaChat({ oi: true })));
+    expect(await proporMapeamento(['NF'], [['1']])).toBeNull();
+  });
+
+  it('aplicarMapeamento normaliza como o parser e template isola por workspace', async () => {
+    const mapa = { NF: 'pedidoId', DATA: 'previsaoEntrega', PESO: 'pesoTotal' };
+    const doc = aplicarMapeamento(
+      { NF: '3526', DATA: '30/01/2026', PESO: '500,5' },
+      mapa,
+      0,
+    );
+    expect(doc).toMatchObject({ pedidoId: '3526', fonte: 'planilha' });
+    expect(doc?.campos).toMatchObject({ previsaoEntrega: '2026-01-30', pesoTotal: 500.5 });
+    expect(aplicarMapeamento({ DATA: '30/01/2026' }, mapa, 0)).toBeNull(); // sem pedidoId nao vira doc
+
+    await sessao.salvarTemplate('forn@x.com', mapa);
+    expect(await sessao.templatePara('forn@x.com')).toEqual(mapa);
+    expect(await store.paraWorkspace('00000000-0000-4000-8000-00000000dddd').templatePara('forn@x.com')).toBeNull();
+    const docs = await aplicarTemplate(sessao, 'forn@x.com', [{ NF: '3526', DATA: '30/01/2026', PESO: '500' }]);
+    expect(docs).toHaveLength(1);
+    expect(docs?.[0]?.campos['pesoTotal']).toBe(500);
+  });
+
+  it('aplicarMapeamento ignora coluna herdada do prototipo (template envenenado)', () => {
+    // 'constructor' como coluna de 'status': sem hasOwn o lookup pegaria a
+    // funcao do prototipo e v.trim() derrubava o arquivo inteiro.
+    const doc = aplicarMapeamento(
+      { NF: '3526' },
+      { NF: 'pedidoId', constructor: 'status', hasOwnProperty: 'volumes' },
+      0,
+    );
+    expect(doc).not.toBeNull();
+    expect(doc?.campos).toEqual({});
+  });
+
+  it('GET view-spec com LLM ligada tem cota por IP e responde 429', async () => {
+    // App proprio com cota 1: a segunda geracao estoura a janela.
+    process.env['RATE_LIMIT_VIEWSPEC_PER_10MIN'] = '1';
+    envLlm();
+    const r2 = await buildServer(await createLiteDb(), { workspacePadrao: WS });
+    const app2 = r2.app;
+    await app2.ready();
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () =>
+          respostaChat({ versao: 1, fontesVisiveis: ['nfe'], colunas: ['status'], lente: 'cd', destacarDivergencias: true }),
+        ),
+      );
+      const pedido2 = 'pedido-viewspec-429';
+      await r2.store.paraWorkspace(WS).append(pedido2, 'nfe', { fonte: 'nfe', campos: { status: 'emitida' }, dados: {} });
+      const url = `/api/pedidos/${pedido2}/view-spec?papel=cd`;
+      expect((await app2.inject({ method: 'GET', url })).statusCode).toBe(200);
+      const segunda = await app2.inject({ method: 'GET', url });
+      expect(segunda.statusCode).toBe(429);
+    } finally {
+      await app2.close();
+    }
+  });
+});
