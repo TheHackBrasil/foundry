@@ -97,31 +97,21 @@ function Versoes({ versoes }: { versoes: ProjecaoPedido['versoes'] }) {
     <section aria-labelledby="bloco-versoes">
       <div className="sec-cab">
         <h3 id="bloco-versoes">Versões recebidas</h3>
-        <span className="meta">Só acréscimo: nada é apagado do registro.</span>
+        <span className="meta">Só acréscimo · nada é apagado do registro</span>
       </div>
       <ul className="versoes">
         {recentes.map((v) => (
           <li key={`${v.fonte}-${v.versao}`}>
+            <span className="versao-ponto" aria-hidden="true" />
             <time dateTime={v.geradaEm}>{formatarMomento(v.geradaEm)}</time>
             <span>
-              {rotuloFonte(v.fonte)} v{v.versao} {v.versao === 1 ? 'registrada' : 'recebida'}.
+              <strong>{rotuloFonte(v.fonte)}</strong> v{v.versao} {v.versao === 1 ? 'registrada' : 'recebida'}
             </span>
           </li>
         ))}
       </ul>
     </section>
   );
-}
-
-function descreverOcultos(lente: ResultadoLente): string {
-  const partes: string[] = [];
-  if (lente.fontesOcultas.length > 0) {
-    partes.push(lente.fontesOcultas.map(rotuloFonte).join(', '));
-  }
-  if (lente.camposOcultos.length > 0) {
-    partes.push(lente.camposOcultos.map(rotuloCampo).join(', '));
-  }
-  return partes.join(' · ');
 }
 
 function Conteudo({
@@ -134,7 +124,6 @@ function Conteudo({
   aoSelecionar,
 }: Omit<Props, 'projecao'> & { dados: ProjecaoPedido }) {
   const matriz = useMemo(() => montarMatriz(dados.versoes, dados.divergencias), [dados.versoes, dados.divergencias]);
-  // Abre na primeira parte que tem tarefa; "Todas" continua à mão.
   const [filtro, setFiltro] = useState<FiltroParte>(
     () => PARTES.find((p) => tarefasDaParte(dados.tarefas, p).length > 0) ?? FILTRO_TODAS,
   );
@@ -147,7 +136,6 @@ function Conteudo({
   const lenteAbort = useRef<AbortController | null>(null);
   const ultimoTotalRef = useRef(dados.totalEventos);
 
-  // Destaca sinais e avisos novos que chegam ao vivo via SSE.
   const sinaisConhecidos = useRef<ReadonlySet<string>>(new Set(dados.sinais.map(chaveSinal)));
   const avisosConhecidos = useRef<ReadonlySet<string>>(new Set(dados.notificacoes.map(chaveNotificacao)));
   const [sinaisNovos, setSinaisNovos] = useState<ReadonlySet<string>>(new Set());
@@ -212,8 +200,6 @@ function Conteudo({
     [id],
   );
 
-  // Quando o SSE entrega novos eventos com uma lente ativa, revalida o spec
-  // para nao ocultar fontes recem-chegadas.
   useEffect(() => {
     if (dados.totalEventos === ultimoTotalRef.current) return;
     ultimoTotalRef.current = dados.totalEventos;
@@ -259,21 +245,33 @@ function Conteudo({
   const chaveTransicao = teveTransicaoLente
     ? `${resultadoLente.ajustada ? resultadoLente.lente : 'completa'}|${matrizVisivel.fontes.join(',')}|${matrizVisivel.linhas.map((l) => l.campo).join(',')}|${resultadoLente.destacarDivergencias}`
     : undefined;
-  const ocultosTexto = resultadoLente.ajustada ? descreverOcultos(resultadoLente) : '';
+
+  const itensOcultos = [
+    ...resultadoLente.fontesOcultas.map(rotuloFonte),
+    ...resultadoLente.camposOcultos.map(rotuloCampo),
+  ];
+
+  const podeAcionarLente =
+    filtro !== FILTRO_TODAS &&
+    !carregandoLente &&
+    matriz.fontes.length > 0 &&
+    !resultadoLente.ajustada &&
+    (!specAtivo || specAtivo.lente !== filtro || ignorarLente);
 
   return (
     <>
       <div className="painel-cab">
-        <div>
+        <div className="painel-identidade">
           <h2 id="pedido-titulo">
             Pedido <span className="mono">{chaveCurta(id)}</span>
           </h2>
           {dados.pedido && (
             <p className="partes-pedido">
-              {dados.pedido.emitente.nome} para {dados.pedido.destinatario.nome}.
+              {dados.pedido.emitente.nome} <span className="meta" aria-hidden="true">→</span>{' '}
+              {dados.pedido.destinatario.nome}
             </p>
           )}
-          <p className="chave mono">Chave NF-e {chaveAgrupada(id)}</p>
+          <p className="chave mono">NF-e {chaveAgrupada(id)}</p>
         </div>
         <StatusCadeia auditoria={auditoria} aoVerificar={aoVerificar} />
       </div>
@@ -284,63 +282,76 @@ function Conteudo({
       <div className="cols" data-fontes={matriz.fontes.length}>
         <section aria-labelledby="bloco-matriz">
           <div className="sec-cab">
-            <h3 id="bloco-matriz">Fontes e campos</h3>
-            <div className="sec-cab-dir">
-              <span className="meta">
-                Referência: a primeira fonte que declara o campo. Células diferentes dela ficam marcadas.
-              </span>
-              {filtro !== FILTRO_TODAS &&
-                !carregandoLente &&
-                matriz.fontes.length > 0 &&
-                !resultadoLente.ajustada &&
-                (!specAtivo || specAtivo.lente !== filtro || ignorarLente) && (
+            <div className="sec-cab-grupo">
+              <h3 id="bloco-matriz">Fontes e campos</h3>
+              <p className="meta">
+                Referência: primeira fonte que declara o campo. Divergências ficam marcadas.
+              </p>
+            </div>
+            {podeAcionarLente && (
+              <button
+                type="button"
+                className="btn-lente"
+                onClick={() => {
+                  setIgnorarLente(false);
+                  if (specAtivo && specAtivo.lente === filtro) {
+                    setTeveTransicaoLente(true);
+                  } else {
+                    void buscarLente(filtro, dados.totalEventos);
+                  }
+                }}
+              >
+                <IconeLente />
+                <span>
+                  {ignorarLente && specAtivo && specAtivo.lente === filtro
+                    ? `Reativar lente · ${rotuloParte(filtro)}`
+                    : `Lente · ${rotuloParte(filtro)}`}
+                </span>
+              </button>
+            )}
+          </div>
+
+          <div className={`lente-gaveta ${resultadoLente.ajustada ? 'lente-gaveta-aberta' : ''}`}>
+            <div className="lente-gaveta-inner">
+              {resultadoLente.ajustada && (
+                <div className="lente-faixa" role="status">
+                  <div className="lente-info">
+                    <span className="pilula-coord">
+                      <IconeLente />
+                      Visão ajustada para {rotuloParte(resultadoLente.lente)}
+                    </span>
+                    <span className="meta num">
+                      {matrizVisivel.fontes.length}/{matriz.fontes.length} fontes · {matrizVisivel.linhas.length}/
+                      {matriz.linhas.length} campos
+                    </span>
+                    {itensOcultos.length > 0 && (
+                      <span className="lente-ocultos">
+                        <span className="meta">Oculto:</span>
+                        {itensOcultos.map((nome) => (
+                          <span key={nome} className="pilula-sutil">
+                            {nome}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    {!resultadoLente.destacarDivergencias && (
+                      <span className="meta">Destaques suprimidos para este papel.</span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     className="botao-sutil"
                     onClick={() => {
-                      setIgnorarLente(false);
-                      if (specAtivo && specAtivo.lente === filtro) {
-                        setTeveTransicaoLente(true);
-                      } else {
-                        void buscarLente(filtro, dados.totalEventos);
-                      }
+                      setTeveTransicaoLente(true);
+                      setIgnorarLente(true);
                     }}
                   >
-                    {ignorarLente && specAtivo && specAtivo.lente === filtro
-                      ? `Reativar lente de ${rotuloParte(filtro)}`
-                      : `Ajustar visão para ${rotuloParte(filtro)}`}
+                    Ver matriz completa
                   </button>
-                )}
+                </div>
+              )}
             </div>
           </div>
-
-          {resultadoLente.ajustada && (
-            <div className="lente-faixa" role="status">
-              <div className="lente-info">
-                <IconeLente />
-                <div>
-                  <p className="lente-titulo">Visão ajustada para {rotuloParte(resultadoLente.lente)}</p>
-                  <p className="meta">
-                    Mostrando {matrizVisivel.fontes.length} de {matriz.fontes.length}{' '}
-                    {matriz.fontes.length === 1 ? 'fonte' : 'fontes'} e {matrizVisivel.linhas.length} de{' '}
-                    {matriz.linhas.length} campos.
-                    {ocultosTexto && ` Oculto: ${ocultosTexto}.`}
-                    {!resultadoLente.destacarDivergencias && ' Destaques de divergência suprimidos para este papel.'}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="botao-sutil"
-                onClick={() => {
-                  setTeveTransicaoLente(true);
-                  setIgnorarLente(true);
-                }}
-              >
-                Ver matriz completa
-              </button>
-            </div>
-          )}
 
           <MatrizFontes
             matriz={matrizVisivel}

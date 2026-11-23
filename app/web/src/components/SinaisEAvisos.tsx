@@ -28,13 +28,13 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
   return (
     <div className="sinais-avisos" data-ambos={ambos ? 'true' : 'false'}>
       {sinais.length > 0 && (
-        <section aria-labelledby="bloco-sinais">
+        <section className="painel-card" aria-labelledby="bloco-sinais">
           <div className="sec-cab">
             <h3 id="bloco-sinais" className="sec-titulo-icone">
               <IconeSinal />
               Sinais consultivos
             </h3>
-            <span className="meta">Leitura de texto livre: não altera campos vigiados.</span>
+            <span className="meta">Leitura de texto livre · não altera campos vigiados</span>
           </div>
           <ul className="registros-lista">
             {sinais.map((s, i) => {
@@ -42,10 +42,14 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
               const novo = sinaisNovos.has(chave);
               const escala = Number.isFinite(s.confianca) ? Math.min(1, Math.max(0, s.confianca)) : 0;
               return (
-                <li key={`${chave}-${i}`} className={novo ? 'registro-item item-novo' : 'registro-item'}>
+                <li
+                  key={`${chave}-${i}`}
+                  className={novo ? 'registro-item item-novo' : 'registro-item'}
+                  style={{ '--stagger': Math.min(i, 4) } as CSSProperties}
+                >
                   <div className="registro-topo">
-                    <span className="etiqueta etiqueta-sinal">{rotuloTipoSinal(s.tipo)}</span>
-                    <span className="meta">Fonte: {rotuloFonte(s.fonte)}</span>
+                    <span className="pilula-coord">{rotuloTipoSinal(s.tipo)}</span>
+                    <span className="pilula-sutil">{rotuloFonte(s.fonte)}</span>
                     <span className="confianca" aria-label={`Confiança ${formatarConfianca(s.confianca)}`}>
                       <span className="confianca-trilha" aria-hidden="true">
                         <span
@@ -55,7 +59,7 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
                       </span>
                       <span className="mono num">{formatarConfianca(s.confianca)}</span>
                     </span>
-                    {novo && <span className="etiqueta etiqueta-nova">Novo</span>}
+                    {novo && <span className="pilula-coord">Novo</span>}
                   </div>
                   <p className="registro-texto">{s.resumo}</p>
                 </li>
@@ -66,13 +70,13 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
       )}
 
       {notificacoes.length > 0 && (
-        <section aria-labelledby="bloco-avisos">
+        <section className="painel-card" aria-labelledby="bloco-avisos">
           <div className="sec-cab">
             <h3 id="bloco-avisos" className="sec-titulo-icone">
               <IconeAviso />
               Avisos
             </h3>
-            <span className="meta">Registro do que saiu ou do motivo de não entrega.</span>
+            <span className="meta">Registro do que saiu ou motivo de não entrega</span>
           </div>
           <ul className="registros-lista">
             {notificacoes.map((n, i) => {
@@ -80,25 +84,25 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
               const novo = avisosNovos.has(chave);
               const entregue = n.status === 'entregue';
               const falhaRede = n.motivo === 'falha_envio';
-              const classeStatus = entregue
-                ? 'estado estado-ok'
-                : falhaRede
-                  ? 'estado estado-erro'
-                  : 'estado estado-warn';
+              const classePilula = entregue ? 'pilula-ok' : falhaRede ? 'pilula-erro' : 'pilula-warn';
               return (
-                <li key={`${chave}-${i}`} className={novo ? 'registro-item item-novo' : 'registro-item'}>
+                <li
+                  key={`${chave}-${i}`}
+                  className={novo ? 'registro-item item-novo' : 'registro-item'}
+                  style={{ '--stagger': Math.min(i, 4) } as CSSProperties}
+                >
                   <div className="registro-topo">
-                    <span className={classeStatus}>
+                    <span className={classePilula}>
                       {entregue ? <IconeOk /> : <IconeErro />}
                       {entregue ? 'Entregue' : 'Não entregue'}
                     </span>
                     <span className="registro-parte">
                       {n.parte ? rotuloParte(n.parte) : 'Parte não identificada'}
                     </span>
-                    <span className="meta">
+                    <span className="pilula-sutil">
                       {n.canal ? rotuloCanalContato(n.canal) : 'Sem canal'}
                     </span>
-                    {novo && <span className="etiqueta etiqueta-nova">Novo</span>}
+                    {novo && <span className="pilula-coord">Novo</span>}
                   </div>
                   {n.motivo && <p className="meta">{rotuloMotivoNotificacao(n.motivo)}</p>}
                   {n.mensagem.trim() && <p className="aviso-msg">{n.mensagem}</p>}

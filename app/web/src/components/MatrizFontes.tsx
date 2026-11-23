@@ -19,16 +19,18 @@ function Celula({ linha, celula, destacar }: { linha: LinhaMatriz; celula: Celul
   const delta = emDivergencia ? variacao(linha.campo, celula.valor, linha.referencia?.valor) : null;
   return (
     <div className={emDivergencia && destacar ? 'cel cel-dv' : 'cel'} {...comum}>
-      <span className="v">{formatarValor(linha.campo, celula.valor)}</span>
+      <div className="cel-topo">
+        <span className="v">{formatarValor(linha.campo, celula.valor)}</span>
+        {delta && (
+          <span className={destacar ? 'delta-pilula' : 'delta-pilula delta-pilula-neutro'}>
+            <IconeSeta />
+            {delta}
+          </span>
+        )}
+      </div>
       {celula.antes !== undefined && (
         <span className="antes">
           antes <s>{formatarValor(linha.campo, celula.antes)}</s>
-        </span>
-      )}
-      {delta && (
-        <span className={destacar ? 'delta' : 'delta delta-neutro'}>
-          <IconeSeta />
-          {delta}
         </span>
       )}
       {celula.versao !== undefined && celula.em && (
@@ -73,8 +75,13 @@ export function MatrizFontes({ matriz, destacar = true, carregandoLente = false,
         key={chaveTransicao ?? 'completa'}
         className={chaveTransicao ? 'mx-corpo mx-surgir' : 'mx-corpo'}
       >
-        {matriz.linhas.map((linha) => (
-          <div role="row" className="mx-row mx-b" key={linha.campo}>
+        {matriz.linhas.map((linha, idx) => (
+          <div
+            role="row"
+            className="mx-row mx-b"
+            key={linha.campo}
+            style={{ '--stagger': idx } as CSSProperties}
+          >
             <div role="rowheader" className="rh">
               <span className="campo">{rotuloCampo(linha.campo)}</span>
               {linha.divergente ? (

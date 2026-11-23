@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type FormEvent } from 'react';
-import {
-  ErroMandatoApi,
-  carregarExemplosNaSessao,
-  enviarMandato,
-} from '../api.ts';
+import { ErroMandatoApi, carregarExemplosNaSessao, enviarMandato } from '../api.ts';
 import {
   chaveCurta,
   formatarDuracao,
@@ -25,7 +21,17 @@ import {
   type ResultadoMandatoInterpretado,
 } from '../mandato.ts';
 import { useVoz } from '../useVoz.ts';
-import { IconeErro, IconeFechar, IconeMic, IconeOk, IconeParar, IconeSeta } from './icones.tsx';
+import {
+  IconeComando,
+  IconeErro,
+  IconeFechar,
+  IconeMic,
+  IconeOk,
+  IconeParar,
+  IconeRetorno,
+  IconeSeta,
+} from './icones.tsx';
+import { VisualizadorVoz } from './VisualizadorVoz.tsx';
 
 const SUGESTOES: readonly string[] = [
   'Resuma o estado',
@@ -50,41 +56,49 @@ const plural = (n: number, um: string, varios: string): string => `${n} ${n === 
 
 function CartaoPropagar({ itens, novosEventos }: { itens: readonly ItemPropagar[]; novosEventos: number }) {
   return (
-    <ul className="mandato-itens">
+    <div className="cmd-corpo">
       {itens.map((item) => (
-        <li key={item.pedidoId} className="mandato-item">
-          <div className="mandato-metricas">
-            <span className="num">
-              <strong>{item.divergencias.length}</strong>{' '}
-              {item.divergencias.length === 1 ? 'divergência' : 'divergências'}
-            </span>
-            <span className="meta" aria-hidden="true">·</span>
-            <span className="num">
-              <strong>{item.tarefas.length}</strong> {item.tarefas.length === 1 ? 'tarefa' : 'tarefas'}
-            </span>
-            <span className="meta" aria-hidden="true">·</span>
-            <span className="num">
-              <strong>{item.eventosNovos}</strong> {item.eventosNovos === 1 ? 'novo evento' : 'novos eventos'}
-            </span>
+        <div key={item.pedidoId} className="cmd-bloco">
+          <div className="kpi-faixa">
+            <div className="kpi-item" style={{ '--stagger': 0 } as CSSProperties}>
+              <span className="kpi-valor num">{item.divergencias.length}</span>
+              <span className="kpi-rotulo">
+                {item.divergencias.length === 1 ? 'Divergência' : 'Divergências'}
+              </span>
+            </div>
+            <div className="kpi-item" style={{ '--stagger': 1 } as CSSProperties}>
+              <span className="kpi-valor num">{item.tarefas.length}</span>
+              <span className="kpi-rotulo">
+                {item.tarefas.length === 1 ? 'Tarefa propagada' : 'Tarefas propagadas'}
+              </span>
+            </div>
+            <div className="kpi-item" style={{ '--stagger': 2 } as CSSProperties}>
+              <span className={item.eventosNovos > 0 ? 'kpi-valor kpi-destaque num' : 'kpi-valor num'}>
+                {item.eventosNovos}
+              </span>
+              <span className="kpi-rotulo">
+                {item.eventosNovos === 1 ? 'Novo evento' : 'Novos eventos'}
+              </span>
+            </div>
           </div>
           {item.eventosNovos === 0 && (
             <p className="meta">
               {novosEventos === 0
-                ? 'Tudo já estava propagado no registro: nenhuma duplicata gravada.'
+                ? 'Registro já estava sincronizado: nenhuma duplicata gravada na cadeia.'
                 : 'Nenhuma novidade gravada neste pedido.'}
             </p>
           )}
-        </li>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
 function CartaoSimular({ itens }: { itens: readonly ItemSimular[] }) {
   return (
-    <div className="mandato-itens">
+    <div className="cmd-corpo">
       {itens.map((item) => (
-        <div key={item.pedidoId} className="mandato-item">
+        <div key={item.pedidoId} className="cmd-bloco">
           {item.divergencias.length === 0 ? (
             <p className="dica">Nenhuma divergência prevista para esta hipótese.</p>
           ) : (
@@ -93,26 +107,31 @@ function CartaoSimular({ itens }: { itens: readonly ItemSimular[] }) {
                 <div role="columnheader">Campo</div>
                 <div role="columnheader">Atual</div>
                 <div role="columnheader">Hipótese</div>
-                <div role="columnheader">Variação</div>
+                <div role="columnheader">Impacto</div>
               </div>
               <div role="rowgroup">
                 {item.divergencias.map((d, i) => {
                   const delta = variacao(d.campo, d.valorB, d.valorA);
                   return (
-                    <div role="row" key={`${d.campo}-${d.fonteA}-${i}`} className="sim-row sim-b">
+                    <div
+                      role="row"
+                      key={`${d.campo}-${d.fonteA}-${i}`}
+                      className="sim-row sim-b"
+                      style={{ '--stagger': i } as CSSProperties}
+                    >
                       <div role="rowheader" className="campo">
                         {rotuloCampo(d.campo)}
                       </div>
                       <div role="cell" data-col="Atual">
                         <span className="num">{formatarValor(d.campo, d.valorA)}</span>
-                        <span className="meta"> ({rotuloFonte(d.fonteA)})</span>
+                        <span className="meta"> · {rotuloFonte(d.fonteA)}</span>
                       </div>
                       <div role="cell" data-col="Hipótese" className="sim-hip">
                         <span className="num">{formatarValor(d.campo, d.valorB)}</span>
                       </div>
-                      <div role="cell" data-col="Variação">
+                      <div role="cell" data-col="Impacto">
                         {delta ? (
-                          <span className="delta">
+                          <span className="delta-pilula">
                             <IconeSeta />
                             {delta}
                           </span>
@@ -127,13 +146,14 @@ function CartaoSimular({ itens }: { itens: readonly ItemSimular[] }) {
             </div>
           )}
           {item.tarefasPorParte.length > 0 && (
-            <p className="meta sim-partes">
-              Tarefas previstas ({item.tarefas.length}):{' '}
-              {item.tarefasPorParte
-                .map((p) => `${rotuloParte(p.parte)} (${p.quantidade})`)
-                .join(' · ')}
-              .
-            </p>
+            <div className="sim-partes-lista">
+              <span className="meta">Partes acionadas ({item.tarefas.length}):</span>
+              {item.tarefasPorParte.map((p) => (
+                <span key={p.parte} className="pilula-sutil num">
+                  {rotuloParte(p.parte)} · {p.quantidade}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       ))}
@@ -143,58 +163,46 @@ function CartaoSimular({ itens }: { itens: readonly ItemSimular[] }) {
 
 function CartaoResumir({ itens }: { itens: readonly ItemResumir[] }) {
   return (
-    <ul className="mandato-itens">
+    <div className="cmd-corpo">
       {itens.map((item) => (
-        <li key={item.pedidoId} className="mandato-item">
-          <p className="mandato-resumo">{item.resumo}</p>
+        <div key={item.pedidoId} className="cmd-bloco">
+          <p className="cmd-resumo">{item.resumo}</p>
           <p className="meta">
             {item.via === 'deterministico'
               ? 'Resumo determinístico montado direto do registro.'
-              : 'Redigido a partir do registro atual do pedido.'}
+              : 'Redigido a partir do estado consolidado do pedido.'}
           </p>
-        </li>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
 function CartaoNotificar({ itens }: { itens: readonly ItemNotificar[] }) {
   return (
-    <ul className="mandato-itens">
+    <div className="cmd-corpo">
       {itens.map((item, i) => {
         const entregue = item.status === 'entregue';
-        const classeStatus = entregue
-          ? 'estado estado-ok'
+        const classePilula = entregue
+          ? 'pilula-ok'
           : item.motivo === 'falha_envio'
-            ? 'estado estado-erro'
-            : 'estado estado-warn';
+            ? 'pilula-erro'
+            : 'pilula-warn';
         return (
-          <li key={`${item.pedidoId}-${i}`} className="mandato-item mandato-recibo">
-            <span className={classeStatus}>
+          <div key={`${item.pedidoId}-${i}`} className="cmd-recibo">
+            <span className={classePilula}>
               {entregue ? <IconeOk /> : <IconeErro />}
               {entregue ? 'Entregue' : 'Não entregue'}
             </span>
-            <span>{item.parte ? rotuloParte(item.parte) : 'Parte não identificada'}</span>
+            <span className="registro-parte">
+              {item.parte ? rotuloParte(item.parte) : 'Parte não identificada'}
+            </span>
             {item.motivo && <span className="meta">{rotuloMotivoNotificacao(item.motivo)}</span>}
-          </li>
+          </div>
         );
       })}
-    </ul>
+    </div>
   );
-}
-
-function classeCartaoResultado(dados: ResultadoMandatoInterpretado): string {
-  switch (dados.acao) {
-    case 'propagar':
-    case 'simular':
-      return 'mandato-cartao mandato-cartao-coord';
-    case 'resumir':
-      return 'mandato-cartao mandato-cartao-ok';
-    case 'notificar':
-      return dados.itens.every((i) => i.status === 'entregue')
-        ? 'mandato-cartao mandato-cartao-ok'
-        : 'mandato-cartao mandato-cartao-aviso';
-  }
 }
 
 function elementoEditavel(el: Element | null): boolean {
@@ -234,12 +242,10 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
     aoConcluir: (textoFinal) => {
       setTexto(textoFinal);
       setProvisorio(false);
-      // Mantem o texto editavel e move o foco para Executar sem disparar escrita sozinho.
       enviarBtnRef.current?.focus();
     },
   });
 
-  // Atalho "/" fora de campos editaveis foca a barra operacional.
   useEffect(() => {
     const aoTeclarGlobal = (e: KeyboardEvent) => {
       if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -307,6 +313,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
 
   function fecharSaida() {
     limparTimerAnuncio();
+    voz.limparErro();
     setEstado({ tipo: 'ocioso' });
     inputRef.current?.focus();
   }
@@ -334,18 +341,24 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
 
   const precisaSessao =
     estado.tipo === 'erro' && (estado.motivo === 'sem_alvo' || estado.status === 403);
+  const temGaveta =
+    estado.tipo === 'resultado' ||
+    estado.tipo === 'erro' ||
+    estado.tipo === 'aviso' ||
+    Boolean(voz.erro);
 
-  const classeCampo = [
-    'mandato-campo',
-    enviando ? 'mandato-campo-enviando' : '',
-    voz.ouvindo ? 'mandato-campo-ouvindo' : '',
+  const classeSuperficie = [
+    'cmd',
+    enviando ? 'cmd-enviando' : '',
+    voz.ouvindo ? 'cmd-ouvindo' : '',
+    estado.tipo === 'erro' || voz.erro ? 'cmd-erro' : '',
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
     <section
-      className="mandato"
+      className="mandato-secao"
       aria-labelledby="bloco-mandato"
       onKeyDown={(e) => {
         if (e.key !== 'Escape') return;
@@ -353,24 +366,34 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
           e.preventDefault();
           voz.cancelar();
           inputRef.current?.focus();
-        } else if (estado.tipo === 'resultado' || estado.tipo === 'erro' || estado.tipo === 'aviso') {
+        } else if (temGaveta) {
           e.preventDefault();
           fecharSaida();
         }
       }}
     >
-      <div className="sec-cab mandato-cab">
-        <h3 id="bloco-mandato">Comando operacional</h3>
-        <span id={ajudaId} className="meta">
-          Atua nos pedidos da sua sessão · atalho <kbd className="tecla mono">/</kbd>
-        </span>
-      </div>
+      <h3 id="bloco-mandato" className="so-leitor">
+        Comando operacional
+      </h3>
 
-      <form className="mandato-form" onSubmit={aoSubmeter} noValidate>
-        <label htmlFor={inputId} className="so-leitor">
-          Comando em português para a torre de pedidos
-        </label>
-        <div className={classeCampo}>
+      <div className={classeSuperficie}>
+        <form className="cmd-form" onSubmit={aoSubmeter} noValidate>
+          <label htmlFor={inputId} className="so-leitor">
+            Comando em português para os pedidos da sua sessão
+          </label>
+
+          <span className="cmd-prefixo" aria-hidden="true">
+            <span className={`icone-troca ${!enviando && !voz.ouvindo ? 'visivel' : ''}`}>
+              <IconeComando />
+            </span>
+            <span className={`icone-troca ${voz.ouvindo ? 'visivel' : ''}`}>
+              <span className="cmd-pulso" />
+            </span>
+            <span className={`icone-troca ${enviando ? 'visivel' : ''}`}>
+              <span className="cmd-spinner" />
+            </span>
+          </span>
+
           <input
             ref={inputRef}
             id={inputId}
@@ -383,41 +406,54 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
               setProvisorio(false);
               if (estado.tipo === 'erro') setEstado({ tipo: 'ocioso' });
             }}
-            placeholder='Ex.: "resuma o estado" ou "simule a entrega para 28/01/2026"'
+            placeholder={
+              voz.fase === 'iniciando'
+                ? 'Ativando microfone…'
+                : voz.ouvindo
+                  ? 'Ouvindo em português… fale seu comando'
+                  : 'Comande sua sessão: "resuma o estado", "simule a entrega para 28/01/2026"…'
+            }
             disabled={enviando}
             aria-invalid={estado.tipo === 'erro' ? 'true' : undefined}
             aria-describedby={estado.tipo === 'erro' ? `${ajudaId} ${erroId}` : ajudaId}
-            className={provisorio ? 'mandato-input mandato-input-provisorio' : 'mandato-input'}
+            className={provisorio ? 'cmd-input cmd-input-provisorio' : 'cmd-input'}
           />
 
-          <div className="mandato-acoes">
+          <div className="cmd-acoes">
             {voz.ouvindo && (
-              <div className="voz-medidor" role="status" aria-live="off">
-                <span className="so-leitor">Ouvindo comando por voz</span>
-                <span className="voz-barras" aria-hidden="true">
-                  {voz.niveis.map((nivel, idx) => (
-                    <span
-                      key={idx}
-                      className="voz-barra"
-                      data-ativo={nivel > 0.24 ? 'true' : 'false'}
-                      style={{ '--nivel': nivel } as CSSProperties}
-                    />
-                  ))}
+              <div className="voz-faixa" role="status" aria-live="off">
+                <span className="so-leitor">
+                  {voz.fase === 'iniciando' ? 'Ativando microfone' : 'Ouvindo comando por voz'}
                 </span>
-                <span className="voz-tempo mono num">{formatarDuracao(voz.segundos)}</span>
+                <VisualizadorVoz
+                  analyserRef={voz.analyserRef}
+                  energiaRef={voz.energiaRef}
+                  ativo={voz.ouvindo}
+                  movimentoReduzido={voz.movimentoReduzido}
+                />
+                <span className="voz-tempo mono num">
+                  {voz.fase === 'iniciando' ? '…' : formatarDuracao(voz.segundos)}
+                </span>
               </div>
             )}
 
             {voz.suportado && (
               <button
                 type="button"
-                className="botao mandato-mic"
+                className="cmd-btn-voz"
                 aria-pressed={voz.ouvindo}
                 aria-label={voz.ouvindo ? 'Parar ditado por voz' : 'Ditar comando por voz'}
                 onClick={voz.alternar}
                 disabled={enviando}
               >
-                {voz.ouvindo ? <IconeParar /> : <IconeMic />}
+                <span className="icone-slot" aria-hidden="true">
+                  <span className={`icone-troca ${voz.ouvindo ? 'visivel' : ''}`}>
+                    <IconeParar />
+                  </span>
+                  <span className={`icone-troca ${!voz.ouvindo ? 'visivel' : ''}`}>
+                    <IconeMic />
+                  </span>
+                </span>
                 <span>{voz.ouvindo ? 'Parar' : 'Voz'}</span>
               </button>
             )}
@@ -425,130 +461,154 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
             <button
               ref={enviarBtnRef}
               type="submit"
-              className="botao botao-primario"
+              className="cmd-btn-enviar"
               disabled={enviando}
             >
-              {enviando ? 'Traduzindo…' : 'Executar'}
+              <span>{enviando ? 'Traduzindo…' : 'Executar'}</span>
+              {!enviando && <IconeRetorno />}
             </button>
           </div>
-        </div>
-      </form>
+        </form>
 
-      <div className="mandato-chips" role="group" aria-label="Sugestões de comando">
-        {SUGESTOES.map((sugestao) => (
-          <button
-            key={sugestao}
-            type="button"
-            className="chip"
-            disabled={enviando}
-            onClick={() => preencherSugestao(sugestao)}
-          >
-            {sugestao}
-          </button>
-        ))}
+        <div className={`cmd-gaveta ${temGaveta ? 'cmd-gaveta-aberta' : ''}`}>
+          <div className="cmd-gaveta-inner">
+            {voz.erro && (
+              <div className="cmd-painel cmd-painel-erro" role="alert">
+                <div className="cmd-painel-cab">
+                  <span className="pilula-erro">
+                    <IconeErro />
+                    Microfone indisponível
+                  </span>
+                  <button
+                    type="button"
+                    className="botao-fechar"
+                    aria-label="Fechar aviso de microfone"
+                    onClick={voz.limparErro}
+                  >
+                    <IconeFechar />
+                  </button>
+                </div>
+                <p className="cmd-erro-msg">{voz.erro}</p>
+              </div>
+            )}
+
+            {estado.tipo === 'erro' && (
+              <div id={erroId} className="cmd-painel cmd-painel-erro" role="alert">
+                <div className="cmd-painel-cab">
+                  <span className="pilula-erro">
+                    <IconeErro />
+                    Comando recusado
+                  </span>
+                  <button
+                    type="button"
+                    className="botao-fechar"
+                    aria-label="Fechar aviso de erro"
+                    onClick={fecharSaida}
+                  >
+                    <IconeFechar />
+                  </button>
+                </div>
+                <p className="cmd-erro-msg">{estado.mensagem}</p>
+                {precisaSessao && (
+                  <div className="cmd-recupera">
+                    <p className="meta">
+                      Os pedidos iniciais são compartilhados para leitura. Carregue os arquivos fictícios na sua sessão para comandar ao vivo.
+                    </p>
+                    <button
+                      type="button"
+                      className="botao"
+                      disabled={carregandoExemplo}
+                      onClick={() => void importarExemploNaSessao()}
+                    >
+                      {carregandoExemplo ? 'Carregando exemplos…' : 'Carregar exemplo na minha sessão'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {estado.tipo === 'aviso' && (
+              <div className="cmd-painel cmd-painel-ok" role="status">
+                <div className="cmd-painel-cab">
+                  <span className="pilula-ok">
+                    <IconeOk />
+                    Sessão pronta
+                  </span>
+                  <button
+                    type="button"
+                    className="botao-fechar"
+                    aria-label="Fechar aviso"
+                    onClick={fecharSaida}
+                  >
+                    <IconeFechar />
+                  </button>
+                </div>
+                <p className="cmd-resumo">{estado.mensagem}</p>
+              </div>
+            )}
+
+            {estado.tipo === 'resultado' && (
+              <div className="cmd-painel" role="status">
+                <div className="cmd-painel-cab">
+                  <div className="cmd-painel-meta">
+                    <span className="pilula-coord mono">{rotuloAcaoMandato(estado.dados.acao)}</span>
+                    {estado.dados.acao === 'simular' && (
+                      <span className="pilula-sutil">Simulação · nenhum campo gravado</span>
+                    )}
+                    {estado.dados.alvos.length > 0 && (
+                      <span className="cmd-alvos meta">
+                        {estado.dados.alvos.length === 1 ? 'Pedido ' : 'Pedidos '}
+                        {estado.dados.alvos.map((alvo, idx) => (
+                          <span key={alvo}>
+                            {idx > 0 && ', '}
+                            <a href={`#/pedido/${encodeURIComponent(alvo)}`} className="mono">
+                              {chaveCurta(alvo)}
+                            </a>
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="botao-fechar"
+                    aria-label="Fechar resultado do comando"
+                    onClick={fecharSaida}
+                  >
+                    <IconeFechar />
+                  </button>
+                </div>
+
+                {estado.dados.acao === 'propagar' && (
+                  <CartaoPropagar itens={estado.dados.itens} novosEventos={estado.dados.novosEventos} />
+                )}
+                {estado.dados.acao === 'simular' && <CartaoSimular itens={estado.dados.itens} />}
+                {estado.dados.acao === 'resumir' && <CartaoResumir itens={estado.dados.itens} />}
+                {estado.dados.acao === 'notificar' && <CartaoNotificar itens={estado.dados.itens} />}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {voz.erro && (
-        <p className="mandato-voz-erro aviso-erro" role="alert">
-          {voz.erro}
-        </p>
-      )}
-
-      {estado.tipo === 'erro' && (
-        <div id={erroId} className="mandato-cartao mandato-cartao-erro" role="alert">
-          <div className="mandato-cartao-cab">
-            <span className="estado estado-erro">
-              <IconeErro />
-              Comando recusado
-            </span>
+      <div className="cmd-rodape">
+        <div className="cmd-chips" role="group" aria-label="Sugestões de comando">
+          {SUGESTOES.map((sugestao) => (
             <button
+              key={sugestao}
               type="button"
-              className="botao-fechar"
-              aria-label="Fechar aviso de erro"
-              onClick={fecharSaida}
+              className="chip"
+              disabled={enviando}
+              onClick={() => preencherSugestao(sugestao)}
             >
-              <IconeFechar />
+              {sugestao}
             </button>
-          </div>
-          <p className="mandato-erro-msg">{estado.mensagem}</p>
-          {precisaSessao && (
-            <div className="mandato-recupera">
-              <p className="meta">
-                Os pedidos iniciais são compartilhados para leitura. Carregue os arquivos fictícios na sua sessão para comandar ao vivo.
-              </p>
-              <button
-                type="button"
-                className="botao"
-                disabled={carregandoExemplo}
-                onClick={() => void importarExemploNaSessao()}
-              >
-                {carregandoExemplo ? 'Carregando exemplos…' : 'Carregar exemplo na minha sessão'}
-              </button>
-            </div>
-          )}
+          ))}
         </div>
-      )}
-
-      {estado.tipo === 'aviso' && (
-        <div className="mandato-cartao mandato-cartao-ok" role="status">
-          <div className="mandato-cartao-cab">
-            <span className="estado estado-ok">
-              <IconeOk />
-              Sessão pronta
-            </span>
-            <button
-              type="button"
-              className="botao-fechar"
-              aria-label="Fechar aviso"
-              onClick={fecharSaida}
-            >
-              <IconeFechar />
-            </button>
-          </div>
-          <p>{estado.mensagem}</p>
-        </div>
-      )}
-
-      {estado.tipo === 'resultado' && (
-        <div className={classeCartaoResultado(estado.dados)} role="status">
-          <div className="mandato-cartao-cab">
-            <div className="mandato-cartao-meta">
-              <span className="etiqueta mono">{rotuloAcaoMandato(estado.dados.acao)}</span>
-              {estado.dados.acao === 'simular' && (
-                <span className="etiqueta etiqueta-sim">Simulação: nenhum campo gravado</span>
-              )}
-              {estado.dados.alvos.length > 0 && (
-                <span className="mandato-alvos meta">
-                  {estado.dados.alvos.length === 1 ? 'Alvo: ' : 'Alvos: '}
-                  {estado.dados.alvos.map((alvo, idx) => (
-                    <span key={alvo}>
-                      {idx > 0 && ', '}
-                      <a href={`#/pedido/${encodeURIComponent(alvo)}`} className="mono">
-                        {chaveCurta(alvo)}
-                      </a>
-                    </span>
-                  ))}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              className="botao-fechar"
-              aria-label="Fechar resultado do comando"
-              onClick={fecharSaida}
-            >
-              <IconeFechar />
-            </button>
-          </div>
-
-          {estado.dados.acao === 'propagar' && (
-            <CartaoPropagar itens={estado.dados.itens} novosEventos={estado.dados.novosEventos} />
-          )}
-          {estado.dados.acao === 'simular' && <CartaoSimular itens={estado.dados.itens} />}
-          {estado.dados.acao === 'resumir' && <CartaoResumir itens={estado.dados.itens} />}
-          {estado.dados.acao === 'notificar' && <CartaoNotificar itens={estado.dados.itens} />}
-        </div>
-      )}
+        <span id={ajudaId} className="cmd-atalho meta">
+          Sessão atual · <kbd className="tecla mono">/</kbd>
+        </span>
+      </div>
     </section>
   );
 }
