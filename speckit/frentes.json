@@ -30,6 +30,7 @@
       "brief": "specs/0006-identidade-forseti-v4/brief-site-forseti.md",
       "paths": [
         "site/",
+        "lp/",
         "specs/0006-identidade-forseti-v4/brief-site-forseti.md"
       ]
     },

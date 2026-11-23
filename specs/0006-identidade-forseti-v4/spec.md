@@ -255,3 +255,14 @@ diário em `/diario`, e landing em `/forseti`; motivo: o site é um só e
 recebe a marca inteira), logo oficial extraído do próprio brandbook
 (sem redesenho), app em light padrão com alternador preservado e site
 só claro.
+
+## Errata 22/11 (mesma data)
+
+A frente `site-forseti` cobre DUAS superfícies: o `the-foundry`
+re-vestido (entregue, mantido como bônus) e a LP nova do produto em
+`lp/` — site do zero com estrutura de empresa real, deploy Vercel
+próprio (D-036). RF: hero com proposta, para quem, como funciona
+(lê/compara/mostra), bloco "não somos", evidências reais do MVP
+(matriz de divergências, fontes fiscais, cadeia, âncora) e CTA para a
+demo na Railway. Conteúdo verossímil sem fabricar clientes nem
+capacidades não provadas (A7).
