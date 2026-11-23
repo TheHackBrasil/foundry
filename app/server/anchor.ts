@@ -4,15 +4,10 @@
 import { Contract, JsonRpcProvider, Wallet, isHexString } from 'ethers';
 import ABI from '../contracts/abi/FoundryAnchor.abi.json' with { type: 'json' };
 import { raizMerkle } from '../shared/merkle.js';
+import type { ResultadoAncora } from '../shared/model.js';
 import type { LedgerStore } from './store.js';
 
-export interface ResultadoAncora {
-  ok: boolean;
-  motivo?: string;
-  root?: string;
-  txHash?: string;
-  url?: string;
-}
+export type { ResultadoAncora };
 
 export interface ConfigAncora {
   rpcUrl?: string;
