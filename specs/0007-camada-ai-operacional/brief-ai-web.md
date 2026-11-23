@@ -1,7 +1,7 @@
 # Brief · frente `ai-web`
 
-Status: em implementação na branch `wt/ai-web`. Dona dos paths `app/web/`
-e deste brief.
+Status: implementada na branch `wt/ai-web`, pronta para revisão e
+integração. Dona dos paths `app/web/` e deste brief.
 
 Objetivo: expor na tela a camada AI já em produção (mandato em linguagem
 natural, lente `view-spec` por papel, sinais consultivos e avisos) com os
@@ -155,26 +155,26 @@ produto: torre de pedidos, confiança sem ruído, zero hype de IA.
 
 ## Critérios de aceite
 
-- [ ] `cd app && npx tsc --noEmit` limpo (shared/server).
-- [ ] `cd app && npm --prefix web run build` limpo (`app/web` `tsc --noEmit` + Vite).
-- [ ] `cd app && npm --prefix web test` verde, com testes de
+- [x] `cd app && npx tsc --noEmit` limpo (shared/server).
+- [x] `cd app && npm --prefix web run build` limpo (`app/web` `tsc --noEmit` + Vite).
+- [x] `cd app && npm --prefix web test` verde, com testes de
       `aplicarViewSpec` (fonte ausente, coluna ausente, spec parcial,
       dedup, interseção vazia, `destacarDivergencias: false`, fallback
       sem ajuste), `extrairMensagemErroMandato`, `interpretarResultadoMandato`,
       `calcularBarrasAudio`, `chaveCacheLente` e novos rótulos de `format.ts`.
-- [ ] Mandato "Resuma o estado" exibe cartão de resumo; `simular` exibe
+- [x] Mandato "Resuma o estado" exibe cartão de resumo; `simular` exibe
       mini-tabela com selo A7; erros 503, 422 e 429 exibem mensagem pt-BR
       legível, nunca código cru; `sem_alvo` oferece carga de exemplo em um
       clique.
-- [ ] Escolher parte nas abas aplica o `view-spec` à matriz, exibe faixa
+- [x] Escolher parte nas abas aplica o `view-spec` à matriz, exibe faixa
       da lente só quando houve filtragem real e permite voltar para a
       visão completa; falha no fetch preserva a matriz inteira em silêncio.
-- [ ] A11y: rótulo real no campo de mandato, chips como `button`, mic com
+- [x] A11y: rótulo real no campo de mandato, chips como `button`, mic com
       `aria-pressed` e controle `Parar`, `role="status"`/`role="alert"`,
       teclado preservado, `prefers-reduced-motion` e `forced-colors`.
-- [ ] Marca v4: lavanda só para sinal/coordenação; sem cor nova nem emoji;
+- [x] Marca v4: lavanda só para sinal/coordenação; sem cor nova nem emoji;
       `python3 app/web/scripts/check_contrast.py` verde.
-- [ ] `node scripts/repo-guard.mjs && node scripts/prose-evals.mjs` exit 0.
+- [x] `node scripts/repo-guard.mjs && node scripts/prose-evals.mjs` exit 0.
 
 ## Proibido
 
@@ -193,4 +193,39 @@ Base: `main` pós-0007 (`ViewSpec`, `sinais`, `notificacoes`,
 
 ## Decisões da frente
 
-(atualizar ao concluir a implementação)
+- D-W1: `extrairMensagemErroMandato` (`api.ts`) prioriza `corpo.mensagem`
+  e cai para `corpo.erro` quando não for código cru (`invalido`,
+  `indisponivel`), porque o servidor devolve 400, 403, 429 e 507 via
+  `ErroRequisicao` em `corpo.erro` e 422/503 em `corpo.mensagem`.
+- D-W2: `BarraMandatos` declara escopo de sessão, usa data explícita no
+  chip de simulação ("Simule a entrega para 28/01/2026", já que o prompt
+  do servidor não injeta a data de hoje) e oferece carga real de 1 clique
+  dos arquivos em `/exemplos/` quando o mandato retorna `sem_alvo` ou 403.
+- D-W3: o anúncio do mandato em `useTorre.anunciar` aguarda 420 ms após a
+  resposta para não ser sobrescrito pelo lote SSE de 300 ms disparado pelo
+  próprio evento `mandato`; o cartão mantém `role="status"`/`role="alert"`
+  próprio.
+- D-W4: `useVoz` inicia `SpeechRecognition` primeiro e liga `AnalyserNode`
+  (`getUserMedia`) de forma não-bloqueante em desktop fora de
+  `prefers-reduced-motion`; em toque ou sem permissão, as 5 barras retas
+  de `2px` reagem apenas aos eventos reais de fala/resultado e voltam ao
+  piso no silêncio.
+- D-W5: `aplicarViewSpec` preserva a ordem das fontes e campos da matriz,
+  cai na matriz completa se a interseção de fontes ou colunas zerar, só
+  marca `ajustada: true` quando houve omissão real ou supressão de
+  destaque (respeitando A7 no `viewSpecPadrao`) e mantém `referencia` e
+  `divergente` fiéis ao ledger. Quando uma fonte conflitante fica oculta,
+  `Resumo` informa "diverge em fonte oculta pela lente".
+- D-W6: a lente `view-spec` não dispara na montagem inicial (evita salto
+  visual e consumo automático da cota `20 / 10 min`), guarda cache fora do
+  `PainelPedido` em `lenteCache.ts` com chave `${pedidoId}|${papel}|${totalEventos}`
+  (invalida ao chegar evento SSE), mantém `data-fontes` amarrado à matriz
+  completa para não deslocar as abas durante o clique e oferece o botão
+  independente "Ver matriz completa".
+- D-W7: `SinaisEAvisos` sobe para entre `.cols` e `Versoes`, aparece só
+  quando há itens, reforça R-006 no subtítulo e aplica destaque temporário
+  de 3 px em `--change` a itens novos chegados por SSE.
+- D-W8: `EnvioArquivos.tsx` passa a aceitar `.xlsx` no `input` e no texto
+  de ajuda, alinhado ao RF1 da spec 0007. Nenhuma cor nova foi criada em
+  `tokens.css`; os 52 pares de `check_contrast.py` seguem verdes.
+
