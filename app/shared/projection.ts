@@ -10,8 +10,10 @@ import type {
   Evento,
   FonteDocumento,
   ItemPedido,
+  Notificacao,
   Pedido,
   ProjecaoPedido,
+  Sinal,
   Tarefa,
   VersaoPedido,
 } from './model.js';
@@ -55,6 +57,8 @@ export function projetar(eventos: Evento[]): ProjecaoPedido {
   const versoes: VersaoPedido[] = [];
   const divergencias: Divergencia[] = [];
   const tarefas: Tarefa[] = [];
+  const sinais: Sinal[] = [];
+  const notificacoes: Notificacao[] = [];
   let pedido: Pedido | null = null;
 
   for (const ev of eventos) {
@@ -99,11 +103,20 @@ export function projetar(eventos: Evento[]): ProjecaoPedido {
     }
     if (ev.tipo === 'tarefa') {
       tarefas.push(ev.payload as unknown as Tarefa);
+      continue;
+    }
+    // mandato fica fora da projecao: ele ja e trilha do proprio ledger.
+    if (ev.tipo === 'sinal') {
+      sinais.push(ev.payload as unknown as Sinal);
+      continue;
+    }
+    if (ev.tipo === 'notificacao') {
+      notificacoes.push(ev.payload as unknown as Notificacao);
     }
   }
 
   if (pedido) pedido.campos = consolidarCampos(porFonte);
-  return { pedido, versoes, divergencias, tarefas, totalEventos: eventos.length };
+  return { pedido, versoes, divergencias, tarefas, sinais, notificacoes, totalEventos: eventos.length };
 }
 
 // Campos por fonte do historico: base do calculo incremental no ingest.

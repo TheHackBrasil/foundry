@@ -11,20 +11,25 @@ import Fastify, { type FastifyError, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
+import { simularHipotese } from '../shared/divergence.js';
 import { raizMerkle } from '../shared/merkle.js';
 import { propagarTodas } from '../shared/rules.js';
-import type { CamposObservados, Divergencia } from '../shared/model.js';
+import { PARTES, type CamposObservados, type MandatoParseado, type Parte } from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
 import { ancorar, configAncoraDoEnv } from './anchor.js';
 import { configDoEnv, inteiroDoEnv, type ConfigServidor } from './config.js';
+import { listarAgenda, validarContato } from './contatos.js';
 import { createDb, type Db } from './db.js';
 import { imapConfigDoEnv, iniciarPolling } from './ingest/imap.js';
+import { ErroLlm, llmConfigDoEnv } from './llm.js';
+import { ErroMandato, executarMandato, interpretarMandato } from './mandatos.js';
 import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
 import { ehProcessoPrincipal } from './processo.js';
 import { ErroRequisicao, GuardaEspaco, JanelaFixa, mensagens } from './protecao.js';
 import { carregarSeed } from './seed.js';
 import { CanalSSE } from './sse.js';
 import { LedgerStore } from './store.js';
+import { gerarViewSpec, viewSpecPadrao } from './viewspec.js';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
@@ -126,6 +131,8 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     app.log.error({ err: e }, 'guarda de espaco: falha ao medir o banco'),
   );
   const pdfs = new JanelaFixa(cfg.rateLimit.pdfsPor10Min, 10 * 60_000);
+  const mandatosJanela = new JanelaFixa(cfg.rateLimit.mandatosPor10Min, 10 * 60_000);
+  const viewSpecJanela = new JanelaFixa(cfg.rateLimit.viewspecPor10Min, 10 * 60_000);
   const sessoesNovas = new JanelaFixa(cfg.rateLimit.sessoesNovasPor10Min, 10 * 60_000);
   const limiteEscrita = { rateLimit: { max: cfg.rateLimit.escritasPorMinuto, timeWindow: 60_000, groupId: 'escrita' } };
   const limiteAncora = { rateLimit: { max: cfg.rateLimit.ancorasPor10Min, timeWindow: 10 * 60_000, groupId: 'ancora' } };
@@ -283,7 +290,9 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     });
   });
 
-  // "E se?" deterministico: nada e gravado (RF12).
+  // "E se?" deterministico: nada e gravado (RF12). A comparacao e a mesma de
+  // divergence.ts, com tolerancia de peso; fonteA e a fonte real do valor
+  // atual (a ultima que declarou o campo) e fonteB e 'manual' (spec 0007).
   app.post<{ Body: { pedidoId?: string; campos?: CamposObservados } }>(
     '/api/simulate',
     async (req, reply) => {
@@ -294,21 +303,98 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       const s = await storeDoPedido(store.paraWorkspace(req.workspace), pedidoId);
       if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
       const proj = projetar(await s.eventosDoPedido(pedidoId));
-      const atual = proj.pedido?.campos ?? {};
-      const divs: Divergencia[] = [];
-      for (const [campo, valorNovo] of Object.entries(campos)) {
-        const valorAtual = (atual as Record<string, unknown>)[campo];
-        if (valorAtual !== undefined && valorAtual !== valorNovo) {
-          divs.push({
-            campo: campo as Divergencia['campo'],
-            fonteA: 'planilha',
-            fonteB: 'manual',
-            valorA: valorAtual,
-            valorB: valorNovo,
-          });
-        }
-      }
+      const divs = simularHipotese(proj.versoes, campos);
       return { divergencias: divs, tarefas: propagarTodas(divs), simulacao: true };
+    },
+  );
+
+  // Mandato (spec 0007, RF4): texto em pt-BR vira acao tipada; a LLM so
+  // traduz e a execucao e so do motor deterministico. Sem LLM configurada a
+  // resposta e 503 declarativo; recusas do mandato sao 422 com motivo.
+  app.post<{ Body: { texto?: string } }>(
+    '/api/mandatos',
+    { config: limiteEscrita },
+    async (req, reply) => {
+      const bruto = req.body?.texto;
+      if (typeof bruto !== 'string' || !bruto.trim()) {
+        return reply.code(400).send({ erro: 'texto é obrigatório' });
+      }
+      const texto = bruto.trim();
+      if (texto.length > 1_000) return reply.code(400).send({ erro: 'texto é longo demais' });
+      if (!llmConfigDoEnv()) {
+        return reply.code(503).send({ erro: 'indisponivel', mensagem: mensagens.llmIndisponivel() });
+      }
+      if (!mandatosJanela.consumir(ipDoCliente(req))) {
+        throw new ErroRequisicao(429, mensagens.muitosMandatos());
+      }
+      // O mandato grava eventos: a seed, que e leitura para todos, recusa.
+      exigirGravavel(req.workspace, 'executar comandos');
+      await guarda.exigirEspaco();
+      const sessao = store.paraWorkspace(req.workspace);
+      try {
+        const mandato = await interpretarMandato(texto);
+        const exec = await executarMandato(sessao, texto, mandato, { maxAlvos: cfg.mandatos.maxAlvos });
+        for (const e of exec.eventos) canal.evento(e, sessao.workspace);
+        const resposta = {
+          acao: exec.acao,
+          alvos: exec.alvos,
+          filtros: (mandato as MandatoParseado).filtros,
+          ...(mandato.alvo !== undefined ? { alvo: mandato.alvo } : {}),
+          resultado: exec.resultado,
+        };
+        return reply.send(resposta);
+      } catch (err) {
+        if (err instanceof ErroLlm) {
+          if (err.tipo === 'indisponivel') {
+            return reply.code(503).send({ erro: 'indisponivel', mensagem: mensagens.llmIndisponivel() });
+          }
+          return reply.code(422).send({ erro: 'invalido', motivo: 'parse_falhou', mensagem: mensagens.llmInvalida() });
+        }
+        if (err instanceof ErroMandato) {
+          return reply.code(422).send({ erro: 'invalido', motivo: err.motivo, mensagem: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // Agenda de contatos (RF7): a sessao le a sua com a seed como fallback.
+  app.get('/api/contatos', async (req) => listarAgenda(store.paraWorkspace(req.workspace)));
+
+  app.put<{ Body: { parte?: string; nome?: string; canal?: string; destino?: string } }>(
+    '/api/contatos',
+    { config: limiteEscrita },
+    async (req, reply) => {
+      // validarContato lanca ErroRequisicao(400) com o campo errado na mensagem.
+      const contato = validarContato(req.body ?? {});
+      exigirGravavel(req.workspace, 'alterar a agenda de exemplo');
+      await guarda.exigirEspaco();
+      const sessao = store.paraWorkspace(req.workspace);
+      await sessao.upsertContato(contato);
+      return reply.send(contato);
+    },
+  );
+
+  // View-spec por papel (RF9): LLM gera, servidor valida, padrao
+  // deterministico cobre qualquer falha. Leitura, nunca grava.
+  app.get<{ Params: { id: string }; Querystring: { papel?: string } }>(
+    '/api/pedidos/:id/view-spec',
+    async (req, reply) => {
+      const papel = req.query.papel;
+      if (!papel || !(PARTES as readonly string[]).includes(papel)) {
+        return reply.code(400).send({ erro: `papel inválido; use uma das partes: ${PARTES.join(', ')}` });
+      }
+      const s = await storeDoPedido(store.paraWorkspace(req.workspace), req.params.id);
+      if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
+      const proj = projetar(await s.eventosDoPedido(req.params.id));
+      if (!proj.pedido) return reply.send(viewSpecPadrao(papel as Parte));
+      // Cada GET com LLM ligada e uma chamada paga: cota por IP como no
+      // mandato. Sem LLM (ou no padrao acima) a rota nao tem custo e nao
+      // conta a janela.
+      if (llmConfigDoEnv() && !viewSpecJanela.consumir(ipDoCliente(req))) {
+        throw new ErroRequisicao(429, mensagens.muitasVisoes());
+      }
+      return reply.send(await gerarViewSpec(proj, papel as Parte));
     },
   );
 
