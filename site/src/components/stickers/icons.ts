@@ -6,18 +6,19 @@ import type { Icon, Layer, Motion, Palette, Shape, Vec } from './fun'
 const LINE = 5
 const { tilt: FACE, extrude: EXT } = VIEWS.right
 
-// Ink matches the page, so on black the outline reads as a die-cut edge.
-export const FORGE: Palette = {
-  main: '#ea5808',
-  gold: '#ffb347',
-  tint: '#e9c9a0',
-  ok: '#ff8a3d',
-  hot: '#ea5808',
-  deep: '#565d67',
-  white: '#f3efe8',
-  grey: '#9aa0a8',
-  paper: '#f7f7f7',
-  ink: '#0a0c0e',
+// V4 roles on paper: petroleum bodies, lavender fills (graphic only),
+// violet as the coordination signal, petroleum-deep ink as the die-cut edge.
+export const FORSETI: Palette = {
+  main: '#163C38',
+  gold: '#D7C5EA',
+  tint: '#EDE5FE',
+  ok: '#31693F',
+  hot: '#654199',
+  deep: '#52665E',
+  white: '#FBF9F3',
+  grey: '#8A9A92',
+  paper: '#F5F2EB',
+  ink: '#0E1F1D',
 }
 
 const glow = (parent: string, p: Vec, r: number, m: Motion | ReadonlyArray<Motion>, extra: { ip?: number; op?: number } = {}): Layer => ({

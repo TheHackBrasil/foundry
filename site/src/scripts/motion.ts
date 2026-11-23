@@ -1,18 +1,19 @@
-// Motion layer: Lenis + GSAP choreography, section heat and the
-// WebGL forge boot. Base.astro sets .reduce before paint; this file only
-// reads it. Reduced motion drops Tier-1 (Lenis, WebGL, scrubbed travel)
-// and keeps only instant state changes.
+// Motion layer: Lenis + GSAP choreography in the v4 sequence —
+// Surgir (hero), Conectar (cords drawn), Propagar (the signal dot),
+// Estabilizar (everything rests). Base.astro sets .reduce before paint; this
+// file only reads it. Reduced motion drops Tier-1 and keeps only instant
+// state changes: every cord stays drawn, nothing is only conveyed by motion.
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { MotionPathPlugin } from 'gsap/MotionPathPlugin';
 import Lenis from 'lenis';
-import type { ForgeInput } from './forge';
 
 const root = document.documentElement;
 const REDUCED = root.classList.contains('reduce');
 const $ = <T extends Element = HTMLElement>(s: string, el: ParentNode = document) => el.querySelector<T>(s);
 const $$ = <T extends Element = HTMLElement>(s: string, el: ParentNode = document) => [...el.querySelectorAll<T>(s)];
 
-gsap.registerPlugin(ScrollTrigger);
+gsap.registerPlugin(ScrollTrigger, MotionPathPlugin);
 
 /* ---------- smooth scroll (Tier-1) ---------- */
 let lenis: Lenis | null = null;
@@ -23,24 +24,63 @@ if (!REDUCED) {
   gsap.ticker.lagSmoothing(0);
 }
 
-/* ---------- shared scroll state, also fed to the forge ---------- */
-const input: ForgeInput = { heat: 0.6, progress: 0, hero: 0 };
+/* ---------- scroll progress bar ---------- */
 const hero = $('#hero')!;
 const bar = $('#progress span');
 const onScroll = () => {
   const max = root.scrollHeight - innerHeight;
-  input.progress = max > 0 ? Math.min(1, scrollY / max) : 0;
-  input.hero = Math.min(1, Math.max(0, scrollY / Math.max(1, hero.offsetHeight)));
-  if (bar) bar.style.transform = `scaleX(${input.progress})`;
+  const p = max > 0 ? Math.min(1, scrollY / max) : 0;
+  if (bar) bar.style.transform = `scaleX(${p})`;
 };
 if (lenis) lenis.on('scroll', onScroll);
 addEventListener('scroll', onScroll, { passive: true });
 onScroll();
 
-/* ---------- hero entrance ---------- */
+/* ---------- cordas: desenho e sinal ---------- */
+// Each .cords svg: four lavender lines + an optional violet signal dot.
+// Without JS or under .reduce the paths stay fully drawn — final state first.
+function drawCords(svg: SVGSVGElement, trigger: Element | string, start: string) {
+  const paths = $$<SVGPathElement>('path', svg);
+  paths.forEach((p, i) => {
+    const len = p.getTotalLength();
+    p.style.strokeDasharray = `${len}`;
+    p.style.strokeDashoffset = `${len}`;
+    gsap.to(p, {
+      strokeDashoffset: 0,
+      duration: 1.6,
+      delay: i * 0.14,
+      ease: 'power2.inOut',
+      scrollTrigger: { trigger, start, once: true },
+    });
+  });
+}
+
+function propagateSignal(svg: SVGSVGElement) {
+  const dot = $<SVGCircleElement>('.cord-signal', svg);
+  const paths = $$<SVGPathElement>('path', svg);
+  if (!dot || paths.length < 2) return;
+  gsap.to(dot, {
+    motionPath: { path: paths[1], align: paths[1], alignOrigin: [0.5, 0.5] },
+    duration: 5.2,
+    ease: 'power1.inOut',
+    repeat: -1,
+    repeatDelay: 2.4,
+    delay: 2,
+  });
+}
+
+/* ---------- hero entrance: Surgir, Conectar, Propagar ---------- */
 if (!REDUCED) {
   gsap.fromTo('.hero-title .ln > span', { yPercent: 112, opacity: 1 }, { yPercent: 0, opacity: 1, duration: 1.15, ease: 'expo.out', stagger: 0.11, delay: 0.15 });
-  gsap.from('.hero-sub, .hero-actions, .hero-facts', { opacity: 0, y: 18, duration: 1, ease: 'expo.out', stagger: 0.1, delay: 0.55, clearProps: 'transform,opacity' });
+  gsap.from('.hero-sub, .hero-verbs, .hero-not, .hero-actions, .hero-facts', { opacity: 0, y: 18, duration: 1, ease: 'expo.out', stagger: 0.1, delay: 0.55, clearProps: 'transform,opacity' });
+
+  const scene = $('.hero-scene');
+  if (scene) {
+    gsap.from('.hero-scene .mono', { y: 60, opacity: 0, duration: 1.3, ease: 'expo.out', stagger: 0.12, delay: 0.4 });
+    drawCords(scene, '.hero', 'top 95%');
+    propagateSignal(scene);
+  }
+
   gsap.to('.hero-title', {
     yPercent: -18,
     ease: 'none',
@@ -82,21 +122,22 @@ if (!REDUCED) {
   root.classList.add('motion-ok');
 }
 
-/* ---------- sections: data-heat drives the forge, the nav follows ---------- */
+/* ---------- sections: the nav follows the scroll ---------- */
 {
   const navLinks = $$<HTMLAnchorElement>('.top nav a');
   const setSection = (sec: HTMLElement) => {
-    input.heat = Number(sec.dataset.heat ?? 0.4);
     navLinks.forEach((a) => (a.getAttribute('href') === `#${sec.id}` ? a.setAttribute('aria-current', 'location') : a.removeAttribute('aria-current')));
   };
-  $$('[data-heat]').forEach((sec) =>
+  navLinks.forEach((a) => {
+    const sec = $(a.getAttribute('href') ?? '');
+    if (!sec) return;
     ScrollTrigger.create({
       trigger: sec,
       start: 'top 55%',
       end: 'bottom 55%',
-      onToggle: (self) => self.isActive && setSection(sec),
-    }),
-  );
+      onToggle: (self) => self.isActive && setSection(sec as HTMLElement),
+    });
+  });
 }
 
 /* ---------- photos: a full-colour copy fades in on hover, so filter never animates ---------- */
@@ -135,8 +176,11 @@ if (!REDUCED) {
     }),
   );
 
-  const bar = $('.layer-bar');
-  if (bar) gsap.fromTo(bar, { scaleX: 0 }, { scaleX: 1, ease: 'power2.out', scrollTrigger: { trigger: bar, start: 'top 85%', end: 'top 55%', scrub: 0.6 } });
+  // A camada: as cordas se desenham quando entram na tela e o sinal propaga.
+  $$<SVGSVGElement>('.layer-cords, .closing > .cords').forEach((svg) => {
+    drawCords(svg, svg, 'top 88%');
+    propagateSignal(svg);
+  });
 
   // ABERTO: each row starts glowing and cools as it rises through the viewport.
   $$('.q .heat').forEach((el) =>
@@ -146,43 +190,4 @@ if (!REDUCED) {
       scrollTrigger: { trigger: el.parentElement, start: 'top 95%', end: 'top 30%', scrub: true },
     }),
   );
-}
-
-/* ---------- WebGL forge (Tier-1, isolated: any failure leaves the static backdrop) ---------- */
-{
-  const canvas = $<HTMLCanvasElement>('#forge');
-  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
-  const lowEnd =
-    (nav.hardwareConcurrency ?? 4) <= 2 || (nav.deviceMemory ?? 4) <= 2 || nav.connection?.saveData === true;
-  // ?gl=0 forces the static backdrop; ?gl=force skips the frame budget guard
-  // (software renderers in headless capture would otherwise trip it).
-  const glParam = new URLSearchParams(location.search).get('gl');
-  const off = glParam === '0';
-  const hasGL = () => {
-    try {
-      const c = document.createElement('canvas');
-      return !!(c.getContext('webgl2') || c.getContext('webgl'));
-    } catch {
-      return false;
-    }
-  };
-  // Boot after the hero entrance has had its frames: environment and shader
-  // compilation can stall a weak GPU.
-  const idle = (fn: () => void) =>
-    'requestIdleCallback' in window ? requestIdleCallback(fn, { timeout: 1600 }) : setTimeout(fn, 1300);
-  if (canvas && !REDUCED && !lowEnd && !off && hasGL()) idle(() => {
-    import('./forge')
-      .then(({ startForge }) =>
-        startForge(canvas, input, {
-          strikeZone: hero,
-          onReady: () => root.classList.add('gl-on'),
-          onLost: () => root.classList.remove('gl-on'),
-          guard: glParam !== 'force',
-        }),
-      )
-      .catch((err) => {
-        root.classList.remove('gl-on');
-        console.warn('forge disabled:', err);
-      });
-  });
 }
