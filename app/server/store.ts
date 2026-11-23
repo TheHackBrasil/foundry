@@ -3,7 +3,8 @@
 
 import { GENESIS_HASH, hashEvento, verificarCadeia, type VerificacaoCadeia } from '../shared/chain.js';
 import { TIPOS_DOCUMENTO } from '../shared/model.js';
-import type { Evento, ItemRevisao } from '../shared/model.js';
+import type { Contato, Evento, ItemRevisao, Parte, PropostaMapeamento } from '../shared/model.js';
+import { CONTATOS_SEED } from './contatos.js';
 import type { Db } from './db.js';
 
 const DDL = `
@@ -38,6 +39,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS events_ws_pedido_seq ON events (workspace_id, 
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'seed';
 -- Fila e uso por sessao filtram por workspace a cada envio.
 CREATE INDEX IF NOT EXISTS review_queue_ws ON review_queue (workspace_id);
+
+-- Agenda de contatos por workspace (spec 0007, RF7). Um contato por parte por
+-- workspace; a fonte diz se veio manual, de documento ou da seed.
+CREATE TABLE IF NOT EXISTS contatos (
+  id           BIGSERIAL PRIMARY KEY,
+  workspace_id TEXT NOT NULL DEFAULT 'seed',
+  parte        TEXT NOT NULL,
+  nome         TEXT NOT NULL,
+  canal        TEXT NOT NULL,
+  destino      TEXT NOT NULL,
+  fonte        TEXT NOT NULL DEFAULT 'manual',
+  ts           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, parte)
+);
+CREATE INDEX IF NOT EXISTS contatos_ws ON contatos (workspace_id);
+
+-- Templates de mapeamento aprovados (spec 0007, RF11): coluna -> campo
+-- canonico por (workspace, remetente); nao vaza entre workspaces.
+CREATE TABLE IF NOT EXISTS templates (
+  id           BIGSERIAL PRIMARY KEY,
+  workspace_id TEXT NOT NULL DEFAULT 'seed',
+  remetente    TEXT NOT NULL,
+  mapeamento   JSONB NOT NULL,
+  ts           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, remetente)
+);
 
 CREATE OR REPLACE FUNCTION rejeita_mutacao_events() RETURNS trigger AS $$
 BEGIN
@@ -113,6 +140,15 @@ export class LedgerStore {
 
   async init(): Promise<void> {
     await this.db.exec(DDL);
+    // Os 4 contatos ficticios da seed entram uma vez por banco; a seed e
+    // escrita so por init/seed.ts, nunca pela API.
+    for (const c of CONTATOS_SEED) {
+      await this.db.query(
+        `INSERT INTO contatos (workspace_id, parte, nome, canal, destino, fonte)
+         VALUES ($1, $2, $3, $4, $5, 'seed') ON CONFLICT (workspace_id, parte) DO NOTHING`,
+        [this.seedWorkspace, c.parte, c.nome, c.canal, c.destino],
+      );
+    }
   }
 
   // Atomicidade do pipeline: doc + divergencias + tarefas na mesma tx.
@@ -225,6 +261,7 @@ export class LedgerStore {
 
   // Contrato de GET /api/revisao: ItemRevisao sem workspace_id (RF6). A rota
   // que decide usa buscarRevisao, que le a linha inteira inclusive o dono.
+  // payload.proposta (RF11) sobe para o campo tipado quando existe.
   async listarRevisao(): Promise<ItemRevisao[]> {
     const rows = await this.db.query<{
       id: number;
@@ -236,7 +273,14 @@ export class LedgerStore {
     }>(`SELECT id, origem, motivo, payload, status, ts FROM review_queue WHERE workspace_id = ANY($1) ORDER BY id`, [
       this.visiveis(),
     ]);
-    return rows.map((r) => ({ ...r, ts: r.ts instanceof Date ? r.ts.toISOString() : String(r.ts) }));
+    return rows.map((r) => {
+      const proposta = r.payload['proposta'] as PropostaMapeamento | undefined;
+      return {
+        ...r,
+        ts: r.ts instanceof Date ? r.ts.toISOString() : String(r.ts),
+        ...(proposta !== undefined ? { proposta } : {}),
+      };
+    });
   }
 
   async buscarRevisao(id: number): Promise<Record<string, unknown> | null> {
@@ -290,5 +334,67 @@ export class LedgerStore {
       [this.workspace, pedidoId],
     );
     return rows[0]?.payload ?? null;
+  }
+
+  // Agenda visivel (sessao + seed) com o dono: quem monta a agenda decide a
+  // precedencia por workspace (listarAgenda em contatos.ts).
+  async listarContatos(): Promise<Array<Contato & { workspaceId: string }>> {
+    return this.db.query(
+      `SELECT workspace_id AS "workspaceId", parte, nome, canal, destino, fonte
+       FROM contatos WHERE workspace_id = ANY($1) ORDER BY id`,
+      [this.visiveis()],
+    ) as Promise<Array<Contato & { workspaceId: string }>>;
+  }
+
+  // Um contato por parte por workspace: a sessao resolve pelo proprio, a seed
+  // so entra quando a sessao nao cadastrou a parte.
+  async contatoDaParte(parte: Parte): Promise<Contato | null> {
+    const rows = await this.db.query<Contato>(
+      `SELECT parte, nome, canal, destino, fonte FROM contatos
+       WHERE workspace_id = ANY($1) AND parte = $2
+       ORDER BY (workspace_id = $3) DESC, id LIMIT 1`,
+      [this.visiveis(), parte, this.workspace],
+    );
+    return rows[0] ?? null;
+  }
+
+  // Upsert do PUT /api/contatos: sempre fonte 'manual' na sessao do chamador.
+  async upsertContato(c: Contato): Promise<void> {
+    await this.db.query(
+      `INSERT INTO contatos (workspace_id, parte, nome, canal, destino, fonte)
+       VALUES ($1, $2, $3, $4, $5, 'manual')
+       ON CONFLICT (workspace_id, parte)
+       DO UPDATE SET nome = EXCLUDED.nome, canal = EXCLUDED.canal, destino = EXCLUDED.destino, fonte = 'manual'`,
+      [this.workspace, c.parte, c.nome, c.canal, c.destino],
+    );
+  }
+
+  // Bootstrap por documento: so insere quando a parte ainda nao tem contato;
+  // um manual cadastrado a mao nunca e tocado (RF7).
+  async inserirContatoSeAusente(c: Contato): Promise<boolean> {
+    const rows = await this.db.query<{ id: number }>(
+      `INSERT INTO contatos (workspace_id, parte, nome, canal, destino, fonte)
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (workspace_id, parte) DO NOTHING RETURNING id`,
+      [this.workspace, c.parte, c.nome, c.canal, c.destino, c.fonte],
+    );
+    return rows.length > 0;
+  }
+
+  // Template de mapeamento aprovado (RF11): dados de sessao, escopo so do
+  // workspace deste store; nao entra a seed nem outros visitantes.
+  async templatePara(remetente: string): Promise<Record<string, string> | null> {
+    const rows = await this.db.query<{ mapeamento: Record<string, string> }>(
+      `SELECT mapeamento FROM templates WHERE workspace_id = $1 AND remetente = $2`,
+      [this.workspace, remetente],
+    );
+    return rows[0]?.mapeamento ?? null;
+  }
+
+  async salvarTemplate(remetente: string, mapeamento: Record<string, string>): Promise<void> {
+    await this.db.query(
+      `INSERT INTO templates (workspace_id, remetente, mapeamento) VALUES ($1, $2, $3)
+       ON CONFLICT (workspace_id, remetente) DO UPDATE SET mapeamento = EXCLUDED.mapeamento`,
+      [this.workspace, remetente, JSON.stringify(mapeamento)],
+    );
   }
 }
