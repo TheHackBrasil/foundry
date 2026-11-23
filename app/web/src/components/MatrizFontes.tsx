@@ -1,11 +1,11 @@
-import { ROTULO_CAMPO, ROTULO_FONTE, formatarMomento, formatarValor, variacao } from '../format.ts';
+import { formatarMomento, formatarValor, rotuloCampo, rotuloFonte, variacao } from '../format.ts';
 import type { Celula, LinhaMatriz, Matriz } from '../matriz.ts';
 import { IconeConfere, IconeDiverge, IconeSemComparacao, IconeSeta } from './icones.tsx';
 
 // Div com papéis ARIA, não <table>: a mesma marcação vira coluna única no celular
 // sem perder a leitura por linha e coluna no leitor de tela.
 function Celula({ linha, celula }: { linha: LinhaMatriz; celula: Celula }) {
-  const rotulo = ROTULO_FONTE[celula.fonte];
+  const rotulo = rotuloFonte(celula.fonte);
   const comum = { role: 'cell', 'data-fonte': rotulo } as const;
   if (celula.valor === undefined) {
     return (
@@ -48,14 +48,14 @@ export function MatrizFontes({ matriz }: { matriz: Matriz }) {
         <div role="columnheader">Campo</div>
         {matriz.fontes.map((fonte) => (
           <div key={fonte} role="columnheader">
-            <b>{ROTULO_FONTE[fonte]}</b>
+            <b>{rotuloFonte(fonte)}</b>
           </div>
         ))}
       </div>
       {matriz.linhas.map((linha) => (
         <div role="row" className="mx-row mx-b" key={linha.campo}>
           <div role="rowheader" className="rh">
-            <span className="campo">{ROTULO_CAMPO[linha.campo]}</span>
+            <span className="campo">{rotuloCampo(linha.campo)}</span>
             {linha.divergente ? (
               <span className="estado estado-dv">
                 <IconeDiverge />

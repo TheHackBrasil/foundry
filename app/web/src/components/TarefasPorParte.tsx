@@ -1,6 +1,6 @@
 import { useId, useRef, type KeyboardEvent } from 'react';
 import { PARTES, type Parte, type Tarefa } from '../../../shared/model.ts';
-import { ROTULO_CAMPO, ROTULO_FONTE, ROTULO_PARTE } from '../format.ts';
+import { rotuloCampo, rotuloFonte, rotuloParte } from '../format.ts';
 import {
   FILTRO_TODAS,
   agruparTarefas,
@@ -33,7 +33,7 @@ function Item({ grupo, novas }: { grupo: GrupoTarefa; novas: ReadonlySet<string>
           const d = t.divergencia;
           return (
             <li key={chaveTarefa(t)} className="meta">
-              {ROTULO_CAMPO[d.campo]} · {ROTULO_FONTE[d.fonteA]} × {ROTULO_FONTE[d.fonteB]}
+              {rotuloCampo(d.campo)} · {rotuloFonte(d.fonteA)} × {rotuloFonte(d.fonteB)}
             </li>
           );
         })}
@@ -50,7 +50,7 @@ export function TarefasPorParte({ tarefas, filtro, aoFiltrar, novas }: Props) {
   const total = agruparTarefas(tarefas).length;
   const abas: ReadonlyArray<{ valor: FiltroParte; rotulo: string; n: number }> = [
     { valor: FILTRO_TODAS, rotulo: 'Todas', n: total },
-    ...PARTES.map((p) => ({ valor: p as FiltroParte, rotulo: ROTULO_PARTE[p], n: contagem(p) })),
+    ...PARTES.map((p) => ({ valor: p as FiltroParte, rotulo: rotuloParte(p), n: contagem(p) })),
   ];
 
   const partes: Parte[] = filtro === FILTRO_TODAS ? PARTES.filter((p) => contagem(p) > 0) : [filtro];
@@ -92,12 +92,12 @@ export function TarefasPorParte({ tarefas, filtro, aoFiltrar, novas }: Props) {
           <p className="dica">Nenhuma tarefa por enquanto. Elas aparecem quando duas fontes declaram valores diferentes para o mesmo campo.</p>
         )}
         {tarefas.length > 0 && visiveis === 0 && filtro !== FILTRO_TODAS && (
-          <p className="dica">Nenhuma tarefa para {ROTULO_PARTE[filtro]} neste pedido.</p>
+          <p className="dica">Nenhuma tarefa para {rotuloParte(filtro)} neste pedido.</p>
         )}
         {grupos.map(({ parte, itens }) =>
           itens.length === 0 ? null : (
-            <section key={parte} aria-label={ROTULO_PARTE[parte]}>
-              {filtro === FILTRO_TODAS && <h4 className="meta" style={{ marginTop: '1rem' }}>{ROTULO_PARTE[parte]}</h4>}
+            <section key={parte} aria-label={rotuloParte(parte)}>
+              {filtro === FILTRO_TODAS && <h4 className="meta" style={{ marginTop: '1rem' }}>{rotuloParte(parte)}</h4>}
               <ul>
                 {itens.map((g) => (
                   <Item key={g.titulo} grupo={g} novas={novas} />

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PARTES } from '../../../shared/model.ts';
 import type { ProjecaoPedido, RespostaAuditoria } from '../../../shared/model.ts';
-import { ROTULO_CAMPO, ROTULO_FONTE, chaveAgrupada, chaveCurta, formatarMomento, formatarValor, variacao } from '../format.ts';
+import { chaveAgrupada, chaveCurta, formatarMomento, formatarValor, rotuloCampo, rotuloFonte, variacao } from '../format.ts';
 import { FILTRO_TODAS, montarMatriz, tarefasDaParte, type FiltroParte, type LinhaMatriz } from '../matriz.ts';
 import type { Carga } from '../useTorre.ts';
 import { IconeConfere, IconeDiverge } from './icones.tsx';
@@ -40,14 +40,14 @@ function Resumo({ linhas }: { linhas: readonly LinhaMatriz[] }) {
           const outras = l.celulas.filter((c) => c.emConflito && !c.referencia);
           return (
             <span key={l.campo}>
-              {ROTULO_CAMPO[l.campo]}:{' '}
+              {rotuloCampo(l.campo)}:{' '}
               {outras.map((c, i) => {
                 const delta = variacao(l.campo, c.valor, ref?.valor);
                 return (
                   <span key={c.fonte}>
                     {i > 0 && '; '}
-                    {ROTULO_FONTE[c.fonte]} indica {formatarValor(l.campo, c.valor)}
-                    {ref && ` e ${ROTULO_FONTE[ref.fonte]}, ${formatarValor(l.campo, ref.valor)}`}
+                    {rotuloFonte(c.fonte)} indica {formatarValor(l.campo, c.valor)}
+                    {ref && ` e ${rotuloFonte(ref.fonte)}, ${formatarValor(l.campo, ref.valor)}`}
                     {delta && ` (${delta})`}
                   </span>
                 );
@@ -75,7 +75,7 @@ function Versoes({ versoes }: { versoes: ProjecaoPedido['versoes'] }) {
           <li key={`${v.fonte}-${v.versao}`}>
             <time dateTime={v.geradaEm}>{formatarMomento(v.geradaEm)}</time>
             <span>
-              {ROTULO_FONTE[v.fonte]} v{v.versao} {v.versao === 1 ? 'registrada' : 'recebida'}.
+              {rotuloFonte(v.fonte)} v{v.versao} {v.versao === 1 ? 'registrada' : 'recebida'}.
             </span>
           </li>
         ))}

@@ -1,52 +1,59 @@
-import type { CampoVigiado, FonteDocumento, Parte, TipoEvento } from '../../shared/model.ts';
+import type { CampoVigiado, FonteDocumento, Parte } from '../../shared/model.ts';
 
-export const ROTULO_FONTE: Record<FonteDocumento, string> = {
-  nfe: 'NF-e',
-  cte: 'CT-e',
-  cce: 'CC-e',
-  planilha: 'Planilha',
-  pdf: 'PDF',
-  imap: 'E-mail',
-  manual: 'Manual',
+// Rotulos em Map: a chave vem do ledger (qualquer texto pode chegar) e um
+// objeto literal resolveria nomes de Object.prototype como "constructor".
+const ROTULO_FONTE = new Map<string, string>(
+  Object.entries({
+    nfe: 'NF-e',
+    cte: 'CT-e',
+    cce: 'CC-e',
+    planilha: 'Planilha',
+    pdf: 'PDF',
+    imap: 'E-mail',
+    manual: 'Manual',
+  } satisfies Record<FonteDocumento, string>),
+);
+
+const ROTULO_PARTE = new Map<string, string>(
+  Object.entries({
+    fornecedor: 'Fornecedor',
+    transportadora: 'Transportadora',
+    cd: 'CD',
+    fiscal: 'Fiscal',
+    financeiro: 'Financeiro',
+  } satisfies Record<Parte, string>),
+);
+
+const ROTULO_CAMPO = new Map<string, string>(
+  Object.entries({
+    previsaoEntrega: 'Previsão de entrega',
+    pesoTotal: 'Peso total',
+    volumes: 'Volumes',
+    status: 'Status',
+  } satisfies Record<CampoVigiado, string>),
+);
+
+const ROTULO_STATUS = new Map<string, string>(
+  Object.entries({
+    emitida: 'Emitida',
+    em_transito: 'Em trânsito',
+    entregue: 'Entregue',
+    atrasada: 'Atrasada',
+    cancelada: 'Cancelada',
+  }),
+);
+
+// Valor fora da lista conhecida renderiza como veio. Snake_case legitimo
+// (palavra_palavra) vira espaco; qualquer forma estranha fica crua, senao
+// "__proto__" viraria " proto ".
+const textoCru = (valor: unknown): string => {
+  const s = String(valor);
+  return /^[A-Za-z0-9]+(_[A-Za-z0-9]+)+$/.test(s) ? s.replaceAll('_', ' ') : s;
 };
 
-export const ROTULO_PARTE: Record<Parte, string> = {
-  fornecedor: 'Fornecedor',
-  transportadora: 'Transportadora',
-  cd: 'CD',
-  fiscal: 'Fiscal',
-  financeiro: 'Financeiro',
-};
-
-export const ROTULO_CAMPO: Record<CampoVigiado, string> = {
-  previsaoEntrega: 'Previsão de entrega',
-  pesoTotal: 'Peso total',
-  volumes: 'Volumes',
-  status: 'Status',
-};
-
-const ROTULO_TIPO: Record<TipoEvento, string> = {
-  nfe: 'NF-e',
-  cte: 'CT-e',
-  cce: 'CC-e',
-  cancelamento: 'cancelamento',
-  planilha: 'planilha',
-  pdf: 'PDF',
-  divergencia: 'divergência',
-  tarefa: 'tarefa',
-  ancora: 'âncora',
-  revisao: 'revisão',
-};
-
-export const rotuloTipo = (tipo: TipoEvento): string => ROTULO_TIPO[tipo];
-
-const ROTULO_STATUS: Record<string, string> = {
-  emitida: 'Emitida',
-  em_transito: 'Em trânsito',
-  entregue: 'Entregue',
-  atrasada: 'Atrasada',
-  cancelada: 'Cancelada',
-};
+export const rotuloFonte = (fonte: FonteDocumento): string => ROTULO_FONTE.get(fonte) ?? String(fonte);
+export const rotuloParte = (parte: Parte): string => ROTULO_PARTE.get(parte) ?? String(parte);
+export const rotuloCampo = (campo: CampoVigiado): string => ROTULO_CAMPO.get(campo) ?? String(campo);
 
 // O servidor guarda a data como AAAA-MM-DD; a tela mostra DD/MM/AAAA.
 function formatarData(valor: string): string {
@@ -62,7 +69,7 @@ export function formatarValor(campo: CampoVigiado, valor: unknown): string {
     case 'pesoTotal':
       return `${Number(valor).toLocaleString('pt-BR')} kg`;
     case 'status':
-      return ROTULO_STATUS[String(valor)] ?? String(valor).replaceAll('_', ' ');
+      return ROTULO_STATUS.get(String(valor)) ?? textoCru(valor);
     default:
       return String(valor);
   }
