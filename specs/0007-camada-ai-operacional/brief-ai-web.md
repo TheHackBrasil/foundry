@@ -53,20 +53,25 @@ produto: torre de pedidos, confiança sem ruído, zero hype de IA.
   `planilha.csv` reais via `enviarArquivo` (sem mock, sem endpoint novo).
 - Estados: ociosa, enviando ("Traduzindo…", desabilita entrada e botão,
   fio `Propagar` de `2px` em `--change` na borda superior da caixa),
-  resultado e erro (`role="alert"`). Região `role="status"` própria no
-  cartão evita corte da leitura pelo lote SSE de 300 ms em `useTorre`.
-- Camada de voz (`useVoz.ts`, backlog 26): botão microfone com
-  `SpeechRecognition`/`webkitSpeechRecognition` (`lang='pt-BR'`,
-  resultados provisórios no input, `aria-pressed`). Some quando o browser
-  não suporta. Enquanto escuta, exibe medidor acústico geométrico de 5
-  barras retas de `2px` (`--change` nos picos, `scaleY` na GPU) + timer
-  `00:00` em `Geist Mono tabular-nums` + botão `Parar` (WCAG 2.2.2).
-  `AudioContext`/`AnalyserNode` via `getUserMedia` roda de forma
-  não-bloqueante com encerramento completo de tracks e contexto ao parar;
-  se indisponível ou em conflito no aparelho, reage honestamente aos
-  eventos `onsoundstart`/`onspeechstart`/`onresult`. Em
-  `prefers-reduced-motion: reduce`, renderiza barras estáticas e timer.
-  Finalizar a fala mantém o texto editável no campo sem disparo automático.
+  resultado e erro (`role="alert"` com `id` direto na mensagem). O anúncio
+  de resultado usa a região viva única de `useTorre` com atraso de 420 ms
+  para não colidir com o lote SSE de 300 ms, sem duplicar anúncios de
+  erro.
+- Camada de voz (`useVoz.ts`, `VisualizadorVoz.tsx`, backlog 26): botão
+  microfone com `SpeechRecognition`/`webkitSpeechRecognition`
+  (`lang='pt-BR'`, resultados provisórios no input, `aria-pressed`). Some
+  quando o browser não suporta. Enquanto escuta, abre cápsula única
+  (`36px` no desktop, `>= 44px` em toque) com visualizador `<canvas>`
+  Retina de 20 barras simétricas (traços arredondados sem `roundRect`,
+  espectro vocal `fftSize=256` + RMS temporal e janela de Hann), timer
+  `00:00` em `Geist Mono tabular-nums` e botão `Parar` (WCAG 2.2.2).
+  `AudioContext`/`AnalyserNode` via `getUserMedia` roda com DSP desligado
+  e encerramento garantido de tracks e contexto em qualquer saída; se
+  indisponível ou em conflito no aparelho, reage aos eventos
+  `onsoundstart`/`onspeechstart`/`onresult`. Em
+  `prefers-reduced-motion: reduce`, desenha snapshot estático sem
+  `requestAnimationFrame`. Finalizar a fala mantém o texto editável no
+  campo sem disparo automático; `Esc` cancela e restaura o texto anterior.
 - Cartão tipado por ação (`mandato.ts` parseia `resultado.porPedido` sem
   `any`), sempre com rótulo da ação em pt-BR, links clicáveis `#/pedido/`
   para os alvos e botão `Fechar`:
@@ -103,15 +108,18 @@ produto: torre de pedidos, confiança sem ruído, zero hype de IA.
 - Estabilidade de layout: `data-fontes` em `.cols` segue a contagem da
   matriz completa para as abas de `TarefasPorParte` não saltarem durante o
   clique.
-- Coreografia Brandbook v4 (RF8, `<= 240 ms`, `cubic-bezier(0.2, 0, 0, 1)`):
-  enquanto `/view-spec` carrega, um fio de `2px` em `--change` percorre a
-  régua `.mx-h` sem apagar os dados atuais (`Propagar`); ao aplicar,
-  transição curta de entrada (`180 ms`, ou `document.startViewTransition`
-  quando suportado e sem redução de movimento).
+- Coreografia Brandbook v4 (`MatrizFontes.tsx`, `TarefasPorParte.tsx`):
+  enquanto `/view-spec` carrega, um fio de `2px` em `--change` percorre o
+  topo da matriz e a gaveta informa "Ajustando visão para {parte}…" sem
+  apagar os dados atuais; ao aplicar, o hook `useFlipMatriz` (WAAPI sobre
+  chaves DOM estáveis) desliza nós persistentes (`260 ms`) e revela novos
+  nós com atraso escalonado (`240 ms`), sem rodar no carregamento inicial
+  nem sob `prefers-reduced-motion: reduce`.
 - Faixa de transparência da lente (exibida só quando `ajustada` é
   verdadeiro, respeitando A7 no fallback determinístico): indica "Visão
-  ajustada para {parte}", lista fontes/campos ocultos e oferece botão
-  independente "Ver matriz completa" sem trocar a aba de tarefas.
+  ajustada para {parte}", lista fontes/campos ocultos, anuncia a troca na
+  região viva estável e oferece botão independente "Ver matriz completa"
+  com retorno seguro de foco e `inert` na gaveta fechada.
 - Prop `destacar` em `MatrizFontes` (default `true`): quando `false`,
   suprime `.cel-dv` (tinta e fio lavanda) e usa estado neutro `--text2` no
   cabeçalho da linha, preservando o rótulo factual "Diverge" e a variação.
@@ -161,11 +169,14 @@ produto: torre de pedidos, confiança sem ruído, zero hype de IA.
 
 - [x] `cd app && npx tsc --noEmit` limpo (shared/server).
 - [x] `cd app && npm --prefix web run build` limpo (`app/web` `tsc --noEmit` + Vite).
-- [x] `cd app && npm --prefix web test` verde, com testes de
+- [x] `cd app && npm --prefix web test` verde (53 testes), com casos para
       `aplicarViewSpec` (fonte ausente, coluna ausente, spec parcial,
       dedup, interseção vazia, `destacarDivergencias: false`, fallback
-      sem ajuste), `extrairMensagemErroMandato`, `interpretarResultadoMandato`,
-      `calcularBarrasAudio`, `chaveCacheLente` e novos rótulos de `format.ts`.
+      sem ajuste), `extrairMensagemErroMandato`,
+      `interpretarResultadoMandato`, `montarTranscricao` (Safari e
+      deduplicação Android com fronteira de palavra), `calcularRmsTemporal`,
+      `calcularAlvosBarras`, `suavizarBarras`, `chaveCacheLente`,
+      `deduplicarPedidos` e novos rótulos/formatadores de `format.ts`.
 - [x] Mandato "Resuma o estado" exibe cartão de resumo; `simular` exibe
       mini-tabela com selo A7; erros 503, 422 e 429 exibem mensagem pt-BR
       legível, nunca código cru; `sem_alvo` oferece carga de exemplo em um
@@ -189,8 +200,10 @@ curva ou emoji em `.md`.
 ## Skills carregadas
 
 `typescript-clean-code`, `typescript-unit-testing`, `react-dev`,
-`better-accessibility`, `accessible-animation`, `micro-interaction`,
-`antislop-ui`, `humanizer`.
+`better-interface`, `better-accessibility`, `better-layout`, `better-ui`,
+`better-typography`, `better-colors`, `ui-animation`,
+`accessible-animation`, `micro-interaction`, `antislop-ui`, `taste`,
+`humanizer`.
 
 Base: `main` pós-0007 (`ViewSpec`, `sinais`, `notificacoes`,
 `RespostaMandato` em `app/shared/model.ts`).
@@ -241,7 +254,31 @@ Base: `main` pós-0007 (`ViewSpec`, `sinais`, `notificacoes`,
   re-renderizar o React (`VisualizadorVoz.tsx`).
 - D-W10: `listarPedidos` (`api.ts`) deduplica `pedidoId` priorizando a
   entrada da sessão do visitante sobre a seed; `aplicarTema` (`tema.ts`)
-  suprime transições por 1 quadro na troca de tema; `BarraMandatos` e
-  `TarefasPorParte` adotam superfície única acoplada, abas em linha única
-  com indicador deslizante e elevação sutil sem caixas aninhadas.
+  suprime transições por 1 quadro na troca de tema e sincroniza
+  `meta[name="theme-color"]`; `BarraMandatos` e `TarefasPorParte` adotam
+  superfície única acoplada, abas em linha única com indicador GPU
+  (`translate3d` + `scaleX`) e elevação sutil sem caixas aninhadas.
+- D-W11: `useVoz` adota máquina de estados de 4 fases (`ocioso`,
+  `iniciando`, `ouvindo`, `finalizando`) com guarda `recRef.current !== rec`
+  em todos os callbacks, watchdog de 1,2 s para `onend`, 3 temporizadores
+  de silêncio + guarda de 12 s para ruído sem transcrição, `montarTranscricao`
+  com fronteira de palavra no Android, `getUserMedia` com DSP desligado e
+  encerramento garantido de `AudioContext`/`MediaStream` em qualquer rota
+  de erro ou cancelamento. `VisualizadorVoz` usa traços `lineCap: 'round'`
+  (sem `roundRect`), cache de tokens via `MutationObserver`, RMS temporal +
+  bandas vocais `1..16` (`fftSize=256`) e suavização exponencial por `dt`.
+- D-W12: `MatrizFontes` troca a reconstrução de DOM por continuidade FLIP
+  via WAAPI (`useFlipMatriz`, descontando deslocamento da linha pai nas
+  células e inativo no mount inicial e em `prefers-reduced-motion`). As
+  gavetas de mandato e lente retêm snapshot de 200 ms para fechamento
+  pareado com `inert`, sem animar propriedades de layout e sem duplicar
+  animações em contêiner e filhos.
+- D-W13: auditorias independentes fecharam contraste WCAG 2.2 AA em pares
+  compostos (`--control-border`, `.tema` ativo com `--primary`/`--on-primary`,
+  `.voz-ativo-parar`, `.btn-copiar`, `.envio-exemplos a`), foco interno em
+  contêineres roláveis (`outline-offset: -2px`), ordem DOM `<main>` antes
+  de `<aside>` com `grid-template-areas` (WCAG 2.4.3), hierarquia única de
+  `<h1>` por tela, alvos de toque `>= 44 px`, reflow limpo em `320 px`
+  (WCAG 1.4.10), `forced-colors` e redução de movimento em 3 camadas.
+
 
