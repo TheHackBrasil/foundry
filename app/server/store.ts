@@ -260,6 +260,20 @@ export class LedgerStore {
     return { eventos: rows[0]?.eventos ?? 0, documentos: rows[0]?.documentos ?? 0 };
   }
 
+  // Workspaces de visitante que ja gravaram algo (evento ou item da fila).
+  // Teto global da demo: sem ele, sessao nova por cookie era cota gratis.
+  async workspacesComEscrita(): Promise<number> {
+    const rows = await this.db.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM (
+         SELECT workspace_id AS ws FROM events WHERE workspace_id <> $1
+         UNION
+         SELECT workspace_id AS ws FROM review_queue WHERE workspace_id <> $1
+       ) AS ocupados`,
+      [this.seedWorkspace],
+    );
+    return rows[0]?.n ?? 0;
+  }
+
   async ultimoAncora(pedidoId: string): Promise<Record<string, unknown> | null> {
     const rows = await this.db.query<{ payload: Record<string, unknown> }>(
       `SELECT payload FROM events WHERE workspace_id = $1 AND pedido_id = $2 AND tipo = 'ancora' ORDER BY seq DESC LIMIT 1`,

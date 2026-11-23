@@ -42,6 +42,12 @@ export const mensagens = {
     'Muitos PDFs seguidos a partir deste endereço: a leitura de PDF usa um serviço externo com cota. Tente de novo em alguns minutos.',
   semEspaco: () =>
     'A demonstração atingiu o limite de armazenamento e está só para leitura. Os pedidos de exemplo seguem disponíveis.',
+  sessoesNovasDemais: () =>
+    'Muitas sessões novas a partir deste endereço. A demonstração guarda seus arquivos na sessão atual: ' +
+    'volte à aba onde você já enviou ou tente de novo em alguns minutos.',
+  demoLotada: () =>
+    'A demonstração está lotada agora: muitas sessões de teste foram criadas. ' +
+    'Os pedidos de exemplo seguem abertos para leitura.',
 };
 
 // Contador de janela fixa por chave (IP). Serve para o que o @fastify/rate-limit

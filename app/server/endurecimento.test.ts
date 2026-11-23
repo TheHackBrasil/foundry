@@ -194,6 +194,45 @@ describe('limites por arquivo e por sessao', () => {
   });
 });
 
+describe('cota de sessoes novas (RF2)', () => {
+  it('sessao nova por cookie nao renova cota: passado o limite por IP responde 429', async () => {
+    const s = await subir({ RATE_LIMIT_NEW_SESSIONS_PER_10MIN: '2' });
+    const a = await novaSessao(s);
+    const b = await novaSessao(s);
+    const c = await novaSessao(s);
+
+    expect((await enviar(s, a, 'nfe-ok.xml', ler('nfe-ok.xml'))).statusCode).toBe(200);
+    expect((await enviar(s, b, 'nfe-ok.xml', ler('nfe-ok.xml'))).statusCode).toBe(200);
+    const res = await enviar(s, c, 'nfe-ok.xml', ler('nfe-ok.xml'));
+    expect(res.statusCode).toBe(429);
+    expect((res.json() as { erro: string }).erro).toContain('sessões novas');
+
+    // A sessao que ja gravou segue escrevendo: a cota e so da primeira escrita.
+    expect((await enviar(s, a, 'cte-ok.xml', ler('cte-ok.xml'))).statusCode).toBe(200);
+    // Leitura nunca entra na cota.
+    expect((await s.app.inject({ method: 'GET', url: '/api/pedidos', headers: { cookie: c } })).statusCode).toBe(200);
+  });
+
+  it('a cota de sessoes novas e por IP', async () => {
+    const s = await subir({ RATE_LIMIT_NEW_SESSIONS_PER_10MIN: '1', CLIENT_IP_HEADER: 'x-real-ip' });
+    const de = async (ip: string) => {
+      const cookie = await novaSessao(s);
+      return enviar(s, cookie, 'nfe-ok.xml', ler('nfe-ok.xml'), { 'x-real-ip': ip });
+    };
+    expect((await de('203.0.113.10')).statusCode).toBe(200);
+    expect((await de('203.0.113.10')).statusCode).toBe(429);
+    expect((await de('203.0.113.11')).statusCode).toBe(200);
+  });
+
+  it('teto global de workspaces com escrita responde 429 de demonstracao lotada', async () => {
+    const s = await subir({ MAX_WRITING_WORKSPACES: '1' });
+    expect((await enviar(s, await novaSessao(s), 'nfe-ok.xml', ler('nfe-ok.xml'))).statusCode).toBe(200);
+    const res = await enviar(s, await novaSessao(s), 'nfe-ok.xml', ler('nfe-ok.xml'));
+    expect(res.statusCode).toBe(429);
+    expect((res.json() as { erro: string }).erro).toContain('demonstração está lotada');
+  });
+});
+
 describe('rate limit por IP', () => {
   it('passa do limite de escritas: 429 com retry-after; leitura e healthcheck seguem livres', async () => {
     const s = await subir({ RATE_LIMIT_WRITES_PER_MIN: '3' });

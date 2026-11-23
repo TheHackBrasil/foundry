@@ -27,6 +27,9 @@ export interface Limites {
   documentosPorEnvio: number;
   // Acima disto o servidor recusa escrita (507). 0 desliga.
   bytesBanco: number;
+  // Teto de workspaces que já gravaram (sessões de visitante; a seed não conta).
+  // Sem ele, trocar de cookie resetaria a cota por sessão sem custo nenhum.
+  workspacesComEscrita: number;
 }
 
 // Por IP. Âncora e PDF gastam carteira de testnet e cota de LLM do time.
@@ -34,6 +37,9 @@ export interface ConfigRateLimit {
   escritasPorMinuto: number;
   ancorasPor10Min: number;
   pdfsPor10Min: number;
+  // Workspaces novos que um IP pode fazer gravar em 10 min: a primeira escrita
+  // de uma sessão conta aqui, senão trocar de cookie renovaria a cota sempre.
+  sessoesNovasPor10Min: number;
 }
 
 export interface ConfigServidor {
@@ -111,11 +117,13 @@ export function configDoEnv(env: Ambiente = process.env): ConfigServidor {
       documentosPorWorkspace: inteiroDoEnv(env, 'MAX_DOCS_PER_WORKSPACE', 100, 1),
       documentosPorEnvio: inteiroDoEnv(env, 'MAX_DOCS_PER_UPLOAD', 50, 1),
       bytesBanco: inteiroDoEnv(env, 'MAX_DB_BYTES', 3 * 1024 ** 3, 0),
+      workspacesComEscrita: inteiroDoEnv(env, 'MAX_WRITING_WORKSPACES', 500, 0),
     },
     rateLimit: {
       escritasPorMinuto: inteiroDoEnv(env, 'RATE_LIMIT_WRITES_PER_MIN', 20, 1),
       ancorasPor10Min: inteiroDoEnv(env, 'RATE_LIMIT_ANCHORS_PER_10MIN', 3, 1),
       pdfsPor10Min: inteiroDoEnv(env, 'RATE_LIMIT_PDFS_PER_10MIN', 5, 1),
+      sessoesNovasPor10Min: inteiroDoEnv(env, 'RATE_LIMIT_NEW_SESSIONS_PER_10MIN', 10, 1),
     },
     sse: {
       heartbeatMs: inteiroDoEnv(env, 'SSE_HEARTBEAT_MS', 20_000, 1_000),

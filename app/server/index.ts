@@ -126,6 +126,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     app.log.error({ err: e }, 'guarda de espaco: falha ao medir o banco'),
   );
   const pdfs = new JanelaFixa(cfg.rateLimit.pdfsPor10Min, 10 * 60_000);
+  const sessoesNovas = new JanelaFixa(cfg.rateLimit.sessoesNovasPor10Min, 10 * 60_000);
   const limiteEscrita = { rateLimit: { max: cfg.rateLimit.escritasPorMinuto, timeWindow: 60_000, groupId: 'escrita' } };
   const limiteAncora = { rateLimit: { max: cfg.rateLimit.ancorasPor10Min, timeWindow: 10 * 60_000, groupId: 'ancora' } };
   // Base64 cresce 4/3; a folga cobre o resto do JSON. Acima disso o Fastify
@@ -203,6 +204,16 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       throw new ErroRequisicao(429, mensagens.sessaoCheia(limites));
     }
     const ip = ipDoCliente(req);
+    // Primeira escrita deste workspace: sem cota por IP e teto global, trocar
+    // de cookie renovava a cota de graca. Sessao que ja gravou nao reconta.
+    if (uso.documentos === 0 && uso.eventos === 0) {
+      if (!sessoesNovas.consumir(ip)) {
+        throw new ErroRequisicao(429, mensagens.sessoesNovasDemais());
+      }
+      if (await store.workspacesComEscrita() >= limites.workspacesComEscrita) {
+        throw new ErroRequisicao(429, mensagens.demoLotada());
+      }
+    }
     const r = await ingerir(sessao, canal, nome, conteudo, {
       limites,
       uso,
