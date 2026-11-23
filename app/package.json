@@ -9,7 +9,7 @@
     "dev:all": "npm run dev & npm --prefix web run dev",
     "start": "tsx server/index.ts",
     "seed": "tsx server/seed.ts",
-    "test": "vitest run shared server",
+    "test": "vitest run shared server && npm --prefix web run test",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json"
   },
