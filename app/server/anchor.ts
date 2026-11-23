@@ -32,6 +32,7 @@ export async function ancorar(
   store: LedgerStore,
   pedidoId: string,
   cfg: ConfigAncora = configAncoraDoEnv(),
+  onErro?: (erro: unknown) => void,
 ): Promise<ResultadoAncora> {
   const eventos = await store.eventosDoPedido(pedidoId);
   if (eventos.length === 0) {
@@ -72,6 +73,9 @@ export async function ancorar(
     });
     return { ok: true, root, txHash: tx.hash, url: `https://sepolia.basescan.org/tx/${tx.hash}` };
   } catch (e) {
-    return { ok: false, motivo: `falha na ancoragem: ${(e as Error).message}`, root };
+    // O provedor devolve URL da RPC, parametros da tx e ate material de chave na
+    // mensagem. O detalhe fica no log do servidor; o cliente recebe um motivo fixo.
+    onErro?.(e);
+    return { ok: false, motivo: 'falha na ancoragem: provedor de rede indisponivel', root };
   }
 }

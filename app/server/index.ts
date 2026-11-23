@@ -15,7 +15,7 @@ import { raizMerkle } from '../shared/merkle.js';
 import { propagarTodas } from '../shared/rules.js';
 import type { CamposObservados, Divergencia } from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
-import { ancorar } from './anchor.js';
+import { ancorar, configAncoraDoEnv } from './anchor.js';
 import { configDoEnv, inteiroDoEnv, type ConfigServidor } from './config.js';
 import { createDb, type Db } from './db.js';
 import { imapConfigDoEnv, iniciarPolling } from './ingest/imap.js';
@@ -317,7 +317,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     if (!s) return reply.code(404).send({ erro: 'pedido nao encontrado' });
     exigirGravavel(s.workspace, 'ancorar um pedido de exemplo');
     await guarda.exigirEspaco();
-    const r = await ancorar(s, pedidoId);
+    const r = await ancorar(s, pedidoId, configAncoraDoEnv(), (e) => req.log.error(e, 'ancoragem'));
     if (r.ok) canal.enviar('ancora', r, s.workspace);
     return r.ok ? r : reply.code(503).send(r);
   });
