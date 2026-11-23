@@ -38,6 +38,7 @@ const ENV_KEYS = [
   'NVOIP_CANAL_PADRAO',
   'NVOIP_TIMEOUT_MS',
   'NVOIP_NOTIFY_ON_TASK',
+  'RATE_LIMIT_VIEWSPEC_PER_10MIN',
 ] as const;
 
 const envLlm = (): void => {
@@ -281,7 +282,11 @@ describe('camada ai com PGlite', () => {
     expect(mandato.payload).toMatchObject({ acao: 'propagar', ator: 'workspace' });
     expect((await verificarCadeia(evs)).valida).toBe(true);
 
-    // Idempotente: segunda execucao nao duplica divergencia nem tarefa.
+    // Idempotente: segunda execucao nao duplica divergencia nem tarefa. A
+    // corrida real (dois propagar simultaneos lendo eventoExiste=false) e
+    // serializada por tx.travarPedido no topo da transacao, mesmo advisory
+    // lock do pipeline: depende de pg.Pool e fica pinada por inspecao, pois
+    // a PGlite serializa numa conexao so.
     const exec2 = await executarMandato(sessao, 'propague de novo', { acao: 'propagar', filtros: { pedidoId: CHAVE } }, { maxAlvos: 5 });
     expect(exec2.resultado['novosEventos']).toBe(0);
     expect((await sessao.eventosDoPedido(CHAVE)).filter((e) => e.tipo === 'divergencia')).toHaveLength(1);
@@ -416,6 +421,43 @@ describe('camada ai com PGlite', () => {
     expect((await sessao.eventosDoPedido(CHAVE)).length).toBe(antes);
   });
 
+  // Motivos fixos de nao_entregue: o contrato que T141 consumira na
+  // propagacao. Todos pinados com Nvoip ligada e fetch mockado.
+  it('notificarTarefa registra sem_tarefa, sem_contato e falha_envio sem quebrar', async () => {
+    envNvoip();
+    // sem_tarefa: pedido sem tarefa da parte (pedido-largo-2 so tem a NF-e).
+    const f = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }) as Response);
+    vi.stubGlobal('fetch', f);
+    let ev = await notificarTarefa(sessao, 'pedido-largo-2', null, { registrarSempre: true, parte: 'cd' });
+    expect(ev?.payload).toMatchObject({ status: 'nao_entregue', motivo: 'sem_tarefa' });
+    expect(f).not.toHaveBeenCalled();
+
+    // sem_contato: tarefa existe, mas 'fiscal' nao tem contato na agenda
+    // (a seed cobre so 4 partes).
+    const tarefaFiscal: Tarefa = {
+      parte: 'fiscal',
+      titulo: 'Conferir escrituracao',
+      detalhe: 'Detalhe',
+      divergencia: { campo: 'previsaoEntrega', fonteA: 'nfe', fonteB: 'planilha', valorA: 'a', valorB: 'b' },
+    };
+    ev = await notificarTarefa(sessao, CHAVE, tarefaFiscal, { registrarSempre: true });
+    expect(ev?.payload).toMatchObject({ parte: 'fiscal', status: 'nao_entregue', motivo: 'sem_contato' });
+    expect(f).not.toHaveBeenCalled();
+
+    // falha_envio: contato e canal existem (cd, sms), a provedora responde nao-ok.
+    const tarefaCd: Tarefa = { ...tarefaFiscal, parte: 'cd' };
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502, json: async () => ({}) }) as Response));
+    ev = await notificarTarefa(sessao, CHAVE, tarefaCd, { registrarSempre: true });
+    expect(ev?.payload).toMatchObject({ parte: 'cd', canal: 'sms', status: 'nao_entregue', motivo: 'falha_envio' });
+  });
+
+  it('notificarTarefa sem parte nem tarefa nao lanca: nao_entregue sem_parte', async () => {
+    const ev = await notificarTarefa(sessao, CHAVE, null, { registrarSempre: true });
+    expect(ev?.payload).toMatchObject({ parte: null, status: 'nao_entregue', motivo: 'sem_parte' });
+    // Sem registrarSempre a mesma entrada e no-op silencioso.
+    expect(await notificarTarefa(sessao, CHAVE, null)).toBeNull();
+  });
+
   it('POST /api/mandatos sem LLM responde 503 declarativo', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/mandatos', payload: { texto: 'propague' } });
     expect(res.statusCode).toBe(503);
@@ -451,7 +493,14 @@ describe('camada ai com PGlite', () => {
     );
     const res = await app.inject({ method: 'POST', url: '/api/mandatos', payload: { texto: 'qualquer' } });
     expect(res.statusCode).toBe(422);
-    expect((res.json() as { motivo: string }).motivo).toBe('parse_falhou');
+    const body = res.json() as { motivo: string; mensagem: string };
+    expect(body.motivo).toBe('parse_falhou');
+    expect(body.mensagem).toContain('formato esperado');
+  });
+
+  it('POST /api/mandatos com texto nao-string responde 400, nao 500', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/mandatos', payload: { texto: 123 } });
+    expect(res.statusCode).toBe(400);
   });
 
   it('GET /api/contatos devolve a seed; PUT sobrescreve so na sessao', async () => {
@@ -574,5 +623,42 @@ describe('camada ai com PGlite', () => {
     const docs = await aplicarTemplate(sessao, 'forn@x.com', [{ NF: '3526', DATA: '30/01/2026', PESO: '500' }]);
     expect(docs).toHaveLength(1);
     expect(docs?.[0]?.campos['pesoTotal']).toBe(500);
+  });
+
+  it('aplicarMapeamento ignora coluna herdada do prototipo (template envenenado)', () => {
+    // 'constructor' como coluna de 'status': sem hasOwn o lookup pegaria a
+    // funcao do prototipo e v.trim() derrubava o arquivo inteiro.
+    const doc = aplicarMapeamento(
+      { NF: '3526' },
+      { NF: 'pedidoId', constructor: 'status', hasOwnProperty: 'volumes' },
+      0,
+    );
+    expect(doc).not.toBeNull();
+    expect(doc?.campos).toEqual({});
+  });
+
+  it('GET view-spec com LLM ligada tem cota por IP e responde 429', async () => {
+    // App proprio com cota 1: a segunda geracao estoura a janela.
+    process.env['RATE_LIMIT_VIEWSPEC_PER_10MIN'] = '1';
+    envLlm();
+    const r2 = await buildServer(await createLiteDb(), { workspacePadrao: WS });
+    const app2 = r2.app;
+    await app2.ready();
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () =>
+          respostaChat({ versao: 1, fontesVisiveis: ['nfe'], colunas: ['status'], lente: 'cd', destacarDivergencias: true }),
+        ),
+      );
+      const pedido2 = 'pedido-viewspec-429';
+      await r2.store.paraWorkspace(WS).append(pedido2, 'nfe', { fonte: 'nfe', campos: { status: 'emitida' }, dados: {} });
+      const url = `/api/pedidos/${pedido2}/view-spec?papel=cd`;
+      expect((await app2.inject({ method: 'GET', url })).statusCode).toBe(200);
+      const segunda = await app2.inject({ method: 'GET', url });
+      expect(segunda.statusCode).toBe(429);
+    } finally {
+      await app2.close();
+    }
   });
 });
