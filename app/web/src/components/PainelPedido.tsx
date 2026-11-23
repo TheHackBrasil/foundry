@@ -95,7 +95,7 @@ function Conteudo({ id, dados, auditoria, novas, aoVerificar }: Omit<Props, 'pro
     <>
       <div className="painel-cab">
         <div>
-          <h2 id="pedido-titulo">Pedido {chaveCurta(id)}</h2>
+          <h2 id="pedido-titulo">Pedido <span className="mono">{chaveCurta(id)}</span></h2>
           {dados.pedido && (
             <p className="partes-pedido">
               {dados.pedido.emitente.nome} para {dados.pedido.destinatario.nome}.

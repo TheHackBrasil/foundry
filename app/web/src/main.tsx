@@ -1,7 +1,5 @@
-import '@fontsource-variable/source-sans-3/wght.css';
-import '@fontsource-variable/source-serif-4/opsz.css';
-import '@fontsource/source-code-pro/400.css';
-import '@fontsource/source-code-pro/600.css';
+import '@fontsource-variable/manrope/wght.css';
+import '@fontsource-variable/geist-mono/wght.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.tsx';
