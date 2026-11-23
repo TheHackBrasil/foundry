@@ -342,8 +342,11 @@ export interface ResultadoExecucao {
 }
 
 // Resolve o filtro e executa pedido a pedido: acao + evento mandato na mesma
-// transacao por pedido (RF5). O fetch de rede do notificar e o da LLM do
-// resumir rolam dentro da tx, limitados pelos timeouts curtos das envs.
+// transacao por pedido (RF5). O lock por (workspace, pedido) no topo e o mesmo
+// do pipeline: sem ele dois propagar concorrentes leem eventoExiste=false
+// juntos e inserem divergencia/tarefa duplicadas no append-only. O fetch de
+// rede do notificar e o da LLM do resumir rolam dentro da tx, limitados pelos
+// timeouts curtos das envs.
 export async function executarMandato(
   sessao: LedgerStore,
   texto: string,
@@ -362,6 +365,7 @@ export async function executarMandato(
   const eventos: Evento[] = [];
   for (const pedidoId of alvos) {
     const exec = await sessao.transaction(async (tx) => {
+      await tx.travarPedido(pedidoId);
       const parcial = await executarAcao(tx, pedidoId, mandato);
       const evMandato = await tx.append(pedidoId, 'mandato', {
         ator: 'workspace',
