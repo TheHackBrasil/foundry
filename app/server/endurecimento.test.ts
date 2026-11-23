@@ -170,6 +170,31 @@ describe('limites por arquivo e por sessao', () => {
     expect((enorme.json() as { erro: string }).erro).toContain('limite da demonstração');
   });
 
+  it('sobe um servidor real (TCP) e o multipart acima do limite responde 413, nao 422', async () => {
+    // Pin do smoke publico de 23/11: via inject o 413 ja saia, mas em producao
+    // um upload estourado chegava como 422. Este teste passa pelo socket.
+    const s = await subir({ MAX_UPLOAD_BYTES: '2048' });
+    await s.app.listen({ port: 0, host: '127.0.0.1' });
+    try {
+      const end = s.app.server.address() as { port: number };
+      const base = `http://127.0.0.1:${end.port}`;
+      const cookie = (await fetch(`${base}/api/pedidos`)).headers.get('set-cookie')?.split(';')[0] ?? '';
+
+      const fd = new FormData();
+      fd.append('file', new Blob([Buffer.alloc(3000, 120)]), 'grande.csv');
+      const res = await fetch(`${base}/api/ingest`, { method: 'POST', body: fd, headers: { cookie } });
+      expect(res.status).toBe(413);
+      const corpo = (await res.json()) as { erro: string };
+      expect(corpo.erro).toContain('limite da demonstração');
+      // Arquivo truncado nunca chega ao parser: nada foi gravado.
+      const ws = cookie.split('=')[1]!;
+      expect(await s.store.paraWorkspace(ws).uso()).toEqual({ eventos: 0, documentos: 0 });
+    } finally {
+      await s.app.close();
+      abertos.splice(abertos.indexOf(s), 1);
+    }
+  });
+
   it('planilha com mais linhas que o limite por envio responde 413 e nao grava nada', async () => {
     const s = await subir({ MAX_DOCS_PER_UPLOAD: '2' });
     const cookie = await novaSessao(s);

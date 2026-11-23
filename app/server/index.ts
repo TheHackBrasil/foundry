@@ -183,6 +183,11 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       if (!file) return reply.code(400).send({ erro: 'arquivo ausente' });
       nome = file.filename;
       conteudo = await file.toBuffer(); // acima do limite: 413 no tratador de erro
+      // Invariante: arquivo truncado pelo teto do busboy nunca chega ao parser
+      // (sem este check ele cairia como 422 se throwFileSizeLimit mudasse).
+      if (file.file.truncated) {
+        throw new ErroRequisicao(413, mensagens.arquivoGrande(limites.bytesPorArquivo));
+      }
     } else {
       const body = req.body as { nome?: string; conteudo?: string; conteudoBase64?: string } | undefined;
       nome = body?.nome;
