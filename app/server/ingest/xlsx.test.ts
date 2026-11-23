@@ -200,6 +200,48 @@ describe('checagem do zip: falha estrutural nunca infla (D-028)', () => {
   it('worker mais lento que o timeout: 422 de leitura interrompida', async () => {
     await expect(parseXlsx(ler('planilha.xlsx'), { timeoutMs: 1 })).rejects.toThrowError(/interrompida/);
   });
+
+  it('diretorio mentiroso (declara 1 KB, deflates ~64 MB): 422 e processo em pe (S3)', async () => {
+    // A checagem estrutural le o que o diretorio central DECLARA; um arquivo
+    // pode mentir tamanho pequeno e carregar um deflate que explode de
+    // verdade. Quem segura e a segunda linha de defesa: o inflate roda no
+    // worker, onde resourceLimits mata o excesso sem derrubar o processo —
+    // ou o proprio jszip rejeita o livro. As duas saidas sao ErroParser e
+    // o servidor segue atendendo.
+    const { deflateRawSync } = await import('node:zlib');
+    const dados = deflateRawSync(Buffer.alloc(64 * 1024 * 1024, 0x61)); // 64 MB de 'a'
+    const nome = Buffer.from('xl/worksheets/sheet1.xml');
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(8, 8); // metodo deflate
+    local.writeUInt32LE(0, 16); // crc mentiroso tambem
+    local.writeUInt32LE(dados.length, 18);
+    local.writeUInt32LE(1024, 22); // descomprimido mentiroso: 1 KB
+    local.writeUInt16LE(nome.length, 26);
+    const cdEntrada = Buffer.alloc(46);
+    cdEntrada.writeUInt32LE(0x02014b50, 0);
+    cdEntrada.writeUInt16LE(20, 4);
+    cdEntrada.writeUInt16LE(20, 6);
+    cdEntrada.writeUInt16LE(8, 10);
+    cdEntrada.writeUInt32LE(0, 16);
+    cdEntrada.writeUInt32LE(dados.length, 20);
+    cdEntrada.writeUInt32LE(1024, 24); // mentira repetida no diretorio
+    cdEntrada.writeUInt16LE(nome.length, 28);
+    const corpo = Buffer.concat([local, nome, dados]);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(1, 8);
+    eocd.writeUInt16LE(1, 10);
+    eocd.writeUInt32LE(cdEntrada.length + nome.length, 12);
+    eocd.writeUInt32LE(corpo.length, 16);
+    const zip = Buffer.concat([corpo, cdEntrada, nome, eocd]);
+
+    // Passa na checagem (tudo declarado e coerente) e morre no worker com
+    // memoria baixa — 422, nunca 500 nem queda.
+    await expect(parseXlsx(zip, { memoriaMb: 32 })).rejects.toThrowError(ErroParser);
+    expect((await parseXlsx(ler('planilha.xlsx'))).docs).toHaveLength(1);
+  });
 });
 
 describe('falha estrutural legitima: revisao com motivo, nunca 422 nem linha sumida', () => {
@@ -210,6 +252,31 @@ describe('falha estrutural legitima: revisao com motivo, nunca 422 nem linha sum
     expect(r.revisao?.payload['cabecalho']).toEqual(['Rastreio', 'Janela', 'Motorista', 'Observacao']);
     expect(String(r.revisao?.payload['amostraCsv'])).toContain('BR-7731');
     expect(r.revisao?.payload['arquivo']).toBe('planilha.xlsx'); // basename seguro
+    // O CSV inteiro viaja no item: e o que a aprovacao re-ingere com o
+    // mapeamento (T124); acima do teto XLSX_REVISAO_MAX_CSV vira truncado.
+    expect(String(r.revisao?.payload['csvCompleto'])).toContain('BR-7731');
+  });
+
+  it('layout desconhecido com CSV acima do teto: item vai truncado', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Grande');
+    ws.addRow(['ColunaEstranha', 'Outra']);
+    ws.addRow(['valor-longo-'.repeat(20), 'mais-valor']);
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+
+    const antes = process.env['XLSX_REVISAO_MAX_CSV'];
+    process.env['XLSX_REVISAO_MAX_CSV'] = '64'; // teto minusculo so para o teste
+    try {
+      const r = await parseXlsx(buf, { nome: 'grande.xlsx' });
+      expect(r.revisao?.motivo).toBe('xlsx_layout_desconhecido');
+      expect(r.revisao?.payload['csvCompleto']).toBeUndefined();
+      expect(r.revisao?.payload['truncado']).toBe(true);
+      // A amostra segue disponivel para a proposta de mapeamento.
+      expect(String(r.revisao?.payload['amostraCsv'])).toContain('ColunaEstranha');
+    } finally {
+      if (antes === undefined) delete process.env['XLSX_REVISAO_MAX_CSV'];
+      else process.env['XLSX_REVISAO_MAX_CSV'] = antes;
+    }
   });
 
   it('formula sem valor cacheado: revisao xlsx_formula_sem_cache', async () => {

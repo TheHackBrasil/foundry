@@ -30,8 +30,11 @@ remetente. Fixtures novas: `planilha.xlsx` equivalente à
 CC-e com `xCorrecao` de reagendamento. E o fio de notificação por
 env global `NVOIP_NOTIFY_ON_TASK` (decidido, desligada por padrão):
 `pipeline.ts` chama `nvoip.ts` ao criar tarefa propagada cuja parte
-tem contato com canal compatível.
-Tasks T120 a T124, T140, T141.
+tem contato com canal compatível. E o fone do endereço fiscal da
+NF-e (`emitente.fone`) e da CT-e (`transportadora.fone`) alimenta
+`bootstrapContatos`: idempotente, nunca sobrescreve contato manual
+(RF7).
+Tasks T120 a T124, T140 a T142.
 
 Ordem: a spec 0008 integra inteira antes desta frente começar (a base
 já vem com o lock de idempotência e o helper doc->divergências->tarefas
@@ -68,7 +71,9 @@ absurda = 422 sem travar e sem inflar; `peso_kg:"12kg"` não vira `NaN`;
 `.eml` e CC-e com reagendamento geram `sinal` sem mexer em campo
 vigiado; R-006 verde; tarefa propagada com contato e gatilho ligado
 gera `notificacao` (sem env, nada acontece); sem `LLM_API_URL` nada
-muda.
+muda; layout desconhecido aprovado vira template por remetente e o
+arquivo seguinte entra direto; fone fiscal bootstrapa contato sem
+tocar o manual.
 
 Reporte: conclusão + evidência `arquivo:linha` por critério, decisão
 `exceljs` x parser próprio com a evidência dos testes, saída de gate.
@@ -92,6 +97,26 @@ Reporte: conclusão + evidência `arquivo:linha` por critério, decisão
   abririam ~2x o limite de heap e poderiam derrubar o processo da
   demo; a fila serializa a leitura e o custo é um `.xlsx` por vez, que
   o volume do upload (15 MB/dia por sessão) já limita.
+- D-G3 (23/11): o `remetente` do template de mapeamento (T124) é o
+  nome do arquivo sanitizado por `nomeAnexoSeguro`
+  (`pipeline.ts:317`). Upload, IMAP e seed não carregam cabeçalho de
+  quem enviou, e criar um identificador novo exigiria tocar paths
+  fora da frente; o nome do arquivo é o único rótulo estável que
+  atravessa os três caminhos. Registrado para a integração: quando
+  existir um remetente de verdade (header, envelope IMAP), basta
+  trocar a função que deriva a chave, `registrarTemplate` e
+  `aplicarTemplate` não mudam.
+- D-G4 (23/11): o corpo do `.eml` gera sinais uma vez e aplica aos
+  pedidos que receberam documento no próprio e-mail
+  (`pipeline.ts:355-370`). Sinal exige pedido existente e o corpo
+  chega junto dos anexos; atribuir o texto aos pedidos que acabaram
+  de ganhar evento é a heurística mais curta que respeita as duas
+  restrições. O payload gravado é só `{tipo, resumo, confianca,
+  fonte}` (`pipeline.ts:119-128`): o corpo cru nunca vira evento
+  nem log. Na defesa do zip, a checagem estrutural lê o que o
+  diretório central declara; contra declaração mentirosa a última
+  linha é o `resourceLimits` do worker, que mata o inflate sem
+  derrubar o processo (S3, teste em `xlsx.test.ts`).
 
 ## Evidência (23/11)
 
@@ -146,20 +171,80 @@ Reporte: conclusão + evidência `arquivo:linha` por critério, decisão
   `fixtures/email-corpo.eml` com corpo de texto sobre
   reagendamento e a CC-e anexa; `fixtures/cce-reagendamento.xml`
   cujo `xCorrecao` fala de reagendamento.
-- T124, T140, T141: não executadas nesta rodada. T124 depende de
-  `app/server/mapeamento.ts` (inexistente na `main`, path da
-  `ai-mandatos`); T140 depende de `sinal.ts` e do tipo `sinal` em
-  `model.ts` (T110-T112, T131-T133 da `ai-mandatos`); T141 depende
-  de `nvoip.ts` e `contatos.ts` (T133). O terreno fica pronto: a
-  revisão `xlsx_layout_desconhecido` já carrega planilha, cabeçalho
-  e amostra CSV, que é a entrada de `proporMapeamento`.
+- T124 (rodada 2, depois de `mapeamento.ts` na `main`): a revisão
+  `xlsx_layout_desconhecido` carrega `csvCompleto` até o teto
+  `XLSX_REVISAO_MAX_CSV` (200 KB; acima vira `truncado`,
+  `xlsx.ts:206,239`). No `pipeline.ts:308-334`: `aplicarTemplate`
+  com o remetente (nome do arquivo sanitizado, D-G3) roda antes da
+  LLM; template existente ingere direto, sem LLM e sem fila, e sem
+  template o item leva `proposta` de `proporMapeamento(cabecalho,
+  amostra)`. A aprovação bifurca em `pipeline.ts:178-213`
+  (`aprovarComMapeamento`): resolve o item na tx, aplica
+  `aplicarMapeamento` linha a linha do `csvCompleto`, ingere por
+  `registrarDoc` com a mesma idempotência do caminho normal e grava
+  o template por `(workspace, remetente)` com `registrarTemplate`.
+  Item sem proposta ou sem `csvCompleto` responde null como antes.
+  O mapeamento só renomeia colunas para campos, nunca inventa valor.
+  Teste em `pipeline-ai.test.ts`: revisão com proposta, aprovação
+  que ingere e grava template, e segundo arquivo do mesmo remetente
+  entrando direto, com o fetch da LLM provado não-chamado.
+- T140: `eml.ts:17-38` devolve `{anexos, corpo}` (corpo =
+  `parsed.text` trimado). `eventos.ts:74-79` expõe `textoDoEvento`
+  (correção + justificativa + descrição). No pipeline, a CC-e gera
+  sinais só quando o doc gravou evento, ou seja, pedido existente
+  (`pipeline.ts:280-287`); o corpo do `.eml` gera uma extração e
+  emite por pedido que recebeu documento no mesmo e-mail
+  (`pipeline.ts:351-370`, D-G4). `emitirSinais`
+  (`pipeline.ts:119-128`) grava só `{tipo, resumo, confianca,
+  fonte}` via `appendVarios`: texto cru nunca vai para ledger nem
+  log. R-006 segue: sinal não é documento, não declara campo
+  vigiado e não gera divergência. Testes em `pipeline-ai.test.ts`:
+  sinal com a fonte certa por caminho, R-006 verde, sem LLM nada
+  muda e CC-e de pedido inexistente vai para a revisão sem sinal.
+- T141: `pipeline.ts:76-86`: depois de cada `tarefa` propagada, com
+  `NVOIP_NOTIFY_ON_TASK` ligado (`nvoip.ts:50-54`), chama
+  `notificarTarefa` na mesma tx; o resultado vira evento
+  `notificacao` só quando a notificação acontece (entrega, falha,
+  sem contato ou canal incompatível), e desligada nada é emitido.
+  O módulo nunca lança, então falha da provedora registra
+  `nao_entregue`/`falha_envio` sem quebrar a ingestão. Testes:
+  com env ligada e contatos da seed, toda tarefa gera uma
+  `notificacao` com o motivo certo por parte; sem a env nada
+  acontece mesmo com provedora configurada; `fetch` rejeitado vira
+  `falha_envio` e o pipeline segue com a cadeia válida.
+- T142: `nfe.ts:96-106` escreve `dados.emitente.fone` (e
+  `destinatario.fone`, livre) a partir de `enderEmit/enderDest`;
+  `cte.ts:89-93` escreve `dados.transportadora.fone`. Campo
+  opcional: documento sem fone segue idêntico. `pipeline.ts:261-265`
+  chama `bootstrapContatos` depois que NF-e/CT-e gravou evento; o
+  bootstrap é idempotente e nunca sobrescreve contato `manual`
+  (`contatos.ts`). Testes: NF-e com fone bootstrapa o fornecedor na
+  agenda, CT-e com fone a transportadora, doc sem fone não cria
+  contato e contato manual fica intacto.
+- S1 (achado do revisor): a revisão do `.xlsx` cobria cota só
+  depois do parse. `pipeline.ts:301` chama `exigirCabe(1)` antes de
+  `parseXlsx` e `pipeline.ts:304` cobre o lote inteiro com
+  `exigirCabe(r.docs.length)` antes de gravar, fechando também a
+  ingestão parcial por cota. Teste: `documentosPorEnvio: 0`
+  responde 413 antes de qualquer parse e a fila fica vazia.
+- S3 (achado do revisor): a checagem estrutural lê tamanhos
+  declarados no diretório central; um zip pode mentir 1 KB e
+  carregar um deflate de dezenas de MB. A última linha de defesa é
+  o `resourceLimits` do worker (D-G4), que mata o inflate sem
+  derrubar o processo. Teste em `xlsx.test.ts`: diretório mentiroso
+  montado à mão passa na checagem e morre no worker com 422, e a
+  fixture boa lê normal em seguida (processo em pé).
 
 ### Gates
 
+Rodada 1: 19 arquivos, 183 + 27 testes verdes (1 skip
+pré-existente). Rodada 2 (T124, T140, T141, T142, S1, S3):
+
 - `npx tsc --noEmit` em `app/`: limpo.
-- `npm test` em `app/`: 19 arquivos, 183 + 27 testes verdes (1 skip
-  pré-existente); os 25 testes novos de `xlsx.test.ts` e os 14 de
-  `pdf.test.ts` incluídos.
+- `npm test` em `app/`: 19 arquivos no server, 240 testes verdes (1
+  skip pré-existente) + 2 arquivos web com 27. Os 12 testes novos de
+  `pipeline-ai.test.ts` e os 2 novos de `xlsx.test.ts` (diretório
+  mentiroso e CSV truncado) incluídos.
 - `node scripts/repo-guard.mjs`: 11 checks, exit 0.
 - `node scripts/prose-evals.mjs`: 0 duras, 7 leves (pré-existentes),
   exit 0.

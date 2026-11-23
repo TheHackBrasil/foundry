@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Evento } from '../../shared/model.js';
 import { createLiteDb } from '../db.js';
 import { buildServer } from '../index.js';
-import { extrairAnexosEml } from './eml.js';
+import { extrairEml } from './eml.js';
 
 const FIX = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures');
 const lerBuf = (f: string): Buffer => readFileSync(join(FIX, f));
@@ -76,12 +76,18 @@ function montarEml(partes: Parte[]): Buffer {
 
 const anexoXml = (corpo: Buffer, nome = 'doc.xml'): Parte => ({ tipo: 'application/xml', corpo, nome, disposicao: 'attachment' });
 
-describe('extrairAnexosEml', () => {
+describe('extrairEml', () => {
+  it('devolve anexos e o corpo de texto limpo (T140)', async () => {
+    const { anexos, corpo } = await extrairEml(montarEml([anexoXml(NFE)]));
+    expect(anexos).toHaveLength(1);
+    expect(corpo).toBe('Corpo da mensagem de teste.');
+  });
+
   it('o erro nunca repete cabecalho da mensagem', async () => {
     const mensagens = await Promise.all([
-      extrairAnexosEml(montarEml([])).catch((e: Error) => e.message),
-      extrairAnexosEml(montarEml([{ tipo: 'message/rfc822', corpo: montarEml([]), nome: 'x.eml' }])).catch((e: Error) => e.message),
-      extrairAnexosEml(Buffer.from(`${CABECALHOS.from}\r\n${CABECALHOS.subject}`)).catch((e: Error) => e.message),
+      extrairEml(montarEml([])).catch((e: Error) => e.message),
+      extrairEml(montarEml([{ tipo: 'message/rfc822', corpo: montarEml([]), nome: 'x.eml' }])).catch((e: Error) => e.message),
+      extrairEml(Buffer.from(`${CABECALHOS.from}\r\n${CABECALHOS.subject}`)).catch((e: Error) => e.message),
     ]);
     for (const m of mensagens) {
       expect(typeof m).toBe('string');

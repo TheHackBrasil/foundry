@@ -14,7 +14,14 @@ export interface AnexoEml {
   conteudo: Buffer;
 }
 
-export async function extrairAnexosEml(conteudo: Buffer): Promise<AnexoEml[]> {
+export interface EmlLido {
+  anexos: AnexoEml[];
+  // Corpo de texto da mensagem: so alimenta a extracao de sinais (T140) e
+  // nunca vai para o ledger, para a fila nem para o log (RF27).
+  corpo: string;
+}
+
+export async function extrairEml(conteudo: Buffer): Promise<EmlLido> {
   let parsed;
   try {
     parsed = await simpleParser(conteudo);
@@ -27,5 +34,6 @@ export async function extrairAnexosEml(conteudo: Buffer): Promise<AnexoEml[]> {
   if (anexos.length === 0) {
     throw new ErroParser('EML: sem anexo elegivel (.xml/.csv/.xlsx/.pdf)');
   }
-  return anexos;
+  const corpo = typeof parsed.text === 'string' ? parsed.text.trim() : '';
+  return { anexos, corpo };
 }

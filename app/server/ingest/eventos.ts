@@ -67,3 +67,13 @@ export function parseEventoNFe(xml: string): DocData {
 
   throw new ErroParser(`Evento NF-e: tpEvento ${tp ?? '?'} nao suportado (esperado 110110 ou 110111)`);
 }
+
+// Texto livre do evento para a extracao de sinais (T140/RF3): correcao e
+// justificativa sao o que o emissor escreveu; a descricao entra como contexto
+// curto do tipo. O texto bruto nunca sai daqui para evento nem log.
+export function textoDoEvento(doc: DocData): string {
+  const d = doc.dados;
+  return [d['correcao'], d['justificativa'], d['descricao']]
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+    .join('. ');
+}

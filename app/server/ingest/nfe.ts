@@ -57,6 +57,8 @@ export function parseNFe(xml: string): DocData {
   const ide = (inf['ide'] ?? {}) as Record<string, unknown>;
   const emit = (inf['emit'] ?? {}) as Record<string, unknown>;
   const dest = (inf['dest'] ?? {}) as Record<string, unknown>;
+  const enderEmit = (emit['enderEmit'] ?? {}) as Record<string, unknown>;
+  const enderDest = (dest['enderDest'] ?? {}) as Record<string, unknown>;
   const total = ((inf['total'] ?? {}) as Record<string, unknown>)['ICMSTot'] as
     | Record<string, unknown>
     | undefined;
@@ -91,8 +93,18 @@ export function parseNFe(xml: string): DocData {
     campos,
     dados: {
       chave,
-      emitente: { cnpj: texto(emit['CNPJ']) ?? texto(emit['CPF']), nome: texto(emit['xNome']) ?? '?' },
-      destinatario: { cnpj: texto(dest['CNPJ']) ?? texto(dest['CPF']), nome: texto(dest['xNome']) ?? '?' },
+      // fone do endereco fiscal alimenta o bootstrap da agenda (T142/RF7);
+      // ausente, o campo simplesmente nao existe no doc.
+      emitente: {
+        cnpj: texto(emit['CNPJ']) ?? texto(emit['CPF']),
+        nome: texto(emit['xNome']) ?? '?',
+        ...(texto(enderEmit['fone']) ? { fone: texto(enderEmit['fone']) } : {}),
+      },
+      destinatario: {
+        cnpj: texto(dest['CNPJ']) ?? texto(dest['CPF']),
+        nome: texto(dest['xNome']) ?? '?',
+        ...(texto(enderDest['fone']) ? { fone: texto(enderDest['fone']) } : {}),
+      },
       itens,
       valorNF: numero(total?.['vNF']),
       dataEmissao: dhEmi,

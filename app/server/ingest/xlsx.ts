@@ -200,6 +200,10 @@ export async function parseXlsx(buf: Buffer, opcoes: OpcoesXlsx = {}): Promise<R
   };
   const timeoutMs = opcoes.timeoutMs ?? inteiroOuPadrao(process.env['XLSX_TIMEOUT_MS'], 10_000);
   const memoriaMb = opcoes.memoriaMb ?? inteiroOuPadrao(process.env['XLSX_WORKER_MEM_MB'], 256);
+  // O CSV inteiro e o que a aprovacao da revisao re-ingere com o mapeamento
+  // (RF11/T124); acima do teto o item fica consultivo (amostraCsv basta para
+  // a proposta) e a decisao manual e descartar ou exportar como CSV.
+  const maxCsvRevisao = inteiroOuPadrao(process.env['XLSX_REVISAO_MAX_CSV'], 200_000);
 
   checarZip(buf, limites); // 422 aqui: arquivo que falha nunca infla.
   const r = await lerNoWorker(buf, timeoutMs, memoriaMb);
@@ -227,7 +231,13 @@ export async function parseXlsx(buf: Buffer, opcoes: OpcoesXlsx = {}): Promise<R
       docs: [],
       revisao: {
         motivo: 'xlsx_layout_desconhecido',
-        payload: { arquivo, planilha: r.planilha, cabecalho: r.cabecalho, amostraCsv: r.csv.slice(0, 4000) },
+        payload: {
+          arquivo,
+          planilha: r.planilha,
+          cabecalho: r.cabecalho,
+          amostraCsv: r.csv.slice(0, 4000),
+          ...(r.csv.length <= maxCsvRevisao ? { csvCompleto: r.csv } : { truncado: true }),
+        },
       },
     };
   }

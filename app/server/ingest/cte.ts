@@ -48,6 +48,7 @@ export function parseCTe(xml: string): DocData {
 
   const ide = (inf['ide'] ?? {}) as Record<string, unknown>;
   const emit = (inf['emit'] ?? {}) as Record<string, unknown>;
+  const enderEmit = (emit['enderEmit'] ?? {}) as Record<string, unknown>;
   const norm = (inf['infCTeNorm'] ?? inf['infCteComp'] ?? {}) as Record<string, unknown>;
   const carga = (norm['infCarga'] ?? {}) as Record<string, unknown>;
   const infDoc = (norm['infDoc'] ?? {}) as Record<string, unknown>;
@@ -85,7 +86,12 @@ export function parseCTe(xml: string): DocData {
     dados: {
       chaveCte,
       chaveNfe: chaveNfe ?? null,
-      transportadora: { cnpj: texto(emit['CNPJ']), nome: texto(emit['xNome']) ?? '?' },
+      // fone da transportadora alimenta o bootstrap da agenda (T142/RF7).
+      transportadora: {
+        cnpj: texto(emit['CNPJ']),
+        nome: texto(emit['xNome']) ?? '?',
+        ...(texto(enderEmit['fone']) ? { fone: texto(enderEmit['fone']) } : {}),
+      },
       valorFrete: numero(((inf['vPrest'] ?? {}) as Record<string, unknown>)['vTPrest']),
       dataEmissao: dhEmi,
       modalidade: texto(ide['modal']),
