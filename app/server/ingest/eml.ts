@@ -5,8 +5,8 @@
 import { simpleParser } from 'mailparser';
 import { ErroParser } from './nfe.js';
 
-// .xlsx fica no filtro de proposito: detectarTipo responde o 422 de D-028
-// ("exporte como CSV") em vez de o anexo sumir em silencio.
+// .xlsx fica no filtro e segue o mesmo caminho do CSV pelo pipeline (D-041);
+// .xls (formato antigo) o detectarTipo responde com o 422 proprio.
 const ANEXO_OK = /\.(xml|csv|xlsx|pdf)$/i;
 
 export interface AnexoEml {
@@ -25,7 +25,7 @@ export async function extrairAnexosEml(conteudo: Buffer): Promise<AnexoEml[]> {
     .filter((a) => a.filename && ANEXO_OK.test(a.filename))
     .map((a) => ({ nome: a.filename as string, conteudo: a.content }));
   if (anexos.length === 0) {
-    throw new ErroParser('EML: sem anexo elegivel (.xml/.csv/.pdf)');
+    throw new ErroParser('EML: sem anexo elegivel (.xml/.csv/.xlsx/.pdf)');
   }
   return anexos;
 }

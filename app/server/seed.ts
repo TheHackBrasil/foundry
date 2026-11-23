@@ -16,13 +16,14 @@ import { LedgerStore } from './store.js';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const DIRS = [join(AQUI, '..', 'seed'), join(AQUI, 'fixtures')];
-const ORDEM = ['.xml', '.csv', '.pdf'];
+const ORDEM = ['.xml', '.csv', '.xlsx', '.pdf'];
 // NF-e cria o pedido; CT-e/eventos/planilha/PDF enriquecem depois.
 const PRIORIDADE_TIPO: Record<string, number> = {
   nfe: 0,
   cte: 1,
   eventoNFe: 2,
   csv: 3,
+  xlsx: 3,
   pdf: 4,
 };
 

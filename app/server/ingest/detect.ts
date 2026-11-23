@@ -1,9 +1,10 @@
 // Deteccao de tipo (spec 0004): XML pelo conteudo, CSV/PDF pela extensao.
-// Desconhecido ou planilha Excel (D-028) vira 422, nunca 500.
+// .xlsx volta em D-041 (worker + checagem de zip); .xls, formato binario
+// antigo fora do zip, segue no 422 que D-028 deixou.
 
 import { ErroParser } from './nfe.js';
 
-export type TipoDoc = 'nfe' | 'cte' | 'eventoNFe' | 'csv' | 'pdf' | 'eml';
+export type TipoDoc = 'nfe' | 'cte' | 'eventoNFe' | 'csv' | 'pdf' | 'eml' | 'xlsx';
 
 export function detectarTipo(nome: string, conteudo: Buffer): TipoDoc {
   const ext = nome.toLowerCase().split('.').pop() ?? '';
@@ -11,8 +12,9 @@ export function detectarTipo(nome: string, conteudo: Buffer): TipoDoc {
 
   if (ext === 'eml') return 'eml';
   if (ext === 'pdf' || inicio.startsWith('%PDF')) return 'pdf';
-  if (ext === 'xlsx' || ext === 'xls') {
-    throw new ErroParser('Planilha Excel (.xlsx, .xls) nao suportada: exporte a planilha como CSV');
+  if (ext === 'xlsx') return 'xlsx';
+  if (ext === 'xls') {
+    throw new ErroParser('Planilha .xls (formato antigo) nao suportada: salve como .xlsx ou exporte a planilha como CSV');
   }
   if (ext === 'csv' || ext === 'txt') return 'csv';
   if (ext === 'xml' || inicio.includes('<')) {

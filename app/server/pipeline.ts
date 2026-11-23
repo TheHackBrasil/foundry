@@ -15,6 +15,7 @@ import { parseCTe } from './ingest/cte.js';
 import { parseEventoNFe } from './ingest/eventos.js';
 import { parseCsv } from './ingest/csv.js';
 import { parsePdf } from './ingest/pdf.js';
+import { parseXlsx } from './ingest/xlsx.js';
 import { extrairAnexosEml } from './ingest/eml.js';
 
 // Resultado interno do pipeline (eventos gravados, nao o numero). O contrato
@@ -109,7 +110,10 @@ export async function aprovarRevisao(
   // A rota responde 403 antes; aqui o pipeline fecha a porta para outros usos.
   if (item['workspace_id'] !== store.workspace) return null;
   const alvo = store.paraWorkspace(String(item['workspace_id']));
-  const p = item['payload'] as { pedidoId: string; docTipo: DocData['docTipo']; fonte: DocData['fonte']; campos: DocData['campos']; dados: Record<string, unknown> };
+  const p = item['payload'] as { pedidoId?: string; docTipo: DocData['docTipo']; fonte: DocData['fonte']; campos: DocData['campos']; dados: Record<string, unknown> };
+  // Item sem doc completo (extracao falhou: PDF, xlsx fora do schema) nao tem
+  // o que aprovar: devolve null para a rota responder 404 em vez de 500.
+  if (typeof p?.pedidoId !== 'string') return null;
   const doc: DocData = { fonte: p.fonte, docTipo: p.docTipo, pedidoId: p.pedidoId, campos: p.campos, dados: p.dados };
   const r = await alvo.transaction(async (tx) => {
     // Mesma ordem do processarDoc: o lock do pedido vem antes da decisao.
@@ -188,6 +192,21 @@ export async function ingerir(
         const linhas = parseCsv(buf.toString('utf8'));
         exigirCabe(linhas.length);
         for (const doc of linhas) await processar(doc);
+        break;
+      }
+      case 'xlsx': {
+        // Mesmo caminho do CSV: o parser devolve docs 'planilha' ou um item
+        // de revisao (layout desconhecido, formula sem cache, mesclada). O
+        // 422 estrutural sobe como ErroParser dentro do parseXlsx.
+        const r = await parseXlsx(buf, { nome: nomeArq });
+        if (r.docs.length > 0) {
+          exigirCabe(r.docs.length);
+          for (const doc of r.docs) await processar(doc);
+        }
+        if (r.revisao) {
+          uso.documentos += 1;
+          revisaoId ??= await store.enfileirarRevisao('planilha', r.revisao.motivo, r.revisao.payload);
+        }
         break;
       }
       case 'pdf': {

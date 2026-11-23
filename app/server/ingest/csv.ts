@@ -1,5 +1,6 @@
 // Parser CSV (spec 0004, T031): uma linha = um doc 'planilha'; headers
-// tolerados em PT-BR (chave_nf, data_prevista...). XLSX saiu do MVP (D-028).
+// tolerados em PT-BR (chave_nf, data_prevista...). Parser tabular unico:
+// o .xlsx volta em D-041/T120, mas passa por aqui como texto CSV (D-028).
 
 import Papa from 'papaparse';
 import type { CamposObservados, DocData } from '../../shared/model.js';
@@ -23,6 +24,13 @@ function normalizarHeader(h: string): string {
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
+}
+
+// Cabecalho "conhecido" tem pelo menos um alias da chave de pedido: o worker
+// do .xlsx usa isso para escolher a planilha certa do livro (spec 0007, T120).
+export function cabecalhoTemChave(cabecalho: string[]): boolean {
+  const norm = new Set(cabecalho.map(normalizarHeader));
+  return ALIASES['pedidoId']!.some((a) => norm.has(a));
 }
 
 function achar(linha: Linha, chave: string): string | undefined {
