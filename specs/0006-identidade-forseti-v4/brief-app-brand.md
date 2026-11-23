@@ -62,3 +62,15 @@ screenshots e saída de gate por critério.
 - D-B7: `scripts/check_contrast.py` lê os tokens de `src/tokens.css` e
   sai com código 1 em qualquer reprovação; o relatório gerado fica
   versionado em `evidencias/contraste-v4.md`.
+- D-B8: T091 registrada como concluída sem alteração: a copy das telas
+  foi relida contra a voz "confiança sem ruído" (frases factuais,
+  estados nomeados, dados fictícios sinalizados) e já estava conforme.
+- D-B9: os dois `forseti-lockup-*.svg` ficam em `src/assets/` como
+  biblioteca oficial da marca, sem referência no código: `Marca.tsx`
+  serve símbolo mais wordmark em texto (D-B2), e os lockups completos
+  ficam disponíveis para usos futuros a custo zero.
+
+Nota de conhecimento: o fix do stream (`useTorre.ts`) reduz a janela da
+corrida de cookie, não a elimina: se a primeira `listarPedidos()` falhar
+por rede sem resposta HTTP, o `finally` libera o stream sem cookie e a
+tela cai no estado de erro normal.
