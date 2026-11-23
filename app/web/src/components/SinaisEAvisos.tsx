@@ -30,11 +30,13 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
       {sinais.length > 0 && (
         <section className="painel-card" aria-labelledby="bloco-sinais">
           <div className="sec-cab">
-            <h3 id="bloco-sinais" className="sec-titulo-icone">
-              <IconeSinal />
-              Sinais consultivos
-            </h3>
-            <span className="meta">Leitura de texto livre · não altera campos vigiados</span>
+            <div className="sec-cab-grupo">
+              <h2 id="bloco-sinais" className="sec-titulo-icone">
+                <IconeSinal />
+                Sinais consultivos
+              </h2>
+              <p className="meta">Leitura de texto livre · não altera campos vigiados</p>
+            </div>
           </div>
           <ul className="registros-lista">
             {sinais.map((s, i) => {
@@ -45,10 +47,9 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
                 <li
                   key={`${chave}-${i}`}
                   className={novo ? 'registro-item item-novo' : 'registro-item'}
-                  style={{ '--stagger': Math.min(i, 4) } as CSSProperties}
                 >
                   <div className="registro-topo">
-                    <span className="pilula-coord">{rotuloTipoSinal(s.tipo)}</span>
+                    <span className="pilula-neutra">{rotuloTipoSinal(s.tipo)}</span>
                     <span className="pilula-sutil">{rotuloFonte(s.fonte)}</span>
                     <span className="confianca" aria-label={`Confiança ${formatarConfianca(s.confianca)}`}>
                       <span className="confianca-trilha" aria-hidden="true">
@@ -72,11 +73,13 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
       {notificacoes.length > 0 && (
         <section className="painel-card" aria-labelledby="bloco-avisos">
           <div className="sec-cab">
-            <h3 id="bloco-avisos" className="sec-titulo-icone">
-              <IconeAviso />
-              Avisos
-            </h3>
-            <span className="meta">Registro do que saiu ou motivo de não entrega</span>
+            <div className="sec-cab-grupo">
+              <h2 id="bloco-avisos" className="sec-titulo-icone">
+                <IconeAviso />
+                Avisos
+              </h2>
+              <p className="meta">Registro do que saiu ou motivo de não entrega</p>
+            </div>
           </div>
           <ul className="registros-lista">
             {notificacoes.map((n, i) => {
@@ -89,7 +92,6 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
                 <li
                   key={`${chave}-${i}`}
                   className={novo ? 'registro-item item-novo' : 'registro-item'}
-                  style={{ '--stagger': Math.min(i, 4) } as CSSProperties}
                 >
                   <div className="registro-topo">
                     <span className={classePilula}>

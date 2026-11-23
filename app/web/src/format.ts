@@ -147,12 +147,14 @@ export function formatarMomento(texto: string): string {
   const iso = (texto.includes('T') ? texto : texto.replace(' ', 'T')).replace(/([+-]\d{2})$/, '$1:00');
   const data = new Date(iso);
   if (Number.isNaN(data.getTime())) return texto;
-  return data.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return data
+    .toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    .replace(/,\s*/, ' ');
 }
 
 // "3126 1112 ..." em grupos de quatro, como a chave de acesso no documento fiscal.

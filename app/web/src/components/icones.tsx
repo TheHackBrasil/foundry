@@ -148,3 +148,12 @@ export function IconeRetorno() {
     </svg>
   );
 }
+
+export function IconeCopiar() {
+  return (
+    <svg {...base}>
+      <rect {...traco} x="5.75" y="5.75" width="7.5" height="7.5" rx="1.5" />
+      <path {...traco} d="M4.25 10.25a1.5 1.5 0 0 1-1.5-1.5v-4.5a1.5 1.5 0 0 1 1.5-1.5h4.5a1.5 1.5 0 0 1 1.5 1.5" />
+    </svg>
+  );
+}

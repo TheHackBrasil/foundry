@@ -36,7 +36,7 @@ export function App() {
         aoTema={trocarTema}
       />
       <div className="corpo">
-        <aside className="lateral" aria-label="Envio e lista de pedidos">
+        <aside id="painel-lateral" className="lateral" aria-label="Envio e lista de pedidos">
           <PedidoLista pedidos={torre.pedidos} selecionado={torre.selecionado} aoTentarDeNovo={torre.recarregarLista} />
           <EnvioArquivos aoEnviar={torre.selecionar} />
         </aside>
@@ -54,7 +54,7 @@ export function App() {
             />
           ) : (
             <section aria-labelledby="vazio-titulo" className="vazio">
-              <h2 id="vazio-titulo">{vazio ? 'Nada para mostrar ainda' : 'Escolha um pedido'}</h2>
+              <h1 id="vazio-titulo">{vazio ? 'Nada para mostrar ainda' : 'Escolha um pedido'}</h1>
               <p className="dica">
                 Envie uma NF-e em XML no painel ao lado. O Forseti mostra o que cada documento declara, aponta onde as fontes
                 divergem e diz o que cada parte precisa fazer.
