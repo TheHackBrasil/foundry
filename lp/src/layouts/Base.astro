@@ -1,0 +1,74 @@
+---
+import '@fontsource-variable/manrope';
+import '@fontsource-variable/geist-mono';
+import '../styles/global.css';
+import { DEMO_URL, SITE_URL, live } from '../config';
+
+const site = live(SITE_URL);
+const demo = live(DEMO_URL);
+const ogImage = site ? `${site}/assets/og.png` : '/assets/og.png';
+---
+
+<!doctype html>
+<html lang="pt-BR" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F5F2EB">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="index, follow">
+  <meta name="description" content="O Forseti lê os documentos que a cadeia logística já produz, compara as versões do mesmo compromisso e mostra onde divergem e quem precisa agir. Veja a demonstração pública.">
+  <meta property="og:title" content="Forseti · camada de reconciliação e coordenação">
+  <meta property="og:description" content="Diferentes versões da operação. Uma resolução compartilhada. O Forseti compara os documentos de cada empresa e mostra onde divergem e quem precisa agir.">
+  <meta property="og:type" content="website">
+  {site && <meta property="og:url" content={site}>}
+  <meta property="og:image" content={ogImage}>
+  <meta property="og:locale" content="pt_BR">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content={ogImage}>
+  <title>Forseti · camada de reconciliação e coordenação</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="icon" type="image/x-icon" href="./favicon.ico">
+  <script is:inline>
+    (function (d) {
+      var c = d.classList;
+      c.replace('no-js', 'js');
+      // Single source of truth for reduced motion: CSS and motion.ts read .reduce.
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches ||
+          new URLSearchParams(location.search).get('reduce') === '1') c.add('reduce');
+      // If motion.ts never boots, nothing may stay hidden behind .rv.
+      setTimeout(function () { if (!c.contains('motion-ok')) c.add('rv-safe'); }, 2500);
+    })(document.documentElement);
+  </script>
+</head>
+<body>
+  <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <header class="top">
+    <a class="brand" href="#topo" aria-label="Forseti, voltar ao topo">
+      <img class="lockup" src="./assets/forseti-lockup-petroleo.svg" alt="Forseti" width="132" height="55">
+    </a>
+    <nav aria-label="Seções">
+      <a href="#problema">O problema</a>
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#evidencias">Evidências</a>
+    </nav>
+    {demo
+      ? <a class="top-cta" href={demo} target="_blank" rel="noopener noreferrer">Ver a demonstração</a>
+      : <a class="top-cta" href="#fecho">Ver a demonstração</a>}
+  </header>
+
+  <slot />
+
+  <footer class="foot">
+    <img class="foot-lockup" src="./assets/forseti-lockup-petroleo.svg" alt="Forseti" width="110" height="46">
+    <span>O Forseti é desenvolvido pela equipe The Foundry · HackBrasil 2026</span>
+    <a href="#topo">Voltar ao topo</a>
+  </footer>
+
+  <script>
+    import '../scripts/motion.ts';
+  </script>
+</body>
+</html>

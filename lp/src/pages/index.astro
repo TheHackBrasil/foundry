@@ -1,0 +1,230 @@
+---
+import Base from '../layouts/Base.astro';
+import { DEMO_URL, live } from '../config';
+
+const demo = live(DEMO_URL);
+
+// The systems each side already runs: each card shows the same order the way
+// that system can see it. Example data, like the public demo.
+const systems = [
+  {
+    dono: 'Sistema do fornecedor',
+    tipo: 'ERP',
+    campo: 'Previsão de produção',
+    valor: '20/01',
+  },
+  {
+    dono: 'Sistema da transportadora',
+    tipo: 'TMS',
+    campo: 'Chegada ao CD',
+    valor: '21/01',
+  },
+  {
+    dono: 'Planilha do CD',
+    tipo: 'CSV',
+    campo: 'Recebimento agendado',
+    valor: '23/01',
+  },
+];
+
+// Mini divergence matrix, drawn in markup the way the product reads it:
+// the NF-e is the reference, only the cell that differs from it is marked,
+// and state comes from symbol + label + notch, never from colour alone.
+const campos = [
+  { campo: 'Previsão de entrega', nfe: '20/01',      cte: '20/01',      cteDiv: false, plan: '23/01',          planDiv: true,  situacao: 'diverge', delta: '+3 dias' },
+  { campo: 'Peso total',          nfe: '1.284,5 kg', cte: '1.284,5 kg', cteDiv: false, plan: 'não declarado',  planDiv: false, situacao: 'confere' },
+  { campo: 'Volumes',             nfe: '12',         cte: '12',         cteDiv: false, plan: '12',             planDiv: false, situacao: 'confere' },
+  { campo: 'Status',              nfe: 'coletado',   cte: 'em trânsito', cteDiv: true,  plan: 'não declarado',  planDiv: false, situacao: 'diverge', delta: 'duas leituras' },
+];
+
+const evidencias = [
+  {
+    n: '01',
+    t: 'Registro verificável',
+    p: 'O registro só aceita acréscimo: o banco recusa alteração e exclusão. Cada evento leva o hash do anterior, e a cadeia inteira pode ser conferida evento a evento.',
+  },
+  {
+    n: '02',
+    t: 'Fontes fiscais reais',
+    p: 'NF-e, CT-e e CC-e em XML, planilha em CSV e e-mail com o documento em anexo. Os documentos que a cadeia já troca entram pelo mesmo caminho.',
+  },
+  {
+    n: '03',
+    t: 'Sessão isolada',
+    p: 'Cada visitante da demonstração recebe uma sessão própria: o que uma pessoa altera não aparece na sessão de outra.',
+  },
+  {
+    n: '04',
+    t: 'Âncora pública opcional',
+    p: 'O registro pode ser ancorado numa blockchain pública. O mecanismo já foi testado na Base Sepolia, rede de testes.',
+  },
+];
+
+const naoSomos = ['uma transportadora', 'um TMS', 'um ERP', 'um rastreador', 'um chatbot'];
+---
+
+<Base>
+  <main id="conteudo">
+
+    <!-- HERO -->
+    <section class="hero" id="topo" aria-labelledby="hero-t">
+      <div class="hero-copy">
+        <p class="eyebrow rv">Camada de reconciliação e coordenação</p>
+        <h1 class="hero-title rv" id="hero-t">Diferentes versões da operação. Uma <em>resolução compartilhada.</em></h1>
+        <p class="hero-sub rv">O Forseti lê os documentos que cada empresa da cadeia já produz,
+          compara as versões do mesmo compromisso e mostra onde divergem e quem precisa agir.</p>
+        <div class="hero-actions rv">
+          {demo
+            ? <a class="btn" href={demo} target="_blank" rel="noopener noreferrer">Ver a demonstração <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 11 11 5M6 5h5v5"/></svg></a>
+            : <a class="btn" href="#como-funciona">Ver como funciona <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v11M3 8.5l5 5 5-5"/></svg></a>}
+          <a class="btn ghost" href="#como-funciona">Como funciona <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v11M3 8.5l5 5 5-5"/></svg></a>
+        </div>
+        <dl class="hero-facts rv">
+          <div><dt>Lê</dt><dd>NF-e, CT-e e CC-e em XML, planilha em CSV e e-mail com anexo</dd></div>
+          <div><dt>Compara</dt><dd>Campo a campo, com a origem e a versão de cada valor</dd></div>
+          <div><dt>Mostra</dt><dd>A divergência e a tarefa de cada papel da cadeia</dd></div>
+        </dl>
+      </div>
+      <svg class="hero-scene cords" viewBox="0 0 620 560" aria-hidden="true" focusable="false">
+        <g class="mono-g">
+          <rect class="mono" x="296" y="60" width="88" height="440"/>
+          <rect class="mono m2" x="412" y="150" width="96" height="350"/>
+          <rect class="mono m3" x="532" y="236" width="76" height="264"/>
+        </g>
+        <path pathLength="1000" d="M0 96 C 160 84 380 116 620 100"/>
+        <path pathLength="1000" d="M0 176 C 160 162 380 196 620 180"/>
+        <path pathLength="1000" d="M0 256 C 160 240 380 276 620 260"/>
+        <path pathLength="1000" d="M0 336 C 160 320 380 356 620 340"/>
+        <circle class="cord-signal" r="7" style="offset-path: path('M0 176 C 160 162 380 196 620 180')"/>
+      </svg>
+    </section>
+
+    <!-- O PROBLEMA -->
+    <section class="chapter" id="problema" aria-labelledby="t-problema">
+      <div class="split">
+        <div class="copy rv">
+          <h2 id="t-problema">O mesmo compromisso, <em>versões diferentes.</em></h2>
+          <p class="lead">Fornecedor, transportadora, centro de distribuição, fiscal e
+            financeiro registram o mesmo pedido em sistemas diferentes. Cada um vê
+            só a parte que consegue medir.</p>
+          <p>Quando o compromisso muda, a exceção se propaga antes da informação:
+            por telefone, planilha e conferência manual. A divergência só aparece
+            quando já virou retrabalho em cada etapa.</p>
+        </div>
+        <div class="sys rv" role="group" aria-label="Três versões do mesmo pedido, exemplo">
+          {systems.map((s) => (
+            <div class="sys-card">
+              <p class="sys-head"><span>{s.dono}</span><span class="sys-tipo">{s.tipo}</span></p>
+              <p class="sys-pedido">Pedido 3526…000019</p>
+              <p class="sys-row"><span>{s.campo}</span><b>{s.valor}</b></p>
+            </div>
+          ))}
+          <p class="sys-cap">Três versões do mesmo pedido, registradas sem coordenação. Exemplo ilustrativo.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMO FUNCIONA -->
+    <section class="chapter band" id="como-funciona" aria-labelledby="t-como">
+      <div class="split">
+        <div class="copy rv">
+          <h2 id="t-como">Lê. Compara. <em>Mostra.</em></h2>
+          <p class="lead">Nenhuma empresa troca de sistema. O Forseti trabalha sobre
+            os documentos que a cadeia já produz.</p>
+          <ol class="steps">
+            <li><b>Lê</b><span>NF-e, CT-e e CC-e em XML, planilha em CSV e e-mail com o documento em anexo entram pelo mesmo caminho.</span></li>
+            <li><b>Compara</b><span>Cada documento vira um evento do pedido. Quando duas fontes discordam sobre previsão de entrega, peso, volumes ou status, a divergência aparece com a origem e a versão de cada valor.</span></li>
+            <li><b>Mostra</b><span>O que mudou, por quê e a tarefa sugerida para cada papel: fornecedor, transportadora, CD, fiscal e financeiro. A decisão fica com cada empresa.</span></li>
+          </ol>
+        </div>
+        <figure class="matrix rv" aria-label="Matriz de divergência, exemplo">
+          <figcaption class="matrix-head">
+            <span><b>Pedido 3526…000019</b> · 2 divergências em 4 campos</span>
+            <span class="seal">Registro íntegro</span>
+          </figcaption>
+          <div class="matrix-scroll" tabindex="0">
+            <table>
+              <thead>
+                <tr><th scope="col">Campo</th><th scope="col">NF-e</th><th scope="col">CT-e</th><th scope="col">Planilha</th><th scope="col">Situação</th></tr>
+              </thead>
+              <tbody>
+                {campos.map((c) => {
+                  const div = c.cteDiv || c.planDiv;
+                  const planClass = c.planDiv ? 'div' : c.plan === 'não declarado' ? 'nao' : undefined;
+                  return (
+                  <tr>
+                    <th scope="row">{c.campo}</th>
+                    <td>{c.nfe}</td>
+                    <td class={c.cteDiv ? 'div' : undefined}>{c.cteDiv ? <><i aria-hidden="true">≠</i> {c.cte}</> : c.cte}</td>
+                    <td class={planClass}>{c.planDiv ? <><i aria-hidden="true">≠</i> {c.plan}</> : c.plan}</td>
+                    <td class={div ? 'sit-div' : 'sit'}>{div ? <>diverge <span class="delta">{c.delta}</span></> : c.situacao}</td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p class="matrix-foot">Tarefa propagada para a transportadora: confirmar a nova previsão de entrega. Simulação com dados fictícios, como na demonstração pública.</p>
+        </figure>
+      </div>
+      <!-- A camada: quatro cordas atravessam os sistemas sem apagar a diferença. -->
+      <svg class="layer-cords cords rv" viewBox="0 0 1160 120" aria-hidden="true" focusable="false">
+        <path pathLength="1000" d="M0 16 C 290 8 870 26 1160 14"/>
+        <path pathLength="1000" d="M0 46 C 290 38 870 56 1160 44"/>
+        <path pathLength="1000" d="M0 76 C 290 68 870 86 1160 74"/>
+        <path pathLength="1000" d="M0 106 C 290 98 870 116 1160 104"/>
+      </svg>
+    </section>
+
+    <!-- O QUE ELE PROVA -->
+    <section class="chapter" id="evidencias" aria-labelledby="t-ev">
+      <div class="copy intro rv">
+        <h2 id="t-ev">O que o sistema <em>prova.</em></h2>
+        <p>Quatro propriedades verificáveis, presentes na demonstração pública.</p>
+      </div>
+      <ol class="ev-grid">
+        {evidencias.map((e) => (
+          <li class="ev rv">
+            <span class="ev-n" aria-hidden="true">{e.n}</span>
+            <h3>{e.t}</h3>
+            <p>{e.p}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <!-- NÃO SOMOS -->
+    <section class="chapter" id="nao-somos" aria-labelledby="t-nao">
+      <div class="nao rv">
+        <h2 id="t-nao">O que o Forseti <em>não é.</em></h2>
+        <ul class="nao-list" role="list">
+          {naoSomos.map((n) => <li><i aria-hidden="true">✕</i> {n}</li>)}
+        </ul>
+        <p class="nao-line">É a camada de reconciliação e coordenação entre eles.</p>
+      </div>
+    </section>
+
+    <!-- FECHO -->
+    <section class="closing" id="fecho" aria-labelledby="t-fecho">
+      <!-- A partitura fecha a página: as versões divergentes viram uma resolução só. -->
+      <svg class="cords" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <path pathLength="1000" d="M0 18 C 360 8 1080 30 1440 16"/>
+        <path pathLength="1000" d="M0 44 C 360 34 1080 56 1440 42"/>
+        <path pathLength="1000" d="M0 70 C 360 60 1080 82 1440 68"/>
+        <path pathLength="1000" d="M0 96 C 360 86 1080 108 1440 94"/>
+      </svg>
+      <div class="closing-in">
+        <h2 class="rv" id="t-fecho">Veja a resolução <em>funcionando.</em></h2>
+        <p class="rv">A demonstração pública roda com dados fictícios e sessão
+          isolada por visitante. Nenhum cadastro, nenhum sistema para trocar.</p>
+        <div class="hero-actions rv">
+          {demo
+            ? <a class="btn light" href={demo} target="_blank" rel="noopener noreferrer">Ver a demonstração <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 11 11 5M6 5h5v5"/></svg></a>
+            : <p class="demo-soon rv">Demonstração pública em preparação.</p>}
+          <a class="btn ghost-light" href="https://github.com/TheHackBrasil/foundry" target="_blank" rel="noopener noreferrer">Processo de construção público <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 11 11 5M6 5h5v5"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</Base>
