@@ -32,14 +32,23 @@ export interface Limites {
   workspacesComEscrita: number;
 }
 
-// Por IP. Âncora e PDF gastam carteira de testnet e cota de LLM do time.
+// Por IP. Âncora e PDF gastam carteira de testnet e cota de LLM do time;
+// mandatos gastam a mesma cota de LLM por chamada.
 export interface ConfigRateLimit {
   escritasPorMinuto: number;
   ancorasPor10Min: number;
   pdfsPor10Min: number;
+  // Comandos em linguagem natural por IP a cada 10 min (LLM com cota).
+  mandatosPor10Min: number;
   // Workspaces novos que um IP pode fazer gravar em 10 min: a primeira escrita
   // de uma sessão conta aqui, senão trocar de cookie renovaria a cota sempre.
   sessoesNovasPor10Min: number;
+}
+
+// Mandatos (spec 0007, RF4): teto de pedidos que um comando pode alcançar;
+// filtro que resolve além disso responde 422 filtro_largo.
+export interface ConfigMandatos {
+  maxAlvos: number;
 }
 
 export interface ConfigServidor {
@@ -54,6 +63,7 @@ export interface ConfigServidor {
   limites: Limites;
   rateLimit: ConfigRateLimit;
   sse: OpcoesSSE;
+  mandatos: ConfigMandatos;
 }
 
 type Ambiente = Record<string, string | undefined>;
@@ -123,7 +133,11 @@ export function configDoEnv(env: Ambiente = process.env): ConfigServidor {
       escritasPorMinuto: inteiroDoEnv(env, 'RATE_LIMIT_WRITES_PER_MIN', 20, 1),
       ancorasPor10Min: inteiroDoEnv(env, 'RATE_LIMIT_ANCHORS_PER_10MIN', 3, 1),
       pdfsPor10Min: inteiroDoEnv(env, 'RATE_LIMIT_PDFS_PER_10MIN', 5, 1),
+      mandatosPor10Min: inteiroDoEnv(env, 'RATE_LIMIT_MANDATOS_PER_10MIN', 10, 1),
       sessoesNovasPor10Min: inteiroDoEnv(env, 'RATE_LIMIT_NEW_SESSIONS_PER_10MIN', 10, 1),
+    },
+    mandatos: {
+      maxAlvos: inteiroDoEnv(env, 'MANDATOS_MAX_ALVOS', 5, 1),
     },
     sse: {
       heartbeatMs: inteiroDoEnv(env, 'SSE_HEARTBEAT_MS', 20_000, 1_000),

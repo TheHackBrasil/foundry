@@ -40,6 +40,10 @@ export const mensagens = {
     `Muitas âncoras seguidas a partir deste endereço: cada uma é uma transação na rede de testes. Tente de novo em ${numero(Math.max(1, segundos))} s.`,
   muitosPdfs: () =>
     'Muitos PDFs seguidos a partir deste endereço: a leitura de PDF usa um serviço externo com cota. Tente de novo em alguns minutos.',
+  muitosMandatos: () =>
+    'Muitos comandos seguidos a partir deste endereço: cada comando em linguagem natural usa um serviço externo com cota. Tente de novo em alguns minutos.',
+  llmIndisponivel: () =>
+    'Os comandos em linguagem natural dependem de um serviço de IA que não está configurado nesta instalação. O restante da demonstração funciona normalmente.',
   semEspaco: () =>
     'A demonstração atingiu o limite de armazenamento e está só para leitura. Os pedidos de exemplo seguem disponíveis.',
   sessoesNovasDemais: () =>
