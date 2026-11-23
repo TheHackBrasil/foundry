@@ -132,6 +132,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   );
   const pdfs = new JanelaFixa(cfg.rateLimit.pdfsPor10Min, 10 * 60_000);
   const mandatosJanela = new JanelaFixa(cfg.rateLimit.mandatosPor10Min, 10 * 60_000);
+  const viewSpecJanela = new JanelaFixa(cfg.rateLimit.viewspecPor10Min, 10 * 60_000);
   const sessoesNovas = new JanelaFixa(cfg.rateLimit.sessoesNovasPor10Min, 10 * 60_000);
   const limiteEscrita = { rateLimit: { max: cfg.rateLimit.escritasPorMinuto, timeWindow: 60_000, groupId: 'escrita' } };
   const limiteAncora = { rateLimit: { max: cfg.rateLimit.ancorasPor10Min, timeWindow: 10 * 60_000, groupId: 'ancora' } };
@@ -314,8 +315,11 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     '/api/mandatos',
     { config: limiteEscrita },
     async (req, reply) => {
-      const texto = req.body?.texto?.trim() ?? '';
-      if (!texto) return reply.code(400).send({ erro: 'texto é obrigatório' });
+      const bruto = req.body?.texto;
+      if (typeof bruto !== 'string' || !bruto.trim()) {
+        return reply.code(400).send({ erro: 'texto é obrigatório' });
+      }
+      const texto = bruto.trim();
       if (texto.length > 1_000) return reply.code(400).send({ erro: 'texto é longo demais' });
       if (!llmConfigDoEnv()) {
         return reply.code(503).send({ erro: 'indisponivel', mensagem: mensagens.llmIndisponivel() });
@@ -344,7 +348,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
           if (err.tipo === 'indisponivel') {
             return reply.code(503).send({ erro: 'indisponivel', mensagem: mensagens.llmIndisponivel() });
           }
-          return reply.code(422).send({ erro: 'invalido', motivo: 'parse_falhou', mensagem: mensagens.llmIndisponivel() });
+          return reply.code(422).send({ erro: 'invalido', motivo: 'parse_falhou', mensagem: mensagens.llmInvalida() });
         }
         if (err instanceof ErroMandato) {
           return reply.code(422).send({ erro: 'invalido', motivo: err.motivo, mensagem: err.message });
@@ -384,6 +388,12 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
       const proj = projetar(await s.eventosDoPedido(req.params.id));
       if (!proj.pedido) return reply.send(viewSpecPadrao(papel as Parte));
+      // Cada GET com LLM ligada e uma chamada paga: cota por IP como no
+      // mandato. Sem LLM (ou no padrao acima) a rota nao tem custo e nao
+      // conta a janela.
+      if (llmConfigDoEnv() && !viewSpecJanela.consumir(ipDoCliente(req))) {
+        throw new ErroRequisicao(429, mensagens.muitasVisoes());
+      }
       return reply.send(await gerarViewSpec(proj, papel as Parte));
     },
   );
