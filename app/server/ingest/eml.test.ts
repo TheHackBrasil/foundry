@@ -1,12 +1,12 @@
 // Upload de .eml (spec 0004, RF28/D-021) e privacidade dos cabecalhos (RF27).
 // O e-mail e sintetico, montado no proprio teste, com enderecos em
-// example.com: nenhum dado real. Os limites que eml.ts ainda nao tem
-// (ordem dos anexos, ingestao parcial, e-mail aninhado) estao em D-029.
+// example.com: nenhum dado real. Um servidor sobe uma vez; cada caso usa
+// uma sessao nova por cookie, como o visitante da demo.
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Evento } from '../../shared/model.js';
 import { createLiteDb } from '../db.js';
 import { buildServer } from '../index.js';
@@ -90,51 +90,54 @@ describe('extrairAnexosEml', () => {
   });
 });
 
-// Cada teste de ledger usa um servidor novo (PGlite em memoria): o
-// pedido da NF-e ja existente num store compartilhado faria o .eml virar
-// reingestao idempotente, sem evento nenhum para comparar.
-const normalizar = (evs: Evento[]) => evs.map((e) => ({ pedidoId: e.pedidoId, seq: e.seq, tipo: e.tipo, payload: e.payload }));
-
 type Servidor = Awaited<ReturnType<typeof buildServer>>;
 
-async function enviar(s: Servidor, nome: string, conteudo: Buffer) {
-  const res = await s.app.inject({
-    method: 'POST',
-    url: '/api/ingest',
-    payload: { nome, conteudoBase64: conteudo.toString('base64') },
-  });
-  return { status: res.statusCode, corpo: res.json() as Record<string, unknown>, texto: res.body };
-}
-
 describe('POST /api/ingest com .eml', () => {
-  const abertos: Servidor[] = [];
-  // A seed e somente leitura pela API (P-010): cada servidor usa uma sessao
-  // fixa, e o store devolvido le essa sessao.
-  const WS = '00000000-0000-4000-8000-0000000000e1';
-  const novo = async (): Promise<Servidor> => {
-    const s = await buildServer(await createLiteDb(), { workspacePadrao: WS });
+  let s: Servidor;
+  beforeAll(async () => {
+    s = await buildServer(await createLiteDb());
     await s.app.ready();
-    abertos.push(s);
-    return { ...s, store: s.store.paraWorkspace(WS) };
-  };
-  afterAll(async () => {
-    for (const s of abertos) await s.app.close();
   });
+  afterAll(async () => {
+    await s.app.close();
+  });
+
+  // Sessao do visitante: cookie emitido pelo servidor, como na demo publica.
+  async function novaSessao(): Promise<{ cookie: string; ws: string }> {
+    const res = await s.app.inject({ method: 'GET', url: '/api/pedidos' });
+    const bruto = res.headers['set-cookie'];
+    const cookie = (Array.isArray(bruto) ? String(bruto[0]) : String(bruto)).split(';')[0]!;
+    return { cookie, ws: cookie.split('=')[1]! };
+  }
+
+  async function enviar(cookie: string, nome: string, conteudo: Buffer) {
+    const res = await s.app.inject({
+      method: 'POST',
+      url: '/api/ingest',
+      headers: { cookie },
+      payload: { nome, conteudoBase64: conteudo.toString('base64') },
+    });
+    return { status: res.statusCode, corpo: res.json() as Record<string, unknown>, texto: res.body };
+  }
+
+  const normalizar = (evs: Evento[]) => evs.map((e) => ({ pedidoId: e.pedidoId, seq: e.seq, tipo: e.tipo, payload: e.payload }));
 
   it('email-nfe.eml gera os mesmos eventos que o nfe-ok.xml solto', async () => {
-    const a = await novo();
-    const b = await novo();
-    const direto = await enviar(a, 'nfe-ok.xml', NFE);
-    const viaEml = await enviar(b, 'email-nfe.eml', lerBuf('email-nfe.eml'));
+    const a = await novaSessao();
+    const b = await novaSessao();
+    const direto = await enviar(a.cookie, 'nfe-ok.xml', NFE);
+    const viaEml = await enviar(b.cookie, 'email-nfe.eml', lerBuf('email-nfe.eml'));
 
     expect(viaEml.status).toBe(200);
     expect(viaEml.corpo['pedidoId']).toBe(CHAVE);
     expect(viaEml.corpo['eventos']).toBe(direto.corpo['eventos']);
-    expect(normalizar(await b.store.todosEventos())).toEqual(normalizar(await a.store.todosEventos()));
+    const eventosA = await s.store.paraWorkspace(a.ws).todosEventos();
+    const eventosB = await s.store.paraWorkspace(b.ws).todosEventos();
+    expect(normalizar(eventosB)).toEqual(normalizar(eventosA));
   });
 
   it('upload multipart de .eml segue o mesmo caminho do XML', async () => {
-    const s = await novo();
+    const { cookie } = await novaSessao();
     const fronteira = 'xB0undaryTeste';
     const corpo = Buffer.concat([
       Buffer.from(
@@ -146,7 +149,7 @@ describe('POST /api/ingest com .eml', () => {
     const res = await s.app.inject({
       method: 'POST',
       url: '/api/ingest',
-      headers: { 'content-type': `multipart/form-data; boundary=${fronteira}` },
+      headers: { cookie, 'content-type': `multipart/form-data; boundary=${fronteira}` },
       payload: corpo,
     });
     expect(res.statusCode).toBe(200);
@@ -154,46 +157,46 @@ describe('POST /api/ingest com .eml', () => {
   });
 
   it('dois CT-e sem pedido: revisaoId e o do primeiro e os dois entram na fila', async () => {
-    const s = await novo();
+    const { cookie, ws } = await novaSessao();
     const orfao = (chave: string): Buffer => Buffer.from(CTE.toString('utf8').replaceAll(CHAVE, chave));
     const r = await enviar(
-      s,
+      cookie,
       'orfaos.eml',
       montarEml([anexoXml(orfao('35260100000000000100550010000099991000099991'), 'a.xml'), anexoXml(orfao('35260100000000000100550010000099992000099992'), 'b.xml')]),
     );
-    const fila = await s.store.listarRevisao();
+    const fila = await s.store.paraWorkspace(ws).listarRevisao();
 
     expect(r.status).toBe(200);
     expect(r.corpo['docs']).toBe(2);
     expect(fila).toHaveLength(2);
-    expect(r.corpo['revisaoId']).toBe(fila[0]!['id']);
+    expect(r.corpo['revisaoId']).toBe(fila[0]!.id);
   });
 
   it('.eml sem anexo elegivel responde 422 explicito e nao grava nada', async () => {
-    const s = await novo();
-    const r = await enviar(s, 'vazio.eml', montarEml([]));
+    const { cookie, ws } = await novaSessao();
+    const r = await enviar(cookie, 'vazio.eml', montarEml([]));
     expect(r.status).toBe(422);
     expect(r.corpo['tipo']).toBe('parser');
     expect(r.corpo['erro']).toContain('sem anexo elegivel');
-    expect(await s.store.todosEventos()).toHaveLength(0);
+    expect(await s.store.paraWorkspace(ws).todosEventos()).toHaveLength(0);
   });
 
   it('nenhum cabecalho do e-mail aparece em resposta, evento, revisao ou erro (RF27)', async () => {
-    const s = await novo();
+    const { cookie, ws } = await novaSessao();
     const orfao = Buffer.from(CTE.toString('utf8').replaceAll(CHAVE, '35260100000000000100550010000099991000099991'));
     const respostas = [
-      await enviar(s, 'ok.eml', montarEml([anexoXml(NFE)])),
-      await enviar(s, 'orfao.eml', montarEml([anexoXml(orfao)])),
-      await enviar(s, 'vazio.eml', montarEml([])),
-      await enviar(s, 'aninhado.eml', montarEml([{ tipo: 'message/rfc822', corpo: montarEml([anexoXml(NFE)]), nome: 'x.eml' }])),
-      await enviar(s, 'lixo.eml', Buffer.from(`${CABECALHOS.from}\n${CABECALHOS.subject}\n`)),
+      await enviar(cookie, 'ok.eml', montarEml([anexoXml(NFE)])),
+      await enviar(cookie, 'orfao.eml', montarEml([anexoXml(orfao)])),
+      await enviar(cookie, 'vazio.eml', montarEml([])),
+      await enviar(cookie, 'aninhado.eml', montarEml([{ tipo: 'message/rfc822', corpo: montarEml([anexoXml(NFE)]), nome: 'x.eml' }])),
+      await enviar(cookie, 'lixo.eml', Buffer.from(`${CABECALHOS.from}\n${CABECALHOS.subject}\n`)),
     ];
-    const revisao = await s.app.inject({ method: 'GET', url: '/api/revisao' });
-    const pedido = await s.app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` });
+    const revisao = await s.app.inject({ method: 'GET', url: '/api/revisao', headers: { cookie } });
+    const pedido = await s.app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}`, headers: { cookie } });
     const superficies = [
       ...respostas.map((r) => r.texto),
-      JSON.stringify(await s.store.todosEventos()),
-      JSON.stringify(await s.store.listarRevisao()),
+      JSON.stringify(await s.store.paraWorkspace(ws).todosEventos()),
+      JSON.stringify(await s.store.paraWorkspace(ws).listarRevisao()),
       revisao.body,
       pedido.body,
     ];
