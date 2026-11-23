@@ -181,14 +181,15 @@ export interface RespostaMandato {
 }
 
 // Payload do evento 'notificacao' (RF8): o que saiu de verdade ou a falha
-// registrada com motivo. canal/destino nulos quando nem houve tentativa.
+// registrada com motivo. canal/destino nulos quando nem houve tentativa;
+// parte nula quando nem a parte foi determinada (motivo 'sem_parte').
 export interface Notificacao {
-  parte: Parte;
+  parte: Parte | null;
   canal: CanalContato | null;
   destino: string | null;
   mensagem: string;
   status: 'entregue' | 'nao_entregue';
-  motivo?: string;
+  motivo?: 'desligado' | 'sem_parte' | 'sem_tarefa' | 'sem_contato' | 'canal_incompativel' | 'falha_envio';
 }
 
 // Contrato de interface generativa (RF9): o servidor valida contra o schema

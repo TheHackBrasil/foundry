@@ -116,15 +116,21 @@ export interface OpcoesNotificacao {
 // Envia a notificacao da tarefa para a parte e grava o evento 'notificacao'
 // no pedido pelo store recebido (dentro da tx do chamador). Devolve o evento
 // gravado, ou null quando a Nvoip esta fora e registrarSempre e falso.
+// Contrato para a propagacao (T141): nunca lanca; sem parte determinavel
+// vira 'nao_entregue' com motivo 'sem_parte' quando ha o que registrar.
 export async function notificarTarefa(
   store: LedgerStore,
   pedidoId: string,
   tarefa: Tarefa | null,
   opcoes: OpcoesNotificacao = {},
 ): Promise<Evento | null> {
-  const parte = tarefa?.parte ?? opcoes.parte;
-  if (!parte) throw new Error('notificarTarefa: parte obrigatoria quando tarefa e null');
+  const parte = tarefa?.parte ?? opcoes.parte ?? null;
   const registrar = (n: Notificacao) => store.append(pedidoId, 'notificacao', eventoNotificacao(n));
+
+  if (!parte) {
+    if (!opcoes.registrarSempre) return null;
+    return registrar({ parte: null, canal: null, destino: null, mensagem: '', status: 'nao_entregue', motivo: 'sem_parte' });
+  }
 
   const cfg = nvoipConfigDoEnv();
   if (!cfg) {
