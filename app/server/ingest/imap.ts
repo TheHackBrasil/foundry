@@ -1,8 +1,10 @@
 // IMAP polling de anexos (spec 0004, T030): so sobe com IMAP_HOST
 // configurado; ausente = desligado, nao quebrado.
 
+import { basename } from 'node:path';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
+import { ErroParser } from './nfe.js';
 
 export interface ImapConfig {
   host: string;
@@ -36,6 +38,14 @@ export function imapConfigDoEnv(): ImapConfig | null {
 }
 
 const ANEXO_OK = /\.(xml|csv|xlsx|pdf)$/i;
+const NOME_MAX = 120;
+
+// Nome de anexo chega de fora: antes de log ou fila, tira caminho (basename),
+// caracteres de controle e o excesso (o fim fica, a extensao se preserva).
+export function nomeAnexoSeguro(nome: string): string {
+  const base = basename(nome.replaceAll('\\', '/')).replace(/[\x00-\x1f\x7f-\x9f]/g, '');
+  return base.length > NOME_MAX ? `...${base.slice(-(NOME_MAX - 3))}` : base;
+}
 
 // Marca a mensagem como lida so depois de processar: erro de parser vai
 // para revisao; erro de infra deixa nao lida para o proximo ciclo.
@@ -52,6 +62,8 @@ async function coletarEIngerir(
     auth: { user: cfg.user, pass: cfg.pass },
     logger: false,
   });
+  // EventEmitter sem ouvinte de 'error' derruba o processo num corte de socket.
+  client.on('error', (e: Error) => log(`imap: erro no cliente (${e.message})`));
   let processados = 0;
   await client.connect();
   try {
@@ -59,24 +71,37 @@ async function coletarEIngerir(
     try {
       for await (const msg of client.fetch({ seen: false, since: cfg.desde }, { source: true, uid: true })) {
         if (!msg.source) continue;
-        const parsed = await simpleParser(msg.source);
+        let parsed: Awaited<ReturnType<typeof simpleParser>>;
+        try {
+          parsed = await simpleParser(msg.source);
+        } catch (e) {
+          // Mensagem ilegivel nao melhora sozinha: vai para revisao e sai da caixa.
+          await revisar('(mensagem)', `mensagem malformada (${(e as Error).message})`);
+          processados += 1;
+          try {
+            await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'], { uid: true });
+          } catch (e2) {
+            log(`imap: mensagem malformada ficou nao lida (${(e2 as Error).message})`);
+          }
+          continue;
+        }
         let falhaDeInfra = false;
         let elegivel = false;
         for (const att of parsed.attachments) {
           if (!att.filename || !ANEXO_OK.test(att.filename)) continue;
+          const nome = nomeAnexoSeguro(att.filename);
           try {
-            await ingerir(att.filename, att.content);
+            await ingerir(nome, att.content);
             elegivel = true;
             processados += 1;
           } catch (e) {
-            const erro = (e as Error).message;
-            if (/malformado|ausente|nao suportad|nao reconhecido|falha de parse|sem planilha|nenhuma linha/i.test(erro)) {
-              await revisar(att.filename, erro); // doc ruim: revisao, mensagem lida
+            if (e instanceof ErroParser) {
+              await revisar(nome, e.message); // doc ruim: revisao, mensagem lida
               elegivel = true;
               processados += 1;
             } else {
               falhaDeInfra = true; // infra: nao marca lido, retenta
-              log(`imap: ${att.filename} adiado (${erro})`);
+              log(`imap: ${nome} adiado (${(e as Error).message})`);
             }
           }
         }

@@ -292,7 +292,7 @@ describe('ledger + api (PGlite)', () => {
       const body = res.json() as { erro: string; tipo: string };
       expect(body.tipo).toBe('parser');
       expect(body.erro).toContain('exporte a planilha como CSV');
-      expect(body.erro).toMatch(/nao suportad/); // imap.ts manda para a revisao com base nesse texto
+      expect(body.erro).toMatch(/nao suportad/);
     }
   });
 

@@ -11,8 +11,6 @@ export function detectarTipo(nome: string, conteudo: Buffer): TipoDoc {
 
   if (ext === 'eml') return 'eml';
   if (ext === 'pdf' || inicio.startsWith('%PDF')) return 'pdf';
-  // O texto precisa casar com /nao suportad/ em imap.ts, que trata o erro
-  // como documento ruim (revisao) e nao como falha de infra (retentativa).
   if (ext === 'xlsx' || ext === 'xls') {
     throw new ErroParser('Planilha Excel (.xlsx, .xls) nao suportada: exporte a planilha como CSV');
   }
