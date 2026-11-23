@@ -49,6 +49,8 @@ export function App() {
               auditoria={torre.auditoria}
               novas={torre.novas}
               aoVerificar={torre.verificarDeNovo}
+              aoAnunciar={torre.anunciar}
+              aoSelecionar={torre.selecionar}
             />
           ) : (
             <section aria-labelledby="vazio-titulo" className="vazio">

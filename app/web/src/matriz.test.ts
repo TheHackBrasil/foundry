@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { Divergencia, Tarefa, VersaoPedido } from '../../shared/model.ts';
+import type { Divergencia, Tarefa, VersaoPedido, ViewSpec } from '../../shared/model.ts';
 import { variacao, chaveAgrupada } from './format.ts';
-import { FILTRO_TODAS, agruparTarefas, chaveTarefa, montarMatriz, tarefasDaParte } from './matriz.ts';
+import {
+  FILTRO_TODAS,
+  agruparTarefas,
+  aplicarViewSpec,
+  chaveTarefa,
+  montarMatriz,
+  tarefasDaParte,
+} from './matriz.ts';
 
 const versao = (n: number, fonte: VersaoPedido['fonte'], campos: VersaoPedido['campos']): VersaoPedido => ({
   pedidoId: 'p1',
@@ -194,5 +201,142 @@ describe('variacao e chave agrupada', () => {
   it('agrupa a chave de 44 dígitos de quatro em quatro', () => {
     expect(chaveAgrupada('31261112345678000123550010000447110000004471')).toBe('3126 1112 3456 7800 0123 5500 1000 0447 1100 0000 4471');
     expect(chaveAgrupada('pedido-x')).toBe('pedido-x');
+  });
+});
+
+describe('aplicarViewSpec', () => {
+  const matrizBase = () =>
+    montarMatriz(
+      [
+        versao(1, 'nfe', { previsaoEntrega: '2026-01-22', pesoTotal: 510, volumes: 10, status: 'emitida' }),
+        versao(2, 'cte', { pesoTotal: 520, volumes: 12, status: 'em_transito' }),
+        versao(3, 'planilha', { previsaoEntrega: '2026-01-25', status: 'atrasada' }),
+      ],
+      [atraso],
+    );
+
+  it('filtra fontes e colunas no spec parcial e informa o que ficou oculto', () => {
+    const spec: ViewSpec = {
+      versao: 1,
+      fontesVisiveis: ['nfe', 'cte'],
+      colunas: ['previsaoEntrega', 'pesoTotal'],
+      lente: 'transportadora',
+      destacarDivergencias: true,
+    };
+
+    const res = aplicarViewSpec(matrizBase(), spec);
+
+    expect(res.ajustada).toBe(true);
+    expect(res.lente).toBe('transportadora');
+    expect(res.destacarDivergencias).toBe(true);
+    expect(res.matriz.fontes).toEqual(['nfe', 'cte']);
+    expect(res.matriz.linhas.map((l) => l.campo)).toEqual(['previsaoEntrega', 'pesoTotal']);
+    expect(res.matriz.linhas[0]?.celulas.map((c) => c.fonte)).toEqual(['nfe', 'cte']);
+    expect(res.fontesOcultas).toEqual(['planilha']);
+    expect(res.camposOcultos).toEqual(['volumes', 'status']);
+  });
+
+  it('ignora fonte ausente na matriz e faz dedup de fontes e colunas repetidas', () => {
+    const spec: ViewSpec = {
+      versao: 1,
+      fontesVisiveis: ['pdf', 'planilha', 'planilha', 'nfe', 'imap'],
+      colunas: ['status', 'status', 'previsaoEntrega'],
+      lente: 'cd',
+      destacarDivergencias: true,
+    };
+
+    const res = aplicarViewSpec(matrizBase(), spec);
+
+    expect(res.ajustada).toBe(true);
+    expect(res.matriz.fontes).toEqual(['nfe', 'planilha']);
+    expect(res.matriz.linhas.map((l) => l.campo)).toEqual(['previsaoEntrega', 'status']);
+    expect(res.fontesOcultas).toEqual(['cte']);
+    expect(res.camposOcultos).toEqual(['pesoTotal', 'volumes']);
+  });
+
+  it('cai na visão completa quando nenhuma fonte do spec existe na matriz', () => {
+    const base = matrizBase();
+    const spec: ViewSpec = {
+      versao: 1,
+      fontesVisiveis: ['pdf', 'imap'],
+      colunas: ['previsaoEntrega'],
+      lente: 'fiscal',
+      destacarDivergencias: false,
+    };
+
+    const res = aplicarViewSpec(base, spec);
+
+    expect(res.ajustada).toBe(false);
+    expect(res.destacarDivergencias).toBe(true);
+    expect(res.matriz).toBe(base);
+    expect(res.fontesOcultas).toEqual([]);
+    expect(res.camposOcultos).toEqual([]);
+  });
+
+  it('cai na visão completa quando nenhuma coluna válida coincide com a matriz', () => {
+    const base = matrizBase();
+    const spec = {
+      versao: 1 as const,
+      fontesVisiveis: ['nfe' as const],
+      colunas: [],
+      lente: 'financeiro' as const,
+      destacarDivergencias: true,
+    };
+
+    const res = aplicarViewSpec(base, spec);
+
+    expect(res.ajustada).toBe(false);
+    expect(res.matriz).toBe(base);
+  });
+
+  it('não marca como ajustada quando o spec padrão mantém tudo visível e com destaque', () => {
+    const specPadrao: ViewSpec = {
+      versao: 1,
+      fontesVisiveis: ['nfe', 'cte', 'cce', 'planilha', 'pdf', 'imap', 'manual'],
+      colunas: ['previsaoEntrega', 'pesoTotal', 'volumes', 'status'],
+      lente: 'fornecedor',
+      destacarDivergencias: true,
+    };
+
+    const res = aplicarViewSpec(matrizBase(), specPadrao);
+
+    expect(res.ajustada).toBe(false);
+    expect(res.fontesOcultas).toEqual([]);
+    expect(res.camposOcultos).toEqual([]);
+  });
+
+  it('marca como ajustada quando só destacarDivergencias muda para false', () => {
+    const spec: ViewSpec = {
+      versao: 1,
+      fontesVisiveis: ['nfe', 'cte', 'planilha'],
+      colunas: ['previsaoEntrega', 'pesoTotal', 'volumes', 'status'],
+      lente: 'financeiro',
+      destacarDivergencias: false,
+    };
+
+    const res = aplicarViewSpec(matrizBase(), spec);
+
+    expect(res.ajustada).toBe(true);
+    expect(res.destacarDivergencias).toBe(false);
+    expect(res.fontesOcultas).toEqual([]);
+    expect(res.camposOcultos).toEqual([]);
+  });
+
+  it('preserva referência e conflito da linha mesmo quando a fonte de referência é ocultada', () => {
+    const spec: ViewSpec = {
+      versao: 1,
+      fontesVisiveis: ['planilha'],
+      colunas: ['previsaoEntrega'],
+      lente: 'cd',
+      destacarDivergencias: true,
+    };
+
+    const res = aplicarViewSpec(matrizBase(), spec);
+    const linha = res.matriz.linhas[0];
+
+    expect(linha?.divergente).toBe(true);
+    expect(linha?.referencia?.fonte).toBe('nfe');
+    expect(linha?.celulas.map((c) => c.fonte)).toEqual(['planilha']);
+    expect(res.fontesOcultas).toEqual(['nfe', 'cte']);
   });
 });

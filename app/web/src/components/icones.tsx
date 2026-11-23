@@ -75,3 +75,54 @@ export function IconeSemComparacao() {
     </svg>
   );
 }
+
+export function IconeMic() {
+  return (
+    <svg {...base}>
+      <rect {...traco} x="5.75" y="2.25" width="4.5" height="7" rx="2.25" />
+      <path {...traco} d="M3.5 7.5v1a4.5 4.5 0 0 0 9 0v-1M8 13v1.5M5.5 14.5h5" />
+    </svg>
+  );
+}
+
+export function IconeParar() {
+  return (
+    <svg {...base}>
+      <rect x="4" y="4" width="8" height="8" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function IconeFechar() {
+  return (
+    <svg {...base}>
+      <path {...traco} d="m4 4 8 8m0-8-8 8" />
+    </svg>
+  );
+}
+
+export function IconeLente() {
+  return (
+    <svg {...base}>
+      <rect {...traco} x="2.25" y="3.25" width="7.5" height="9.5" />
+      <path {...traco} d="M9.75 5.5h4v5h-4" />
+    </svg>
+  );
+}
+
+export function IconeSinal() {
+  return (
+    <svg {...base}>
+      <path {...traco} d="M2.5 11V8m3.5 3V5m3.5 6V3.5M13 11V7" />
+    </svg>
+  );
+}
+
+export function IconeAviso() {
+  return (
+    <svg {...base}>
+      <rect {...traco} x="2.25" y="3.5" width="11.5" height="9" />
+      <path {...traco} d="m2.5 4 5.5 4.5L13.5 4" />
+    </svg>
+  );
+}

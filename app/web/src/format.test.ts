@@ -2,8 +2,17 @@
 // Object.prototype nao podem resolver metodo nem virar "[object Object]".
 
 import { describe, expect, it } from 'vitest';
-import type { FonteDocumento } from '../../shared/model.ts';
-import { formatarValor, rotuloFonte } from './format.ts';
+import type { AcaoMandato, CanalContato, FonteDocumento, Notificacao, TipoSinal } from '../../shared/model.ts';
+import {
+  formatarConfianca,
+  formatarDuracao,
+  formatarValor,
+  rotuloAcaoMandato,
+  rotuloCanalContato,
+  rotuloFonte,
+  rotuloMotivoNotificacao,
+  rotuloTipoSinal,
+} from './format.ts';
 
 describe('formatarValor status', () => {
   it.each(['constructor', 'hasOwnProperty', 'toString', '__proto__'])(
@@ -36,5 +45,31 @@ describe('rotuloFonte', () => {
   it('fonte conhecida segue com o rótulo da marca', () => {
     expect(rotuloFonte('nfe')).toBe('NF-e');
     expect(rotuloFonte('imap')).toBe('E-mail');
+  });
+});
+
+describe('rótulos da camada AI e formatação numérica', () => {
+  it('traduz ações, sinais, canais e motivos de notificação sem resolver protótipo', () => {
+    expect(rotuloAcaoMandato('simular')).toBe('Simulação');
+    expect(rotuloTipoSinal('atraso_avisado')).toBe('Atraso avisado');
+    expect(rotuloCanalContato('whatsapp')).toBe('WhatsApp');
+    expect(rotuloMotivoNotificacao('canal_incompativel')).toBe('Canal cadastrado incompatível com o provedor');
+
+    expect(rotuloAcaoMandato('constructor' as AcaoMandato)).toBe('constructor');
+    expect(rotuloTipoSinal('__proto__' as TipoSinal)).toBe('__proto__');
+    expect(rotuloCanalContato('toString' as CanalContato)).toBe('toString');
+    expect(rotuloMotivoNotificacao('hasOwnProperty' as NonNullable<Notificacao['motivo']>)).toBe('hasOwnProperty');
+  });
+
+  it('limita confiança entre 0% e 100% e formata duração em mm:ss', () => {
+    expect(formatarConfianca(0.846)).toBe('85%');
+    expect(formatarConfianca(1.4)).toBe('100%');
+    expect(formatarConfianca(-0.2)).toBe('0%');
+    expect(formatarConfianca(Number.NaN)).toBe('0%');
+
+    expect(formatarDuracao(0)).toBe('00:00');
+    expect(formatarDuracao(7)).toBe('00:07');
+    expect(formatarDuracao(65)).toBe('01:05');
+    expect(formatarDuracao(-3)).toBe('00:00');
   });
 });

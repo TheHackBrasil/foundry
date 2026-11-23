@@ -1,4 +1,12 @@
-import type { CampoVigiado, FonteDocumento, Parte } from '../../shared/model.ts';
+import type {
+  AcaoMandato,
+  CampoVigiado,
+  CanalContato,
+  FonteDocumento,
+  Notificacao,
+  Parte,
+  TipoSinal,
+} from '../../shared/model.ts';
 
 // Rotulos em Map: a chave vem do ledger (qualquer texto pode chegar) e um
 // objeto literal resolveria nomes de Object.prototype como "constructor".
@@ -43,6 +51,44 @@ const ROTULO_STATUS = new Map<string, string>(
   }),
 );
 
+const ROTULO_ACAO = new Map<string, string>(
+  Object.entries({
+    propagar: 'Propagação',
+    simular: 'Simulação',
+    resumir: 'Resumo',
+    notificar: 'Aviso',
+  } satisfies Record<AcaoMandato, string>),
+);
+
+const ROTULO_SINAL = new Map<string, string>(
+  Object.entries({
+    atraso_avisado: 'Atraso avisado',
+    reagendamento: 'Reagendamento',
+    instrucao: 'Instrução',
+    outro: 'Outro sinal',
+  } satisfies Record<TipoSinal, string>),
+);
+
+const ROTULO_CANAL = new Map<string, string>(
+  Object.entries({
+    whatsapp: 'WhatsApp',
+    sms: 'SMS',
+    ligacao: 'Ligação',
+    email: 'E-mail',
+  } satisfies Record<CanalContato, string>),
+);
+
+const ROTULO_MOTIVO_NOTIFICACAO = new Map<string, string>(
+  Object.entries({
+    desligado: 'Envio automático desligado nesta instalação',
+    sem_parte: 'Parte destinatária não identificada',
+    sem_tarefa: 'Nenhuma tarefa aberta para esta parte',
+    sem_contato: 'Sem contato cadastrado para esta parte',
+    canal_incompativel: 'Canal cadastrado incompatível com o provedor',
+    falha_envio: 'Falha na entrega pelo provedor',
+  } satisfies Record<NonNullable<Notificacao['motivo']>, string>),
+);
+
 // Valor fora da lista conhecida renderiza como veio. Snake_case legitimo
 // (palavra_palavra) vira espaco; qualquer forma estranha fica crua, senao
 // "__proto__" viraria " proto ".
@@ -54,6 +100,24 @@ const textoCru = (valor: unknown): string => {
 export const rotuloFonte = (fonte: FonteDocumento): string => ROTULO_FONTE.get(fonte) ?? String(fonte);
 export const rotuloParte = (parte: Parte): string => ROTULO_PARTE.get(parte) ?? String(parte);
 export const rotuloCampo = (campo: CampoVigiado): string => ROTULO_CAMPO.get(campo) ?? String(campo);
+export const rotuloAcaoMandato = (acao: AcaoMandato): string => ROTULO_ACAO.get(acao) ?? String(acao);
+export const rotuloTipoSinal = (tipo: TipoSinal): string => ROTULO_SINAL.get(tipo) ?? textoCru(tipo);
+export const rotuloCanalContato = (canal: CanalContato): string => ROTULO_CANAL.get(canal) ?? String(canal);
+export const rotuloMotivoNotificacao = (motivo: NonNullable<Notificacao['motivo']>): string =>
+  ROTULO_MOTIVO_NOTIFICACAO.get(motivo) ?? textoCru(motivo);
+
+export function formatarConfianca(valor: number): string {
+  if (!Number.isFinite(valor)) return '0%';
+  const pct = Math.round(Math.min(1, Math.max(0, valor)) * 100);
+  return `${pct}%`;
+}
+
+export function formatarDuracao(segundos: number): string {
+  const seguro = Number.isFinite(segundos) ? Math.max(0, Math.floor(segundos)) : 0;
+  const min = Math.floor(seguro / 60);
+  const seg = seguro % 60;
+  return `${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
+}
 
 // O servidor guarda a data como AAAA-MM-DD; a tela mostra DD/MM/AAAA.
 function formatarData(valor: string): string {
