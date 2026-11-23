@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RespostaMandato, ViewSpec } from '../../shared/model.ts';
-import { extrairMensagemErroMandato } from './api.ts';
+import { deduplicarPedidos, extrairMensagemErroMandato } from './api.ts';
 import { chaveCacheLente, criarCacheLente } from './lenteCache.ts';
 import { interpretarResultadoMandato, resumoParaAnuncio } from './mandato.ts';
 import { calcularBarrasAudio, normalizarErroVoz } from './useVoz.ts';
@@ -201,6 +201,27 @@ describe('useVoz helpers', () => {
   it('traduz erros da Web Speech API para pt-BR', () => {
     expect(normalizarErroVoz('not-allowed')).toContain('Permissão');
     expect(normalizarErroVoz('no-speech')).toContain('Nenhuma fala');
+    expect(normalizarErroVoz('network')).toContain('Brave');
     expect(normalizarErroVoz('aborted')).toBe('');
+  });
+});
+
+describe('deduplicarPedidos', () => {
+  it('mantém uma entrada por pedidoId priorizando o pedido da sessão sobre o da seed', () => {
+    const lista = deduplicarPedidos(
+      [
+        { pedidoId: 'p1', workspaceId: 'seed', totalEventos: 56, criadoEm: '2026-11-22', ultimoEm: '2026-11-22' },
+        { pedidoId: 'p1', workspaceId: 'ws-user', totalEventos: 41, criadoEm: '2026-11-23', ultimoEm: '2026-11-23' },
+        { pedidoId: 'p2', workspaceId: 'seed', totalEventos: 10, criadoEm: '2026-11-22', ultimoEm: '2026-11-22' },
+      ],
+      'ws-user',
+    );
+
+    expect(lista).toHaveLength(2);
+    expect(lista[0]?.pedidoId).toBe('p1');
+    expect(lista[0]?.daSessao).toBe(true);
+    expect(lista[0]?.totalEventos).toBe(41);
+    expect(lista[1]?.pedidoId).toBe('p2');
+    expect(lista[1]?.daSessao).toBe(false);
   });
 });

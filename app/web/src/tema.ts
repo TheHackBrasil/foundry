@@ -13,8 +13,16 @@ export function temaInicial(): Tema {
   return 'light';
 }
 
+// Suprime transicoes por 1 quadro na troca de tema para evitar "borrao"
+// simultaneo de fundo, texto e bordas pela tela inteira.
 export function aplicarTema(tema: Tema): void {
-  document.documentElement.dataset['tema'] = tema;
+  const root = document.documentElement;
+  root.setAttribute('data-tema-trocando', '');
+  root.dataset['tema'] = tema;
+  void root.offsetHeight;
+  window.requestAnimationFrame(() => {
+    root.removeAttribute('data-tema-trocando');
+  });
   try {
     localStorage.setItem(CHAVE, tema);
   } catch {
