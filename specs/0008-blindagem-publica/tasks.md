@@ -43,4 +43,4 @@ P0, depois P1 na ordem inversa. Frente única: `[hardening]` =
 
 ## Gates locais
 
-- [ ] T299 `node scripts/repo-guard.mjs` + `node scripts/prose-evals.mjs` exit 0; `tsc --noEmit` limpo em `app/` e `app/web/` com `noUnusedLocals`; `npm test` verde com `shared`, `server` e `web`; smoke público com 413 verde; `eml.test.ts` 10x sem flake; critérios da spec item a item com evidência no commit/PR
+- [x] T299 `node scripts/repo-guard.mjs` + `node scripts/prose-evals.mjs` exit 0; `tsc --noEmit` limpo em `app/` e `app/web/` com `noUnusedLocals`; `npm test` verde com `shared`, `server` e `web`; smoke público com 413 verde; `eml.test.ts` 10x sem flake; critérios da spec item a item com evidência no commit/PR
