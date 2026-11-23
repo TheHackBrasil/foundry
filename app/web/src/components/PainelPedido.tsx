@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PARTES } from '../../../shared/model.ts';
 import type { Parte, ProjecaoPedido, RespostaAuditoria, ViewSpec } from '../../../shared/model.ts';
 import { obterViewSpec } from '../api.ts';
+import { copiarTexto } from '../copiar.ts';
 import {
   chaveAgrupada,
   chaveCurta,
@@ -339,12 +340,7 @@ function Conteudo({
     (!specAtivo || specAtivo.lente !== filtro || ignorarLente);
 
   async function copiarChave() {
-    if (!navigator.clipboard?.writeText) return;
-    try {
-      await navigator.clipboard.writeText(id);
-    } catch {
-      return;
-    }
+    if (!(await copiarTexto(id))) return;
     setChaveCopiada(true);
     aoAnunciar('Chave NF-e copiada.');
     if (copiaTimerRef.current !== null) window.clearTimeout(copiaTimerRef.current);
@@ -402,7 +398,7 @@ function Conteudo({
             <div className="sec-cab-grupo">
               <h2 id="bloco-matriz">Fontes e campos</h2>
               <p className="meta">
-                Referência: primeira fonte que declara o campo. Divergências ficam marcadas.
+                Referência: primeira fonte que declara o campo.
               </p>
             </div>
             {podeAcionarLente && (

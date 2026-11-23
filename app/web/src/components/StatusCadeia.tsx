@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RespostaAuditoria } from '../../../shared/model.ts';
+import { copiarTexto } from '../copiar.ts';
 import type { Carga } from '../useTorre.ts';
 import { IconeConfere, IconeCopiar, IconeErro, IconeOk } from './icones.tsx';
 
@@ -44,12 +45,7 @@ export function StatusCadeia({ auditoria, aoVerificar, aoAnunciar }: Props) {
   const falha = dados !== null && !dados.valida;
 
   async function copiarRaiz(raiz: string) {
-    if (!navigator.clipboard?.writeText) return;
-    try {
-      await navigator.clipboard.writeText(raiz);
-    } catch {
-      return;
-    }
+    if (!(await copiarTexto(raiz))) return;
     setCopiado(true);
     aoAnunciar?.('Raiz da cadeia copiada.');
     if (copiaTimerRef.current !== null) window.clearTimeout(copiaTimerRef.current);

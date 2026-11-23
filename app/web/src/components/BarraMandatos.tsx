@@ -234,8 +234,10 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
   const erroId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const enviarBtnRef = useRef<HTMLButtonElement>(null);
+  const pararBtnRef = useRef<HTMLButtonElement>(null);
   const anuncioTimerRef = useRef<number | null>(null);
   const textoPreVozRef = useRef('');
+  const focouPararRef = useRef(false);
   const fecharGavetaTimerRef = useRef<number | null>(null);
   const tremorTimerRef = useRef<number | null>(null);
   const tremorRafRef = useRef<number | null>(null);
@@ -300,6 +302,34 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
       enviarBtnRef.current?.focus();
     },
   });
+
+  const cancelarReconhecimento = voz.cancelar;
+  const cancelarVoz = useCallback(() => {
+    cancelarReconhecimento();
+    setTexto(textoPreVozRef.current);
+    setProvisorio(false);
+    inputRef.current?.focus();
+  }, [cancelarReconhecimento]);
+
+  // Transfere foco para "Parar" ao entrar em ditado (o botão "Voz" desmonta)
+  // e permite cancelar com Escape mesmo se o foco saiu da seção.
+  useEffect(() => {
+    if (!voz.ouvindo) {
+      focouPararRef.current = false;
+      return;
+    }
+    if (!focouPararRef.current) {
+      focouPararRef.current = true;
+      pararBtnRef.current?.focus();
+    }
+    const aoEscapeGlobal = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      cancelarVoz();
+    };
+    window.addEventListener('keydown', aoEscapeGlobal);
+    return () => window.removeEventListener('keydown', aoEscapeGlobal);
+  }, [voz.ouvindo, cancelarVoz]);
 
   useEffect(() => {
     const aoTeclarGlobal = (e: KeyboardEvent) => {
@@ -508,10 +538,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
         if (e.key !== 'Escape') return;
         if (voz.ouvindo) {
           e.preventDefault();
-          voz.cancelar();
-          setTexto(textoPreVozRef.current);
-          setProvisorio(false);
-          inputRef.current?.focus();
+          cancelarVoz();
         } else if (sugestaoAtiva !== -1) {
           e.preventDefault();
           setSugestaoAtiva(-1);
@@ -585,6 +612,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
                 />
                 <span className="voz-tempo mono num">{textoTempoVoz}</span>
                 <button
+                  ref={pararBtnRef}
                   type="button"
                   className="voz-ativo-parar"
                   aria-pressed="true"
