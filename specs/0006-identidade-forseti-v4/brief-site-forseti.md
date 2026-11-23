@@ -111,6 +111,13 @@ de contraste e saída de gate por critério.
   `#progresso`, `#forja`, `#fecho`) foram preservadas e os ids herdados
   da identidade anterior (`materia`, `forma`, `fogo`, `forja`,
   `tempera`) ficaram para não quebrar links internos nem histórico.
+- D-S11 (emenda, 22 nov 2026): revisão da D-S2. Lavanda pode ser dado
+  informativo sobre ilha `--stone` medida, como o brandbook sanciona
+  (datas do ticker em `.ticker-set b`, diretórios de `.repo-shot pre
+  span`, hover `.next a:hover` e `.member .role` no carrossel mobile:
+  todos sobre `#0E1F1D` com ~10.6:1). Nunca texto sobre fundo claro nem
+  tinta de estado; estado real segue violeta ou verde. O separador `◆`
+  de `.hero-verbs` sobre papel virou `--violet` (a lavanda lia 1.44:1).
 
 ## Verificação (22 nov 2026)
 
@@ -135,3 +142,9 @@ de contraste e saída de gate por critério.
 - Screenshots: `site-rev-topo-1440.png`, `site-rev-codigo-1440.png`
   (1440px) e mobile 390px capturados; página inteira renderizada sem
   quebra em ambos.
+- Método de captura (emenda, 22 nov 2026): screenshot full-page
+  estático não dispara ScrollTrigger, então reveals `.rv` ficam ocultos
+  na captura sem rolagem. Para página inteira renderizada, usar
+  scroll-through ou `?reduce=1`: a revisão contou 0/33 `.rv` ocultos
+  após rolagem real e `site-rev-reduce-1440.png` mostra a página
+  completa.
