@@ -86,8 +86,47 @@ describe('sem depender de rede', () => {
     expect(r.revisao?.motivo).toBe('llm_falhou');
   });
 
-  it('campo com tipo invalido invalida a extracao inteira', async () => {
+  it('campo com tipo invalido e descartado com registro, sem invalidar a extracao (T122)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => respostaLlm({ chave_nfe: CHAVE44, peso_kg: 'muito pesado', confianca: 0.9 })));
+    const r = await parsePdf(BUF);
+    expect(r.revisao).toBeNull();
+    expect(r.doc?.campos.pesoTotal).toBeUndefined();
+    expect(r.doc?.dados['descartados']).toEqual([{ campo: 'pesoTotal', de: 'muito pesado', regra: 'tipo_invalido' }]);
+  });
+
+  it('peso_kg "12kg" vira numero por regra explicita, nunca NaN (T122)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respostaLlm({ chave_nfe: CHAVE44, peso_kg: '12kg', volumes: '7', confianca: 0.9 })));
+    const r = await parsePdf(BUF);
+    expect(r.revisao).toBeNull();
+    expect(r.doc?.campos.pesoTotal).toBe(12);
+    expect(r.doc?.campos.volumes).toBe(7);
+    expect(Object.values(r.doc?.campos ?? {}).every((v) => typeof v !== 'number' || Number.isFinite(v))).toBe(true);
+    expect(r.doc?.dados['normalizados']).toEqual([
+      { campo: 'pesoTotal', de: '12kg', para: 12, regra: 'numero_extraido_de_texto' },
+      { campo: 'volumes', de: '7', para: 7, regra: 'numero_extraido_de_texto' },
+    ]);
+  });
+
+  it('data dd/mm/aaaa normaliza para ISO; data ilegivel e descartada (T122)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respostaLlm({ chave_nfe: CHAVE44, data_prevista: '15/12/2025', confianca: 0.9 })));
+    const r = await parsePdf(BUF);
+    expect(r.doc?.campos.previsaoEntrega).toBe('2025-12-15');
+
+    vi.stubGlobal('fetch', vi.fn(async () => respostaLlm({ chave_nfe: CHAVE44, data_prevista: 'amanha', confianca: 0.9 })));
+    const r2 = await parsePdf(BUF);
+    expect(r2.doc?.campos.previsaoEntrega).toBeUndefined();
+    expect(r2.doc?.dados['descartados']).toEqual([{ campo: 'previsaoEntrega', de: 'amanha', regra: 'tipo_invalido' }]);
+  });
+
+  it('chave com tipo invalido segue invalidando a extracao inteira (essencial)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respostaLlm({ chave_nfe: 12345, confianca: 0.9 })));
+    const r = await parsePdf(BUF);
+    expect(r.doc).toBeNull();
+    expect(r.revisao?.motivo).toBe('extracao_invalida');
+  });
+
+  it('confianca com tipo invalido segue invalidando a extracao inteira', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respostaLlm({ chave_nfe: CHAVE44, confianca: 'alta' })));
     const r = await parsePdf(BUF);
     expect(r.doc).toBeNull();
     expect(r.revisao?.motivo).toBe('extracao_invalida');
