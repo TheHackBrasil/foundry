@@ -1,6 +1,7 @@
 // Projecao do ledger (spec 0004, T024): fold dos eventos em versoes,
 // divergencias, tarefas e pedido consolidado. Puro, sem banco.
 
+import { PARTES, TIPOS_DOCUMENTO } from './model.js';
 import type {
   CamposObservados,
   ContatoDoc,
@@ -15,7 +16,7 @@ import type {
   VersaoPedido,
 } from './model.js';
 
-const FONTES_DOC = new Set(['nfe', 'cte', 'cce', 'cancelamento', 'planilha', 'pdf']);
+const FONTES_DOC = new Set<string>(TIPOS_DOCUMENTO);
 
 interface PayloadDoc {
   fonte: FonteDocumento;
@@ -74,7 +75,19 @@ export function projetar(eventos: Evento[]): ProjecaoPedido {
           destinatario: (doc.dados['destinatario'] as ContatoDoc) ?? { nome: '?' },
           itens: (doc.dados['itens'] as ItemPedido[]) ?? [],
           campos: {},
-          partes: ['fornecedor', 'transportadora', 'cd', 'fiscal', 'financeiro'],
+          partes: [...PARTES],
+          criadoEm: ev.ts,
+        };
+      } else if (ev.tipo === 'planilha' && pedido === null) {
+        // Planilha que chega antes da NF-e cria pedido: pedido minimo "a
+        // confirmar" ate o documento fiscal completar os dados (RF5).
+        pedido = {
+          id: ev.pedidoId,
+          emitente: { nome: 'a confirmar' },
+          destinatario: { nome: 'a confirmar' },
+          itens: [],
+          campos: {},
+          partes: [...PARTES],
           criadoEm: ev.ts,
         };
       }

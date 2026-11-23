@@ -25,6 +25,10 @@ export type TipoEvento =
   | 'ancora'
   | 'revisao';
 
+// Tipos que representam um documento recebido (o resto e evento derivado):
+// usados para contar documentos por workspace e para ler o fold da projecao.
+export const TIPOS_DOCUMENTO = ['nfe', 'cte', 'cce', 'cancelamento', 'planilha', 'pdf'] as const;
+
 // Campos que a camada vigia entre fontes (RF10). Ausente = a fonte nao declara.
 export interface CamposObservados {
   previsaoEntrega?: string; // ISO 8601 (YYYY-MM-DD)

@@ -2,6 +2,7 @@
 // UPDATE/DELETE/TRUNCATE e /audit reconta a cadeia.
 
 import { GENESIS_HASH, hashEvento, verificarCadeia, type VerificacaoCadeia } from '../shared/chain.js';
+import { TIPOS_DOCUMENTO } from '../shared/model.js';
 import type { Evento } from '../shared/model.js';
 import type { Db } from './db.js';
 
@@ -56,9 +57,6 @@ DROP TRIGGER IF EXISTS events_no_truncate ON events;
 CREATE TRIGGER events_no_truncate
   BEFORE TRUNCATE ON events FOR EACH STATEMENT EXECUTE FUNCTION rejeita_mutacao_events();
 `;
-
-// Tipos de evento que representam um documento recebido (o resto e derivado).
-const TIPOS_DOCUMENTO: Evento['tipo'][] = ['nfe', 'cte', 'cce', 'cancelamento', 'planilha', 'pdf'];
 
 interface EventoRow {
   id: number;
@@ -255,7 +253,7 @@ export class LedgerStore {
          (SELECT count(*) FROM events WHERE workspace_id = $1)::int AS eventos,
          ((SELECT count(*) FROM events WHERE workspace_id = $1 AND tipo = ANY($2::text[]))
           + (SELECT count(*) FROM review_queue WHERE workspace_id = $1))::int AS documentos`,
-      [this.workspace, TIPOS_DOCUMENTO],
+      [this.workspace, [...TIPOS_DOCUMENTO]],
     );
     return { eventos: rows[0]?.eventos ?? 0, documentos: rows[0]?.documentos ?? 0 };
   }
