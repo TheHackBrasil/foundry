@@ -40,7 +40,7 @@ export function llmConfigDoEnv(env: Ambiente = process.env): LlmConfig | null {
   return {
     url,
     chave,
-    modelo: env['LLM_MODEL']?.trim() || 'gpt-4o-mini',
+    modelo: env['LLM_MODEL']?.trim() || 'gpt-6.2-sol',
     timeoutMs: inteiroOuPadrao(env['LLM_TIMEOUT_MS'], 15_000),
   };
 }
