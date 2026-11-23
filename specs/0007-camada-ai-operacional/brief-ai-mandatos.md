@@ -71,4 +71,51 @@ gatilho de notificação).
 
 ## Decisões da frente
 
-(preencher na primeira decisão)
+- D-043: o evento `mandato` fica por pedido alvo, gravado na mesma
+  transação da execução da ação, e fora da projeção: ele já é trilha do
+  próprio ledger, não estado consolidado (`mandatos.ts`,
+  `projection.ts`).
+- D-044: `propagar` é repropagação idempotente das divergências já
+  registradas, como a spec decidiu: o executor recomputa por
+  `camposPorFonte` + `divergenciasDaNovaFonte` + `propagarTodas` e grava
+  só o que `eventoExiste` não encontra; criar documento novo pelo
+  mandato fica fora.
+- D-045: a resolução de alvo olha só o workspace da sessão (a seed é
+  somente leitura até quando é citada de propósito, 403). `pedidoId`
+  aponta direto; fornecedor casa CNPJ por dígitos ou trecho do nome do
+  emitente da NF-e; `parte` filtra pedidos com tarefa daquela parte.
+  Acima de `MANDATOS_MAX_ALVOS` (5) responde `filtro_largo`.
+- D-046: o `simular` do mandato e o `POST /api/simulate` dividem
+  `simularHipotese` (`divergence.ts`): `fonteA` é a fonte real da última
+  declaração do campo, `fonteB` é `manual` e a tolerância de peso é a
+  mesma do motor. O mandato grava só o evento `mandato`.
+- D-047: `notificar` exige `parte` no filtro e dispara pela última
+  tarefa daquela parte na projeção do pedido. Nvoip desligada registra
+  `notificacao` `nao_entregue` com motivo `desligado`, sem tráfego de
+  rede; `email` existe na agenda mas a Nvoip não entrega
+  (`canal_incompativel`). O texto sai da LLM com template determinístico
+  de fallback. `NVOIP_NOTIFY_ON_TASK` governa só o disparo automático na
+  propagação (o fio da `ai-ingest` em T141), não o mandato.
+- D-048: motivos fixos de `nao_entregue`: `desligado`, `sem_tarefa`,
+  `sem_contato`, `canal_incompativel` e `falha_envio`. Falha de
+  notificação nunca quebra o mandato: vira evento e segue.
+- D-049: `view-spec` é validado no servidor (versão 1, enums de fonte,
+  coluna e parte, dedup de listas); ausência de LLM, JSON inválido ou
+  enum inventado caem no padrão determinístico, e a rota nunca responde
+  500 por causa da camada de linguagem.
+- D-050: agenda com um contato por parte por workspace. A leitura da
+  sessão soma a seed como fallback e o contato da própria sessão vence
+  na mesma parte; PUT grava sempre `manual` no workspace do chamador;
+  bootstrap por `fone` usa `INSERT ... ON CONFLICT DO NOTHING` e nunca
+  sobrescreve contato existente.
+- D-051: sinal fora do schema ou abaixo do limiar (0,7) é descartado sem
+  fila de revisão: é trilha informativa, não documento.
+- D-052: `mapeamento` propõe só `coluna -> campo canônico` do conjunto
+  fechado `CAMPOS_MAPEAVEIS` (os vigiados + `pedidoId`), com coluna
+  inexistente e campo inventado filtrados; proposta inválida não gera
+  nada. O template aprovado fica por `(workspace, remetente)` na tabela
+  `templates`, DDL idempotente em `store.ts` sem migration numerada.
+- D-053: os testes da camada moram em
+  `app/shared/ai-mandatos.test.ts` porque os paths da frente cobrem
+  `app/shared/` inteiro e só os `.ts` nomeados de `app/server/`. LLM e
+  Nvoip sempre com `fetch` mockado; banco PGlite como no `api.test.ts`.
