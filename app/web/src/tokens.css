@@ -1,31 +1,33 @@
-/* Tokens do Forseti: Rota 3 (Salão), tom sóbrio. Valores medidos por
-   forseti-brand/moodboard/scripts/build.py (WCAG 2.2, 198 pares exigidos, todos passam).
-   Nomes por papel, não por cor. Ouro e prata só decoram: nunca marcam estado. */
+/* Tokens do Forseti: Brandbook v4. Petróleo #163C38 carrega a estrutura, o papel
+   mineral #F5F2EB é o fundo, o cinza mineral #52665E cobre metadados e bordas de
+   controle, a lavanda profunda #654199 marca coordenação (divergência, tarefa nova)
+   e a lavanda clara #D7C5EA é só corda gráfica: nunca texto, ícone ou estado.
+   Valores medidos por app/web/scripts/check_contrast.py (WCAG 2.2; relatório em
+   evidencias/contraste-v4.md). Nomes por papel, não por cor. */
 
 :root {
-  --bg: #f5f3f1;
-  --surface: #fdfcfb;
-  --surface2: #eeebe7;
-  --border: #d8d3cf;
-  --border-strong: #79736d; /* borda de controle: 3:1 sobre a superfície */
-  --text: #231e1b;
-  --text2: #605a54;
-  --primary: #2d2824;
-  --on-primary: #faf8f6;
-  --rail-soft: #dddbd9; /* texto secundário sobre a coluna lateral (10,56:1) */
-  --focus: #231e1b;
-  --change: #056374; /* a única cor de "mudou": rótulo, ícone e fio */
-  --change-bg: #e9f2f4;
+  --bg: #f5f2eb;
+  --surface: #fcfaf6;
+  --surface2: #ece8df;
+  --border: #cfc9bb;
+  --border-strong: #52665e; /* borda de controle: 5,9:1 sobre a superfície */
+  --text: #163c38;
+  --text2: #52665e;
+  --primary: #163c38;
+  --on-primary: #f5f2eb;
+  --rail: #163c38; /* coluna lateral: o monólito de pedra, igual nos dois temas */
+  --on-rail: #f5f2eb;
+  --rail-soft: #a9beb4; /* texto secundário sobre o monólito (6,2:1) */
+  --focus: #163c38;
+  --change: #654199; /* lavanda profunda: a única cor de "mudou" e de divergência */
+  --change-bg: #ede5fe;
+  --cord: #d7c5ea; /* corda lavanda: só fio gráfico sobre o monólito */
   --ok: #31693f;
   --ok-bg: #dff3e2;
   --warn: #865812;
   --warn-bg: #fbebcf;
   --error: #ac3031;
   --error-bg: #fee6e6;
-  --gold: #bda973;
-  --gold-deep: #927e4a;
-  --silver: #dbdee2;
-  --silver-deep: #a7abb0;
 
   --font-title: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
   --font-ui: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif;
@@ -35,28 +37,27 @@
 }
 
 :root[data-tema='dark'] {
-  --bg: #141211;
-  --surface: #1e1b19;
-  --surface2: #272522;
-  --border: #383532;
-  --border-strong: #79736f;
-  --text: #edebe8;
-  --text2: #b4b0ac;
-  --primary: #e0ddda;
-  --on-primary: #181614;
-  --rail-soft: #343230; /* sobre a coluna clara do tema escuro (9,44:1) */
-  --focus: #edebe8;
-  --change: #7cd8e8;
-  --change-bg: #182a2e;
+  --bg: #0e1f1d;
+  --surface: #152825;
+  --surface2: #1c332f;
+  --border: #30463f;
+  --border-strong: #7e968e;
+  --text: #e8f0ee;
+  --text2: #a8bdb5;
+  --primary: #e8f0ee;
+  --on-primary: #0e1f1d;
+  --rail: #163c38;
+  --on-rail: #f5f2eb;
+  --rail-soft: #a9beb4;
+  --focus: #e8f0ee;
+  --change: #c9b2f0;
+  --change-bg: #35294a;
+  --cord: #d7c5ea;
   --ok: #95d7a2;
   --ok-bg: #1c3422;
   --warn: #f0c374;
   --warn-bg: #3f2c10;
   --error: #ffa098;
   --error-bg: #4e201e;
-  --gold: #b2a572;
-  --gold-deep: #817443;
-  --silver: #c7cbd0;
-  --silver-deep: #8f9397;
   color-scheme: dark;
 }

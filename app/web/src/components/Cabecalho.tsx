@@ -22,7 +22,7 @@ export function Cabecalho({ stream, pausado, pendentes, aoPausar, tema, aoTema }
   return (
     <header className="topo">
       <div className="topo-marca">
-        <Marca />
+        <Marca tema={tema} />
         <h1>
           Forseti<span className="so-leitor">: torre de pedidos</span>
         </h1>
