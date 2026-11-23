@@ -14,6 +14,7 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 
 | # | Item | Status | Nota |
 |---|---|---|---|
+| 19 | "Cadeia viva" como fator wow: dominó da propagação movido por evento real (RF17, spec 0004) mais botão "simular" batendo no `POST /api/simulate` sobre o estado real da cadeia; portar o modelo do `Domino.tsx` do `site/` para `app/web`; cenário da demo = os dois pedidos da call TOTVS (eletrônicos atrasa, embalagem segura); twin 3D de galpão segue fora (plano-mvp) | todo | ideia aprovada em 23/11 para a fase final (12/12); exige spec própria antes de implementar |
 | 12 | Vídeo do produto (até 3 min) para a entrega de 30/11 | todo | regulamento 7.3; o `pitch-v10` existe mas é anterior ao produto funcionando |
 | 13 | Responder 413 (não 422) em upload acima do limite | todo | falha do smoke público de 23/11 (P-008) |
 | 14 | Faixa `.vtt` de legendas no vídeo `pitch-v10` do site | todo | axe `video-caption` |
