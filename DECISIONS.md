@@ -378,3 +378,9 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   (200), o falso segue 422, agenda de contatos e mandatos checados.
 - Reservada: frente `ai-web` (T150), renderização do `view-spec` é do
   usuário com outro agente.
+- Redeploy com a camada AI: `railway up` precisa do link dentro de
+  `app/` (link na raiz do repo sobe o arquivo errado e o build falha
+  sem achar `deploy/Dockerfile`); smoke público 14/14 na URL de
+  produção: `.xlsx` legítimo entra (26 eventos), falso recusa 422,
+  `/api/contatos` responde com a seed, `/api/mandatos` devolve 503
+  declarado sem LLM configurada.
