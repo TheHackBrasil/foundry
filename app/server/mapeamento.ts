@@ -83,8 +83,12 @@ export function aplicarMapeamento(
 ): DocData | null {
   const valorDe = (campo: string): string | undefined => {
     const coluna = Object.entries(mapeamento).find(([, c]) => c === campo)?.[0];
-    const v = coluna !== undefined ? linha[coluna] : undefined;
-    return v !== undefined && v.trim() !== '' ? v.trim() : undefined;
+    // Coluna herdada do prototipo (constructor, toString...) ou valor
+    // nao-string nunca chega ao trim: um template envenenado nao pode
+    // derrubar o arquivo seguinte do remetente.
+    if (coluna === undefined || !Object.hasOwn(linha, coluna)) return undefined;
+    const v = linha[coluna];
+    return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined;
   };
   const pedidoId = valorDe('pedidoId');
   if (!pedidoId) return null;
