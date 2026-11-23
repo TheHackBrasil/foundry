@@ -119,6 +119,49 @@ de contraste e saída de gate por critério.
   tinta de estado; estado real segue violeta ou verde. O separador `◆`
   de `.hero-verbs` sobre papel virou `--violet` (a lavanda lia 1.44:1).
 
+### LP institucional do produto (`lp/`)
+
+Escopo aprovado pelo usuário em 22 nov 2026: o `site/` revestido fica
+como está; a frente passa a incluir `lp/`, uma LP de empresa real do
+produto, Astro próprio e independente.
+
+- D-S12: `lp/` é um projeto Astro separado (package.json, config e
+  `node_modules` próprios), sem ilhas de framework e sem depender de
+  `site/`. Fontes idênticas: Manrope Variable + Geist Mono Variable.
+- D-S13: mesma gramática v4 por tokens por papel, copiada do mapa do
+  `site/`. Diferença de registro: tom B2B institucional (voz "confiança
+  sem ruído": clara, precisa, resolutiva, imparcial), sem seções de
+  diário, campo ou hackathon. Único crédito externo: "desenvolvido pela
+  equipe The Foundry · HackBrasil 2026" no rodapé.
+- D-S14: conteúdo só do que o produto faz de verdade: lê NF-e/CT-e/CC-e
+  em XML, planilha CSV e e-mail; compara campo a campo com origem e
+  versão; mostra divergência e tarefa por papel; registro só acréscimo
+  com hash encadeado; âncora pública opcional já testada na Base Sepolia
+  (rede de testes); sessão isolada por visitante; demo com dados
+  fictícios. Sem clientes, números de mercado, certificações ou "IA".
+  Toda ilustração de produto leva a marcação "exemplo" ou "dados
+  fictícios".
+- D-S15: a matriz de divergência é desenhada em markup real (tabela
+  semântica), seguindo R1/R4: a NF-e é a referência e só a célula que
+  difere dela recebe tinta `#EDE5FE` + entalhe + símbolo `≠` + rótulo;
+  "não declarado" no lugar do traço; linha nunca pintada; situação em
+  texto, nunca só por cor.
+- D-S16: motion sem dependência (sem GSAP/Lenis): reveals por
+  IntersectionObserver, cordas por `stroke-dashoffset` em CSS, sinal
+  violeta por `offset-path` (uma passagem e repouso). `.reduce` entrega
+  o estado final; `rv-safe` cobre falha de boot.
+- D-S17: `DEMO_URL` e `SITE_URL` em `lp/src/config.ts`. `DEMO_URL`
+  recebeu `https://forseti.up.railway.app` como placeholder comentado
+  (a confirmar antes do lançamento); `SITE_URL` vazio omite `og:url` e
+  deixa `og:image` relativo até o domínio da LP existir.
+- D-S18: `og.png` 1200×630 gerado por SVG + `rsvg-convert` com o lockup
+  oficial injetado byte a byte (o wordmark nunca se redesenha nem se
+  redigita). Favicon e os cinco `forseti-*.svg` copiados byte a byte.
+- D-S19: registro de página nova (A4): a LP é um projeto novo fora do
+  README do repo; a indexação no README/índice central fica para a
+  integração, que tem esse path. Evidências commitadas em
+  `lp/evidencias/` (contraste medido + capturas).
+
 ## Verificação (22 nov 2026)
 
 - `npm run build`: limpo, 1 página (`/index.html`).
@@ -148,3 +191,19 @@ de contraste e saída de gate por critério.
   scroll-through ou `?reduce=1`: a revisão contou 0/33 `.rv` ocultos
   após rolagem real e `site-rev-reduce-1440.png` mostra a página
   completa.
+
+### LP `lp/` (22 nov 2026)
+
+- `cd lp && npm run build`: limpo, 1 página (`/index.html`).
+- axe 4.10.2 via CDN (wcag2a/aa/22aa): 0 violações, 29 passes; único
+  incomplete `color-contrast` (leituras sobre vidro/gradiente), coberto
+  pela medição colorlib em `lp/evidencias/contraste.md` (17 pares, todos
+  passam; lavanda sobre papel mede 1.44 e segue só gráfica).
+- Motion em scroll real: 0/19 `.rv` ocultos após percurso completo;
+  3/3 `svg.cords` desenhadas; sinal percorre uma vez e estabiliza.
+- `?reduce=1`: `.reduce` antes da pintura, 0 `.rv` ocultos, 0 cordas por
+  desenhar, 0 sinais visíveis.
+- Mobile 390px: `scrollWidth` 390 == `innerWidth` 390, sem overflow; a
+  matriz rola dentro do próprio cartão (`min-width` + `tabindex`).
+- Capturas commitadas em `lp/evidencias/` (hero, matriz, fecho, reduce,
+  390px).
