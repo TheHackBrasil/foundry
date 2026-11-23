@@ -422,8 +422,8 @@ main > article { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem
 .painel-cab h1 { font: 650 1.875rem/1.12 var(--font-title); letter-spacing: -0.025em; }
 .painel-cab h1 .mono { font-size: 0.88em; }
 .partes-pedido { color: var(--text); font-size: 0.9375rem; font-weight: 500; }
-.chave-linha { display: flex; align-items: flex-start; flex-wrap: nowrap; gap: 0.5rem; }
-.chave { flex: 1 1 auto; min-width: 0; color: var(--text2); font-size: 0.78125rem; overflow-wrap: anywhere; letter-spacing: 0.02em; }
+.chave-linha { display: flex; align-items: center; flex-wrap: nowrap; gap: 0.5rem; }
+.chave { flex: 0 1 auto; min-width: 0; color: var(--text2); font-size: 0.78125rem; overflow-wrap: anywhere; letter-spacing: 0.02em; }
 
 .cadeia {
   display: grid;
@@ -1192,6 +1192,7 @@ main > article { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem
   main { padding: 1.25rem 1rem 2rem; }
   .sec-cab { flex-wrap: wrap; }
   .painel-cab h1 { font-size: 1.5rem; }
+  .chave-linha { align-items: flex-start; }
   .cmd-form { flex-wrap: wrap; padding: 0.5rem; }
   .cmd-input { font-size: 1rem; flex: 1 1 calc(100% - 2.5rem); }
   .cmd-acoes { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
