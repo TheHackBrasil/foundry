@@ -260,7 +260,7 @@ só claro.
 
 A frente `site-forseti` cobre DUAS superfícies: o `the-foundry`
 re-vestido (entregue, mantido como bônus) e a LP nova do produto em
-`lp/` — site do zero com estrutura de empresa real, deploy Vercel
+`lp/`: site do zero com estrutura de empresa real, deploy Vercel
 próprio (D-036). RF: hero com proposta, para quem, como funciona
 (lê/compara/mostra), bloco "não somos", evidências reais do MVP
 (matriz de divergências, fontes fiscais, cadeia, âncora) e CTA para a

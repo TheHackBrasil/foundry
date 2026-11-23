@@ -59,7 +59,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-034 | 22/11 | A lavanda clara `#D7C5EA` nunca aparece como texto, ícone de estado ou tinta de divergência; o sinal de coordenação nas telas usa o violeta profundo `#654199` (6,78:1 sobre papel) | decidido | Medido com o colorlib do R4: lavanda sobre papel dá 1,44:1 e reprova WCAG; o papel dela na marca é corda, vidro e preenchimento gráfico |
 | D-035 | 22/11 | Novas frentes `site-forseti` (dona de `site/`) e `app-brand` (dona de `app/web/`), registradas em `speckit/frentes.json` com briefs na spec 0006; a frente `app-demo` é encerrada, com o trabalho integrado na `integra/mvp-final` | decidido | Divisão por superfície sem sobreposição de paths; a `app-demo` não tem trabalho aberto depois da integração |
 
-| D-036 | 22/11 | Correção de rota: a landing do produto é um site novo do zero em `lp/` (estrutura de empresa real), com deploy Vercel próprio; o site `the-foundry` re-vestido na v4 fica como bônus (site do time). Emenda D-031, que chegou a descartar site separado | decidido por Thiago | O the-foundry apresenta a equipe; a LP apresenta o produto — são superfícies diferentes |
+| D-036 | 22/11 | Correção de rota: a landing do produto é um site novo do zero em `lp/` (estrutura de empresa real), com deploy Vercel próprio; o site `the-foundry` re-vestido na v4 fica como bônus (site do time). Emenda D-031, que chegou a descartar site separado | decidido por Thiago | O the-foundry apresenta a equipe; a LP apresenta o produto: são superfícies diferentes |
 
 ## Pendências
 
