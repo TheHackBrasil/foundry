@@ -10,6 +10,7 @@ import type {
   Parte,
   Tarefa,
   VersaoPedido,
+  ViewSpec,
 } from '../../shared/model.ts';
 
 export interface Celula {
@@ -93,6 +94,60 @@ export function montarMatriz(
   });
 
   return { fontes, linhas };
+}
+
+export interface ResultadoLente {
+  matriz: Matriz;
+  ajustada: boolean;
+  fontesOcultas: FonteDocumento[];
+  camposOcultos: CampoVigiado[];
+  destacarDivergencias: boolean;
+  lente: Parte;
+}
+
+// Aplica o ViewSpec sobre a matriz sem inventar coluna ou esconder divergencia
+// real: fontes/campos ausentes sao ignorados, e intersecao vazia cai na visao
+// completa para nao simular pedido sem documentos.
+export function aplicarViewSpec(matriz: Matriz, spec: ViewSpec): ResultadoLente {
+  const completo: ResultadoLente = {
+    matriz,
+    ajustada: false,
+    fontesOcultas: [],
+    camposOcultos: [],
+    destacarDivergencias: true,
+    lente: spec.lente,
+  };
+  if (matriz.fontes.length === 0 || matriz.linhas.length === 0) return completo;
+
+  const fontesPermitidas = new Set<FonteDocumento>(spec.fontesVisiveis);
+  const colunasPermitidas = new Set<CampoVigiado>(spec.colunas);
+
+  const fontes = matriz.fontes.filter((f) => fontesPermitidas.has(f));
+  const linhasBase = matriz.linhas.filter((l) => colunasPermitidas.has(l.campo));
+
+  if (fontes.length === 0 || linhasBase.length === 0) return completo;
+
+  const fontesOcultas = matriz.fontes.filter((f) => !fontesPermitidas.has(f));
+  const camposOcultos = matriz.linhas
+    .filter((l) => !colunasPermitidas.has(l.campo))
+    .map((l) => l.campo);
+
+  const linhas: LinhaMatriz[] = linhasBase.map((linha) => ({
+    ...linha,
+    celulas: linha.celulas.filter((c) => fontesPermitidas.has(c.fonte)),
+  }));
+
+  const ajustada =
+    fontesOcultas.length > 0 || camposOcultos.length > 0 || !spec.destacarDivergencias;
+
+  return {
+    matriz: { fontes, linhas },
+    ajustada,
+    fontesOcultas,
+    camposOcultos,
+    destacarDivergencias: spec.destacarDivergencias,
+    lente: spec.lente,
+  };
 }
 
 export const FILTRO_TODAS = 'todas';
