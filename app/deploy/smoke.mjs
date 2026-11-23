@@ -332,10 +332,32 @@ async function smoke() {
     return `cadeia válida, ${corpo.total} eventos`;
   });
 
-  await checar('.xlsx responde 422 pedindo CSV', async () => {
+  await checar('.xlsx legitimo entra pelo pipeline do CSV', async () => {
+    const xlsx = readFileSync(join(AQUI, '..', 'server', 'fixtures', 'planilha.xlsx'));
+    const { res, corpo } = await a.enviar('planilha.xlsx', xlsx);
+    exigir(res.status === 200, `status ${res.status} ${JSON.stringify(corpo)}`);
+    return `${corpo?.eventos ?? '?'} eventos`;
+  });
+
+  await checar('.xlsx falso responde 422 sem travar', async () => {
     const { res, corpo } = await a.enviar('planilha.xlsx', Buffer.from('PK\u0003\u0004 planilha ficticia'));
     exigir(res.status === 422 && corpo?.tipo === 'parser', `status ${res.status} ${JSON.stringify(corpo)}`);
-    exigir(/CSV/.test(corpo.erro), `mensagem: ${corpo.erro}`);
+  });
+
+  await checar('agenda de contatos responde com a seed', async () => {
+    const { res, corpo } = await a.json('/api/contatos');
+    exigir(res.status === 200 && Array.isArray(corpo?.itens ?? corpo?.contatos ?? corpo), `status ${res.status} ${JSON.stringify(corpo).slice(0, 120)}`);
+    return `${(corpo?.itens ?? corpo?.contatos ?? corpo).length} contatos`;
+  });
+
+  await checar('mandatos responde declarado (200 ou 503 sem LLM)', async () => {
+    const { res, corpo } = await a.json('/api/mandatos', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ texto: 'resuma o estado' }),
+    });
+    exigir(res.status === 200 || res.status === 503, `status ${res.status} ${JSON.stringify(corpo).slice(0, 120)}`);
+    return `status ${res.status}`;
   });
 
   await checar('arquivo acima do limite responde 413 em português', async () => {

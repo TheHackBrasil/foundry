@@ -67,6 +67,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-041 | 23/11 | O `.xlsx` volta por emenda de D-028: `exceljs` em versão pinned (>7 dias de publicação) dentro de `worker_threads` com `resourceLimits` e checagem estrutural do zip antes de inflar (o caminho de volta que a própria D-028 declara); o worker converte a planilha em texto CSV com valores formatados e o `parseCsv` segue como único parser tabular; layout desconhecido vai para a revisão com mapeamento coluna a campo proposto por LLM, e o mapeamento aprovado persiste como template por `(workspace, remetente)` | decidido por Thiago | `exceljs` resolve a serial de datas (precisa de `numFmt`); converter para CSV reaproveita parser, mapeamento e testes existentes; a escolha da LLM para layout é aprovada com revisão humana, nunca escrevendo dado |
 | D-042 | 23/11 | Novas frentes `hardening` (spec 0008, dona de `app/` e três paths de `site/`), `ai-ingest`, `ai-mandatos` e `ai-web` (reservada, só contrato `view-spec`) em `speckit/frentes.json`. Ordem dura: a 0008 integra inteira antes das frentes da 0007 | decidido | A blindagem corrige a base que a camada AI vai usar (lock de idempotência, helper doc->tarefas, `ItemRevisao`); `ai-web` fica sem código porque a renderização do `view-spec` é do usuário com outro agente |
 | D-043 | 23/11 | `wt/hardening` integrada na `main` após revisão independente ("aprova com ressalva", nada bloqueando). Na integração: `smoke.mjs` corrigido para a fila sem `workspace_id` (D-H7 do brief); `propagar` ganhou guarda `Object.hasOwn` porque `REGRAS_PROPAGACAO[d.campo]` resolvia membros de `Object.prototype` vindos do body de `/api/simulate` (mesma classe de bug do RF3, lado do servidor); `aprovarRevisao` passou a checar `eventoExiste` na mesma transação (dois itens irmãos aprovados não gravam o documento duas vezes). Restantes achados do reviewer viraram itens 20 a 23 do `BACKLOG.md` | decidido | O guard e a dedupe são a mesma classe de correção que a própria spec pediu; fazer fora deixaria o padrão conhecido vivo numa rota pública |
+| D-044 | 23/11 | `wt/ai-mandatos` e `wt/ai-ingest` integradas na `main`, as duas após revisão independente com rodada de correção. O reviewer de mandatos achou um bloqueio real: `executarMandato` lia `eventoExiste` antes do advisory lock (a mesma corrida que a spec 0008 corrigiu no pipeline); `travarPedido` agora abre a transação por pedido. Também corrigidos na rodada: guard de tipo/`Object.hasOwn` em `aplicarMapeamento`, `JanelaFixa` por IP na rota `view-spec`, testes dos três motivos restantes de `nao_entregue`, `{"texto":123}` como 400 e `notificarTarefa` que nunca lança. Na ingest: `exigirCabe` na revisão do xlsx e o teste do diretório central mentiroso (a defesa real é o `resourceLimits` do worker). Decisões das frentes em D-043 a D-058 do `brief-ai-mandatos.md` e D-G1 a D-G4 do `brief-ai-ingest.md`; follow-ups conscientes nos itens 25 do `BACKLOG.md` | decidido | Revisão independente pegou o padrão de corrida no código novo antes do juiz; a frente `ai-web` segue reservada (T150), renderização do `view-spec` é do usuário |
 
 ## Pendências
 
@@ -348,3 +349,32 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   `ai-ingest`, `ai-mandatos`, `ai-web` (reservada).
 - O conceito "cadeia viva" (dominó por evento real + simulate) ficou
   registrado no `BACKLOG.md` item 19, sem implementação nesta rodada.
+
+### Sessão 16: camada AI operacional implementada e integrada (23/11)
+
+- Spec 0008 entregue pela frente `hardening`: todos os achados das
+  cinco auditorias corrigidos, revisão independente aprovada, redeploy
+  com smoke público 11/11 (D-043). P-010 resolvida.
+- Spec 0008 e 0007 implementadas por subagentes com critérios de
+  aceite anotados antes e revisão independente depois de cada frente,
+  como pedido pelo usuário.
+- `wt/ai-mandatos`: tipos novos (`mandato`, `sinal`, `notificacao`),
+  `llm.ts`, `sinal.ts`, `POST /api/mandatos` com ações tipadas do
+  conjunto fechado e evento auditável por pedido, agenda `contatos`
+  com bootstrap por `fone`, `nvoip.ts` desligada por padrão,
+  `viewspec.ts`, `mapeamento.ts` + `templates` por remetente. O
+  reviewer achou e a rodada corrigiu: corrida de `propagar` sem lock
+  (mesmo padrão do RF1 da 0008), guard de protótipo em
+  `aplicarMapeamento`, cota por IP no `view-spec`, motivos de
+  `nao_entregue` testados, `notificarTarefa` que nunca lança (D-044).
+- `wt/ai-ingest` em duas rodadas: `.xlsx` volta por worker com
+  `resourceLimits` + checagem de zip antes de inflar, `exceljs` 4.4.0
+  pinned, worker emite CSV e `parseCsv` segue único; validação de
+  tipo nos campos da LLM do PDF; fios: sinais de `.eml`/CC-e,
+  `NVOIP_NOTIFY_ON_TASK`, revisão com proposta de mapeamento e
+  template por remetente, bootstrap por `fone` fiscal (D-044, D-G1 a
+  D-G4).
+- `app/deploy/smoke.mjs` atualizado: `.xlsx` legítimo agora entra
+  (200), o falso segue 422, agenda de contatos e mandatos checados.
+- Reservada: frente `ai-web` (T150), renderização do `view-spec` é do
+  usuário com outro agente.
