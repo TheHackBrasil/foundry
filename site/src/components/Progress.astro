@@ -36,12 +36,14 @@ const fmt = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR');
     </ul>
   </header>
 
-  <nav class="gh-tabs" role="tablist" aria-label="Repositório">
-    <button role="tab" id="tab-code" aria-controls="gh-code" aria-selected="true"><Fragment set:html={icon('code')} />Code</button>
-    <button role="tab" id="tab-commits" aria-controls="gh-commits" aria-selected="false" tabindex="-1"><Fragment set:html={icon('history')} />Commits{state?.count && <span class="gh-count">{state.count}</span>}</button>
-    <button role="tab" id="tab-projects" aria-controls="gh-projects" aria-selected="false" tabindex="-1"><Fragment set:html={icon('table')} />Projects<span class="gh-count">1</span></button>
+  <div class="gh-tabs">
+    <div class="gh-tablist" role="tablist" aria-label="Repositório">
+      <button role="tab" id="tab-code" aria-controls="gh-code" aria-selected="true"><Fragment set:html={icon('code')} />Code</button>
+      <button role="tab" id="tab-commits" aria-controls="gh-commits" aria-selected="false" tabindex="-1"><Fragment set:html={icon('history')} />Commits{state?.count && <span class="gh-count">{state.count}</span>}</button>
+      <button role="tab" id="tab-projects" aria-controls="gh-projects" aria-selected="false" tabindex="-1"><Fragment set:html={icon('table')} />Projects<span class="gh-count">1</span></button>
+    </div>
     <a href={`${gh}/releases`} target="_blank" rel="noopener noreferrer"><Fragment set:html={icon('tag')} />Releases{state?.release && <span class="gh-count">1</span>}</a>
-  </nav>
+  </div>
 
   <div class="gh-body">
     <div class="gh-main">

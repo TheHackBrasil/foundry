@@ -129,12 +129,12 @@ time, .num { font-variant-numeric: tabular-nums; }
 .rv-safe .hero-title .ln > span { opacity: 1; }
 .hero-sub { max-width: 540px; margin-top: 28px; font-size: clamp(17px, 1.4vw, 19px); color: var(--ink-dim); font-weight: 430; line-height: 1.62; }
 .hero-sub b { color: var(--ink); font-weight: 620; }
-.hero-verbs { display: flex; gap: 18px; margin-top: 24px; }
+.hero-verbs { display: flex; gap: 18px; margin-top: 24px; list-style: none; }
 .hero-verbs b {
   font-family: var(--font-m); font-size: 13px; font-weight: 500; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--ink);
 }
-.hero-verbs b + b::before { content: '◆'; margin-right: 18px; font-size: 7px; color: var(--cord); vertical-align: 2px; }
+.hero-verbs li + li::before { content: '◆'; margin-right: 18px; font-size: 7px; color: var(--cord); vertical-align: 2px; }
 .hero-not { margin-top: 22px; max-width: 520px; font-size: 15px; color: var(--ink-dim); }
 .hero-not b {
   display: inline-block; margin-right: 10px; padding: 3px 9px;
@@ -452,16 +452,18 @@ code { font-family: var(--font-m); font-size: 0.88em; color: var(--ink); }
 .gh-counters li svg { color: var(--gh-dim); }
 .gh-counters span, .gh-count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: #2f3742; font-size: 12px; font-weight: 500; text-align: center; line-height: 18px; }
 .gh-tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--gh-line2); overflow-x: auto; }
-.gh-tabs > * {
+.gh-tablist { display: flex; gap: 4px; }
+.gh-tablist > *, .gh-tabs > a {
   position: relative; display: flex; align-items: center; gap: 8px; padding: 12px 8px 13px; margin: 0 4px;
   background: none; border: 0; color: var(--gh-fg); font: inherit; cursor: pointer; white-space: nowrap;
 }
-.gh-tabs > * svg { color: var(--gh-dim); }
-.gh-tabs > *::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: #f78166; transform: scaleX(0); transition: transform 0.3s var(--ease); }
-.gh-tabs > [aria-selected='true'] { font-weight: 600; }
-.gh-tabs > [aria-selected='true']::after { transform: scaleX(1); }
-.gh-tabs > :hover { color: var(--gh-fg); }
-.gh-tabs > :focus-visible { outline: 2px solid var(--gh-link); outline-offset: -2px; border-radius: 6px; }
+.gh-tablist > * svg, .gh-tabs > a svg { color: var(--gh-dim); }
+.gh-tablist > *::after, .gh-tabs > a::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: #f78166; transform: scaleX(0); transition: transform 0.3s var(--ease); }
+.gh-tablist > [aria-selected='true'] { font-weight: 600; }
+.gh-tablist > [aria-selected='true']::after { transform: scaleX(1); }
+.gh-tabs > a:hover::after { transform: scaleX(1); }
+.gh-tablist > :hover, .gh-tabs > a:hover { color: var(--gh-fg); }
+.gh-tablist > :focus-visible, .gh-tabs > a:focus-visible { outline: 2px solid var(--gh-link); outline-offset: -2px; border-radius: 6px; }
 .gh-body { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 28px; padding: 24px; }
 .gh-main, .gh-panel { min-width: 0; }
 /* The board needs the full width; the sidebar steps aside while it is open. */
@@ -629,7 +631,7 @@ code { font-family: var(--font-m); font-size: 0.88em; color: var(--ink); }
   .gh-chrome p { font-size: 11px; margin-left: 6px; }
   .gh-title { font-size: 17px; flex-wrap: wrap; }
   .gh-tabs { padding: 0 6px; scrollbar-width: none; mask-image: linear-gradient(90deg, #000 85%, transparent); }
-  .gh-tabs > * { padding-inline: 6px; margin: 0 2px; }
+  .gh-tablist > *, .gh-tabs > a { padding-inline: 6px; margin: 0 2px; }
   .gh-head { flex-wrap: wrap; row-gap: 4px; }
   .gh-hmsg { flex-basis: 100%; order: 3; white-space: normal; }
   .gh-hcount { margin-left: auto; }

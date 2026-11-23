@@ -1,14 +1,17 @@
 # site/
 
-Site público da equipe The Foundry: página única estática, diário de
-construção do Forseti no HackBrasil 2026.
+Site público do Forseti: página única estática na identidade do Brandbook
+v4 (papel, petróleo, lavanda gráfica, violeta-sinal). Construído pela equipe
+The Foundry no HackBrasil 2026.
 
 ## Stack
 
 - Astro 7 (SSG) + TypeScript, sem backend
 - Ilha React 19 no componente do dominó (`src/components/domino/`)
-- GSAP 3 + ScrollTrigger para reveals; Lenis para scroll suave
-- Fontes locais via `@fontsource` (sem CDN em runtime)
+- GSAP 3 + ScrollTrigger + MotionPath para a sequência do v4 (surgir,
+  conectar, propagar, estabilizar); Lenis para scroll suave
+- Manrope e Geist Mono locais via `@fontsource-variable` (sem CDN em runtime)
+- Tema só claro: `color-scheme: light`, sem modo escuro
 - Saída estática em `dist/` (ignorada pelo git)
 
 ## Comandos
@@ -54,10 +57,14 @@ git e não faz falta para publicar o `dist/`, então pode ser apagado.
 ## Regras
 
 - Copy segue `../STYLE.md` (formal-direto, sem travessão nem meia-risca).
-- Motion: só `transform`/`opacity`; `prefers-reduced-motion` desliga Lenis,
-  embers e reveals grandes (teste manual com `?reduce=1`).
+- Identidade: `../specs/0006-identidade-forseti-v4/` e os SVGs oficiais em
+  `public/assets/forseti-*.svg`, usados sem alteração de geometria.
+- Lavanda `#D7C5EA` é só gráfica (cordas, preenchimentos): nunca texto nem
+  único sinal de estado. Violeta `#654199` é o sinal de coordenação.
+- Motion: só `transform`/`opacity` e traço das cordas;
+  `prefers-reduced-motion` ou `?reduce=1` mostra o estado final já desenhado.
 - Fatos com data e fonte: nunca apresentar simulação como validação (A7).
   O dominó é simulação fictícia e diz isso na própria peça.
-- Specs do site: `../specs/0002-site-foundry/` e `../specs/0003-site-redesign/`
-  (entregues).
+- Specs do site: `../specs/0002-site-foundry/`, `../specs/0003-site-redesign/`
+  (entregues) e `../specs/0006-identidade-forseti-v4/`.
 - Decisões: `../DECISIONS.md`. Processo: `../docs/`.
