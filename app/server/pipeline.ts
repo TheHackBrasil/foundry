@@ -1,7 +1,7 @@
 // Pipeline de ingestao (spec 0004): doc -> DocData -> evento no ledger
 // -> divergencias -> tarefas -> SSE. Entrada unica: rota, IMAP e seed.
 
-import { compararFontes, divergenciasDaNovaFonte } from '../shared/divergence.js';
+import { divergenciasDaNovaFonte } from '../shared/divergence.js';
 import { propagarTodas } from '../shared/rules.js';
 import type { DocData, Evento } from '../shared/model.js';
 import { camposPorFonte, docDataParaPayload } from '../shared/projection.js';
@@ -17,7 +17,9 @@ import { parseCsv } from './ingest/csv.js';
 import { parsePdf } from './ingest/pdf.js';
 import { extrairAnexosEml } from './ingest/eml.js';
 
-export interface ResultadoIngest {
+// Resultado interno do pipeline (eventos gravados, nao o numero). O contrato
+// publico ResultadoIngest, com eventos contados, fica em shared/model.ts.
+export interface ResumoIngest {
   pedidoId: string | null;
   docs: number;
   eventos: Evento[];
@@ -36,6 +38,36 @@ async function paraRevisao(store: LedgerStore, doc: DocData, motivo: string): Pr
   });
 }
 
+// Payload gravado no evento do documento; confianca entra so quando a extracao
+// declarou (A7). O mesmo payload alimenta a checagem de reingestao.
+function payloadDoDoc(doc: DocData): Record<string, unknown> {
+  return {
+    ...docDataParaPayload(doc),
+    ...(doc.confianca !== undefined ? { confianca: doc.confianca } : {}),
+  };
+}
+
+// Doc + divergencias + tarefas dentro da tx do chamador, que trava o pedido
+// antes (appendVarios refaz o lock, no-op dentro da tx). O calculo compara a
+// fonte nova com a ultima declaracao de cada outra fonte.
+async function registrarDoc(tx: LedgerStore, doc: DocData): Promise<Evento[]> {
+  const inseridos: Evento[] = [];
+  inseridos.push(await tx.append(doc.pedidoId, doc.docTipo, payloadDoDoc(doc)));
+
+  const historico = await tx.eventosDoPedido(doc.pedidoId);
+  const porFonte = camposPorFonte(historico.slice(0, -1)); // exclui a doc nova
+  const existentes = [...porFonte.entries()].map(([fonte, campos]) => ({ fonte, campos }));
+  const divs = divergenciasDaNovaFonte({ fonte: doc.fonte, campos: doc.campos }, existentes);
+
+  for (const d of divs) {
+    inseridos.push(await tx.append(doc.pedidoId, 'divergencia', { ...d }));
+  }
+  for (const t of propagarTodas(divs)) {
+    inseridos.push(await tx.append(doc.pedidoId, 'tarefa', { ...t }));
+  }
+  return inseridos;
+}
+
 // Doc + divergencias + tarefas numa unica tx.
 async function processarDoc(
   store: LedgerStore,
@@ -49,30 +81,13 @@ async function processarDoc(
   }
 
   const eventos = await store.transaction(async (tx) => {
-    const inseridos: Evento[] = [];
-    const payloadDoc = {
-      ...docDataParaPayload(doc),
-      ...(doc.confianca !== undefined ? { confianca: doc.confianca } : {}),
-    };
-    if (await tx.eventoExiste(doc.pedidoId, doc.docTipo, payloadDoc)) {
-      return inseridos; // reingestao identica: no-op
+    // Lock antes de ler: dois uploads identicos em paralelo decidem em serie,
+    // um insere e o outro ve o doc ja gravado (no-op idempotente, sem duplicata).
+    await tx.travarPedido(doc.pedidoId);
+    if (await tx.eventoExiste(doc.pedidoId, doc.docTipo, payloadDoDoc(doc))) {
+      return []; // reingestao identica: no-op
     }
-    const docEvento = await tx.append(doc.pedidoId, doc.docTipo, payloadDoc);
-    inseridos.push(docEvento);
-
-    // Fonte nova x ultima declaracao de cada outra fonte.
-    const historico = await tx.eventosDoPedido(doc.pedidoId);
-    const porFonte = camposPorFonte(historico.slice(0, -1)); // exclui a doc nova
-    const existentes = [...porFonte.entries()].map(([fonte, campos]) => ({ fonte, campos }));
-    const divs = divergenciasDaNovaFonte({ fonte: doc.fonte, campos: doc.campos }, existentes);
-
-    for (const d of divs) {
-      inseridos.push(await tx.append(doc.pedidoId, 'divergencia', { ...d }));
-    }
-    for (const t of propagarTodas(divs)) {
-      inseridos.push(await tx.append(doc.pedidoId, 'tarefa', { ...t }));
-    }
-    return inseridos;
+    return registrarDoc(tx, doc);
   });
 
   for (const ev of eventos) canal.evento(ev, store.workspace);
@@ -90,22 +105,17 @@ export async function aprovarRevisao(
 ): Promise<Evento[] | null> {
   const item = await store.buscarRevisao(id);
   if (!item || item['status'] !== 'pendente') return null;
+  // buscarRevisao tambem ve a fila da seed: so o workspace dono do item decide.
+  // A rota responde 403 antes; aqui o pipeline fecha a porta para outros usos.
+  if (item['workspace_id'] !== store.workspace) return null;
   const alvo = store.paraWorkspace(String(item['workspace_id']));
   const p = item['payload'] as { pedidoId: string; docTipo: DocData['docTipo']; fonte: DocData['fonte']; campos: DocData['campos']; dados: Record<string, unknown> };
   const doc: DocData = { fonte: p.fonte, docTipo: p.docTipo, pedidoId: p.pedidoId, campos: p.campos, dados: p.dados };
   const r = await alvo.transaction(async (tx) => {
+    // Mesma ordem do processarDoc: o lock do pedido vem antes da decisao.
+    await tx.travarPedido(doc.pedidoId);
     if (!(await tx.resolverRevisao(id, 'aprovado'))) return null;
-    const inseridos: Evento[] = [];
-    inseridos.push(await tx.append(doc.pedidoId, doc.docTipo, docDataParaPayload(doc)));
-    const historico = await tx.eventosDoPedido(doc.pedidoId);
-    const porFonte = camposPorFonte(historico.slice(0, -1));
-    const divs = divergenciasDaNovaFonte(
-      { fonte: doc.fonte, campos: doc.campos },
-      [...porFonte.entries()].map(([fonte, campos]) => ({ fonte, campos })),
-    );
-    for (const d of divs) inseridos.push(await tx.append(doc.pedidoId, 'divergencia', { ...d }));
-    for (const t of propagarTodas(divs)) inseridos.push(await tx.append(doc.pedidoId, 'tarefa', { ...t }));
-    return inseridos;
+    return registrarDoc(tx, doc);
   });
   if (r === null) return null;
   for (const ev of r) canal.evento(ev, alvo.workspace);
@@ -129,7 +139,7 @@ export async function ingerir(
   nome: string,
   conteudo: Buffer,
   opcoes: OpcoesIngest = {},
-): Promise<ResultadoIngest> {
+): Promise<ResumoIngest> {
   const todos: Evento[] = [];
   let pedidoId: string | null = null;
   let revisaoId: number | null = null;

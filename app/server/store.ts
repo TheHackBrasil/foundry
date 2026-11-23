@@ -122,6 +122,13 @@ export class LedgerStore {
     return this.db.transaction((tx) => fn(new LedgerStore(tx, this.workspace, this.seedWorkspace)));
   }
 
+  // Lock de sessao por workspace+pedido, liberado no fim da tx. Serializa as
+  // decisoes que leem o estado antes de gravar (eventoExiste, resolverRevisao);
+  // a mesma chave ja e travada por appendVarios, entao o lock aninhado e no-op.
+  async travarPedido(pedidoId: string): Promise<void> {
+    await this.db.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`${this.workspace}:${pedidoId}`]);
+  }
+
   // Acrescenta um evento na cadeia do pedido (seq + hash calculados aqui).
   async append(pedidoId: string, tipo: Evento['tipo'], payload: Record<string, unknown>, ts?: string): Promise<Evento> {
     return this.appendVarios(pedidoId, [{ tipo, payload, ts }]).then((l) => l[0]!);
