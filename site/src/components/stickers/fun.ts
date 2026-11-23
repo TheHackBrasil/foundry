@@ -22,18 +22,22 @@ export type Motion = {
 
 // Palette slots are roles (main bodies, gold coins and stars, a pale tint, ok for success, hot for hearts and alerts, a deep second colour), so any theme keeps each part's meaning
 export type Palette = { main: string; gold: string; tint: string; ok: string; hot: string; deep: string; white: string; grey: string; paper: string; ink: string }
-export const RISO: Palette = { main: '#ff58a8', gold: '#ffe14a', tint: '#ffd4e8', ok: '#15b9a6', hot: '#ff7a1a', deep: '#2b50e0', white: '#ffffff', grey: '#cccccc', paper: '#f7f7f7', ink: '#000000' }
+// V4 roles on paper: petroleum bodies, lavender fills (graphic only),
+// violet as the coordination signal, petroleum-deep ink as the die-cut edge.
+// The brand palette is the default; a partial palette always resolves over it.
+export const FORSETI: Palette = {
+  main: '#163C38',
+  gold: '#D7C5EA',
+  tint: '#EDE5FE',
+  ok: '#31693F',
+  hot: '#654199',
+  deep: '#52665E',
+  white: '#FBF9F3',
+  grey: '#8A9A92',
+  paper: '#F5F2EB',
+  ink: '#0E1F1D',
+}
 export const ACCENTS = ['main', 'gold', 'tint', 'ok', 'hot', 'deep'] as const
-// named sets, each a whole palette so a sticker keeps its contrast in any of them
-export const PALETTES = {
-  riso: RISO,
-  candy: { ...RISO, main: '#b49bff', gold: '#ffd9a8', tint: '#ece5ff', ok: '#7fdcc0', hot: '#ff8fb1', deep: '#6a5cff' },
-  matcha: { ...RISO, main: '#6cc46f', gold: '#f2d16b', tint: '#e2f4d6', ok: '#2bb39a', hot: '#ff8a5b', deep: '#1f6b55' },
-  sunset: { ...RISO, main: '#ff7a3d', gold: '#ffc94a', tint: '#ffe2d1', ok: '#2ec4b6', hot: '#ff4d6d', deep: '#6b2d91' },
-  clay: { ...RISO, main: '#f0845f', gold: '#f4c463', tint: '#fde3d6', ok: '#7fb894', hot: '#e0533d', deep: '#3d5a80' },
-  aqua: { ...RISO, main: '#22c3d3', gold: '#ffd75e', tint: '#d3f4f7', ok: '#3fc46a', hot: '#ff6f61', deep: '#0f5f73' },
-} satisfies Record<string, Palette>
-export type PaletteName = keyof typeof PALETTES
 // a slot, so the colour follows the palette it is drawn with, or a fixed hex
 export type Swatch = keyof Palette | `#${string}`
 
@@ -436,12 +440,12 @@ function render(ctx: Ctx, icon: Icon, sc: Scene, palette: Palette) {
 const themed = new Map<string, Palette>()
 // a partial palette laid over the default, kept per distinct palette so a running sticker does not rebuild it every frame
 const resolve = (p?: Partial<Palette>): Palette => {
-  if (!p) return RISO
+  if (!p) return FORSETI
   const key = JSON.stringify(p)
   let hit = themed.get(key)
   if (!hit) {
     if (themed.size > 200) themed.clear()
-    hit = { ...RISO, ...p }
+    hit = { ...FORSETI, ...p }
     themed.set(key, hit)
   }
   return hit
@@ -486,7 +490,7 @@ function hex([L, C, H]: Lch) {
 }
 
 /** Every accent turned deg around the hue wheel, each keeping its own lightness and strength. */
-export function hue(deg: number, from: Palette = RISO): Palette {
+export function hue(deg: number, from: Palette = FORSETI): Palette {
   const out = { ...from }
   for (const k of ACCENTS) {
     const [L, C, H] = lch(from[k])
@@ -496,7 +500,7 @@ export function hue(deg: number, from: Palette = RISO): Palette {
 }
 
 /** Two brand colours and their shades fill every accent: primary on bodies, tints and hearts, secondary on dark parts, coins and checks. */
-export function brand(primary: string, secondary?: string, from: Palette = RISO): Palette {
+export function brand(primary: string, secondary?: string, from: Palette = FORSETI): Palette {
   const [, C, H] = lch(primary)
   const two = secondary ?? hex([0.42, C, H])
   const [, C2, H2] = lch(two)
@@ -504,7 +508,7 @@ export function brand(primary: string, secondary?: string, from: Palette = RISO)
 }
 
 /** One hue at six lightnesses for a single colour set; parts stay apart by lightness and the outlines do the rest. */
-export function mono(color: string, from: Palette = RISO): Palette {
+export function mono(color: string, from: Palette = FORSETI): Palette {
   const [, C, H] = lch(color)
   const steps = { tint: 0.94, gold: 0.81, ok: 0.72, main: 0.64, hot: 0.55, deep: 0.45 }
   const out = { ...from }

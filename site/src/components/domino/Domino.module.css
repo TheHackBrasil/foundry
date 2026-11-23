@@ -10,7 +10,7 @@
 
 .head { display: flex; flex-direction: column; gap: 16px; margin-bottom: 18px; }
 .order { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 15px; font-weight: 560; }
-.fic { font-size: 12px; font-weight: 430; color: var(--violet); border: 1px solid var(--violet); border-radius: 999px; padding: 2px 9px; }
+.fic { font-size: 12px; font-weight: 430; color: var(--ink-faint); border: 1px solid var(--ink-faint); border-radius: 999px; padding: 2px 9px; }
 
 .ctl label { display: block; font-size: 15px; color: var(--ink-dim); }
 .ctl output { color: var(--violet); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -53,7 +53,8 @@
 .wrong .shows { color: var(--violet); text-decoration: line-through; text-decoration-thickness: 1px; }
 .wrong .real { color: var(--ink); }
 .wrong .real i { background: var(--violet); transform: scale(1.25); }
-.synced .real i { background: var(--ok); }
+/* synced rows are the coordination signal, so the dot takes violet, not ok. */
+.synced .real i { background: var(--violet); }
 .synced .real { color: var(--ink); }
 
 .foot { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }

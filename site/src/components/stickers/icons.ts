@@ -1,25 +1,13 @@
 // The four parties of one order, drawn as fun-isometric slabs for the FORMA chapter.
 import { VIEWS, ellipse, line, poly, rect, spark, star } from './fun'
 import { bounce, glint, hop, impact, jolt, latch, slide, sparkle, twinkle } from './motions'
-import type { Icon, Layer, Motion, Palette, Shape, Vec } from './fun'
+import type { Icon, Layer, Motion, Shape, Vec } from './fun'
+
+// The brand palette is the fun.ts default; re-exported so callers keep one import site.
+export { FORSETI } from './fun'
 
 const LINE = 5
 const { tilt: FACE, extrude: EXT } = VIEWS.right
-
-// V4 roles on paper: petroleum bodies, lavender fills (graphic only),
-// violet as the coordination signal, petroleum-deep ink as the die-cut edge.
-export const FORSETI: Palette = {
-  main: '#163C38',
-  gold: '#D7C5EA',
-  tint: '#EDE5FE',
-  ok: '#31693F',
-  hot: '#654199',
-  deep: '#52665E',
-  white: '#FBF9F3',
-  grey: '#8A9A92',
-  paper: '#F5F2EB',
-  ink: '#0E1F1D',
-}
 
 const glow = (parent: string, p: Vec, r: number, m: Motion | ReadonlyArray<Motion>, extra: { ip?: number; op?: number } = {}): Layer => ({
   parent,
