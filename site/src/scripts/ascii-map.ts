@@ -4,7 +4,7 @@
 const COLUMNS = 61;
 const ROWS = 51;
 const FRAME_MS = 105;
-const FONT = '"JetBrains Mono", ui-monospace, monospace';
+const FONT = '"Geist Mono Variable", "Geist Mono", ui-monospace, monospace';
 
 // Brazil from Natural Earth 1:110m (world.geo.json), equirectangular, fit to a square.
 const OUTLINE: ReadonlyArray<readonly [number, number]> = [
@@ -115,19 +115,19 @@ export function startAsciiMap(canvas: HTMLCanvasElement, opts: { reduced: boolea
         const tick = (cell.hash + Math.floor(phase / 2)) % CHARS.length;
         const glowing = flicker < 12;
         ctx.fillStyle = glowing
-          ? '#ffd27a'
+          ? '#EDE5FE'
           : cell.hash % 19 === 0
-            ? '#ff8a3d'
+            ? '#D7C5EA'
             : cell.hash % 11 === 0
-              ? '#b8460a'
+              ? '#B9A0DC'
               : cell.hash % 4 === 0
-                ? '#7a3410'
-                : '#ea5808';
+                ? '#8B6FB8'
+                : '#C9B3E2';
         ctx.globalAlpha = cell.hash % 7 === 0 && !glowing ? 0.48 : 0.93;
         ctx.fillText(CHARS[tick]!, px, py);
       } else if (cell.hash % 17 === 0) {
         ctx.globalAlpha = 0.25;
-        ctx.fillStyle = '#343b43';
+        ctx.fillStyle = '#3D4F4A';
         ctx.fillText('·', px, py);
       }
     }
@@ -142,9 +142,9 @@ export function startAsciiMap(canvas: HTMLCanvasElement, opts: { reduced: boolea
     const boxW = textW + 12;
     // Keep the box inside the canvas when the point is near the right edge.
     const bx = Math.min(mx + 8, width - boxW);
-    ctx.fillStyle = '#0a0c0e';
+    ctx.fillStyle = '#F5F2EB';
     ctx.fillRect(bx, my - 10, boxW, 20);
-    ctx.fillStyle = '#ff8a3d';
+    ctx.fillStyle = '#654199';
     ctx.fillText(MARKER.label, bx + 6, my);
     ctx.fillRect(mx - 2.5, my - 2.5, 5, 5);
   };

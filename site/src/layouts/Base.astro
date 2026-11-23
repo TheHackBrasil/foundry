@@ -1,11 +1,6 @@
 ---
-import '@fontsource/space-grotesk/300.css';
-import '@fontsource/space-grotesk/400.css';
-import '@fontsource/space-grotesk/500.css';
-import '@fontsource/space-grotesk/700.css';
-import '@fontsource/jetbrains-mono/400.css';
-import '@fontsource/jetbrains-mono/500.css';
-import '@fontsource/jetbrains-mono/700.css';
+import '@fontsource-variable/manrope';
+import '@fontsource-variable/geist-mono';
 import '../styles/global.css';
 ---
 
@@ -14,19 +9,20 @@ import '../styles/global.css';
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a0c0e">
-  <meta name="color-scheme" content="dark">
-  <meta name="description" content="The Foundry: camada de coordenação para logística B2B que avisa fornecedor, transportadora, CD, fiscal e financeiro quando um pedido muda. HackBrasil 2026, trilha Logística e Automação.">
-  <meta property="og:title" content="The Foundry · Coordenação logística">
-  <meta property="og:description" content="Quando a carga atrasa, a cadeia inteira precisa saber. Camada de coordenação logística em construção no HackBrasil 2026.">
+  <meta name="theme-color" content="#F5F2EB">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="O Forseti é a camada de reconciliação e coordenação entre os sistemas que a cadeia logística já usa: compara as versões do mesmo compromisso e mostra quem precisa agir. Equipe The Foundry, HackBrasil 2026.">
+  <meta property="og:title" content="Forseti · camada de reconciliação e coordenação">
+  <meta property="og:description" content="Diferentes versões da operação. Uma resolução compartilhada. O Forseti compara os documentos de cada empresa e mostra quem precisa agir. Em construção no HackBrasil 2026.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://the-foundry-alpha.vercel.app/">
   <meta property="og:image" content="https://the-foundry-alpha.vercel.app/assets/og.png">
   <meta property="og:locale" content="pt_BR">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://the-foundry-alpha.vercel.app/assets/og.png">
-  <title>The Foundry · Coordenação logística · HackBrasil 2026</title>
+  <title>Forseti · camada de reconciliação e coordenação · HackBrasil 2026</title>
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="icon" type="image/x-icon" href="./favicon.ico">
   <script is:inline>
     (function (d) {
       var c = d.classList;
@@ -40,18 +36,13 @@ import '../styles/global.css';
   </script>
 </head>
 <body>
-  <a class="skip" href="#pitch">Pular para o conteúdo</a>
+  <a class="skip" href="#hero">Pular para o conteúdo</a>
   <div class="progress" aria-hidden="true"><span id="progress"></span></div>
   <div class="backdrop" aria-hidden="true"></div>
-  <canvas class="forge" id="forge" aria-hidden="true"></canvas>
 
   <header class="top">
-    <a class="brand" href="#topo" aria-label="The Foundry, voltar ao topo">
-      <svg class="mark" viewBox="64 42 384 428" aria-hidden="true">
-        <path d="M144 58H432.9L369.6 121.3H161.5Q140.6 121.3 140.6 142.2V206.8H383.1L314.4 272.8H178.3Q123.1 272.8 123.1 326L122.4 433.8Q112 448 80 454V122Z"/>
-        <path d="M144 323.3H348.7V344.9C312 358 278.7 376 278.7 400C278.7 418 294 429 319.1 436.5V454H172.9V436.5C198 429 211.3 418 211.3 400C211.3 376 178 358 144 344.9Z"/>
-      </svg>
-      <span class="word">The Foundry</span>
+    <a class="brand" href="#topo" aria-label="Forseti, voltar ao topo">
+      <img class="lockup" src="./assets/forseti-lockup-petroleo.svg" alt="Forseti" width="132" height="55">
     </a>
     <nav aria-label="Seções">
       <a href="#pitch">Pitch</a>
@@ -67,12 +58,12 @@ import '../styles/global.css';
   <slot />
 
   <footer class="foot">
-    <svg class="mark" viewBox="64 42 384 428" aria-hidden="true">
-      <path d="M144 58H432.9L369.6 121.3H161.5Q140.6 121.3 140.6 142.2V206.8H383.1L314.4 272.8H178.3Q123.1 272.8 123.1 326L122.4 433.8Q112 448 80 454V122Z"/>
+    <!-- A bigorna fica só como crédito da equipe; a marca do produto é o lockup v4. -->
+    <svg class="mark" viewBox="140 318 212 140" aria-hidden="true">
       <path d="M144 323.3H348.7V344.9C312 358 278.7 376 278.7 400C278.7 418 294 429 319.1 436.5V454H172.9V436.5C198 429 211.3 418 211.3 400C211.3 376 178 358 144 344.9Z"/>
     </svg>
-    <span>The Foundry · HackBrasil 2026</span>
-    <span>Registro em andamento · <time datetime="2026-11-19">19 nov 2026</time></span>
+    <span>O Forseti é desenvolvido pela equipe The Foundry · HackBrasil 2026</span>
+    <span>Registro em andamento · <time datetime="2026-11-22">22 nov 2026</time></span>
     <a href="#topo">Voltar ao topo</a>
   </footer>
 

@@ -4,6 +4,10 @@ import Domino from '../components/domino/Domino';
 import Parties from '../components/stickers/Parties';
 import Progress from '../components/Progress.astro';
 import Pitch from '../components/Pitch.astro';
+import { DEMO_URL, VIDEO_URL, live } from '../config';
+
+const demo = live(DEMO_URL);
+const video = live(VIDEO_URL);
 
 const ticker = [
   ['SERENA', 'O ENCONTRO NA NEWHACK'],
@@ -11,7 +15,10 @@ const ticker = [
   ['09 A 13 NOV', 'CAMPO NA FENATRAN'],
   ['16 NOV', 'DIREÇÃO ESCOLHIDA'],
   ['18 NOV', 'CONVERSA COM A ENVIAGORA REAGENDADA'],
-  ['30/11', 'ENTREGA'],
+  ['20 NOV', 'ESCOPO DO MVP FECHADO'],
+  ['22 NOV', 'O PRODUTO SE CHAMA FORSETI'],
+  ['22 NOV', 'IDENTIDADE V4 APROVADA'],
+  ['30/11', 'PRIMEIRA ENTREGA'],
 ];
 ---
 
@@ -19,33 +26,41 @@ const ticker = [
   <main id="topo">
 
     <!-- HERO -->
-    <section class="hero" id="hero" data-heat="0.6">
+    <section class="hero" id="hero">
       <div class="hero-copy">
         <h1 class="hero-title">
-          <span class="ln"><span>Quando a carga atrasa,</span></span>
-          <span class="ln"><span>a cadeia inteira</span></span>
-          <span class="ln"><span>precisa <em>saber.</em></span></span>
+          <span class="ln"><span>Diferentes versões</span></span>
+          <span class="ln"><span>da operação.</span></span>
+          <span class="ln"><span>Uma <em>resolução</em></span></span>
+          <span class="ln"><span><em>compartilhada.</em></span></span>
         </h1>
-        <p class="hero-sub">Estamos construindo uma camada de coordenação para a logística B2B.
-          Ela conecta os sistemas que fornecedor, transportadora, centro de distribuição,
-          fiscal e financeiro já usam, e avisa todos quando um pedido muda.</p>
+        <p class="hero-sub">O Forseti é a camada de <b>reconciliação e coordenação</b> entre
+          os sistemas que a cadeia já usa: lê os documentos de cada empresa, compara as
+          versões do mesmo compromisso e mostra onde divergem e quem precisa agir.</p>
+        <ol class="hero-verbs"><li><b>lê</b></li><li><b>compara</b></li><li><b>mostra</b></li></ol>
+        <p class="hero-not"><b>Não somos</b> uma transportadora, um TMS, um ERP, um rastreador nem um chatbot.</p>
         <div class="hero-actions">
           <a class="btn" href="#pitch">Assistir ao pitch <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5z"/></svg></a>
           <a class="btn ghost" href="#materia">Ver o problema <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v11M3 8.5l5 5 5-5"/></svg></a>
         </div>
       </div>
-      <p class="hero-hint" aria-hidden="true">
-        <span class="hint-fine">Passe o cursor na barra para aquecer. Clique para bater.</span>
-        <span class="hint-coarse">Toque para bater o martelo.</span>
-      </p>
       <dl class="hero-facts">
         <div><dt>HackBrasil 2026</dt><dd>Trilha Logística e Automação</dd></div>
         <div><dt>Para quem</dt><dd>Cadeias com vários fornecedores e operadores</dd></div>
-        <div><dt>Estágio</dt><dd>Escopo do MVP em definição</dd></div>
-        <div><dt>Entrega</dt><dd><time datetime="2026-11-30">30 nov 2026</time></dd></div>
+        <div><dt>Estágio</dt><dd>MVP em construção</dd></div>
+        <div><dt>Primeira entrega</dt><dd><time datetime="2026-11-30T23:59-03:00">30 nov 2026, 23h59</time></dd></div>
       </dl>
-      <svg class="hero-anvil" viewBox="140 318 212 140" aria-hidden="true">
-        <path d="M144 323.3H348.7V344.9C312 358 278.7 376 278.7 400C278.7 418 294 429 319.1 436.5V454H172.9V436.5C198 429 211.3 418 211.3 400C211.3 376 178 358 144 344.9Z"/>
+      <svg class="hero-scene cords" viewBox="0 0 620 560" aria-hidden="true" focusable="false">
+        <g class="mono-g">
+          <rect class="mono" x="296" y="60" width="88" height="440"/>
+          <rect class="mono m2" x="412" y="150" width="96" height="350"/>
+          <rect class="mono m3" x="532" y="236" width="76" height="264"/>
+        </g>
+        <path d="M0 96 C 160 84 380 116 620 100"/>
+        <path d="M0 176 C 160 162 380 196 620 180"/>
+        <path d="M0 256 C 160 240 380 276 620 260"/>
+        <path d="M0 336 C 160 320 380 356 620 340"/>
+        <circle class="cord-signal" cx="430" cy="187" r="7"/>
       </svg>
     </section>
 
@@ -64,7 +79,7 @@ const ticker = [
     </div>
 
     <!-- A DOR -->
-    <section class="chapter" id="materia" data-heat="0.1">
+    <section class="chapter" id="materia">
       <div class="split">
         <div class="copy rv">
           <h2>Hoje, cada empresa descobre o atraso <em>sozinha.</em></h2>
@@ -83,18 +98,20 @@ const ticker = [
     </section>
 
     <!-- DECISÃO -->
-    <section class="chapter" id="forma" data-heat="0.67">
+    <section class="chapter" id="forma">
       <div class="split">
         <div class="copy rv">
           <h2>Uma camada sobre os sistemas que <em>já existem.</em></h2>
-          <p class="lead">Ninguém troca de ERP nem muda de rotina. A camada lê o que
-            cada parceiro já produz, mantém um registro único do pedido e avisa
-            quando as versões divergem.</p>
+          <p class="lead">Ninguém troca de ERP nem muda de rotina. O Forseti lê os
+            documentos que cada parceiro já produz, mantém um registro único do pedido
+            e mostra onde as versões divergem.</p>
           <ol class="steps">
-            <li><b>Lê</b><span>Dados do ERP, XML de NF-e e planilhas de cada parceiro, com onboarding leve.</span></li>
-            <li><b>Compara</b><span>Um registro compartilhado do pedido mostra onde as versões não batem.</span></li>
-            <li><b>Avisa</b><span>Transportadora, CD, fiscal e financeiro recebem o alerta antes que o atraso vire custo.</span></li>
+            <li><b>Lê</b><span>NF-e e CT-e em XML, planilha em CSV e e-mail com o documento em anexo.</span></li>
+            <li><b>Compara</b><span>Confere as fontes campo a campo e aponta cada divergência com origem e versão.</span></li>
+            <li><b>Mostra</b><span>O que mudou, por quê e a tarefa sugerida para cada papel: fornecedor, transportadora, CD, fiscal e financeiro.</span></li>
           </ol>
+          <p>O Forseti mostra o que mudou, por quê e quem precisa agir, e a decisão fica
+            com cada empresa. Não é transportadora, TMS, ERP, rastreador nem chatbot.</p>
         </div>
         <dl class="ledger rv" aria-label="O que já decidimos">
           <div class="ledger-head"><dt>Decidido em 16/11</dt><dd></dd></div>
@@ -106,12 +123,19 @@ const ticker = [
       </div>
       <div class="layer rv">
         <Parties client:visible />
-        <div class="layer-bar" aria-hidden="true"><i class="layer-pulse"></i></div>
+        <!-- A camada: as quatro cordas ligam os quatro papéis numa resolução só. -->
+        <svg class="layer-cords cords" viewBox="0 0 1160 120" aria-hidden="true" focusable="false">
+          <path d="M0 16 C 290 8 870 26 1160 14"/>
+          <path d="M0 46 C 290 38 870 56 1160 44"/>
+          <path d="M0 76 C 290 68 870 86 1160 74"/>
+          <path d="M0 106 C 290 98 870 116 1160 104"/>
+          <circle class="cord-signal" cx="560" cy="50" r="6"/>
+        </svg>
       </div>
     </section>
 
     <!-- CAMPO -->
-    <section class="chapter" id="fogo" data-heat="1">
+    <section class="chapter" id="fogo">
       <div class="copy intro rv">
         <h2>O que ouvimos antes de <em>decidir.</em></h2>
         <p>Fomos a campo antes de escolher o produto. Cada etapa abaixo está
@@ -226,14 +250,15 @@ const ticker = [
             <div class="call pending">
               <p class="call-head"><span>Rafael Born, CEO da Enviagora</span><span>Enviagora</span></p>
               <p class="call-title">Próxima conversa</p>
-              <p class="call-sub">Um caso real da operação, para escolher o primeiro fluxo do MVP.</p>
+              <p class="call-sub">Um caso real para validar o produto.</p>
               <span class="stamp" aria-hidden="true">Reagendada</span>
             </div>
           </div></div>
           <div class="stop-copy rv">
             <h3>A próxima validação</h3>
-            <p>A conversa com Rafael Born, CEO da Enviagora, foi reagendada. É ela
-              que vai trazer um caso real para escolher o primeiro fluxo do MVP.</p>
+            <p>A conversa com Rafael Born, CEO da Enviagora, foi reagendada. Em 20/11,
+              escolhemos o fluxo do MVP sem esperar por ela, e a conversa passa a servir
+              para validar o produto com um caso real.</p>
           </div>
         </li>
         <li class="stop">
@@ -255,29 +280,32 @@ const ticker = [
           <div class="stop-copy rv">
             <h3>Começamos a construir</h3>
             <p>A pesquisa virou base de documentação no repositório, e o escopo do
-              MVP está em definição a partir dela. Cada decisão fica registrada
-              com data em <code>DECISIONS.md</code>.</p>
+              MVP saiu dela no dia seguinte. Cada decisão fica registrada com data
+              em <code>DECISIONS.md</code>.</p>
             <p><a class="more" href="#progresso">Ver o progresso</a></p>
           </div>
         </li>
       </ol>
     </section>
 
-    <!-- ABERTO -->
-    <section class="chapter" id="tempera" data-heat="0.33">
+    <!-- CÓDIGO -->
+    <section class="chapter" id="tempera">
       <div class="copy intro rv">
-        <h2>O que ainda define o <em>MVP.</em></h2>
-        <p>Perguntas abertas, com quem estamos validando cada uma.</p>
+        <h2>O que já está no <em>código.</em></h2>
+        <p>Estado em 22/11, conferível na branch <code>main</code>. Os dados usados
+          na demonstração são sintéticos.</p>
+        <p><a class="more" href="https://github.com/TheHackBrasil/foundry/tree/main/app" target="_blank" rel="noopener noreferrer">Ver o código do Forseti</a></p>
       </div>
       <ul class="questions">
-        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Qual é o único fluxo do MVP?</h3><p>Atraso propagado, documentos fiscais, etiquetas ou contratos: cada resposta vira um produto. Pergunta em aberto com o contato da TOTVS.</p></li>
-        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>O caso real da Enviagora</h3><p>A conversa com o CEO foi reagendada. O retorno de quem opera um 3PL de e-commerce pesa na escolha acima.</p></li>
-        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Diferenciação vs. Emiteaí</h3><p>Eles emitem documento de rota em minutos e também tocam gestão. Onde a linha entre os produtos passa ainda é investigação.</p></li>
+        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Leitura dos documentos</h3><p>NF-e e CT-e em XML, planilha em CSV e e-mail (.eml) com o documento em anexo entram pelo mesmo caminho. O atraso chega pela planilha do fornecedor.</p></li>
+        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Comparação campo a campo</h3><p>Cada documento vira um evento do pedido. Quando duas fontes discordam sobre previsão de entrega, peso, volumes ou status, a divergência aparece com a origem e a versão de cada valor.</p></li>
+        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Tarefa por papel</h3><p>Para cada divergência, uma tabela de regras define a tarefa de quem precisa agir: fornecedor, transportadora, CD, fiscal ou financeiro.</p></li>
+        <li class="q rv"><i class="heat" aria-hidden="true"></i><h3>Histórico verificável</h3><p>O registro só aceita acréscimo: o banco recusa alteração e exclusão, e cada evento leva o hash do anterior. A âncora numa blockchain pública é opcional e já foi testada na Base Sepolia, rede de testes.</p></li>
       </ul>
     </section>
 
     <!-- PROGRESSO -->
-    <section class="chapter" id="progresso" data-heat="0.8">
+    <section class="chapter" id="progresso">
       <div class="copy intro rv">
         <h2>A construção, <em>commit a commit.</em></h2>
         <p>Lido direto do repositório público: arquivos, histórico e o backlog do time.</p>
@@ -286,7 +314,7 @@ const ticker = [
     </section>
 
     <!-- TIME -->
-    <section class="chapter" id="forja" data-heat="0.5">
+    <section class="chapter" id="forja">
       <div class="copy intro rv">
         <h2>Quem está <em>construindo.</em></h2>
       </div>
@@ -307,16 +335,26 @@ const ticker = [
     </section>
 
     <!-- FECHO -->
-    <section class="closing" id="fecho" data-heat="0.9">
-      <h2 class="rv">Até 30/11: o primeiro fluxo, <em>de ponta a ponta.</em></h2>
-      <p class="rv">O próximo passo é escolher qual dor vem primeiro (atraso propagado,
-        documento fiscal, recebimento ou conciliação) e demonstrar esse fluxo sobre a
-        camada, com arquitetura e protótipo no repositório.</p>
-      <dl class="next rv">
-        <div><dt>Próxima validação</dt><dd>Caso real com a Enviagora</dd></div>
-        <div><dt>Entrega do hackathon</dt><dd><time datetime="2026-11-30">30 nov 2026</time></dd></div>
-        <div><dt>Todo o processo é público</dt><dd><a href="https://github.com/TheHackBrasil/foundry" target="_blank" rel="noopener noreferrer">github.com/TheHackBrasil/foundry</a></dd></div>
-      </dl>
+    <section class="closing" id="fecho">
+      <!-- A partitura fecha a página: as versões divergentes viram uma resolução só. -->
+      <svg class="cords" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <path d="M0 18 C 360 8 1080 30 1440 16"/>
+        <path d="M0 44 C 360 34 1080 56 1440 42"/>
+        <path d="M0 70 C 360 60 1080 82 1440 68"/>
+        <path d="M0 96 C 360 86 1080 108 1440 94"/>
+      </svg>
+      <div class="closing-in">
+        <h2 class="rv">Até 30/11: o primeiro fluxo, <em>de ponta a ponta.</em></h2>
+        <p class="rv">O fluxo escolhido é o atraso propagado. Quando a planilha do fornecedor
+          traz uma data nova, o Forseti compara com o que os outros documentos do pedido
+          dizem e mostra a cada papel o que mudou e o que cabe a ele. A entrega da fase
+          online reúne repositório, demo pública e um vídeo de até 3 minutos do produto.</p>
+        <dl class="next rv">
+          <div><dt>Demo pública</dt><dd>{demo ? <a href={demo} target="_blank" rel="noopener noreferrer">Abrir a demo do Forseti</a> : 'Em preparação'}</dd></div>
+          <div><dt>Vídeo do produto</dt><dd>{video ? <a href={video} target="_blank" rel="noopener noreferrer">Assistir ao vídeo</a> : 'Em preparação'}</dd></div>
+          <div><dt>Todo o processo é público</dt><dd><a href="https://github.com/TheHackBrasil/foundry" target="_blank" rel="noopener noreferrer">github.com/TheHackBrasil/foundry</a></dd></div>
+        </dl>
+      </div>
     </section>
 
   </main>

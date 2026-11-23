@@ -60,6 +60,8 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-035 | 22/11 | Novas frentes `site-forseti` (dona de `site/`) e `app-brand` (dona de `app/web/`), registradas em `speckit/frentes.json` com briefs na spec 0006; a frente `app-demo` é encerrada, com o trabalho integrado na `integra/mvp-final` | decidido | Divisão por superfície sem sobreposição de paths; a `app-demo` não tem trabalho aberto depois da integração |
 
 | D-036 | 22/11 | Correção de rota: a landing do produto é um site novo do zero em `lp/` (estrutura de empresa real), com deploy Vercel próprio; o site `the-foundry` re-vestido na v4 fica como bônus (site do time). Emenda D-031, que chegou a descartar site separado | decidido por Thiago | O the-foundry apresenta a equipe; a LP apresenta o produto: são superfícies diferentes |
+| D-037 | 23/11 | Hospedagem do app no Railway Hobby: um projeto `forseti` com dois serviços, o app construído por `app/deploy/Dockerfile` (build Vite + servidor Fastify na mesma imagem, `tsx` em produção, seed no boot, porta pela env `PORT`) e um Postgres oficial na rede privada (`DATABASE_URL` por reference variable). Sem bucket e sem volume próprio do app: o ledger fica no Postgres e o app é efêmero. `CLIENT_IP_HEADER=x-real-ip`; heartbeat e reciclagem do SSE contra o teto de stream do proxy (`SSE_HEARTBEAT_MS=20000`, `SSE_MAX_CONNECTION_MS=600000`, `SSE_MAX_BYTES=524288`) | decidido por Thiago | Heroku e Supabase saíram na pesquisa de hospedagem da sessão anterior; o Railway sobe app e banco num projeto, resolve a escolha de P-008, e o smoke público já rodou na URL gerada |
+| D-038 | 23/11 | URLs públicas: a demo do app responde em `https://forseti-production-fcb91f35.up.railway.app` (domínio gerado pelo Railway) e a LP em `https://forseti-br.vercel.app` (a `forseti.vercel.app` estava tomada por outro projeto; `forseti-br` foi a escolha do usuário). O `the-foundry-alpha.vercel.app` segue como site da equipe | decidido por Thiago | A LP precisava linkar a demo real; os domínios gerados são o que existe sem contratar domínio próprio |
 
 ## Pendências
 
@@ -72,7 +74,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | P-005 | Regras oficiais do HackBrasil | Regulamento oficial lido em 20/11 (R-005, `RULES.md`); restam formato da final (enviado aos finalistas) e nomes dos jurados (até 30/11) | resolvido |
 | P-006 | Escolhas de escopo em aberto, cada uma com dono: âncora em Base Sepolia antes de 30/11 (T025) ou só na final, com recibo de hash no alerta antes (Gui); cinco visões por papel (T004, T014) ou tela única com seletor de parte (Thiago); dominó e twin antes de 30/11 ou na final (Thiago); caixa IMAP ao vivo (T030): o `.eml` já está decidido em D-021, falta confirmar com Gab e Gui | A spec 0004 foi fechada na call, que terminou às 02:55 de 20/11; o plano revisado é das 03:03, depois dela. A seção 10 do PDF lista as diferenças linha a linha. As correções de regulamento e fiscal já entraram (D-020) | aberto |
 | P-007 | Quem integra as frentes na `main`, e se o GitHub passa a exigir PR para a `main` (D-005 hoje proíbe proteção de branch) | Com três pessoas e agentes em máquinas diferentes, o hook local não protege a `main` remota | aberto |
-| P-008 | Stack e hospedagem: D-016 fixou linguagem, banco e SSE; falta hospedagem (Heroku em avaliação) e validar o conjunto (sem hibernação até 12/12, Postgres com trigger, SSE atrás do roteador, deploy sem Docker, custo com o crédito disponível) | Demo no ar é entregável (regulamento 7.2 e 7.3) e a hospedagem não está decidida (prazo proposto: 24/11; até lá o código roda em qualquer host: `DATABASE_URL`, `PORT`, heartbeat no SSE) (dono: Gui, frente app-infra) | aberto |
+| P-008 | Stack e hospedagem: decidida e no ar (D-037, D-038). Resta validar o conjunto sob o proxy público: soak de SSE contra a URL Railway, observação de custo no plano Hobby até 12/12 e o código 422 no lugar de 413 para upload acima do limite (falha do smoke de 23/11) | Demo no ar é entregável (regulamento 7.2 e 7.3); Postgres na rede privada e heartbeat de SSE já configurados | aberto |
 | P-009 | OCOREN como segundo canal de atraso: arquivo EDI PROCEDA que a transportadora envia ao embarcador (registro 342, código 02 "entrega fora da data programada"), ligado ao pedido por CNPJ do emissor, série e número da NF | O registro não traz a chave de 44 dígitos e o layout varia por versão e por embarcador (R-007); entra como P1 se o Gab confirmar | aberto |
 | P-010 | Antes da URL pública, o servidor ainda precisa resolver duas coisas. CORS aberto e escrita sem autenticação (D-C11 do `brief-core.md`): qualquer visitante decide item da fila de revisão da seed (testado ao vivo em 22/11) e ancora pedido da seed que não tem cópia na sessão dele (leitura de `app/server/index.ts`), então a seed não é só leitura. E o cancelamento gravado com fonte `cce`: ele aparece como "CC-e" nas tarefas, e uma CC-e posterior zera o estado da fonte; no seed, a planilha que chega depois não diverge do `cancelada`. Resolvidos em 22/11: isolamento por sessão (D-I1 a D-I3 do `brief-infra.md`), boot no Linux, `xlsx` (D-028) e CC-e (R-006, D-027) | O juiz sobe arquivo próprio na URL pública (regulamento 6.9 e 7.2); dono: Gui (app-infra) para CORS e autenticação, `app-core` para o cancelamento | aberto |
 
@@ -284,3 +286,29 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 - O entendimento inicial de "adaptar o site" cobria só o
   `the-foundry`. Corrigido: a LP do produto nasce do zero em `lp/`
   como site de empresa real (D-036); o trabalho do the-foundry fica.
+
+### Sessão 14: integração das frentes v4 e primeiro deploy público (23/11)
+
+- Merge `integra/mvp-final2` na `main`: traz o app na identidade v4
+  (frente `app-brand`, aprovada em revisão independente), o fix do
+  stream SSE após o cookie de sessão, o endurecimento da demo pública
+  (seed só leitura, rate limit, limites por sessão) e o runtime de
+  produção (`tsx` em dependência, seed no boot, `@fastify/static`
+  corrigido).
+- Conflitos do merge: 19 arquivos. Código de `app/` e specs 0004
+  resolvidos a favor da linha integra, que já tinha reconciliado as
+  contribuições da `main` (D-029); `DECISIONS.md` ficou com a versão
+  da `main` (superset: D-030 a D-036). A referência "D-025" da
+  planilha nas specs da `main` era defasada: a canônica é D-028.
+- Merge `wt/site-forseti` na `main`: traz `site/` revestido (bônus,
+  site da equipe) e a LP nova em `lp/` (D-036). Único conflito:
+  `brief-site-forseti.md`, resolvido pela versão da frente (superset
+  com D-S1 a D-S19 e a verificação das duas superfícies).
+- Railway (D-037): projeto `forseti`, Postgres online em iad, serviço
+  do app com `DATABASE_URL` por reference variable e domínio gerado.
+  Smoke público `app/deploy/smoke.mjs`: 10 de 11 verdes; a falha é o
+  422 no lugar de 413 para upload acima do limite, registrada em P-008.
+- Vercel (D-038): LP deployada no projeto `forseti-br` com `DEMO_URL`
+  real e `SITE_URL`/`og:` absolutos; `forseti.vercel.app` indisponível.
+- Pendente: soak de SSE na URL pública, push da `main` (ainda local)
+  e a correção do 413.

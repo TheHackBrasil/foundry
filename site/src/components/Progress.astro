@@ -36,12 +36,14 @@ const fmt = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR');
     </ul>
   </header>
 
-  <nav class="gh-tabs" role="tablist" aria-label="Repositório">
-    <button role="tab" id="tab-code" aria-controls="gh-code" aria-selected="true"><Fragment set:html={icon('code')} />Code</button>
-    <button role="tab" id="tab-commits" aria-controls="gh-commits" aria-selected="false" tabindex="-1"><Fragment set:html={icon('history')} />Commits{state?.count && <span class="gh-count">{state.count}</span>}</button>
-    <button role="tab" id="tab-projects" aria-controls="gh-projects" aria-selected="false" tabindex="-1"><Fragment set:html={icon('table')} />Projects<span class="gh-count">1</span></button>
+  <div class="gh-tabs">
+    <div class="gh-tablist" role="tablist" aria-label="Repositório">
+      <button role="tab" id="tab-code" aria-controls="gh-code" aria-selected="true"><Fragment set:html={icon('code')} />Code</button>
+      <button role="tab" id="tab-commits" aria-controls="gh-commits" aria-selected="false" tabindex="-1"><Fragment set:html={icon('history')} />Commits{state?.count && <span class="gh-count">{state.count}</span>}</button>
+      <button role="tab" id="tab-projects" aria-controls="gh-projects" aria-selected="false" tabindex="-1"><Fragment set:html={icon('table')} />Projects<span class="gh-count">1</span></button>
+    </div>
     <a href={`${gh}/releases`} target="_blank" rel="noopener noreferrer"><Fragment set:html={icon('tag')} />Releases{state?.release && <span class="gh-count">1</span>}</a>
-  </nav>
+  </div>
 
   <div class="gh-body">
     <div class="gh-main">
@@ -95,10 +97,10 @@ const fmt = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR');
       </section>
     </div>
 
-    <aside class="gh-side">
+    <div class="gh-side">
       <div class="gh-about">
         <h3>About</h3>
-        <p>{state?.meta.description || 'The Foundry, HackBrasil 2026.'}</p>
+        <p>Forseti, da equipe The Foundry, no HackBrasil 2026.</p>
         <p class="gh-meter"><span><b data-done>{state?.done ?? 0}</b> de <span data-total>{state?.total ?? 0}</span> etapas feitas</span><i aria-hidden="true"><i data-bar style={`--v:${state ? state.done / Math.max(1, state.total) : 0}`}></i></i></p>
       </div>
       <div class="gh-rel">
@@ -113,7 +115,7 @@ const fmt = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR');
         )}
       </div>
       <p class="gh-sync" data-sync>{state ? `Lido do GitHub em ${state.read}` : 'Sem conexão com o GitHub no build.'}</p>
-    </aside>
+    </div>
   </div>
 </div>
 
