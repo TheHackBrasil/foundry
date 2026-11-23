@@ -302,6 +302,12 @@ describe('ledger + api (PGlite)', () => {
     await expect(db.query(`DELETE FROM events WHERE pedido_id='${CHAVE}'`)).rejects.toThrow();
   });
 
+  it('trigger do banco rejeita TRUNCATE em events (T224)', async () => {
+    const db = (store as unknown as { db: { query: (s: string) => Promise<unknown> } }).db;
+    await expect(db.query('TRUNCATE events')).rejects.toThrow(/append-only/);
+    expect((await store.eventosDoPedido(CHAVE)).length).toBeGreaterThan(0);
+  });
+
   it('bypass da trigger e pego pelo audit nomeando o evento', async () => {
     const db = (store as unknown as { db: { query: (s: string, p?: unknown[]) => Promise<unknown> } }).db;
     await db.query('ALTER TABLE events DISABLE TRIGGER ALL');
