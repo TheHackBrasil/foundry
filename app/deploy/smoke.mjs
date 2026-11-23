@@ -355,7 +355,9 @@ async function smoke() {
     });
     exigir(ancora.res.status === 403, `âncora em pedido da seed respondeu ${ancora.res.status}`);
     const { corpo: fila } = await b.json('/api/revisao');
-    const itemSeed = (fila?.itens ?? []).find((i) => i.workspace_id !== b.ws && i.status === 'pendente');
+    // a fila que a sessao B ve so tem itens da seed (B nunca escreveu);
+    // ItemRevisao nao expõe workspace_id, entao o pendente achado e da seed.
+    const itemSeed = (fila?.itens ?? []).find((i) => i.status === 'pendente');
     if (itemSeed) {
       const decisao = await b.json(`/api/revisao/${itemSeed.id}/decisao`, {
         method: 'POST',

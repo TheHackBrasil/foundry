@@ -115,6 +115,9 @@ export async function aprovarRevisao(
     // Mesma ordem do processarDoc: o lock do pedido vem antes da decisao.
     await tx.travarPedido(doc.pedidoId);
     if (!(await tx.resolverRevisao(id, 'aprovado'))) return null;
+    if (await tx.eventoExiste(doc.pedidoId, doc.docTipo, payloadDoDoc(doc))) {
+      return []; // item irmao ja aprovado: doc identico ja esta no ledger
+    }
     return registrarDoc(tx, doc);
   });
   if (r === null) return null;

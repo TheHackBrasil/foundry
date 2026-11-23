@@ -37,6 +37,13 @@ const status: Divergencia = {
 const todas = [atraso, peso, volumes, status];
 
 describe('propagar', () => {
+  it('campo fora do vocabulario nao gera tarefa nem quebra', () => {
+    for (const nome of ['constructor', 'hasOwnProperty', 'toString', 'valueOf']) {
+      const d = { ...atraso, campo: nome as Divergencia['campo'] };
+      expect(propagar(d)).toEqual([]);
+    }
+  });
+
   it('atraso propaga para as 5 partes', () => {
     const tarefas = propagar(atraso);
     expect(tarefas).toHaveLength(5);

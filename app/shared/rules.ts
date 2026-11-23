@@ -136,7 +136,12 @@ export const REGRAS_PROPAGACAO: Record<CampoVigiado, Gerador> = {
 
 // Propaga uma divergencia em tarefas por parte (deterministico).
 export function propagar(d: Divergencia): Tarefa[] {
-  return REGRAS_PROPAGACAO[d.campo](d);
+  // campo vem de fora via /api/simulate: nomes herdados do
+  // Object.prototype (constructor, hasOwnProperty) nao sao regra.
+  const gerador = Object.hasOwn(REGRAS_PROPAGACAO, d.campo)
+    ? REGRAS_PROPAGACAO[d.campo]
+    : undefined;
+  return gerador ? gerador(d) : [];
 }
 
 // Propaga um lote preservando a ordem das divergencias.
