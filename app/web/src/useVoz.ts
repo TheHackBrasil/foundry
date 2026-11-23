@@ -47,6 +47,7 @@ interface JanelaComVoz {
 const SEM_FALA_INICIAL_MS = 7500;
 const SILENCIO_PROVISORIO_MS = 3400;
 const SILENCIO_POS_FALA_MS = 2100;
+const GUARDA_SOM_SEM_RESULTADO_MS = 12_000;
 const WATCHDOG_FINALIZAR_MS = 1200;
 const RETRY_ALSA_MS = 120;
 
@@ -80,13 +81,13 @@ export function montarTranscricao(
       const anteriorLow = anterior.toLowerCase();
       const trechoLow = trecho.toLowerCase();
       if (trechoLow === anteriorLow) continue;
-      if (trechoLow.startsWith(anteriorLow)) {
+      if (trechoLow.startsWith(`${anteriorLow} `)) {
         partes[partes.length - 1] = trecho;
         continue;
       }
       const acumuladoLow = partes.join(' ').toLowerCase();
-      if (acumuladoLow.endsWith(trechoLow)) continue;
-      if (trechoLow.startsWith(acumuladoLow)) {
+      if (acumuladoLow === trechoLow || acumuladoLow.endsWith(` ${trechoLow}`)) continue;
+      if (trechoLow.startsWith(`${acumuladoLow} `)) {
         partes.splice(0, partes.length, trecho);
         continue;
       }
@@ -347,13 +348,14 @@ export function useVoz({ aoTranscrever, aoConcluir }: OpcoesVoz): EstadoVoz {
         if (ctx) fecharContexto(ctx);
         return;
       }
+      let stream: MediaStream | null = null;
       try {
         // Desliga o DSP do getUserMedia para não disputar Bluetooth HFP ou
         // pré-processamento de microfone com o SpeechRecognition.
-        const stream = await navigator.mediaDevices.getUserMedia({
+        stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
         });
-        if (recRef.current !== rec || ctx.state === 'closed') {
+        if (recRef.current !== rec || finalizarRef.current !== null || contextoFechado(ctx)) {
           for (const faixa of stream.getTracks()) faixa.stop();
           fecharContexto(ctx);
           return;
@@ -361,7 +363,7 @@ export function useVoz({ aoTranscrever, aoConcluir }: OpcoesVoz): EstadoVoz {
         if (ctx.state === 'suspended') {
           await ctx.resume().catch(() => undefined);
         }
-        if (recRef.current !== rec || contextoFechado(ctx)) {
+        if (recRef.current !== rec || finalizarRef.current !== null || contextoFechado(ctx)) {
           for (const faixa of stream.getTracks()) faixa.stop();
           fecharContexto(ctx);
           return;
@@ -379,6 +381,9 @@ export function useVoz({ aoTranscrever, aoConcluir }: OpcoesVoz): EstadoVoz {
         analyserRef.current = analisador;
       } catch {
         // Não bloqueia o SpeechRecognition: visualizador reage a energiaRef.
+        if (stream && streamRef.current !== stream) {
+          for (const faixa of stream.getTracks()) faixa.stop();
+        }
         fecharContexto(ctx);
       }
     },
@@ -460,7 +465,6 @@ export function useVoz({ aoTranscrever, aoConcluir }: OpcoesVoz): EstadoVoz {
       setErro(null);
       canceladoRef.current = false;
       ultimoTextoRef.current = '';
-      medidorSolicitadoRef.current = comMedidor;
       setFase('iniciando');
 
       // Abre AudioContext sincronamente dentro do gesto de clique e registra
@@ -479,6 +483,7 @@ export function useVoz({ aoTranscrever, aoConcluir }: OpcoesVoz): EstadoVoz {
           }
         }
       }
+      medidorSolicitadoRef.current = ctx !== null;
 
       const android = ehAndroid();
       const rec = new Ctor();
@@ -509,26 +514,29 @@ export function useVoz({ aoTranscrever, aoConcluir }: OpcoesVoz): EstadoVoz {
 
       rec.onsoundstart = () => {
         if (recRef.current !== rec) return;
-        limparSilencio();
+        if (finalizarRef.current === null) agendarSilencio(GUARDA_SOM_SEM_RESULTADO_MS);
         energiaRef.current = Math.max(energiaRef.current, 0.45);
       };
 
       rec.onspeechstart = () => {
         if (recRef.current !== rec) return;
-        limparSilencio();
+        if (finalizarRef.current === null) agendarSilencio(GUARDA_SOM_SEM_RESULTADO_MS);
         energiaRef.current = 0.85;
       };
 
       rec.onspeechend = () => {
         if (recRef.current !== rec) return;
         energiaRef.current = 0.15;
+        if (finalizarRef.current === null) {
+          agendarSilencio(ultimoTextoRef.current ? SILENCIO_POS_FALA_MS : SEM_FALA_INICIAL_MS);
+        }
       };
 
       rec.onresult = (e) => {
         if (recRef.current !== rec) return;
-        limparSilencio();
         const { texto: limpo, provisorio } = montarTranscricao(e.results, android);
         if (!limpo) return;
+        limparSilencio();
         ultimoTextoRef.current = limpo;
         energiaRef.current = provisorio ? 0.92 : 0.55;
         aoTranscreverRef.current(limpo, provisorio);

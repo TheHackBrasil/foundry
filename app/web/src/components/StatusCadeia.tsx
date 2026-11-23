@@ -43,6 +43,7 @@ export function StatusCadeia({ auditoria, aoVerificar, aoAnunciar }: Props) {
         ? ultimoOk
         : null;
   const falha = dados !== null && !dados.valida;
+  const raizCurta = dados ? dados.rootAtual.slice(0, 8) : '';
 
   async function copiarRaiz(raiz: string) {
     if (!(await copiarTexto(raiz))) return;
@@ -108,12 +109,12 @@ export function StatusCadeia({ auditoria, aoVerificar, aoAnunciar }: Props) {
               onClick={() => void copiarRaiz(dados.rootAtual)}
               aria-label={
                 copiado
-                  ? 'Raiz da cadeia copiada'
-                  : `Copiar raiz da cadeia (${dados.rootAtual.slice(0, 8)})`
+                  ? `Raiz ${raizCurta} copiada`
+                  : `Raiz ${raizCurta}: copiar hash completo`
               }
               title={copiado ? 'Raiz copiada' : `Copiar raiz ${dados.rootAtual}`}
             >
-              <span className="mono">Raiz {dados.rootAtual.slice(0, 8)}</span>
+              <span className="mono">Raiz {raizCurta}</span>
               <span className="icone-slot-sm" aria-hidden="true">
                 <span className={`icone-troca icone-troca-rapida ${copiado ? '' : 'visivel'}`}>
                   <IconeCopiar />

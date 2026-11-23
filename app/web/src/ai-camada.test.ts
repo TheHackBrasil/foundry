@@ -250,6 +250,40 @@ describe('useVoz helpers', () => {
       });
     });
 
+    it('preserva conjunções e artigos curtos no Android exigindo fronteira de palavra', () => {
+      // Arrange
+      const conjuncaoE = criarResultadosVoz([
+        { texto: 'propague' },
+        { texto: 'e' },
+        { texto: 'avise' },
+      ]);
+      const artigoA = criarResultadosVoz([
+        { texto: 'resuma' },
+        { texto: 'a' },
+        { texto: 'entrega' },
+      ]);
+      const inicioIgual = criarResultadosVoz([
+        { texto: 'a' },
+        { texto: 'atraso' },
+      ]);
+      const prefixoReal = criarResultadosVoz([
+        { texto: 'simule' },
+        { texto: 'simule a entrega' },
+      ]);
+
+      // Act
+      const resE = montarTranscricao(conjuncaoE, true);
+      const resA = montarTranscricao(artigoA, true);
+      const resInicio = montarTranscricao(inicioIgual, true);
+      const resPrefixo = montarTranscricao(prefixoReal, true);
+
+      // Assert
+      expect(resE).toEqual({ texto: 'propague e avise', provisorio: false });
+      expect(resA).toEqual({ texto: 'resuma a entrega', provisorio: false });
+      expect(resInicio).toEqual({ texto: 'a atraso', provisorio: false });
+      expect(resPrefixo).toEqual({ texto: 'simule a entrega', provisorio: false });
+    });
+
     it('detecta corretamente resultados provisórios e lista vazia', () => {
       // Arrange
       const comProvisorio = criarResultadosVoz([

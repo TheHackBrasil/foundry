@@ -51,13 +51,14 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
                   <div className="registro-topo">
                     <span className="pilula-neutra">{rotuloTipoSinal(s.tipo)}</span>
                     <span className="pilula-sutil">{rotuloFonte(s.fonte)}</span>
-                    <span className="confianca" aria-label={`Confiança ${formatarConfianca(s.confianca)}`}>
+                    <span className="confianca">
                       <span className="confianca-trilha" aria-hidden="true">
                         <span
                           className="confianca-barra"
                           style={{ '--escala': escala } as CSSProperties}
                         />
                       </span>
+                      <span className="so-leitor">Confiança </span>
                       <span className="mono num">{formatarConfianca(s.confianca)}</span>
                     </span>
                     {novo && <span className="pilula-coord">Novo</span>}

@@ -105,12 +105,6 @@ export function TarefasPorParte({ tarefas, filtro, aoFiltrar, novas }: Props) {
     };
 
     atualizar();
-    const ativa = container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
-    const reduzido =
-      typeof window !== 'undefined' &&
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    ativa?.scrollIntoView({ behavior: reduzido ? 'auto' : 'smooth', inline: 'nearest', block: 'nearest' });
 
     container.addEventListener('scroll', atualizarFades, { passive: true });
     let ro: ResizeObserver | null = null;
@@ -131,14 +125,35 @@ export function TarefasPorParte({ tarefas, filtro, aoFiltrar, novas }: Props) {
 
   function trocarAba(valor: FiltroParte, indiceDestino: number) {
     if (valor === filtro) return;
-    const dir: -1 | 0 | 1 =
+    const direcaoTroca: -1 | 0 | 1 =
       indiceAtual === -1 || indiceDestino === indiceAtual
         ? 0
         : indiceDestino > indiceAtual
           ? 1
           : -1;
-    setDirecao(dir);
-    aoFiltrar(valor, dir);
+    setDirecao(direcaoTroca);
+    aoFiltrar(valor, direcaoTroca);
+
+    const container = lista.current;
+    const botao = container?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[indiceDestino];
+    if (container && botao) {
+      const margem = 24;
+      const esq = botao.offsetLeft;
+      const dir = esq + botao.offsetWidth;
+      let novoScroll: number | null = null;
+      if (esq < container.scrollLeft + margem) {
+        novoScroll = Math.max(0, esq - margem);
+      } else if (dir > container.scrollLeft + container.clientWidth - margem) {
+        novoScroll = dir - container.clientWidth + margem;
+      }
+      if (novoScroll !== null) {
+        const reduzido =
+          typeof window !== 'undefined' &&
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        container.scrollTo({ left: novoScroll, behavior: reduzido ? 'auto' : 'smooth' });
+      }
+    }
   }
 
   function aoTeclar(e: KeyboardEvent<HTMLButtonElement>, i: number) {
@@ -149,7 +164,7 @@ export function TarefasPorParte({ tarefas, filtro, aoFiltrar, novas }: Props) {
     const alvo = abas[destino];
     if (!alvo) return;
     trocarAba(alvo.valor, destino);
-    lista.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[destino]?.focus();
+    lista.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[destino]?.focus({ preventScroll: true });
   }
 
   return (

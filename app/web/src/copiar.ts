@@ -9,6 +9,7 @@ export async function copiarTexto(texto: string): Promise<boolean> {
     }
   }
   if (typeof document === 'undefined') return false;
+  const anterior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const area = document.createElement('textarea');
   area.value = texto;
   area.setAttribute('readonly', '');
@@ -24,6 +25,7 @@ export async function copiarTexto(texto: string): Promise<boolean> {
     ok = false;
   } finally {
     document.body.removeChild(area);
+    anterior?.focus({ preventScroll: true });
   }
   return ok;
 }

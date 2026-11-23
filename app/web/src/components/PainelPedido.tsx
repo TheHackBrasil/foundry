@@ -156,6 +156,11 @@ function Conteudo({
   const ultimoTotalRef = useRef(dados.totalEventos);
   const fecharLenteTimerRef = useRef<number | null>(null);
   const copiaTimerRef = useRef<number | null>(null);
+  const btnLenteRef = useRef<HTMLButtonElement>(null);
+  const matrizCabRef = useRef<HTMLHeadingElement>(null);
+  const focarAposFecharLenteRef = useRef(false);
+  const montouLenteRef = useRef(false);
+  const ultimaLenteAnunciadaRef = useRef<string | null>(null);
 
   const sinaisConhecidos = useRef<ReadonlySet<string>>(new Set(dados.sinais.map(chaveSinal)));
   const avisosConhecidos = useRef<ReadonlySet<string>>(new Set(dados.notificacoes.map(chaveNotificacao)));
@@ -339,6 +344,40 @@ function Conteudo({
     !resultadoLente.ajustada &&
     (!specAtivo || specAtivo.lente !== filtro || ignorarLente);
 
+  useEffect(() => {
+    if (!focarAposFecharLenteRef.current) return;
+    if (podeAcionarLente) {
+      focarAposFecharLenteRef.current = false;
+      btnLenteRef.current?.focus({ preventScroll: true });
+    } else if (!lenteAberta) {
+      focarAposFecharLenteRef.current = false;
+    }
+  }, [podeAcionarLente, lenteAberta]);
+
+  useEffect(() => {
+    const chaveAtual = resultadoLente.ajustada
+      ? `${resultadoLente.lente}|${matrizVisivel.fontes.length}|${matriz.fontes.length}`
+      : null;
+    if (!montouLenteRef.current) {
+      montouLenteRef.current = true;
+      ultimaLenteAnunciadaRef.current = chaveAtual;
+      return;
+    }
+    if (chaveAtual === ultimaLenteAnunciadaRef.current) return;
+    ultimaLenteAnunciadaRef.current = chaveAtual;
+    if (chaveAtual !== null) {
+      aoAnunciar(
+        `Visão ajustada para ${rotuloParte(resultadoLente.lente)}: ${matrizVisivel.fontes.length} de ${matriz.fontes.length} fontes.`,
+      );
+    }
+  }, [
+    aoAnunciar,
+    matriz.fontes.length,
+    matrizVisivel.fontes.length,
+    resultadoLente.ajustada,
+    resultadoLente.lente,
+  ]);
+
   async function copiarChave() {
     if (!(await copiarTexto(id))) return;
     setChaveCopiada(true);
@@ -396,13 +435,16 @@ function Conteudo({
         <section aria-labelledby="bloco-matriz">
           <div className="sec-cab">
             <div className="sec-cab-grupo">
-              <h2 id="bloco-matriz">Fontes e campos</h2>
+              <h2 id="bloco-matriz" ref={matrizCabRef} tabIndex={-1}>
+                Fontes e campos
+              </h2>
               <p className="meta">
                 Referência: primeira fonte que declara o campo.
               </p>
             </div>
             {podeAcionarLente && (
               <button
+                ref={btnLenteRef}
                 type="button"
                 className="btn-lente"
                 onClick={() => {
@@ -426,19 +468,20 @@ function Conteudo({
           <div
             className={`lente-gaveta ${lenteAberta ? 'lente-gaveta-aberta' : ''}`}
             aria-hidden={!lenteAberta || undefined}
+            inert={!lenteAberta || undefined}
           >
             <div className="lente-gaveta-inner">
               {lenteExibida && (
                 <div className="lente-gaveta-pad">
                   {lenteExibida.modo === 'carregando' ? (
-                    <div className="lente-faixa lente-faixa-carregando" role={lenteAberta ? 'status' : undefined}>
+                    <div className="lente-faixa lente-faixa-carregando">
                       <span className="lente-status">
                         <span className="cmd-spinner" aria-hidden="true" />
                         <span>Ajustando visão para {rotuloParte(lenteExibida.papel)}…</span>
                       </span>
                     </div>
                   ) : (
-                    <div className="lente-faixa" role={lenteAberta ? 'status' : undefined}>
+                    <div className="lente-faixa">
                       <div className="lente-info">
                         <span className="pilula-coord">
                           <IconeLente />
@@ -467,8 +510,11 @@ function Conteudo({
                         className="botao-sutil"
                         tabIndex={lenteAberta ? 0 : -1}
                         onClick={() => {
+                          focarAposFecharLenteRef.current = true;
+                          matrizCabRef.current?.focus({ preventScroll: true });
                           setDirecaoLente(0);
                           setIgnorarLente(true);
+                          aoAnunciar('Exibindo matriz completa.');
                         }}
                       >
                         Ver matriz completa

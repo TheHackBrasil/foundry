@@ -234,10 +234,13 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
   const erroId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const enviarBtnRef = useRef<HTMLButtonElement>(null);
+  const vozBtnRef = useRef<HTMLButtonElement>(null);
   const pararBtnRef = useRef<HTMLButtonElement>(null);
   const anuncioTimerRef = useRef<number | null>(null);
   const textoPreVozRef = useRef('');
   const focouPararRef = useRef(false);
+  const eraOuvindoRef = useRef(false);
+  const concluiuComFocoRef = useRef(false);
   const fecharGavetaTimerRef = useRef<number | null>(null);
   const tremorTimerRef = useRef<number | null>(null);
   const tremorRafRef = useRef<number | null>(null);
@@ -299,25 +302,36 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
       const base = textoPreVozRef.current;
       setTexto(base ? `${base} ${textoFinal}` : textoFinal);
       setProvisorio(false);
+      concluiuComFocoRef.current = true;
       enviarBtnRef.current?.focus();
     },
   });
 
   const cancelarReconhecimento = voz.cancelar;
   const cancelarVoz = useCallback(() => {
+    concluiuComFocoRef.current = true;
     cancelarReconhecimento();
     setTexto(textoPreVozRef.current);
     setProvisorio(false);
     inputRef.current?.focus();
   }, [cancelarReconhecimento]);
 
-  // Transfere foco para "Parar" ao entrar em ditado (o botão "Voz" desmonta)
-  // e permite cancelar com Escape mesmo se o foco saiu da seção.
+  // Transfere foco para "Parar" ao entrar em ditado (o botão "Voz" desmonta),
+  // restaura ao sair sem conclusão e permite cancelar com Escape globalmente.
   useEffect(() => {
+    const eraOuvindo = eraOuvindoRef.current;
+    eraOuvindoRef.current = voz.ouvindo;
+
     if (!voz.ouvindo) {
       focouPararRef.current = false;
+      if (eraOuvindo && !concluiuComFocoRef.current) {
+        (vozBtnRef.current ?? inputRef.current)?.focus();
+      }
+      concluiuComFocoRef.current = false;
       return;
     }
+
+    concluiuComFocoRef.current = false;
     if (!focouPararRef.current) {
       focouPararRef.current = true;
       pararBtnRef.current?.focus();
@@ -375,6 +389,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
   const enviando = estado.tipo === 'enviando';
 
   function alternarVoz() {
+    if (voz.fase === 'finalizando') return;
     if (!voz.ouvindo) {
       textoPreVozRef.current = texto.trim();
       setSugestaoAtiva(-1);
@@ -393,7 +408,10 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
       return;
     }
     // Cancela em vez de parar para evitar onend tardio sobrescrever o texto ou roubar foco.
-    if (voz.ouvindo) voz.cancelar();
+    if (voz.ouvindo) {
+      concluiuComFocoRef.current = true;
+      voz.cancelar();
+    }
     voz.limparErro();
     limparTimerAnuncio();
     setProvisorio(false);
@@ -422,7 +440,6 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
       setExecSeq((n) => n + 1);
       setEstado({ tipo: 'erro', mensagem, status, ...(motivo ? { motivo } : {}) });
       acionarTremor();
-      aoAnunciar(`Erro no comando: ${mensagem}`);
     }
   }
 
@@ -435,7 +452,10 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
   function aoTeclarInput(e: ReactKeyboardEvent<HTMLInputElement>) {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
-    if (voz.ouvindo) voz.cancelar();
+    if (voz.ouvindo) {
+      concluiuComFocoRef.current = true;
+      voz.cancelar();
+    }
     voz.limparErro();
     const proximo =
       e.key === 'ArrowDown'
@@ -454,7 +474,10 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
   }
 
   function preencherSugestao(sugestao: string) {
-    if (voz.ouvindo) voz.cancelar();
+    if (voz.ouvindo) {
+      concluiuComFocoRef.current = true;
+      voz.cancelar();
+    }
     voz.limparErro();
     setSugestaoAtiva(-1);
     setTexto(sugestao);
@@ -463,11 +486,16 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
     inputRef.current?.focus();
   }
 
+  function fecharErroVoz() {
+    inputRef.current?.focus();
+    voz.limparErro();
+  }
+
   function fecharSaida() {
+    inputRef.current?.focus();
     limparTimerAnuncio();
     voz.limparErro();
     setEstado({ tipo: 'ocioso' });
-    inputRef.current?.focus();
   }
 
   async function importarExemploNaSessao() {
@@ -480,7 +508,6 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
         setExecSeq((n) => n + 1);
         setEstado({ tipo: 'erro', status: 0, mensagem: detalhe });
         acionarTremor();
-        aoAnunciar(detalhe);
         return;
       }
       aoSelecionar(r.pedidoId);
@@ -617,8 +644,9 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
                   className="voz-ativo-parar"
                   aria-pressed="true"
                   aria-label="Parar ditado por voz"
+                  aria-disabled={voz.fase === 'finalizando' || undefined}
                   onClick={alternarVoz}
-                  disabled={enviando || voz.fase === 'finalizando'}
+                  disabled={enviando}
                 >
                   <IconeParar />
                   <span>Parar</span>
@@ -627,6 +655,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
             ) : (
               voz.suportado && (
                 <button
+                  ref={vozBtnRef}
                   type="button"
                   className="cmd-btn-voz"
                   aria-pressed="false"
@@ -655,6 +684,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
         <div
           className={`cmd-gaveta ${temGaveta ? 'cmd-gaveta-aberta' : ''}`}
           aria-hidden={!temGaveta || undefined}
+          inert={!temGaveta || undefined}
         >
           <div className="cmd-gaveta-inner">
             {exibido?.vozErro && (
@@ -671,7 +701,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
                     type="button"
                     className="botao-fechar"
                     aria-label="Fechar aviso de microfone"
-                    onClick={voz.limparErro}
+                    onClick={fecharErroVoz}
                     tabIndex={temGaveta ? 0 : -1}
                   >
                     <IconeFechar />
@@ -684,7 +714,6 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
             {estadoExibido?.tipo === 'erro' && (
               <div
                 key={`erro-${exibido?.seq ?? 0}`}
-                id={erroId}
                 className="cmd-painel cmd-painel-erro"
                 role={temGaveta ? 'alert' : undefined}
               >
@@ -703,7 +732,9 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
                     <IconeFechar />
                   </button>
                 </div>
-                <p className="cmd-erro-msg">{estadoExibido.mensagem}</p>
+                <p id={erroId} className="cmd-erro-msg">
+                  {estadoExibido.mensagem}
+                </p>
                 {precisaSessao && (
                   <div className="cmd-recupera">
                     <p className="meta">

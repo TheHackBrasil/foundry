@@ -36,10 +36,6 @@ export function App() {
         aoTema={trocarTema}
       />
       <div className="corpo">
-        <aside id="painel-lateral" className="lateral" aria-label="Envio e lista de pedidos">
-          <PedidoLista pedidos={torre.pedidos} selecionado={torre.selecionado} aoTentarDeNovo={torre.recarregarLista} />
-          <EnvioArquivos aoEnviar={torre.selecionar} />
-        </aside>
         <main id="conteudo" tabIndex={-1}>
           {torre.selecionado ? (
             <PainelPedido
@@ -62,6 +58,10 @@ export function App() {
             </section>
           )}
         </main>
+        <aside id="painel-lateral" className="lateral" aria-label="Envio e lista de pedidos">
+          <PedidoLista pedidos={torre.pedidos} selecionado={torre.selecionado} aoTentarDeNovo={torre.recarregarLista} />
+          <EnvioArquivos aoEnviar={torre.selecionar} />
+        </aside>
       </div>
       <div className="so-leitor" role="status" aria-live="polite" aria-atomic="true">
         {torre.anuncio}
