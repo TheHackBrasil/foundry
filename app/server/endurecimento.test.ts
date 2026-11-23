@@ -108,14 +108,31 @@ describe('seed somente leitura pela API', () => {
     const { s } = await comSeed();
     const cookie = await novaSessao(s);
     const orfao = ler('cte-ok.xml').replaceAll(CHAVE, '35260100000000000100550010000099991000099991');
-    expect((await enviar(s, cookie, 'orfao.xml', orfao)).statusCode).toBe(200);
+    const envio = await enviar(s, cookie, 'orfao.xml', orfao);
+    expect(envio.statusCode).toBe(200);
+    const revisaoId = (envio.json() as { revisaoId: number }).revisaoId;
     const fila = (await s.app.inject({ method: 'GET', url: '/api/revisao', headers: { cookie } })).json() as {
-      itens: Array<{ id: number; workspace_id: string }>;
+      itens: Array<{ id: number }>;
     };
-    const proprio = fila.itens.find((i) => i.workspace_id !== 'seed')!;
-    const decidir = () => s.app.inject({ method: 'POST', url: `/api/revisao/${proprio.id}/decisao`, headers: { cookie }, payload: { status: 'descartado' } });
+    // O item enviado aparece na fila da sessao; a da seed vem junto por leitura.
+    expect(fila.itens.some((i) => i.id === revisaoId)).toBe(true);
+    const decidir = () => s.app.inject({ method: 'POST', url: `/api/revisao/${revisaoId}/decisao`, headers: { cookie }, payload: { status: 'descartado' } });
     expect((await decidir()).statusCode).toBe(200);
     expect((await decidir()).statusCode).toBe(404);
+  });
+
+  it('GET /api/revisao serializa ItemRevisao sem workspace_id', async () => {
+    const { s } = await comSeed();
+    const cookie = await novaSessao(s);
+    const fila = (await s.app.inject({ method: 'GET', url: '/api/revisao', headers: { cookie } })).json() as {
+      itens: Array<Record<string, unknown>>;
+    };
+    expect(fila.itens.length).toBeGreaterThan(0);
+    for (const i of fila.itens) {
+      expect(Object.keys(i).sort()).toEqual(['id', 'motivo', 'origem', 'payload', 'status', 'ts']);
+      expect(typeof i['id']).toBe('number');
+      expect(['pendente', 'aprovado', 'descartado']).toContain(i['status']);
+    }
   });
 
   it('cookie igual ao WORKSPACE_SEED e trocado por uma sessao nova', async () => {

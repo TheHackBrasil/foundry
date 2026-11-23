@@ -3,7 +3,7 @@
 
 import { GENESIS_HASH, hashEvento, verificarCadeia, type VerificacaoCadeia } from '../shared/chain.js';
 import { TIPOS_DOCUMENTO } from '../shared/model.js';
-import type { Evento } from '../shared/model.js';
+import type { Evento, ItemRevisao } from '../shared/model.js';
 import type { Db } from './db.js';
 
 const DDL = `
@@ -223,8 +223,20 @@ export class LedgerStore {
     return rows[0]!.id;
   }
 
-  async listarRevisao(): Promise<Array<Record<string, unknown>>> {
-    return this.db.query(`SELECT * FROM review_queue WHERE workspace_id = ANY($1) ORDER BY id`, [this.visiveis()]);
+  // Contrato de GET /api/revisao: ItemRevisao sem workspace_id (RF6). A rota
+  // que decide usa buscarRevisao, que le a linha inteira inclusive o dono.
+  async listarRevisao(): Promise<ItemRevisao[]> {
+    const rows = await this.db.query<{
+      id: number;
+      origem: string;
+      motivo: string;
+      payload: Record<string, unknown>;
+      status: ItemRevisao['status'];
+      ts: Date | string;
+    }>(`SELECT id, origem, motivo, payload, status, ts FROM review_queue WHERE workspace_id = ANY($1) ORDER BY id`, [
+      this.visiveis(),
+    ]);
+    return rows.map((r) => ({ ...r, ts: r.ts instanceof Date ? r.ts.toISOString() : String(r.ts) }));
   }
 
   async buscarRevisao(id: number): Promise<Record<string, unknown> | null> {
