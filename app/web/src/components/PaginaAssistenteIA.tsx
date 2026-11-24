@@ -46,25 +46,51 @@ import { useVoz } from '../useVoz.ts';
 import '../assistente.css';
 import { EvidenciaLateralIA } from './EvidenciaLateralIA.tsx';
 import {
+  IconeCaixa,
+  IconeCalendario,
+  IconeCaminhao,
   IconeComando,
   IconeConfere,
   IconeErro,
   IconeFechar,
+  IconeFiscal,
+  IconeGalpao,
   IconeMais,
   IconeMic,
   IconeOk,
   IconePainelLateral,
   IconeParar,
   IconeRetorno,
+  IconeRota,
   IconeSeta,
 } from './icones.tsx';
 import { PalcoGenUI, type EtapaStreamGenUI } from './PalcoGenUI.tsx';
 import { SuperficieMineralIA, type EstadoSuperficieIA } from './SuperficieMineralIA.tsx';
 import { VisualizadorVoz } from './VisualizadorVoz.tsx';
 
+type TipoPartida = 'rota' | 'simular' | 'fiscal' | 'despacho' | 'carga' | 'cd';
+
 interface PartidaSugerida {
+  readonly icone: TipoPartida;
   readonly comando: string;
   readonly apoio: string;
+}
+
+function iconeDaPartida(tipo: TipoPartida) {
+  switch (tipo) {
+    case 'rota':
+      return <IconeRota />;
+    case 'simular':
+      return <IconeCalendario />;
+    case 'fiscal':
+      return <IconeFiscal />;
+    case 'despacho':
+      return <IconeCaminhao />;
+    case 'carga':
+      return <IconeCaixa />;
+    case 'cd':
+      return <IconeGalpao />;
+  }
 }
 
 interface PontoTela {
@@ -89,18 +115,22 @@ interface TurnoIA {
 
 const PARTIDAS_DIVERGENTE: readonly PartidaSugerida[] = [
   {
+    icone: 'rota',
     comando: 'Qual o atraso real e quem é impactado?',
     apoio: 'Resumo e mapa por setor',
   },
   {
+    icone: 'simular',
     comando: 'Simule a entrega para 28/01/2026',
     apoio: 'Impacto sem gravar no registro',
   },
   {
+    icone: 'fiscal',
     comando: 'Mostre a visão e as ações do Fiscal',
     apoio: 'Conflitos e fila do Fiscal',
   },
   {
+    icone: 'despacho',
     comando: 'Avise a transportadora sobre a divergência',
     apoio: 'Rascunho revisável para envio',
   },
@@ -108,18 +138,22 @@ const PARTIDAS_DIVERGENTE: readonly PartidaSugerida[] = [
 
 const PARTIDAS_CONSISTENTE: readonly PartidaSugerida[] = [
   {
+    icone: 'rota',
     comando: 'Resuma o pedido e verifique pendências',
     apoio: 'Síntese dos campos vigiados',
   },
   {
+    icone: 'simular',
     comando: 'Simule a entrega para 28/01/2026',
     apoio: 'Setores acionados em atraso',
   },
   {
+    icone: 'carga',
     comando: 'Confira peso e volumes entre NF-e e CT-e',
     apoio: 'Valores declarados por fonte',
   },
   {
+    icone: 'cd',
     comando: 'Mostre a visão e as ações do CD',
     apoio: 'Recebimento, volumes e janela',
   },
@@ -1191,6 +1225,9 @@ export function PaginaAssistenteIA({
                         void executarComando(item.comando, false, origem);
                       }}
                     >
+                      <span className="ia-partida-icone" aria-hidden="true">
+                        {iconeDaPartida(item.icone)}
+                      </span>
                       <span className="ia-partida-corpo">
                         <span className="ia-partida-cmd">{item.comando}</span>
                         <span className="ia-partida-apoio">{item.apoio}</span>

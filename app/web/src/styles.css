@@ -56,8 +56,11 @@
   --elev-ctrl-hover: var(--bevel-luz), 0 0 0 1px var(--border-strong), 0 2px 6px -2px rgba(22, 60, 56, 0.1);
   --elev-cmd: var(--shadow-slab);
 
-  --veio-claro: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.011 0.036' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.09 0 0 0 0 0.22 0 0 0 0 0.20 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
-  --veio-escuro: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.011 0.036' numOctaves='4' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.88 0 0 0 0 0.94 0 0 0 0 0.92 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* Veios orgânicos reais de mármore travertino/Carrara (claro) e Nero Marquina (escuro)
+     usando type='turbulence' com esticamento de contraste no canal alpha para evitar cinza plano. */
+  --veio-claro: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.008 0.026' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.14  0 0 0 0 0.24  0 0 0 0 0.21  0 0 0 2.15 -0.78'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
+  --veio-escuro: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.008 0.026' numOctaves='4' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.72  0 0 0 0 0.84  0 0 0 0 0.80  0 0 0 2.05 -0.82'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --grao-mineral: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
 :root[data-tema='dark'] {
@@ -107,26 +110,30 @@ body {
     radial-gradient(ellipse 58% 48% at 12% 100%, rgba(101, 65, 153, 0.12), transparent 58%);
 }
 
-/* Papel de algodão mineral no claro e micro-grão de basalto no escuro (nunca escondido). */
+/* Papel de algodão mineral no claro e grão tátil de basalto no escuro (perceptível sem ruído). */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.036;
+  opacity: 0.056;
   mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-image: var(--grao-mineral);
 }
 :root[data-tema='dark'] body::before {
-  opacity: 0.030;
+  opacity: 0.052;
   mix-blend-mode: soft-light;
 }
 
-/* Lajes minerais: veios sutis de mármore Carrara (claro) e Nero Marquina (escuro). */
+/* Lajes minerais: veios reais de mármore travertino (claro) e Nero Marquina (escuro) + luz direcional. */
 .slab-mineral {
   position: relative;
   isolation: isolate;
+  background-image: linear-gradient(162deg, rgba(255, 255, 255, 0.48) 0%, transparent 48%);
+}
+:root[data-tema='dark'] .slab-mineral {
+  background-image: linear-gradient(162deg, rgba(232, 240, 238, 0.045) 0%, transparent 46%);
 }
 .slab-mineral::before {
   content: '';
@@ -135,13 +142,13 @@ body::before {
   border-radius: inherit;
   pointer-events: none;
   z-index: 2;
-  opacity: 0.06;
+  opacity: 0.125;
   mix-blend-mode: multiply;
   background-image: var(--veio-claro);
-  background-size: 360px 360px;
+  background-size: 420px 420px;
 }
 :root[data-tema='dark'] .slab-mineral::before {
-  opacity: 0.052;
+  opacity: 0.115;
   mix-blend-mode: screen;
   background-image: var(--veio-escuro);
 }
@@ -369,7 +376,7 @@ s { text-decoration-thickness: 1px; }
   min-height: 100dvh;
 }
 
-/* ---------- barra superior limpa (54px) ---------- */
+/* ---------- barra superior limpa em pedra/papel lapidado (54px) ---------- */
 .topo {
   position: sticky;
   top: 0;
@@ -381,9 +388,36 @@ s { text-decoration-thickness: 1px; }
   height: var(--topo-h);
   min-height: var(--topo-h);
   padding: 0 1.75rem;
-  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  background-color: color-mix(in srgb, var(--surface) 94%, var(--bg));
+  background-image: linear-gradient(96deg, rgba(255, 255, 255, 0.55) 0%, transparent 42%, rgba(22, 60, 56, 0.025) 100%);
   border-bottom: 1px solid var(--border);
-  box-shadow: var(--bevel-luz);
+  box-shadow: var(--bevel-luz), 0 1px 6px -4px rgba(22, 60, 56, 0.12);
+  overflow: hidden;
+  isolation: isolate;
+}
+:root[data-tema='dark'] .topo {
+  background-image: linear-gradient(96deg, rgba(232, 240, 238, 0.045) 0%, transparent 44%, rgba(0, 0, 0, 0.16) 100%);
+  box-shadow: var(--bevel-luz), 0 2px 10px -4px rgba(0, 0, 0, 0.45);
+}
+.topo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.14;
+  mix-blend-mode: multiply;
+  background-image: var(--veio-claro);
+  background-size: 420px 420px;
+}
+:root[data-tema='dark'] .topo::before {
+  opacity: 0.13;
+  mix-blend-mode: screen;
+  background-image: var(--veio-escuro);
+}
+.topo > * {
+  position: relative;
+  z-index: 1;
 }
 
 .topo-esq {
@@ -565,10 +599,13 @@ s { text-decoration-thickness: 1px; }
   top: 0;
   height: 100dvh;
   overflow: hidden;
-  background: var(--rail);
+  background-color: var(--rail);
+  background-image:
+    radial-gradient(ellipse 140% 38% at 36% 0%, rgba(169, 190, 180, 0.12), transparent 65%),
+    radial-gradient(ellipse 110% 34% at 70% 100%, rgba(215, 197, 234, 0.08), transparent 62%);
   color: var(--on-rail);
-  border-inline-end: 1px solid color-mix(in srgb, var(--cord) 24%, transparent);
-  box-shadow: inset 0 1px 0 rgba(245, 242, 235, 0.08);
+  border-inline-end: 1px solid color-mix(in srgb, var(--cord) 26%, transparent);
+  box-shadow: inset 0 1px 0 rgba(245, 242, 235, 0.1), inset -1px 0 0 rgba(245, 242, 235, 0.04);
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   isolation: isolate;
@@ -579,10 +616,10 @@ s { text-decoration-thickness: 1px; }
   inset: 0;
   pointer-events: none;
   z-index: 2;
-  opacity: 0.052;
+  opacity: 0.17;
   mix-blend-mode: screen;
-  background-image: var(--veio-escuro);
-  background-size: 360px 360px;
+  background-image: var(--veio-escuro), var(--grao-mineral);
+  background-size: 380px 380px, 180px 180px;
 }
 
 .rail-corpo {
@@ -1169,11 +1206,151 @@ main[data-rota='ia'] {
   gap: 0.625rem;
 }
 .painel-cab h1 {
-  font: 700 clamp(1.9rem, 2.6vw, 2.35rem)/1.1 var(--font-title);
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  font: 700 clamp(1.75rem, 2.4vw, 2.25rem)/1.12 var(--font-title);
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
-.painel-cab h1 .mono { font-size: 0.92em; font-weight: 700; }
+.titulo-codigo {
+  font-size: 0.56em;
+  font-weight: 550;
+  color: var(--text2);
+  letter-spacing: -0.01em;
+}
+
+/* Faixa visual de rota da carga + conciliação dos documentos (entendimento imediato sem texto longo). */
+.rota-visual {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.875rem 1.5rem;
+  margin-top: 0.25rem;
+  padding: 0.875rem 1.125rem;
+  border-radius: var(--r-md);
+  background-color: var(--surface);
+  box-shadow: var(--shadow-slab);
+  overflow: hidden;
+}
+.rota-visual > * { position: relative; z-index: 1; }
+.rota-fluxo {
+  flex: 1 1 26rem;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(6.5rem, 1fr) auto;
+  align-items: center;
+  gap: 0.875rem;
+}
+.rota-extremo {
+  display: flex;
+  align-items: center;
+  gap: 0.5625rem;
+  min-width: 0;
+}
+.rota-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  color: var(--text);
+  flex: none;
+}
+.rota-icone svg { width: 1rem; height: 1rem; }
+.rota-txt { display: grid; gap: 0.0625rem; min-width: 0; }
+.rota-rotulo {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text2);
+}
+.rota-nome {
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--text);
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rota-trilha {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.rota-linha {
+  flex: 1 1 auto;
+  height: 1.5px;
+  background: var(--border-strong);
+  opacity: 0.5;
+}
+.rota-linha-prox {
+  background: repeating-linear-gradient(
+    to right,
+    var(--border-strong) 0 4px,
+    transparent 4px 8px
+  );
+}
+.rota-no-carga {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.78125rem;
+  font-weight: 650;
+  color: var(--ok);
+  white-space: nowrap;
+}
+.rota-no-carga-dv { color: var(--change); }
+.rota-no-carga svg { width: 1rem; height: 1rem; flex: none; }
+
+.rota-docs {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding-inline-start: 1.25rem;
+  border-inline-start: 1px solid var(--border);
+}
+.rota-doc-par {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.rota-doc-elo {
+  width: 1.125rem;
+  height: 1.5px;
+  flex: none;
+}
+.rota-doc-elo-ok { background: var(--ok); opacity: 0.7; }
+.rota-doc-elo-dv {
+  background: repeating-linear-gradient(
+    to right,
+    var(--change) 0 3px,
+    transparent 3px 6px
+  );
+}
+.rota-doc-no {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r-xs);
+  background: var(--surface2);
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--text);
+  white-space: nowrap;
+}
+.rota-doc-no svg { width: 0.875rem; height: 0.875rem; flex: none; }
+.rota-doc-no-dv { color: var(--change); background: color-mix(in srgb, var(--change-bg) 55%, var(--surface)); }
+.rota-doc-no-ok { color: var(--ok); background: color-mix(in srgb, var(--ok-bg) 55%, var(--surface)); }
 .partes-pedido {
   color: var(--text);
   font-size: 1rem;
@@ -1326,14 +1503,23 @@ main[data-rota='ia'] {
   transform: scaleX(1);
 }
 .kpi-hero-label {
-  font-size: 0.78125rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.055em;
   color: var(--text2);
 }
+.kpi-hero-icone {
+  display: inline-flex;
+  color: var(--text2);
+  flex: none;
+}
+.kpi-hero-icone svg { width: 0.875rem; height: 0.875rem; }
 .kpi-hero-valor {
-  font-size: clamp(1.5rem, 2.1vw, 1.75rem);
+  font-size: clamp(1.45rem, 2vw, 1.7rem);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.025em;
@@ -1341,6 +1527,148 @@ main[data-rota='ia'] {
 }
 .kpi-hero-valor-dv { color: var(--change); }
 .kpi-hero-valor-ok { color: var(--ok); }
+
+/* Micro-visualizações geométricas inline dentro de cada KPI (leitura imediata sem ler parágrafos). */
+.kpi-vis {
+  display: flex;
+  align-items: center;
+  height: 0.875rem;
+  margin-block: 0.1875rem 0.125rem;
+  width: 100%;
+  max-width: 9.5rem;
+}
+.kpi-vis-prazo { position: relative; }
+.kpi-vis-trilha {
+  position: absolute;
+  inset-inline: 0;
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--border);
+}
+.kpi-vis-ponto-base {
+  position: relative;
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  margin-inline-start: 22%;
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+}
+.kpi-vis-desvio-trilha {
+  position: relative;
+  z-index: 1;
+  width: 44%;
+  height: 2.5px;
+  background: var(--change);
+  transform-origin: left center;
+  animation: revelar-medidor 460ms var(--ease-enter) 140ms backwards;
+}
+.kpi-vis-ponto-dv {
+  position: relative;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--change);
+}
+.kpi-vis-barras {
+  display: grid;
+  gap: 3px;
+  height: auto;
+  padding-block: 2px;
+}
+.kpi-vis-barra-base,
+.kpi-vis-barra-dv {
+  display: block;
+  height: 3.5px;
+  border-radius: var(--r-pill);
+  transform-origin: left center;
+  animation: revelar-medidor 440ms var(--ease-enter) 140ms backwards;
+}
+.kpi-vis-barra-base { background: var(--border-strong); opacity: 0.55; }
+.kpi-vis-barra-dv { background: var(--change); }
+.kpi-vis-blocos { gap: 3px; }
+.kpi-vis-bloco-base,
+.kpi-vis-bloco-dv {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+.kpi-vis-bloco-base { background: var(--border-strong); opacity: 0.42; }
+.kpi-vis-bloco-dv { background: var(--change); }
+.kpi-vis-etapas { gap: 0; }
+.kpi-vis-etapa {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--border-strong);
+  background: transparent;
+  flex: none;
+}
+.kpi-vis-etapa-ok { background: var(--border-strong); }
+.kpi-vis-etapa-dv { border-color: var(--change); background: var(--change); }
+.kpi-vis-fio {
+  flex: 1 1 auto;
+  height: 1.5px;
+  background: var(--border);
+}
+.kpi-vis-fio-ok { background: var(--change); opacity: 0.7; }
+.kpi-vis-setores {
+  gap: 3px;
+  height: 5px;
+  margin-block: 0.375rem 0.25rem;
+}
+.kpi-vis-setor-seg {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--text);
+  opacity: 0.28;
+  transform-origin: left center;
+  animation: revelar-medidor 460ms var(--ease-enter) 160ms backwards;
+}
+.kpi-vis-setor-seg:nth-child(2) { background: var(--change); opacity: 0.92; }
+.kpi-vis-setor-seg:nth-child(3) { opacity: 0.55; }
+.kpi-vis-setor-seg:nth-child(4) { opacity: 0.42; }
+.kpi-vis-ok-trilha {
+  height: 3.5px;
+  border-radius: var(--r-pill);
+  background: var(--ok);
+  opacity: 0.7;
+  transform-origin: left center;
+  animation: revelar-medidor 420ms var(--ease-enter) 140ms backwards;
+}
+
+.mx-col-cab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.mx-col-icone,
+.campo-icone,
+.tarefas-grupo-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text2);
+  flex: none;
+}
+.mx-col-icone svg,
+.campo-icone svg { width: 0.875rem; height: 0.875rem; }
+.tarefas-grupo-icone {
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: var(--r-xs);
+  background: var(--surface2);
+  color: var(--text);
+}
+.tarefas-grupo-icone svg { width: 0.9375rem; height: 0.9375rem; }
+.campo { display: inline-flex; align-items: center; gap: 0.4375rem; }
+
+@media (max-width: 960px) {
+  .rota-fluxo { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  .rota-docs { padding-inline-start: 0; border-inline-start: 0; padding-top: 0.625rem; border-top: 1px solid var(--border); width: 100%; }
+}
 .kpi-hero-contexto {
   font-size: 0.8125rem;
   font-weight: 500;

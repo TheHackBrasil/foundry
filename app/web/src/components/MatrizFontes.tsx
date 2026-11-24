@@ -10,12 +10,32 @@ import { formatarMomento, formatarValor, rotuloCampo, rotuloFonte, variacao } fr
 import type { Celula, LinhaMatriz, Matriz } from '../matriz.ts';
 import { CamadaShader } from '../shaders/index.ts';
 import {
+  IconeCaixa,
+  IconeCalendario,
+  IconeCaminhao,
   IconeConfere,
   IconeDiverge,
   IconeFechar,
+  IconeFiscal,
   IconeMais,
+  IconePeso,
+  IconePlanilha,
+  IconeRota,
   IconeSemComparacao,
 } from './icones.tsx';
+
+function iconeDaFonte(fonte: FonteDocumento) {
+  if (fonte === 'cte') return <IconeCaminhao />;
+  if (fonte === 'planilha') return <IconePlanilha />;
+  return <IconeFiscal />;
+}
+
+function iconeDoCampo(campo: string) {
+  if (campo === 'previsaoEntrega') return <IconeCalendario />;
+  if (campo === 'pesoTotal') return <IconePeso />;
+  if (campo === 'volumes') return <IconeCaixa />;
+  return <IconeRota />;
+}
 
 export interface TrilhoFonte {
   fonte: FonteDocumento;
@@ -480,7 +500,10 @@ export function MatrizFontes({
           <div role="columnheader">Campo</div>
           {matriz.fontes.map((fonte) => (
             <div key={fonte} role="columnheader" data-flip-id={`col-${fonte}`}>
-              <b>{rotuloFonte(fonte)}</b>
+              <b className="mx-col-cab">
+                <span className="mx-col-icone" aria-hidden="true">{iconeDaFonte(fonte)}</span>
+                <span>{rotuloFonte(fonte)}</span>
+              </b>
             </div>
           ))}
         </div>
@@ -533,7 +556,10 @@ export function MatrizFontes({
                       onClick={(e) => alternarFoco(alvoLinha, e)}
                       title={`Destacar tarefas e células de ${rotuloCampo(linha.campo as CampoVigiado)}`}
                     >
-                      <span className="campo">{rotuloCampo(linha.campo)}</span>
+                      <span className="campo">
+                        <span className="campo-icone" aria-hidden="true">{iconeDoCampo(linha.campo)}</span>
+                        <span>{rotuloCampo(linha.campo)}</span>
+                      </span>
                       {rotuloEstado}
                       {medidor && (
                         <span className="mx-medidor" aria-hidden="true">
@@ -544,7 +570,10 @@ export function MatrizFontes({
                     </button>
                   ) : (
                     <>
-                      <span className="campo">{rotuloCampo(linha.campo)}</span>
+                      <span className="campo">
+                        <span className="campo-icone" aria-hidden="true">{iconeDoCampo(linha.campo)}</span>
+                        <span>{rotuloCampo(linha.campo)}</span>
+                      </span>
                       {rotuloEstado}
                       {medidor && (
                         <span className="mx-medidor" aria-hidden="true">

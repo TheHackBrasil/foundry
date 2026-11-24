@@ -267,3 +267,91 @@ export function IconePainelLateral() {
     </svg>
   );
 }
+
+export function IconeFabrica() {
+  return (
+    <svg {...micro}>
+      <path {...tracoMicro} d="M2.5 13.25V7.5l3.5-2v2l3.5-2v7.75M2 13.25h12M11.5 5.5V3h2v10.25" />
+    </svg>
+  );
+}
+
+export function IconeCaminhao() {
+  return (
+    <svg {...micro}>
+      <path {...tracoMicro} d="M2 4.5h7.25v6.25H2zM9.25 6.5h2.6l2.15 2v2.25h-4.75" />
+      <circle {...tracoMicro} cx="4.75" cy="11.75" r="1.35" />
+      <circle {...tracoMicro} cx="11.5" cy="11.75" r="1.35" />
+    </svg>
+  );
+}
+
+export function IconeGalpao() {
+  return (
+    <svg {...micro}>
+      <path {...tracoMicro} d="M2.25 6.5 8 3l5.75 3.5V13h-11.5V6.5ZM5.5 13V9h5v4" />
+    </svg>
+  );
+}
+
+export function IconeFiscal() {
+  return (
+    <svg {...micro}>
+      <path {...tracoMicro} d="M4 2.5h5.5l2.75 2.75V13.5H4V2.5ZM9.25 2.5v3h3M6 8.25h4M6 10.75h2.75" />
+    </svg>
+  );
+}
+
+export function IconeFinanceiro() {
+  return (
+    <svg {...micro}>
+      <rect {...tracoMicro} x="2.25" y="4" width="11.5" height="8" rx="1.5" />
+      <circle {...tracoMicro} cx="8" cy="8" r="1.75" />
+      <path {...tracoMicro} d="M4.5 6.25v3.5M11.5 6.25v3.5" />
+    </svg>
+  );
+}
+
+export function IconePlanilha() {
+  return (
+    <svg {...micro}>
+      <rect {...tracoMicro} x="2.5" y="3" width="11" height="10" rx="1.5" />
+      <path {...tracoMicro} d="M2.5 6.5h11M6.5 6.5V13M10 6.5V13" />
+    </svg>
+  );
+}
+
+export function IconeCalendario() {
+  return (
+    <svg {...micro}>
+      <rect {...tracoMicro} x="2.5" y="3.5" width="11" height="9.75" rx="1.5" />
+      <path {...tracoMicro} d="M5.5 2.25v2.5M10.5 2.25v2.5M2.5 6.75h11" />
+    </svg>
+  );
+}
+
+export function IconePeso() {
+  return (
+    <svg {...micro}>
+      <path {...tracoMicro} d="M4.25 6h7.5l1.25 7H3l1.25-7ZM6 6a2 2 0 1 1 4 0" />
+    </svg>
+  );
+}
+
+export function IconeCaixa() {
+  return (
+    <svg {...micro}>
+      <path {...tracoMicro} d="M8 2.25 13 5v6l-5 2.75L3 11V5l5-2.75ZM3 5l5 2.75L13 5M8 7.75v6" />
+    </svg>
+  );
+}
+
+export function IconeRota() {
+  return (
+    <svg {...micro}>
+      <circle {...tracoMicro} cx="3.75" cy="11.75" r="1.5" />
+      <circle {...tracoMicro} cx="12.25" cy="4.25" r="1.5" />
+      <path {...tracoMicro} d="M5.25 11.75H9a2 2 0 0 0 0-4H7a2 2 0 0 1 0-4h3.75" />
+    </svg>
+  );
+}

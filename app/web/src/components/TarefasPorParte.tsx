@@ -17,7 +17,31 @@ import {
   type FiltroParte,
   type GrupoTarefa,
 } from '../matriz.ts';
-import { IconeAviso, IconeConfere, IconeErro } from './icones.tsx';
+import {
+  IconeAviso,
+  IconeCaminhao,
+  IconeConfere,
+  IconeErro,
+  IconeFabrica,
+  IconeFinanceiro,
+  IconeFiscal,
+  IconeGalpao,
+} from './icones.tsx';
+
+function iconeDoSetor(parte: Parte) {
+  switch (parte) {
+    case 'fornecedor':
+      return <IconeFabrica />;
+    case 'transportadora':
+      return <IconeCaminhao />;
+    case 'cd':
+      return <IconeGalpao />;
+    case 'fiscal':
+      return <IconeFiscal />;
+    case 'financeiro':
+      return <IconeFinanceiro />;
+  }
+}
 
 interface Props {
   tarefas: readonly Tarefa[];
@@ -251,6 +275,7 @@ function SetorTarefas({
       <div className="tarefas-grupo-cab">
         <div className="tarefas-grupo-info">
           <div className="tarefas-grupo-titulo-linha">
+            <span className="tarefas-grupo-icone" aria-hidden="true">{iconeDoSetor(parte)}</span>
             <h3 className="tarefas-grupo-titulo">{rotuloParte(parte)}</h3>
             <span className="tarefas-grupo-cont mono num">{itens.length}</span>
           </div>

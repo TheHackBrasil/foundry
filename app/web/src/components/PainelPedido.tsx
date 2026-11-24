@@ -51,9 +51,18 @@ import type { Carga } from '../useTorre.ts';
 import { BarraMandatos } from './BarraMandatos.tsx';
 import { GrafoDomino } from './GrafoDomino.tsx';
 import {
+  IconeCaixa,
+  IconeCalendario,
+  IconeCaminhao,
   IconeConfere,
   IconeCopiar,
   IconeDiverge,
+  IconeFabrica,
+  IconeFiscal,
+  IconeGalpao,
+  IconePeso,
+  IconePlanilha,
+  IconeRota,
 } from './icones.tsx';
 import { MatrizFontes, type TrilhoFonte } from './MatrizFontes.tsx';
 import { PalcoGenUI } from './PalcoGenUI.tsx';
@@ -722,29 +731,187 @@ function Conteudo({
     aoAnunciar(`Destacando ${kpi.rotulo} na matriz e no mapa causal.`);
   }
 
+  function iconeFonteCompacto(fonte: FonteDocumento) {
+    if (fonte === 'cte') return <IconeCaminhao />;
+    if (fonte === 'planilha') return <IconePlanilha />;
+    return <IconeFiscal />;
+  }
+
+  function iconeCampoKpi(campo: CampoVigiado) {
+    switch (campo) {
+      case 'previsaoEntrega':
+        return <IconeCalendario />;
+      case 'pesoTotal':
+        return <IconePeso />;
+      case 'volumes':
+        return <IconeCaixa />;
+      case 'status':
+        return <IconeRota />;
+    }
+  }
+
+  function renderMicroVisualKpi(kpi: KpiDivergencia) {
+    if (kpi.campo === 'previsaoEntrega') {
+      return (
+        <span className="kpi-vis kpi-vis-prazo" aria-hidden="true">
+          <span className="kpi-vis-trilha" />
+          <span className="kpi-vis-ponto-base" />
+          <span className="kpi-vis-desvio-trilha" />
+          <span className="kpi-vis-ponto-dv" />
+        </span>
+      );
+    }
+    if (kpi.campo === 'pesoTotal') {
+      return (
+        <span className="kpi-vis kpi-vis-barras" aria-hidden="true">
+          <span className="kpi-vis-barra-base" style={{ width: '74%' }} />
+          <span className="kpi-vis-barra-dv" style={{ width: '92%' }} />
+        </span>
+      );
+    }
+    if (kpi.campo === 'volumes') {
+      return (
+        <span className="kpi-vis kpi-vis-blocos" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, i) => (
+            <span key={i} className="kpi-vis-bloco-base" />
+          ))}
+          <span className="kpi-vis-bloco-dv" />
+          <span className="kpi-vis-bloco-dv" />
+        </span>
+      );
+    }
+    return (
+      <span className="kpi-vis kpi-vis-etapas" aria-hidden="true">
+        <span className="kpi-vis-etapa kpi-vis-etapa-ok" />
+        <span className="kpi-vis-fio kpi-vis-fio-ok" />
+        <span className="kpi-vis-etapa kpi-vis-etapa-dv" />
+        <span className="kpi-vis-fio" />
+        <span className="kpi-vis-etapa" />
+      </span>
+    );
+  }
+
+  const fontesAtivasHero = useMemo(
+    () =>
+      matriz.fontes.filter(
+        (f) => !matriz.fontesSemDeclaracao.includes(f),
+      ),
+    [matriz.fontes, matriz.fontesSemDeclaracao],
+  );
+
+  const fontesComConflito = useMemo(() => {
+    const s = new Set<FonteDocumento>();
+    for (const d of dados.divergencias) {
+      s.add(d.fonteA);
+      s.add(d.fonteB);
+    }
+    return s;
+  }, [dados.divergencias]);
+
+  const distribuicaoSetores = useMemo(
+    () =>
+      PARTES.map((p) => ({
+        parte: p,
+        qtd: agruparTarefas(tarefasDaParte(dados.tarefas, p)).length,
+      })).filter((x) => x.qtd > 0),
+    [dados.tarefas],
+  );
+
+  const statusAtualVisual = useMemo(() => {
+    const linha = matriz.linhas.find((l) => l.campo === 'status');
+    const ultima = linha?.celulas.filter((c) => c.valor !== undefined).at(-1);
+    return ultima?.valor ? formatarValor('status', ultima.valor) : 'Emitida';
+  }, [matriz.linhas]);
+
   return (
     <>
       <header className="painel-cab">
         <div className="painel-identidade">
           <div className="painel-titulo-linha">
             <h1 id="pedido-titulo" title={id}>
-              Pedido <span className="mono num">{chaveCurta(id)}</span>
+              {dados.pedido ? (
+                <>
+                  <span>{dados.pedido.emitente.nome}</span>
+                  <span className="titulo-codigo mono num">#{chaveCurta(id)}</span>
+                </>
+              ) : (
+                <>
+                  Pedido <span className="mono num">{chaveCurta(id)}</span>
+                </>
+              )}
             </h1>
             {daSessao && <span className="pilula-sutil">Sua sessão</span>}
           </div>
 
           {dados.pedido && (
-            <p className="partes-pedido">
-              <span>{dados.pedido.emitente.nome}</span>
-              <span className="meta" aria-hidden="true"> → </span>
-              <span>{dados.pedido.destinatario.nome}</span>
-              {manifesto && <span className="manifesto-carga"> · {manifesto}</span>}
-            </p>
+            <div className="rota-visual slab-mineral" aria-label="Rota e conciliação de documentos">
+              <div className="rota-fluxo">
+                <div className="rota-extremo">
+                  <span className="rota-icone" aria-hidden="true"><IconeFabrica /></span>
+                  <div className="rota-txt">
+                    <span className="rota-rotulo">Origem</span>
+                    <strong className="rota-nome">{dados.pedido.emitente.nome}</strong>
+                  </div>
+                </div>
+
+                <div className="rota-trilha" aria-hidden="true">
+                  <span className="rota-linha" />
+                  <span
+                    className={
+                      kpisDivergencia.length > 0
+                        ? 'rota-no-carga rota-no-carga-dv'
+                        : 'rota-no-carga'
+                    }
+                  >
+                    <IconeCaminhao />
+                    <span>{statusAtualVisual}</span>
+                  </span>
+                  <span className="rota-linha rota-linha-prox" />
+                </div>
+
+                <div className="rota-extremo rota-extremo-dir">
+                  <span className="rota-icone" aria-hidden="true"><IconeGalpao /></span>
+                  <div className="rota-txt">
+                    <span className="rota-rotulo">Destino</span>
+                    <strong className="rota-nome">{dados.pedido.destinatario.nome}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rota-docs" aria-label="Documentos cruzados">
+                {fontesAtivasHero.map((fonte, idx) => {
+                  const conflita = fontesComConflito.has(fonte);
+                  return (
+                    <span key={fonte} className="rota-doc-par">
+                      {idx > 0 && (
+                        <span
+                          className={
+                            kpisDivergencia.length > 0
+                              ? 'rota-doc-elo rota-doc-elo-dv'
+                              : 'rota-doc-elo rota-doc-elo-ok'
+                          }
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span
+                        className={conflita ? 'rota-doc-no rota-doc-no-dv' : 'rota-doc-no rota-doc-no-ok'}
+                      >
+                        {iconeFonteCompacto(fonte)}
+                        <span>{rotuloFonte(fonte)}</span>
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
           <div className="painel-meta-linha">
             <div className="chave-linha">
-              <p className="chave mono">NF-e {chaveAgrupada(id)}</p>
+              <p className="chave mono">
+                NF-e {chaveAgrupada(id)}
+                {manifesto ? ` · ${manifesto}` : ''}
+              </p>
               <button
                 type="button"
                 className={chaveCopiada ? 'btn-copiar btn-copiar-ok' : 'btn-copiar'}
@@ -791,8 +958,12 @@ function Conteudo({
                   aria-pressed={ativo}
                   onClick={() => alternarKpiCampo(kpi)}
                 >
-                  <span className="kpi-hero-label">{kpi.rotulo}</span>
+                  <span className="kpi-hero-label">
+                    <span className="kpi-hero-icone" aria-hidden="true">{iconeCampoKpi(kpi.campo)}</span>
+                    <span>{kpi.rotulo}</span>
+                  </span>
                   <span className="kpi-hero-valor kpi-hero-valor-dv mono num">{kpi.valor}</span>
+                  {renderMicroVisualKpi(kpi)}
                   <span className="kpi-hero-contexto mono num">{kpi.contexto}</span>
                 </button>
               );
@@ -814,6 +985,16 @@ function Conteudo({
                 {totalTarefasAgrupadas}{' '}
                 {totalTarefasAgrupadas === 1 ? 'tarefa' : 'tarefas'}
               </span>
+              <span className="kpi-vis kpi-vis-setores" aria-hidden="true">
+                {distribuicaoSetores.map((s) => (
+                  <span
+                    key={s.parte}
+                    className="kpi-vis-setor-seg"
+                    style={{ flexGrow: s.qtd }}
+                    title={`${rotuloParte(s.parte)}: ${s.qtd}`}
+                  />
+                ))}
+              </span>
               <span className="kpi-hero-contexto num">
                 {setoresAfetadosCount} {setoresAfetadosCount === 1 ? 'setor' : 'setores'}
               </span>
@@ -824,6 +1005,7 @@ function Conteudo({
             <div className="kpi-hero-item" style={{ '--stagger': 0 } as CSSProperties}>
               <span className="kpi-hero-label">Conciliação</span>
               <span className="kpi-hero-valor kpi-hero-valor-ok mono num">0 divergências</span>
+              <span className="kpi-vis kpi-vis-ok-trilha" aria-hidden="true" />
               <span className="kpi-hero-contexto">Fontes em acordo</span>
             </div>
             <div className="kpi-hero-item" style={{ '--stagger': 1 } as CSSProperties}>
