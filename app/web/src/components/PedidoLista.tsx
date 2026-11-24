@@ -34,10 +34,12 @@ export function PedidoLista({ pedidos, selecionado, aoTentarDeNovo }: Props) {
                   aria-current={p.pedidoId === selecionado ? 'page' : undefined}
                   title={p.pedidoId}
                 >
-                  <span className="mono">{chaveCurta(p.pedidoId)}</span>
-                  {p.pedidoId === selecionado && <span className="etiqueta etiqueta-atual">Aberto</span>}
-                  <span className="meta">
-                    {p.totalEventos} {p.totalEventos === 1 ? 'evento' : 'eventos'}, atualizado {formatarMomento(p.ultimoEm)}
+                  <div className="lista-item-topo">
+                    <span className="mono">{chaveCurta(p.pedidoId)}</span>
+                    {p.daSessao && <span className="pilula-rail">Sessão</span>}
+                  </div>
+                  <span className="meta num">
+                    {p.totalEventos} {p.totalEventos === 1 ? 'evento' : 'eventos'} · {formatarMomento(p.ultimoEm)}
                   </span>
                 </a>
               </li>

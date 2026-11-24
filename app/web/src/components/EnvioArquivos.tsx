@@ -89,20 +89,16 @@ export function EnvioArquivos({ aoEnviar }: { aoEnviar: (pedidoId: string) => vo
         <span>{enviando ? 'Enviando…' : 'Solte arquivos aqui ou escolha no computador'}</span>
       </label>
       <p id={ajuda} className="dica">
-        NF-e, CT-e, evento fiscal, planilha CSV ou XLSX, PDF ou e-mail (.eml) com esses documentos em anexo. A NF-e cria o pedido: envie ela primeiro, ou dentro do e-mail.
+        NF-e, CT-e, CC-e, CSV, XLSX, PDF ou .eml. Envie a NF-e primeiro para criar o pedido.
       </p>
-      <p className="dica">
-        Sem arquivo à mão? Baixe os exemplos, todos com dados fictícios:{' '}
-        {EXEMPLOS.map((x, i) => (
-          <span key={x.arquivo}>
-            {i > 0 && ', '}
-            <a href={`/exemplos/${x.arquivo}`} download>
-              {x.rotulo}
-            </a>
-          </span>
+      <p className="envio-exemplos-rotulo">Exemplos fictícios:</p>
+      <div className="envio-exemplos">
+        {EXEMPLOS.map((x) => (
+          <a key={x.arquivo} href={`/exemplos/${x.arquivo}`} download>
+            {x.rotulo}
+          </a>
         ))}
-        .
-      </p>
+      </div>
       <div role="status" aria-live="polite">
         {resultados.length > 0 && (
           <ul className="resultados" aria-label="Resultado dos envios">

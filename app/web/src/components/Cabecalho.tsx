@@ -23,13 +23,13 @@ export function Cabecalho({ stream, pausado, pendentes, aoPausar, tema, aoTema }
     <header className="topo">
       <div className="topo-marca">
         <Marca tema={tema} />
-        <h1>
+        <span className="topo-nome">
           Forseti<span className="so-leitor">: torre de pedidos</span>
-        </h1>
+        </span>
         <p className="selo">Demonstração com dados fictícios</p>
       </div>
       <div className="topo-acoes">
-        <p className={`vivo vivo-${stream}`}>
+        <p className={`vivo ${pausado ? 'vivo-pausado' : `vivo-${stream}`}`}>
           <span className="vivo-ponto" aria-hidden="true" />
           {pausado
             ? `Pausado${pendentes > 0 ? `: ${pendentes} ${pendentes === 1 ? 'evento' : 'eventos'} na fila` : ''}`

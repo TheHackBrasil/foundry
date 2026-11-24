@@ -11,9 +11,31 @@ import type {
 // até a app-infra promover o tipo.
 export interface PedidoResumo {
   pedidoId: string;
+  workspaceId?: string;
   totalEventos: number;
   criadoEm: string;
   ultimoEm: string;
+  daSessao?: boolean;
+}
+
+// Quando o visitante sobe o mesmo pedido da seed na propria sessao, /api/pedidos
+// devolve as duas entradas: priorizamos a da sessao para nao duplicar na barra.
+export function deduplicarPedidos(
+  lista: readonly PedidoResumo[],
+  workspace?: string,
+): PedidoResumo[] {
+  const mapa = new Map<string, PedidoResumo>();
+  for (const item of lista) {
+    const daSessao = Boolean(workspace && item.workspaceId === workspace);
+    const enriquecido: PedidoResumo = { ...item, daSessao };
+    const existente = mapa.get(item.pedidoId);
+    if (!existente) {
+      mapa.set(item.pedidoId, enriquecido);
+    } else if (daSessao && !existente.daSessao) {
+      mapa.set(item.pedidoId, enriquecido);
+    }
+  }
+  return [...mapa.values()];
 }
 
 export class ErroApi extends Error {
@@ -92,7 +114,8 @@ async function pedirJson<T>(caminho: string, init?: RequestInit): Promise<T> {
 }
 
 export async function listarPedidos(): Promise<PedidoResumo[]> {
-  return (await pedirJson<{ pedidos: PedidoResumo[] }>('/api/pedidos')).pedidos;
+  const r = await pedirJson<{ pedidos: PedidoResumo[]; workspace?: string }>('/api/pedidos');
+  return deduplicarPedidos(r.pedidos, r.workspace);
 }
 
 export const obterPedido = (id: string): Promise<ProjecaoPedido> =>

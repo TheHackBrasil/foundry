@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 
-// Contratos minimos da Web Speech API (ausentes na lib DOM padrao do TS).
-interface ResultadoReconhecimento {
+// Contratos mínimos da Web Speech API (ausentes na lib DOM padrão do TS).
+export interface ResultadoReconhecimento {
   readonly isFinal: boolean;
   readonly length: number;
   readonly [index: number]: { readonly transcript: string } | undefined;
 }
 
-interface EventoResultadoReconhecimento {
+export interface EventoResultadoReconhecimento {
   readonly results: {
     readonly length: number;
     readonly [index: number]: ResultadoReconhecimento | undefined;
@@ -44,42 +44,132 @@ interface JanelaComVoz {
   webkitAudioContext?: typeof AudioContext;
 }
 
-const QUANTIDADE_BARRAS = 5;
-const BARRAS_REPOUSO: readonly number[] = [0.16, 0.16, 0.16, 0.16, 0.16];
-const BARRAS_ESTATICAS: readonly number[] = [0.35, 0.65, 0.85, 0.55, 0.35];
-const PESOS_EVENTO: readonly number[] = [0.55, 0.85, 1, 0.8, 0.5];
+const SEM_FALA_INICIAL_MS = 7500;
+const SILENCIO_PROVISORIO_MS = 3400;
+const SILENCIO_POS_FALA_MS = 2100;
+const GUARDA_SOM_SEM_RESULTADO_MS = 12_000;
+const WATCHDOG_FINALIZAR_MS = 1200;
+const RETRY_ALSA_MS = 120;
 
-// Converte espectro FFT em 5 barras normalizadas (0.16..1) com suavizacao
-// assimetrica: sobe rapido no ataque da silaba e desce macio no silencio.
-export function calcularBarrasAudio(
-  dadosFrequencia: Uint8Array,
-  anterior: readonly number[],
-  quantidade = QUANTIDADE_BARRAS,
-): number[] {
-  const saida: number[] = [];
-  if (dadosFrequencia.length === 0 || quantidade <= 0) {
-    return Array.from({ length: Math.max(0, quantidade) }, () => 0.16);
-  }
-  // Faixa vocal (ignora DC no indice 0 e agudos extremos sem energia de voz).
-  const inicio = Math.min(1, dadosFrequencia.length - 1);
-  const fim = Math.max(inicio + 1, Math.min(dadosFrequencia.length, Math.ceil(dadosFrequencia.length * 0.72)));
-  const faixa = Math.max(1, fim - inicio);
+const PISO_BARRA = 0.12;
+const LIMIAR_RMS_FALA = 0.014;
+const BIN_VOCAL_INICIO = 1;
+const BIN_VOCAL_FIM = 16;
+const TAU_ATAQUE_MS = 36;
+const TAU_QUEDA_MS = 125;
+const DT_MIN_MS = 4;
+const DT_MAX_MS = 64;
 
-  for (let i = 0; i < quantidade; i++) {
-    const a = inicio + Math.floor((i * faixa) / quantidade);
-    const b = Math.max(a + 1, inicio + Math.floor(((i + 1) * faixa) / quantidade));
-    let soma = 0;
-    let contagem = 0;
-    for (let j = a; j < b && j < dadosFrequencia.length; j++) {
-      soma += dadosFrequencia[j] ?? 0;
-      contagem += 1;
+export function montarTranscricao(
+  results: EventoResultadoReconhecimento['results'],
+  ehAndroid: boolean,
+): { texto: string; provisorio: boolean } {
+  const partes: string[] = [];
+  let provisorio = false;
+
+  for (let i = 0; i < results.length; i++) {
+    const res = results[i];
+    if (!res) continue;
+    if (!res.isFinal) provisorio = true;
+    const trecho = (res[0]?.transcript ?? '').replace(/\s+/g, ' ').trim();
+    if (!trecho) continue;
+
+    // Android Chrome reemite prefixos cumulativos ou repete trechos consecutivos
+    // dentro do mesmo evento onresult.
+    if (ehAndroid && partes.length > 0) {
+      const anterior = partes[partes.length - 1] ?? '';
+      const anteriorLow = anterior.toLowerCase();
+      const trechoLow = trecho.toLowerCase();
+      if (trechoLow === anteriorLow) continue;
+      if (trechoLow.startsWith(`${anteriorLow} `)) {
+        partes[partes.length - 1] = trecho;
+        continue;
+      }
+      const acumuladoLow = partes.join(' ').toLowerCase();
+      if (acumuladoLow === trechoLow || acumuladoLow.endsWith(` ${trechoLow}`)) continue;
+      if (trechoLow.startsWith(`${acumuladoLow} `)) {
+        partes.splice(0, partes.length, trecho);
+        continue;
+      }
     }
-    const media = contagem > 0 ? soma / (contagem * 255) : 0;
-    // Curva leve para dar leitura visivel em voz normal de microfone de notebook.
-    const alvo = Math.min(1, Math.max(0.16, Math.pow(media, 0.78) * 1.35 + 0.16));
-    const prev = anterior[i] ?? 0.16;
-    const peso = alvo > prev ? 0.58 : 0.24;
-    saida.push(Number((prev + (alvo - prev) * peso).toFixed(3)));
+
+    partes.push(trecho);
+  }
+
+  const texto = partes.join(' ').replace(/\s+/g, ' ').trim();
+  return { texto, provisorio };
+}
+
+export function calcularRmsTemporal(amostras: Uint8Array): number {
+  if (amostras.length === 0) return 0;
+  let somaQuad = 0;
+  for (let i = 0; i < amostras.length; i++) {
+    const normalizado = ((amostras[i] ?? 128) - 128) / 128;
+    somaQuad += normalizado * normalizado;
+  }
+  return Math.min(1, Math.sqrt(somaQuad / amostras.length));
+}
+
+// Mapeia as bandas vocais reais (bins 1..16 em fftSize=256, ~187 Hz–3 kHz)
+// com envelope de Hann simétrico a partir do centro e piso suave de RMS.
+export function calcularAlvosBarras(
+  dadosFrequencia: Uint8Array,
+  rms: number,
+  quantidade = 20,
+): number[] {
+  if (quantidade <= 0) return [];
+  const metade = quantidade / 2;
+  const temBins = dadosFrequencia.length > BIN_VOCAL_INICIO;
+  const binFim = temBins ? Math.min(BIN_VOCAL_FIM, dadosFrequencia.length - 1) : BIN_VOCAL_INICIO;
+  const faixa = Math.max(1, binFim - BIN_VOCAL_INICIO + 1);
+  const pisoRms = rms > LIMIAR_RMS_FALA ? Math.min(1, (rms - LIMIAR_RMS_FALA) * 3.2) * 0.45 : 0;
+
+  const alvos: number[] = [];
+  for (let i = 0; i < quantidade; i++) {
+    const distCentro = Math.abs(i - (metade - 0.5)) / metade;
+    const hann = 0.5 * (1 + Math.cos(Math.PI * distCentro));
+    const janela = 0.2 + 0.8 * hann;
+
+    let espectro = 0;
+    if (temBins) {
+      const fracInicio = Math.max(0, distCentro - 0.5 / metade);
+      const fracFim = Math.min(1, distCentro + 0.5 / metade);
+      const a = BIN_VOCAL_INICIO + Math.floor(fracInicio * faixa);
+      const b = Math.min(binFim + 1, Math.max(a + 1, BIN_VOCAL_INICIO + Math.ceil(fracFim * faixa)));
+      let soma = 0;
+      let contagem = 0;
+      for (let j = a; j < b; j++) {
+        soma += dadosFrequencia[j] ?? 0;
+        contagem += 1;
+      }
+      const bruto = contagem > 0 ? soma / (contagem * 255) : 0;
+      espectro = Math.pow(bruto, 0.72) * 1.05;
+    }
+
+    const energia = Math.max(espectro, pisoRms);
+    const altura = Math.min(1, Math.max(PISO_BARRA, PISO_BARRA + energia * janela));
+    alvos.push(altura);
+  }
+  return alvos;
+}
+
+// Suavização exponencial independente da taxa de quadros: ataque rápido na
+// sílaba e queda macia no silêncio.
+export function suavizarBarras(
+  atuais: ArrayLike<number>,
+  alvos: readonly number[],
+  dtMs: number,
+): number[] {
+  const dt = Number.isFinite(dtMs) ? Math.min(DT_MAX_MS, Math.max(DT_MIN_MS, dtMs)) : 16;
+  const alphaAtaque = 1 - Math.exp(-dt / TAU_ATAQUE_MS);
+  const alphaQueda = 1 - Math.exp(-dt / TAU_QUEDA_MS);
+
+  const saida: number[] = [];
+  for (let i = 0; i < alvos.length; i++) {
+    const alvo = alvos[i] ?? PISO_BARRA;
+    const atual = atuais[i] ?? PISO_BARRA;
+    const alpha = alvo > atual ? alphaAtaque : alphaQueda;
+    saida.push(atual + (alvo - atual) * alpha);
   }
   return saida;
 }
@@ -88,24 +178,38 @@ export function normalizarErroVoz(codigo: string): string {
   switch (codigo) {
     case 'not-allowed':
     case 'service-not-allowed':
-      return 'Permissão de microfone negada no navegador.';
+      return 'Permissão de microfone bloqueada pelo navegador. Libere o acesso na barra de endereço e tente de novo.';
     case 'no-speech':
-      return 'Nenhuma fala detectada. Tente de novo perto do microfone.';
+      return 'Nenhuma fala captada. Fale mais perto do microfone ou clique em Voz para tentar de novo.';
     case 'audio-capture':
-      return 'Nenhum microfone disponível neste aparelho.';
+      return 'Nenhum microfone ativo foi encontrado neste aparelho.';
     case 'network':
-      return 'Falha de rede no reconhecimento de voz do navegador.';
+      return 'O serviço de transcrição do navegador não respondeu (comum no Brave ou Chromium sem chave Google). Use Chrome/Edge ou digite o comando.';
+    case 'language-not-supported':
+      return 'O reconhecimento de voz em português (pt-BR) não está disponível neste navegador.';
     case 'aborted':
       return '';
     default:
-      return 'Não foi possível transcrever o áudio agora.';
+      return 'Não foi possível transcrever o áudio agora. Digite o comando ou tente novamente.';
   }
 }
 
-function construtorReconhecimento(): ConstrutorReconhecimento | null {
+function contextoFechado(ctx: AudioContext): boolean {
+  return ctx.state === 'closed';
+}
+
+function obterJanelaVoz(): JanelaComVoz | null {
   if (typeof window === 'undefined') return null;
-  const w = window as unknown as JanelaComVoz;
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+  return window as unknown as JanelaComVoz;
+}
+
+function construtorReconhecimento(): ConstrutorReconhecimento | null {
+  const w = obterJanelaVoz();
+  return w?.SpeechRecognition ?? w?.webkitSpeechRecognition ?? null;
+}
+
+function ehAndroid(): boolean {
+  return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 }
 
 function prefereMovimentoReduzido(): boolean {
@@ -116,8 +220,6 @@ function prefereMovimentoReduzido(): boolean {
   );
 }
 
-// Em telas touch (iOS/Android), abrir getUserMedia em paralelo com
-// SpeechRecognition costuma disputar o hardware do microfone e encerrar o ditado.
 function dispositivoToque(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -126,6 +228,8 @@ function dispositivoToque(): boolean {
   );
 }
 
+export type FaseVoz = 'ocioso' | 'iniciando' | 'ouvindo' | 'finalizando';
+
 export interface OpcoesVoz {
   aoTranscrever: (texto: string, provisorio: boolean) => void;
   aoConcluir?: (textoFinal: string) => void;
@@ -133,10 +237,12 @@ export interface OpcoesVoz {
 
 export interface EstadoVoz {
   suportado: boolean;
+  fase: FaseVoz;
   ouvindo: boolean;
   segundos: number;
-  niveis: readonly number[];
-  fonteNivel: 'audio' | 'eventos' | 'estatico';
+  movimentoReduzido: boolean;
+  analyserRef: RefObject<AnalyserNode | null>;
+  energiaRef: RefObject<number>;
   erro: string | null;
   alternar: () => void;
   parar: () => void;
@@ -146,21 +252,23 @@ export interface EstadoVoz {
 
 export function useVoz({ aoTranscrever, aoConcluir }: OpcoesVoz): EstadoVoz {
   const suportado = construtorReconhecimento() !== null;
-  const [ouvindo, setOuvindo] = useState(false);
+  const [fase, setFase] = useState<FaseVoz>('ocioso');
   const [segundos, setSegundos] = useState(0);
-  const [niveis, setNiveis] = useState<readonly number[]>(BARRAS_REPOUSO);
-  const [fonteNivel, setFonteNivel] = useState<'audio' | 'eventos' | 'estatico'>('eventos');
   const [erro, setErro] = useState<string | null>(null);
   const [movimentoReduzido, setMovimentoReduzido] = useState(prefereMovimentoReduzido);
 
   const recRef = useRef<ReconhecimentoFala | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const energiaRef = useRef(0);
   const timerRef = useRef<number | null>(null);
-  const decaimentoRef = useRef<number | null>(null);
-  const niveisRef = useRef<readonly number[]>(BARRAS_REPOUSO);
+  const silencioRef = useRef<number | null>(null);
+  const finalizarRef = useRef<number | null>(null);
+  const retryRef = useRef<number | null>(null);
+  const medidorSolicitadoRef = useRef(false);
   const canceladoRef = useRef(false);
+  const retentouSemStreamRef = useRef(false);
   const ultimoTextoRef = useRef('');
   const aoTranscreverRef = useRef(aoTranscrever);
   const aoConcluirRef = useRef(aoConcluir);
@@ -179,227 +287,370 @@ export function useVoz({ aoTranscrever, aoConcluir }: OpcoesVoz): EstadoVoz {
     return () => mq.removeEventListener('change', aoMudar);
   }, []);
 
+  const fecharContexto = useCallback((ctx: AudioContext) => {
+    if (audioCtxRef.current === ctx) audioCtxRef.current = null;
+    if (!contextoFechado(ctx)) {
+      void ctx.close().catch(() => undefined);
+    }
+  }, []);
+
   const encerrarAudio = useCallback(() => {
-    if (rafRef.current !== null) {
-      window.cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    if (decaimentoRef.current !== null) {
-      window.clearTimeout(decaimentoRef.current);
-      decaimentoRef.current = null;
-    }
+    analyserRef.current = null;
+    energiaRef.current = 0;
     if (streamRef.current) {
       for (const faixa of streamRef.current.getTracks()) faixa.stop();
       streamRef.current = null;
     }
     if (audioCtxRef.current) {
-      void audioCtxRef.current.close().catch(() => undefined);
-      audioCtxRef.current = null;
+      fecharContexto(audioCtxRef.current);
     }
-    niveisRef.current = BARRAS_REPOUSO;
-    setNiveis(BARRAS_REPOUSO);
-  }, []);
+  }, [fecharContexto]);
 
-  const encerrarCronometro = useCallback(() => {
+  const pararCronometro = useCallback(() => {
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    setSegundos(0);
   }, []);
 
-  // Pulso honesto quando o AnalyserNode nao esta ativo: reage apenas aos
-  // eventos reais de voz/transcricao e retorna ao repouso no silencio.
-  const pulsarPorEvento = useCallback(
-    (intensidade: number) => {
-      if (movimentoReduzido || audioCtxRef.current !== null) return;
-      const barras = PESOS_EVENTO.map((peso) =>
-        Number(Math.min(1, Math.max(0.16, 0.16 + peso * intensidade)).toFixed(3)),
-      );
-      niveisRef.current = barras;
-      setNiveis(barras);
-      if (decaimentoRef.current !== null) window.clearTimeout(decaimentoRef.current);
-      decaimentoRef.current = window.setTimeout(() => {
-        niveisRef.current = BARRAS_REPOUSO;
-        setNiveis(BARRAS_REPOUSO);
-      }, 280);
-    },
-    [movimentoReduzido],
-  );
+  const limparSilencio = useCallback(() => {
+    if (silencioRef.current !== null) {
+      window.clearTimeout(silencioRef.current);
+      silencioRef.current = null;
+    }
+  }, []);
 
-  const ligarMedidorAcustico = useCallback(async () => {
-    if (movimentoReduzido) {
-      setFonteNivel('estatico');
-      setNiveis(BARRAS_ESTATICAS);
-      return;
+  const limparFinalizar = useCallback(() => {
+    if (finalizarRef.current !== null) {
+      window.clearTimeout(finalizarRef.current);
+      finalizarRef.current = null;
     }
-    if (dispositivoToque() || !navigator.mediaDevices?.getUserMedia) {
-      setFonteNivel('eventos');
-      return;
+  }, []);
+
+  const limparRetry = useCallback(() => {
+    if (retryRef.current !== null) {
+      window.clearTimeout(retryRef.current);
+      retryRef.current = null;
     }
-    const w = window as unknown as JanelaComVoz;
-    const AudioCtx = w.AudioContext ?? w.webkitAudioContext;
-    if (!AudioCtx) {
-      setFonteNivel('eventos');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Se o reconhecimento ja encerrou enquanto a permissao resolvia, solta o mic.
-      if (!recRef.current) {
-        for (const faixa of stream.getTracks()) faixa.stop();
+  }, []);
+
+  const encerrarTimers = useCallback(() => {
+    pararCronometro();
+    limparSilencio();
+    setSegundos(0);
+  }, [limparSilencio, pararCronometro]);
+
+  // AudioContext criado e retomado no próprio clique (gesto do usuário), senão
+  // o Chrome trava em estado "suspended" e o AnalyserNode devolve apenas zeros.
+  const ligarMedidorAcustico = useCallback(
+    async (ctx: AudioContext | null, rec: ReconhecimentoFala) => {
+      if (!ctx || movimentoReduzido || dispositivoToque() || !navigator.mediaDevices?.getUserMedia) {
+        if (ctx) fecharContexto(ctx);
         return;
       }
-      const ctx = new AudioCtx();
-      const origem = ctx.createMediaStreamSource(stream);
-      const analisador = ctx.createAnalyser();
-      analisador.fftSize = 64;
-      analisador.smoothingTimeConstant = 0.65;
-      origem.connect(analisador);
+      let stream: MediaStream | null = null;
+      try {
+        // Desliga o DSP do getUserMedia para não disputar Bluetooth HFP ou
+        // pré-processamento de microfone com o SpeechRecognition.
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        });
+        if (recRef.current !== rec || finalizarRef.current !== null || contextoFechado(ctx)) {
+          for (const faixa of stream.getTracks()) faixa.stop();
+          fecharContexto(ctx);
+          return;
+        }
+        if (ctx.state === 'suspended') {
+          await ctx.resume().catch(() => undefined);
+        }
+        if (recRef.current !== rec || finalizarRef.current !== null || contextoFechado(ctx)) {
+          for (const faixa of stream.getTracks()) faixa.stop();
+          fecharContexto(ctx);
+          return;
+        }
+        const origem = ctx.createMediaStreamSource(stream);
+        const analisador = ctx.createAnalyser();
+        analisador.fftSize = 256;
+        analisador.minDecibels = -76;
+        analisador.maxDecibels = -20;
+        analisador.smoothingTimeConstant = 0.68;
+        origem.connect(analisador);
 
-      streamRef.current = stream;
-      audioCtxRef.current = ctx;
-      setFonteNivel('audio');
+        streamRef.current = stream;
+        audioCtxRef.current = ctx;
+        analyserRef.current = analisador;
+      } catch {
+        // Não bloqueia o SpeechRecognition: visualizador reage a energiaRef.
+        if (stream && streamRef.current !== stream) {
+          for (const faixa of stream.getTracks()) faixa.stop();
+        }
+        fecharContexto(ctx);
+      }
+    },
+    [fecharContexto, movimentoReduzido],
+  );
 
-      const buffer = new Uint8Array(analisador.frequencyBinCount);
-      const quadro = () => {
-        if (!audioCtxRef.current) return;
-        analisador.getByteFrequencyData(buffer);
-        const prox = calcularBarrasAudio(buffer, niveisRef.current);
-        niveisRef.current = prox;
-        setNiveis(prox);
-        rafRef.current = window.requestAnimationFrame(quadro);
-      };
-      rafRef.current = window.requestAnimationFrame(quadro);
-    } catch {
-      // Sem bloquear o SpeechRecognition: degrada para barras reativas a eventos.
-      setFonteNivel('eventos');
-    }
-  }, [movimentoReduzido]);
+  const solicitarParada = useCallback(
+    (rec: ReconhecimentoFala) => {
+      if (recRef.current !== rec || finalizarRef.current !== null) return;
+      canceladoRef.current = false;
+      setFase('finalizando');
+      encerrarAudio();
+      pararCronometro();
+      limparSilencio();
+      try {
+        rec.stop();
+      } catch {
+        // Ignora stop sobre instância já encerrada.
+      }
+      // Watchdog para navegadores que nunca disparam onend após stop().
+      finalizarRef.current = window.setTimeout(() => {
+        finalizarRef.current = null;
+        if (recRef.current !== rec) return;
+        recRef.current = null;
+        encerrarAudio();
+        encerrarTimers();
+        setFase('ocioso');
+        if (!canceladoRef.current && ultimoTextoRef.current) {
+          aoConcluirRef.current?.(ultimoTextoRef.current);
+        }
+      }, WATCHDOG_FINALIZAR_MS);
+    },
+    [encerrarAudio, encerrarTimers, limparSilencio, pararCronometro],
+  );
 
   const parar = useCallback(() => {
-    canceladoRef.current = false;
-    try {
-      recRef.current?.stop();
-    } catch {
-      // Ignora stop sobre instancia ja encerrada.
+    limparRetry();
+    const rec = recRef.current;
+    if (!rec) {
+      limparFinalizar();
+      encerrarAudio();
+      encerrarTimers();
+      setFase('ocioso');
+      return;
     }
-    encerrarAudio();
-    encerrarCronometro();
-    setOuvindo(false);
-  }, [encerrarAudio, encerrarCronometro]);
+    solicitarParada(rec);
+  }, [encerrarAudio, encerrarTimers, limparFinalizar, limparRetry, solicitarParada]);
 
   const cancelar = useCallback(() => {
+    limparRetry();
+    limparFinalizar();
     canceladoRef.current = true;
-    try {
-      recRef.current?.abort();
-    } catch {
-      // Ignora abort sobre instancia ja encerrada.
-    }
+    const rec = recRef.current;
     recRef.current = null;
-    encerrarAudio();
-    encerrarCronometro();
-    setOuvindo(false);
-  }, [encerrarAudio, encerrarCronometro]);
-
-  const iniciar = useCallback(() => {
-    const Ctor = construtorReconhecimento();
-    if (!Ctor) return;
-    setErro(null);
-    canceladoRef.current = false;
-    ultimoTextoRef.current = '';
-
-    const rec = new Ctor();
-    rec.lang = 'pt-BR';
-    rec.interimResults = true;
-    rec.continuous = false;
-    rec.maxAlternatives = 1;
-    recRef.current = rec;
-
-    rec.onstart = () => {
-      setOuvindo(true);
-      setSegundos(0);
-      timerRef.current = window.setInterval(() => setSegundos((s) => s + 1), 1000);
-      void ligarMedidorAcustico();
-    };
-
-    rec.onsoundstart = () => pulsarPorEvento(0.35);
-    rec.onspeechstart = () => pulsarPorEvento(0.68);
-    rec.onspeechend = () => {
-      if (audioCtxRef.current === null && !movimentoReduzido) {
-        niveisRef.current = BARRAS_REPOUSO;
-        setNiveis(BARRAS_REPOUSO);
-      }
-    };
-
-    rec.onresult = (e) => {
-      let completo = '';
-      let provisorio = false;
-      for (let i = 0; i < e.results.length; i++) {
-        const res = e.results[i];
-        const trecho = res?.[0]?.transcript ?? '';
-        completo += trecho;
-        if (res && !res.isFinal) provisorio = true;
-      }
-      const limpo = completo.trim();
-      ultimoTextoRef.current = limpo;
-      if (limpo) {
-        pulsarPorEvento(provisorio ? 0.78 : 0.45);
-        aoTranscreverRef.current(limpo, provisorio);
-      }
-    };
-
-    rec.onerror = (e) => {
-      const msg = normalizarErroVoz(e.error ?? '');
-      if (msg) setErro(msg);
-    };
-
-    rec.onend = () => {
-      recRef.current = null;
-      encerrarAudio();
-      encerrarCronometro();
-      setOuvindo(false);
-      if (!canceladoRef.current && ultimoTextoRef.current) {
-        aoConcluirRef.current?.(ultimoTextoRef.current);
-      }
-    };
-
     try {
-      rec.start();
+      rec?.abort();
     } catch {
-      recRef.current = null;
-      setErro('Não foi possível iniciar o microfone agora.');
+      // Ignora abort sobre instância já encerrada.
     }
-  }, [encerrarAudio, encerrarCronometro, ligarMedidorAcustico, movimentoReduzido, pulsarPorEvento]);
+    encerrarAudio();
+    encerrarTimers();
+    setFase('ocioso');
+  }, [encerrarAudio, encerrarTimers, limparFinalizar, limparRetry]);
+
+  const abrirReconhecimento = useCallback(
+    (comMedidor: boolean) => {
+      const Ctor = construtorReconhecimento();
+      if (!Ctor) return;
+      if (typeof window !== 'undefined' && window.isSecureContext === false) {
+        setErro('O microfone exige HTTPS ou localhost.');
+        return;
+      }
+
+      limparRetry();
+      limparFinalizar();
+      encerrarAudio();
+      encerrarTimers();
+
+      setErro(null);
+      canceladoRef.current = false;
+      ultimoTextoRef.current = '';
+      setFase('iniciando');
+
+      // Abre AudioContext sincronamente dentro do gesto de clique e registra
+      // no ref imediatamente para que cancelar() durante 'iniciando' o feche.
+      let ctx: AudioContext | null = null;
+      if (comMedidor && !movimentoReduzido && !dispositivoToque()) {
+        const w = obterJanelaVoz();
+        const AudioCtx = w?.AudioContext ?? w?.webkitAudioContext;
+        if (AudioCtx) {
+          try {
+            ctx = new AudioCtx();
+            audioCtxRef.current = ctx;
+            void ctx.resume().catch(() => undefined);
+          } catch {
+            ctx = null;
+          }
+        }
+      }
+      medidorSolicitadoRef.current = ctx !== null;
+
+      const android = ehAndroid();
+      const rec = new Ctor();
+      rec.lang = 'pt-BR';
+      rec.interimResults = true;
+      rec.continuous = !android;
+      rec.maxAlternatives = 1;
+      recRef.current = rec;
+
+      const agendarSilencio = (ms: number) => {
+        limparSilencio();
+        silencioRef.current = window.setTimeout(() => {
+          silencioRef.current = null;
+          solicitarParada(rec);
+        }, ms);
+      };
+
+      rec.onstart = () => {
+        if (recRef.current !== rec) return;
+        if (finalizarRef.current !== null) return;
+        setFase('ouvindo');
+        setSegundos(0);
+        pararCronometro();
+        timerRef.current = window.setInterval(() => setSegundos((s) => s + 1), 1000);
+        agendarSilencio(SEM_FALA_INICIAL_MS);
+        if (comMedidor && ctx) void ligarMedidorAcustico(ctx, rec);
+      };
+
+      rec.onsoundstart = () => {
+        if (recRef.current !== rec) return;
+        if (finalizarRef.current === null) agendarSilencio(GUARDA_SOM_SEM_RESULTADO_MS);
+        energiaRef.current = Math.max(energiaRef.current, 0.45);
+      };
+
+      rec.onspeechstart = () => {
+        if (recRef.current !== rec) return;
+        if (finalizarRef.current === null) agendarSilencio(GUARDA_SOM_SEM_RESULTADO_MS);
+        energiaRef.current = 0.85;
+      };
+
+      rec.onspeechend = () => {
+        if (recRef.current !== rec) return;
+        energiaRef.current = 0.15;
+        if (finalizarRef.current === null) {
+          agendarSilencio(ultimoTextoRef.current ? SILENCIO_POS_FALA_MS : SEM_FALA_INICIAL_MS);
+        }
+      };
+
+      rec.onresult = (e) => {
+        if (recRef.current !== rec) return;
+        const { texto: limpo, provisorio } = montarTranscricao(e.results, android);
+        if (!limpo) return;
+        limparSilencio();
+        ultimoTextoRef.current = limpo;
+        energiaRef.current = provisorio ? 0.92 : 0.55;
+        aoTranscreverRef.current(limpo, provisorio);
+        if (finalizarRef.current === null) {
+          agendarSilencio(provisorio ? SILENCIO_PROVISORIO_MS : SILENCIO_POS_FALA_MS);
+        }
+      };
+
+      rec.onerror = (e) => {
+        if (recRef.current !== rec) return;
+        const codigo = e.error ?? '';
+        // Em alguns Linux/ALSA o getUserMedia disputa o dispositivo: solta o
+        // stream e tenta uma vez só com SpeechRecognition antes de acusar erro.
+        if (
+          codigo === 'audio-capture' &&
+          (streamRef.current || medidorSolicitadoRef.current) &&
+          !retentouSemStreamRef.current
+        ) {
+          retentouSemStreamRef.current = true;
+          recRef.current = null;
+          try {
+            rec.abort();
+          } catch {
+            // Ignora abort sobre instância já encerrada.
+          }
+          limparFinalizar();
+          encerrarAudio();
+          encerrarTimers();
+          limparRetry();
+          retryRef.current = window.setTimeout(() => {
+            retryRef.current = null;
+            abrirReconhecimento(false);
+          }, RETRY_ALSA_MS);
+          return;
+        }
+        if (codigo === 'no-speech' && ultimoTextoRef.current) {
+          return;
+        }
+        const msg = normalizarErroVoz(codigo);
+        if (msg) setErro(msg);
+      };
+
+      rec.onend = () => {
+        if (recRef.current !== rec) return;
+        limparFinalizar();
+        recRef.current = null;
+        encerrarAudio();
+        encerrarTimers();
+        setFase('ocioso');
+        if (!canceladoRef.current && ultimoTextoRef.current) {
+          aoConcluirRef.current?.(ultimoTextoRef.current);
+        }
+      };
+
+      try {
+        rec.start();
+      } catch {
+        recRef.current = null;
+        encerrarAudio();
+        encerrarTimers();
+        setFase('ocioso');
+        setErro('Não foi possível iniciar o microfone agora.');
+      }
+    },
+    [
+      encerrarAudio,
+      encerrarTimers,
+      ligarMedidorAcustico,
+      limparFinalizar,
+      limparRetry,
+      limparSilencio,
+      movimentoReduzido,
+      pararCronometro,
+      solicitarParada,
+    ],
+  );
 
   const alternar = useCallback(() => {
-    if (ouvindo) parar();
-    else iniciar();
-  }, [ouvindo, iniciar, parar]);
+    if (fase !== 'ocioso') {
+      parar();
+      return;
+    }
+    retentouSemStreamRef.current = false;
+    abrirReconhecimento(true);
+  }, [abrirReconhecimento, fase, parar]);
 
   const limparErro = useCallback(() => setErro(null), []);
 
   useEffect(
     () => () => {
+      limparRetry();
+      limparFinalizar();
       canceladoRef.current = true;
+      const rec = recRef.current;
+      recRef.current = null;
       try {
-        recRef.current?.abort();
+        rec?.abort();
       } catch {
         // Cleanup silencioso no unmount.
       }
-      recRef.current = null;
       encerrarAudio();
-      encerrarCronometro();
+      encerrarTimers();
     },
-    [encerrarAudio, encerrarCronometro],
+    [encerrarAudio, encerrarTimers, limparFinalizar, limparRetry],
   );
 
   return {
     suportado,
-    ouvindo,
+    fase,
+    ouvindo: fase !== 'ocioso',
     segundos,
-    niveis: movimentoReduzido && ouvindo ? BARRAS_ESTATICAS : niveis,
-    fonteNivel: movimentoReduzido ? 'estatico' : fonteNivel,
+    movimentoReduzido,
+    analyserRef,
+    energiaRef,
     erro,
     alternar,
     parar,

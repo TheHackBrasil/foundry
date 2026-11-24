@@ -6,6 +6,7 @@ import type { AcaoMandato, CanalContato, FonteDocumento, Notificacao, TipoSinal 
 import {
   formatarConfianca,
   formatarDuracao,
+  formatarMomento,
   formatarValor,
   rotuloAcaoMandato,
   rotuloCanalContato,
@@ -71,5 +72,12 @@ describe('rótulos da camada AI e formatação numérica', () => {
     expect(formatarDuracao(7)).toBe('00:07');
     expect(formatarDuracao(65)).toBe('01:05');
     expect(formatarDuracao(-3)).toBe('00:00');
+  });
+
+  it('formata momento sem vírgula entre data e hora', () => {
+    const saida = formatarMomento('2026-11-23 19:32:00+00');
+    expect(saida).not.toContain(',');
+    expect(saida).toMatch(/^\d{2}\/\d{2} \d{2}:\d{2}$/);
+    expect(formatarMomento('invalido')).toBe('invalido');
   });
 });
