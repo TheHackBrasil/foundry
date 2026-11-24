@@ -18,6 +18,8 @@ export class ErroLlm extends Error {
   constructor(
     readonly tipo: ErroLlmTipo,
     mensagem: string,
+    readonly status?: number,
+    readonly detalhe?: string,
   ) {
     super(mensagem);
     this.name = 'ErroLlm';
@@ -41,7 +43,7 @@ export function llmConfigDoEnv(env: Ambiente = process.env): LlmConfig | null {
     url,
     chave,
     modelo: env['LLM_MODEL']?.trim() || 'gpt-6.2-sol',
-    timeoutMs: inteiroOuPadrao(env['LLM_TIMEOUT_MS'], 15_000),
+    timeoutMs: inteiroOuPadrao(env['LLM_TIMEOUT_MS'], 25_000),
   };
 }
 
@@ -87,7 +89,7 @@ async function postLlm(cfg: LlmConfig, corpo: Record<string, unknown>, externo?:
       // ignora erro ao ler corpo de diagnostico
     }
     console.warn(`[llm] HTTP ${resp.status} modelo=${cfg.modelo}${detalhe ? ` corpo=${detalhe}` : ''}`);
-    throw new ErroLlm('indisponivel', `LLM HTTP ${resp.status}`);
+    throw new ErroLlm('indisponivel', `LLM HTTP ${resp.status}`, resp.status, detalhe);
   }
   return resp;
 }
@@ -177,26 +179,40 @@ export async function chatComTools(
   const cfg = opcoes.cfg !== undefined ? opcoes.cfg : llmConfigDoEnv();
   if (!cfg) throw new ErroLlm('indisponivel', 'LLM nao configurada (LLM_API_URL/LLM_API_KEY ausentes)');
 
-  const resp = await postLlm(
-    cfg,
-    {
-      messages: mensagens,
-      // tools vazio pede resposta final ao modelo: omitir a chave evita
-      // provedor que recusa array vazio.
-      ...(tools.length > 0
-        ? {
-            tools: tools.map((t) => ({
-              type: 'function',
-              function: { name: t.nome, description: t.descricao, parameters: t.parametros },
-            })),
-            tool_choice: 'auto',
-          }
-        : {}),
-      ...(opcoes.modelo ? { model: opcoes.modelo } : {}),
-      ...(opcoes.temperatura !== undefined ? { temperature: opcoes.temperatura } : {}),
-    },
-    opcoes.signal,
-  );
+  const corpoBase: Record<string, unknown> = {
+    messages: mensagens,
+    // tools vazio pede resposta final ao modelo: omitir a chave evita
+    // provedor que recusa array vazio.
+    ...(tools.length > 0
+      ? {
+          tools: tools.map((t) => ({
+            type: 'function',
+            function: { name: t.nome, description: t.descricao, parameters: t.parametros },
+          })),
+          tool_choice: 'auto',
+        }
+      : {}),
+    ...(opcoes.modelo ? { model: opcoes.modelo } : {}),
+    ...(opcoes.temperatura !== undefined ? { temperature: opcoes.temperatura } : {}),
+  };
+
+  let resp: Response;
+  if (tools.length > 0) {
+    // Modelos de raciocinio OpenAI em /v1/chat/completions exigem
+    // reasoning_effort: 'none' para aceitar function tools; se outro provedor
+    // recusar o campo por 400, repetimos uma vez sem ele.
+    try {
+      resp = await postLlm(cfg, { ...corpoBase, reasoning_effort: 'none' }, opcoes.signal);
+    } catch (e) {
+      if (e instanceof ErroLlm && e.status === 400 && /reasoning_effort/i.test(e.detalhe ?? '')) {
+        resp = await postLlm(cfg, corpoBase, opcoes.signal);
+      } else {
+        throw e;
+      }
+    }
+  } else {
+    resp = await postLlm(cfg, corpoBase, opcoes.signal);
+  }
 
   interface MsgResposta {
     content?: unknown;

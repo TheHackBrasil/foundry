@@ -115,9 +115,30 @@ describe('llm.ts com tools (T310)', () => {
     const corpo = JSON.parse(chamada(f)[1].body) as {
       tools: Array<{ type: string; function: { name: string } }>;
       tool_choice: string;
+      reasoning_effort?: string;
     };
     expect(corpo.tools[0]?.function.name).toBe('consultar_pedido');
     expect(corpo.tool_choice).toBe('auto');
+    expect(corpo.reasoning_effort).toBe('none');
+  });
+
+  it('chatComTools repete sem reasoning_effort se o provedor recusar o campo com HTTP 400', async () => {
+    envLlm();
+    const erro400 = new Response(
+      JSON.stringify({ error: { message: "Unsupported parameter: 'reasoning_effort'" } }),
+      { status: 400, headers: { 'content-type': 'application/json' } },
+    );
+    const f = filaLlm(erro400, respTexto('ok sem reasoning_effort'));
+    const r = await chatComTools(
+      [{ role: 'user', content: 'oi' }],
+      [{ nome: 'listar_pedidos', descricao: 'Lista', parametros: { type: 'object' } }],
+    );
+    expect(r.texto).toBe('ok sem reasoning_effort');
+    expect(f).toHaveBeenCalledTimes(2);
+    const primeiro = JSON.parse(chamada(f, 0)[1].body) as { reasoning_effort?: string };
+    const segundo = JSON.parse(chamada(f, 1)[1].body) as { reasoning_effort?: string };
+    expect(primeiro.reasoning_effort).toBe('none');
+    expect(segundo.reasoning_effort).toBeUndefined();
   });
 
   it('argumento quebrado vira {}; chamada sem nome e descartada', async () => {
