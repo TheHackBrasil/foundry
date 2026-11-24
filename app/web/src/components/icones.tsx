@@ -157,3 +157,79 @@ export function IconeCopiar() {
     </svg>
   );
 }
+
+export function IconeTorre() {
+  return (
+    <svg {...base}>
+      <path {...traco} d="M3 13V4.5M8 13V2.75M13 13V6.25M2 13h12" />
+    </svg>
+  );
+}
+
+export function IconeAssistente() {
+  return (
+    <svg {...base}>
+      <path {...traco} d="M8 2.25 9.6 6.4 13.75 8 9.6 9.6 8 13.75 6.4 9.6 2.25 8 6.4 6.4Z" />
+    </svg>
+  );
+}
+
+export function IconeRevisao() {
+  return (
+    <svg {...base}>
+      <rect {...traco} x="2.75" y="3" width="10.5" height="10" rx="1.25" />
+      <path {...traco} d="M2.75 9.25h3.1l1.15 1.5h2l1.15-1.5h3.1" />
+    </svg>
+  );
+}
+
+export function IconeAgenda() {
+  return (
+    <svg {...base}>
+      <circle {...traco} cx="8" cy="5.75" r="2.25" />
+      <path {...traco} d="M3.5 13a4.5 4.5 0 0 1 9 0" />
+    </svg>
+  );
+}
+
+export function IconeEscudo() {
+  return (
+    <svg {...base}>
+      <path {...traco} d="M8 2.25 12.75 4v4.2c0 2.65-1.95 4.65-4.75 5.55-2.8-.9-4.75-2.9-4.75-5.55V4Z" />
+      <path {...traco} d="m5.8 8.1 1.5 1.5 3-3.1" />
+    </svg>
+  );
+}
+
+export function IconeExterno() {
+  return (
+    <svg {...base}>
+      <path {...traco} d="M9.5 3.25h3.25V6.5M12.5 3.5l-5.75 5.75M6.75 4.25H4a1 1 0 0 0-1 1v6.75a1 1 0 0 0 1 1h6.75a1 1 0 0 0 1-1V9.25" />
+    </svg>
+  );
+}
+
+export function IconeMenu() {
+  return (
+    <svg {...base}>
+      <path {...traco} d="M2.75 4.5h10.5M2.75 8h10.5M2.75 11.5h10.5" />
+    </svg>
+  );
+}
+
+export function IconeMais() {
+  return (
+    <svg {...base}>
+      <path {...traco} d="M8 3.25v9.5M3.25 8h9.5" />
+    </svg>
+  );
+}
+
+export function IconePainelLateral() {
+  return (
+    <svg {...base}>
+      <rect {...traco} x="2.5" y="3" width="11" height="10" rx="1.25" />
+      <path {...traco} d="M9.5 3v10" />
+    </svg>
+  );
+}

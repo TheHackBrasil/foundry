@@ -73,6 +73,21 @@ describe('montarMatriz', () => {
 
     expect(m.linhas.find((l) => l.campo === 'previsaoEntrega')?.divergente).toBe(false);
   });
+
+  it('preserva campos anteriores da mesma fonte quando chega evento subsequente vazio e marca fonte sem declaração', () => {
+    const m = montarMatriz(
+      [
+        versao(1, 'nfe', { status: 'emitida', pesoTotal: 510 }),
+        versao(2, 'cce', { status: 'cancelada' }),
+        versao(3, 'cce', {}),
+        versao(4, 'pdf', {}),
+      ],
+      [],
+    );
+
+    expect(m.linhas.find((l) => l.campo === 'status')?.celulas.find((c) => c.fonte === 'cce')?.valor).toBe('cancelada');
+    expect(m.fontesSemDeclaracao).toEqual(['pdf']);
+  });
 });
 
 describe('tarefasDaParte', () => {

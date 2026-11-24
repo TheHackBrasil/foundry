@@ -61,14 +61,14 @@ documentam usos gráficos sem exigência de contraste.
 | mudança / superfície 2 | `#c9b2f0` | `#1c332f` | 7,10 | 4,5 | passa | rótulo na barra do quadro |
 | texto / mudança-bg | `#e8f0ee` | `#35294a` | 11,57 | 4,5 | passa | valor da célula divergente |
 | texto 2 / mudança-bg | `#a8bdb5` | `#35294a` | 6,77 | 4,5 | passa | 'antes' riscado sobre a tinta |
-| on-rail / rail | `#f5f2eb` | `#163c38` | 10,81 | 4,5 | passa | texto do monólito lateral |
-| rail-soft / rail | `#a9beb4` | `#163c38` | 6,16 | 4,5 | passa | metadado dentro do monólito |
+| on-rail / rail | `#f5f2eb` | `#091715` | 16,40 | 4,5 | passa | texto do monólito lateral |
+| rail-soft / rail | `#a9beb4` | `#091715` | 9,35 | 4,5 | passa | metadado dentro do monólito |
 | ok / ok-bg | `#95d7a2` | `#1c3422` | 8,01 | 4,5 | passa | chip 'Confere' |
 | ok / fundo | `#95d7a2` | `#0e1f1d` | 10,16 | 4,5 | passa | 'Confere' e 'ao vivo' sobre o fundo |
 | warn / warn-bg | `#f0c374` | `#3f2c10` | 8,08 | 4,5 | passa | estado de atenção |
 | warn / fundo | `#f0c374` | `#0e1f1d` | 10,36 | 4,5 | passa | 'conectando' sobre o fundo |
 | erro / erro-bg | `#ffa098` | `#4e201e` | 6,93 | 4,5 | passa | estado de erro |
 | erro / fundo | `#ffa098` | `#0e1f1d` | 8,71 | 4,5 | passa | aviso de erro sobre o fundo |
-| corda / rail | `#d7c5ea` | `#163c38` | 7,52 | n/a | informativo | fio lavanda do monólito (decorativo) |
+| corda / rail | `#d7c5ea` | `#091715` | 11,41 | n/a | informativo | fio lavanda do monólito (decorativo) |
 | petróleo / lavanda | `#163C38` | `#D7C5EA` | 7,52 | n/a | informativo | cordas da marca (informativo) |
 | lavanda / papel | `#D7C5EA` | `#F5F2EB` | 1,44 | n/a | informativo | prova de que a lavanda clara não serve de texto |

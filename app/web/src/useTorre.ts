@@ -1,45 +1,71 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Evento, ProjecaoPedido, RespostaAuditoria } from '../../shared/model.ts';
-import { auditarPedido, listarPedidos, obterPedido, type PedidoResumo } from './api.ts';
+import type { Contato, Evento, ProjecaoPedido, RespostaAuditoria } from '../../shared/model.ts';
+import {
+  auditarPedido,
+  autoForkPedidoNaSessao,
+  listarPedidos,
+  obterPedido,
+  type PedidoResumo,
+} from './api.ts';
+import { listarContatos, listarRevisao } from './apiOps.ts';
 import { chaveCurta } from './format.ts';
 import { chaveTarefa } from './matriz.ts';
-import { useStream } from './useStream.ts';
+import { useStream, type EventoAncoraStream } from './useStream.ts';
 
 export type Carga<T> =
   | { estado: 'carregando' }
   | { estado: 'erro'; mensagem: string }
   | { estado: 'ok'; dados: T };
 
+export type RotaTorre = 'torre' | 'ia';
+
+interface HashRota {
+  rota: RotaTorre;
+  pedidoId: string | null;
+}
+
 const NOVA_POR_MS = 8000;
 // Eventos que chegam juntos (um upload gera dezenas) viram uma busca e um aviso.
 const AGRUPA_EVENTOS_MS = 300;
 
-function lerHash(): string | null {
-  const m = /^#\/pedido\/([^/]+)$/.exec(window.location.hash);
-  if (!m?.[1]) return null;
+function decodificar(parte: string): string {
   try {
-    return decodeURIComponent(m[1]);
+    return decodeURIComponent(parte);
   } catch {
-    // % solto ou sequência inválida na URL: usa o texto como veio, sem derrubar.
-    return m[1];
+    return parte;
   }
+}
+
+export function lerRotaHash(hash = window.location.hash): HashRota {
+  const mIa = /^#\/ia(?:\/([^/?#]+))?/.exec(hash);
+  if (mIa) {
+    return { rota: 'ia', pedidoId: mIa[1] ? decodificar(mIa[1]) : null };
+  }
+  const mPed = /^#\/pedido\/([^/?#]+)/.exec(hash);
+  if (mPed?.[1]) {
+    return { rota: 'torre', pedidoId: decodificar(mPed[1]) };
+  }
+  return { rota: 'torre', pedidoId: null };
 }
 
 const mensagemDe = (e: unknown): string => (e instanceof Error ? e.message : 'Erro inesperado.');
 const plural = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`;
 
-// Busca dados e mantém o estado da tela. A apresentação fica nos componentes.
+// Busca dados, mantém a rota (#/pedido/:id ou #/ia/:id?) e coordena SSE + auxiliares.
 export function useTorre() {
+  const inicial = lerRotaHash();
+  const [rota, setRota] = useState<RotaTorre>(inicial.rota);
   const [pedidos, setPedidos] = useState<Carga<PedidoResumo[]>>({ estado: 'carregando' });
-  const [selecionado, setSelecionado] = useState<string | null>(lerHash);
+  const [selecionado, setSelecionado] = useState<string | null>(inicial.pedidoId);
   const [projecao, setProjecao] = useState<Carga<ProjecaoPedido>>({ estado: 'carregando' });
   const [auditoria, setAuditoria] = useState<Carga<RespostaAuditoria>>({ estado: 'carregando' });
+  const [contatos, setContatos] = useState<Contato[]>([]);
+  const [revisaoPendentes, setRevisaoPendentes] = useState(0);
+  const [pulsoEventoSeq, setPulsoEventoSeq] = useState(0);
   const [anuncio, setAnuncio] = useState('');
   const [novas, setNovas] = useState<ReadonlySet<string>>(new Set());
   // Pausa das atualizações ao vivo (WCAG 2.2.2): enquanto pausado, eventos viram contagem
   // e a tela só se atualiza quando a pessoa retoma.
-  // Vira verdadeiro quando a primeira busca da lista responde (com sucesso ou erro): a
-  // resposta traz o cookie da sessão, e só então o stream pode abrir.
   const [primeiraRespostaDaApi, setPrimeiraRespostaDaApi] = useState(false);
   const [pausado, setPausado] = useState(false);
   const [pendentes, setPendentes] = useState(0);
@@ -47,6 +73,7 @@ export function useTorre() {
   const fila = useRef(0);
 
   const atual = useRef<string | null>(selecionado);
+  const rotaRef = useRef<RotaTorre>(rota);
   const conhecidas = useRef<ReadonlySet<string> | null>(null);
   const pedidoSeq = useRef(0);
   const limpaNovas = useRef<number | undefined>(undefined);
@@ -56,6 +83,10 @@ export function useTorre() {
   useEffect(() => {
     atual.current = selecionado;
   }, [selecionado]);
+
+  useEffect(() => {
+    rotaRef.current = rota;
+  }, [rota]);
 
   useEffect(
     () => () => {
@@ -74,6 +105,16 @@ export function useTorre() {
     repoeAnuncio.current = window.setTimeout(() => setAnuncio(texto), 60);
   }, []);
 
+  const recarregarAuxiliares = useCallback(async () => {
+    const [resRevisao, resContatos] = await Promise.allSettled([listarRevisao(), listarContatos()]);
+    if (resRevisao.status === 'fulfilled') {
+      setRevisaoPendentes(resRevisao.value.itens.filter((item) => item.status === 'pendente').length);
+    }
+    if (resContatos.status === 'fulfilled') {
+      setContatos(resContatos.value);
+    }
+  }, []);
+
   const recarregarLista = useCallback(async () => {
     try {
       setPedidos({ estado: 'ok', dados: await listarPedidos() });
@@ -82,7 +123,8 @@ export function useTorre() {
     } finally {
       setPrimeiraRespostaDaApi(true);
     }
-  }, []);
+    void recarregarAuxiliares();
+  }, [recarregarAuxiliares]);
 
   const verificarCadeia = useCallback(
     async (id: string, anunciarResultado = false) => {
@@ -119,6 +161,7 @@ export function useTorre() {
         setProjecao({ estado: 'ok', dados });
         if (surgiram.length > 0) {
           setNovas(new Set(surgiram));
+          setPulsoEventoSeq((s) => s + 1);
           window.clearTimeout(limpaNovas.current);
           limpaNovas.current = window.setTimeout(() => setNovas(new Set()), NOVA_POR_MS);
         }
@@ -135,7 +178,15 @@ export function useTorre() {
   );
 
   useEffect(() => {
-    const aoMudarHash = () => setSelecionado(lerHash());
+    const aoMudarHash = () => {
+      const parsed = lerRotaHash();
+      setRota(parsed.rota);
+      if (parsed.pedidoId) {
+        setSelecionado(parsed.pedidoId);
+      } else if (parsed.rota === 'torre') {
+        setSelecionado(null);
+      }
+    };
     window.addEventListener('hashchange', aoMudarHash);
     void recarregarLista();
     return () => window.removeEventListener('hashchange', aoMudarHash);
@@ -143,9 +194,14 @@ export function useTorre() {
 
   useEffect(() => {
     if (pedidos.estado === 'ok' && !selecionado && pedidos.dados[0]) {
-      window.location.replace(`#/pedido/${encodeURIComponent(pedidos.dados[0].pedidoId)}`);
+      const primeiroId = pedidos.dados[0].pedidoId;
+      if (rota === 'ia') {
+        setSelecionado(primeiroId);
+      } else {
+        window.location.replace(`#/pedido/${encodeURIComponent(primeiroId)}`);
+      }
     }
-  }, [pedidos, selecionado]);
+  }, [pedidos, selecionado, rota]);
 
   useEffect(() => {
     conhecidas.current = null;
@@ -163,6 +219,7 @@ export function useTorre() {
         setPendentes(fila.current);
         return;
       }
+      setPulsoEventoSeq((s) => s + 1);
       const r = rajada.current;
       r.n += 1;
       r.pedidos.add(evento.pedidoId);
@@ -184,13 +241,26 @@ export function useTorre() {
     [recarregarLista, carregarPedido, anunciar],
   );
 
+  const aoAncora = useCallback(
+    (info: EventoAncoraStream) => {
+      if (pausadoRef.current) return;
+      setPulsoEventoSeq((s) => s + 1);
+      void recarregarLista();
+      const alvo = info.pedidoId ?? atual.current;
+      if (alvo && atual.current === alvo) {
+        void verificarCadeia(alvo, true);
+      }
+    },
+    [recarregarLista, verificarCadeia],
+  );
+
   const aoConectar = useCallback(() => {
     if (pausadoRef.current) return;
     void recarregarLista();
     if (atual.current) void carregarPedido(atual.current);
   }, [recarregarLista, carregarPedido]);
 
-  const estadoStream = useStream(aoEvento, aoConectar, primeiraRespostaDaApi);
+  const estadoStream = useStream(aoEvento, aoConectar, primeiraRespostaDaApi, aoAncora);
 
   const streamAnterior = useRef(estadoStream);
   useEffect(() => {
@@ -204,8 +274,28 @@ export function useTorre() {
   }, [estadoStream, anunciar]);
 
   const selecionar = useCallback((id: string) => {
-    window.location.hash = `#/pedido/${encodeURIComponent(id)}`;
+    if (rotaRef.current === 'ia') {
+      window.location.hash = `#/ia/${encodeURIComponent(id)}`;
+    } else {
+      window.location.hash = `#/pedido/${encodeURIComponent(id)}`;
+    }
   }, []);
+
+  const irParaTorre = useCallback((id?: string | null) => {
+    const alvo = id ?? atual.current;
+    window.location.hash = alvo ? `#/pedido/${encodeURIComponent(alvo)}` : '#/';
+  }, []);
+
+  const irParaAssistente = useCallback((id?: string | null) => {
+    const alvo = id ?? atual.current;
+    window.location.hash = alvo ? `#/ia/${encodeURIComponent(alvo)}` : '#/ia';
+  }, []);
+
+  const recarregarPedidoAtual = useCallback(async () => {
+    const id = atual.current;
+    await recarregarLista();
+    if (id) await carregarPedido(id);
+  }, [recarregarLista, carregarPedido]);
 
   const verificarDeNovo = useCallback(async () => {
     const id = atual.current;
@@ -213,6 +303,23 @@ export function useTorre() {
     setAuditoria({ estado: 'carregando' });
     await verificarCadeia(id, true);
   }, [verificarCadeia]);
+
+  const garantirPedidoNaSessao = useCallback(
+    async (pedidoId?: string | null): Promise<string | null> => {
+      const alvo = pedidoId ?? atual.current;
+      const lista = pedidos.estado === 'ok' ? pedidos.dados : [];
+      const existente = alvo ? lista.find((p) => p.pedidoId === alvo) : undefined;
+      if (existente?.daSessao) return existente.pedidoId;
+
+      const r = await autoForkPedidoNaSessao(alvo);
+      if (r.enviados === 0 || !r.pedidoId) return null;
+      await recarregarLista();
+      await carregarPedido(r.pedidoId);
+      anunciar(`Pedido ${chaveCurta(r.pedidoId)} copiado para sua sessão isolada.`);
+      return r.pedidoId;
+    },
+    [pedidos, recarregarLista, carregarPedido, anunciar],
+  );
 
   const alternarPausa = useCallback(() => {
     if (!pausadoRef.current) {
@@ -234,6 +341,9 @@ export function useTorre() {
   }, [anunciar, recarregarLista, carregarPedido]);
 
   return {
+    rota,
+    irParaTorre,
+    irParaAssistente,
     pausado,
     pendentes,
     alternarPausa,
@@ -241,12 +351,18 @@ export function useTorre() {
     selecionado,
     projecao,
     auditoria,
+    contatos,
+    revisaoPendentes,
+    pulsoEventoSeq,
     anuncio,
     novas,
     estadoStream,
     selecionar,
     recarregarLista,
+    recarregarAuxiliares,
+    recarregarPedidoAtual,
     verificarDeNovo,
+    garantirPedidoNaSessao,
     anunciar,
   };
 }

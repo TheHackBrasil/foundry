@@ -11,16 +11,17 @@ import type {
   Tarefa,
   VersaoPedido,
   ViewSpec,
+  ViewSpecV2,
 } from '../../shared/model.ts';
 
 export interface Celula {
   fonte: FonteDocumento;
   valor: unknown;
   emConflito: boolean;
-  // Origem do valor mostrado: versão e momento do documento mais recente da fonte.
+  // Origem do valor mostrado: versão e momento do documento mais recente que declarou este campo.
   versao?: number;
   em?: string;
-  // Valor que a mesma fonte declarava na versão anterior, quando mudou.
+  // Valor que a mesma fonte declarava na declaração anterior deste campo, quando mudou.
   antes?: unknown;
   // Fonte de referência da linha: as outras células comparam com ela.
   referencia: boolean;
@@ -35,10 +36,18 @@ export interface LinhaMatriz {
 
 export interface Matriz {
   fontes: FonteDocumento[];
+  fontesSemDeclaracao: FonteDocumento[];
   linhas: LinhaMatriz[];
 }
 
 const igual = (a: unknown, b: unknown): boolean => String(a) === String(b);
+
+interface EstadoCampoFonte {
+  valor: unknown;
+  versao: number;
+  em: string;
+  antes?: unknown;
+}
 
 export function montarMatriz(
   versoes: readonly VersaoPedido[],
@@ -50,21 +59,39 @@ export function montarMatriz(
     if (!primeira.has(v.fonte)) primeira.set(v.fonte, v.versao);
     porFonte.set(v.fonte, [...(porFonte.get(v.fonte) ?? []), v]);
   }
-  const ultima = new Map<FonteDocumento, VersaoPedido>();
-  const anterior = new Map<FonteDocumento, VersaoPedido>();
+
+  // Mescla campo a campo por fonte (espelhando app/shared/projection.ts): um evento
+  // subsequente sem campos (ex.: CC-e apenas textual) não apaga declarações anteriores.
+  const estadoPorFonte = new Map<FonteDocumento, Map<CampoVigiado, EstadoCampoFonte>>();
   for (const [fonte, lista] of porFonte) {
     const ordenada = [...lista].sort((a, b) => a.versao - b.versao);
-    const u = ordenada.at(-1);
-    const a = ordenada.at(-2);
-    if (u) ultima.set(fonte, u);
-    if (a) anterior.set(fonte, a);
+    const mapaCampos = new Map<CampoVigiado, EstadoCampoFonte>();
+    for (const v of ordenada) {
+      for (const campo of CAMPOS_VIGIADOS) {
+        const valor = v.campos[campo];
+        if (valor === undefined) continue;
+        const previo = mapaCampos.get(campo);
+        const mudou = previo !== undefined && !igual(previo.valor, valor);
+        mapaCampos.set(campo, {
+          valor,
+          versao: v.versao,
+          em: v.geradaEm,
+          ...(mudou ? { antes: previo.valor } : {}),
+        });
+      }
+    }
+    estadoPorFonte.set(fonte, mapaCampos);
   }
+
   const fontes = [...primeira.entries()].sort((a, b) => a[1] - b[1]).map(([fonte]) => fonte);
+  const fontesSemDeclaracao = fontes.filter((f) => (estadoPorFonte.get(f)?.size ?? 0) === 0);
 
   // Uma divergência do ledger só está ativa enquanto as duas fontes ainda
   // declaram os valores que ela registrou.
+  const estadoAtual = (fonte: FonteDocumento, campo: CampoVigiado): EstadoCampoFonte | undefined =>
+    estadoPorFonte.get(fonte)?.get(campo);
   const valorAtual = (fonte: FonteDocumento, campo: CampoVigiado): unknown =>
-    ultima.get(fonte)?.campos[campo];
+    estadoAtual(fonte, campo)?.valor;
   const ativas = divergencias.filter(
     (d) =>
       igual(valorAtual(d.fonteA, d.campo), d.valorA) && igual(valorAtual(d.fonteB, d.campo), d.valorB),
@@ -73,19 +100,17 @@ export function montarMatriz(
   const linhas = CAMPOS_VIGIADOS.map((campo): LinhaMatriz => {
     const refFonte = fontes.find((f) => valorAtual(f, campo) !== undefined);
     const celulas = fontes.map((fonte): Celula => {
-      const valor = valorAtual(fonte, campo);
+      const st = estadoAtual(fonte, campo);
+      const valor = st?.valor;
       const emConflito = ativas.some(
         (d) => d.campo === campo && (d.fonteA === fonte || d.fonteB === fonte),
       );
-      const v = ultima.get(fonte);
-      const antes = anterior.get(fonte)?.campos[campo];
-      const mudou = valor !== undefined && antes !== undefined && !igual(antes, valor);
       return {
         fonte,
         valor,
         emConflito,
-        ...(v && valor !== undefined ? { versao: v.versao, em: v.geradaEm } : {}),
-        ...(mudou ? { antes } : {}),
+        ...(st ? { versao: st.versao, em: st.em } : {}),
+        ...(st?.antes !== undefined ? { antes: st.antes } : {}),
         referencia: fonte === refFonte,
       };
     });
@@ -93,7 +118,7 @@ export function montarMatriz(
     return { campo, celulas, divergente: celulas.some((c) => c.emConflito), ...(referencia ? { referencia } : {}) };
   });
 
-  return { fontes, linhas };
+  return { fontes, fontesSemDeclaracao, linhas };
 }
 
 export interface ResultadoLente {
@@ -105,22 +130,34 @@ export interface ResultadoLente {
   lente: Parte;
 }
 
-// Aplica o ViewSpec sobre a matriz sem inventar coluna ou esconder divergencia
-// real: fontes/campos ausentes sao ignorados, e intersecao vazia cai na visao
-// completa para nao simular pedido sem documentos.
-export function aplicarViewSpec(matriz: Matriz, spec: ViewSpec): ResultadoLente {
+// Aplica o ViewSpec (v1 ou v2) sobre a matriz sem inventar coluna ou esconder
+// divergencia real: fontes/campos ausentes sao ignorados, e intersecao vazia
+// cai na visao completa para nao simular pedido sem documentos.
+export function aplicarViewSpec(
+  matriz: Matriz,
+  spec: ViewSpec | ViewSpecV2,
+  fontesForcadasVisiveis?: ReadonlySet<FonteDocumento>,
+): ResultadoLente {
+  const filtro = 'filtroMatriz' in spec ? spec.filtroMatriz : spec;
+  const lenteBase: Parte = 'filtroMatriz' in spec
+    ? (spec.lente === 'operacao' ? 'fornecedor' : spec.lente)
+    : spec.lente;
+
   const completo: ResultadoLente = {
     matriz,
     ajustada: false,
     fontesOcultas: [],
     camposOcultos: [],
     destacarDivergencias: true,
-    lente: spec.lente,
+    lente: lenteBase,
   };
   if (matriz.fontes.length === 0 || matriz.linhas.length === 0) return completo;
 
-  const fontesPermitidas = new Set<FonteDocumento>(spec.fontesVisiveis);
-  const colunasPermitidas = new Set<CampoVigiado>(spec.colunas);
+  const fontesPermitidas = new Set<FonteDocumento>(filtro.fontesVisiveis);
+  if (fontesForcadasVisiveis) {
+    for (const f of fontesForcadasVisiveis) fontesPermitidas.add(f);
+  }
+  const colunasPermitidas = new Set<CampoVigiado>(filtro.colunas);
 
   const fontes = matriz.fontes.filter((f) => fontesPermitidas.has(f));
   const linhasBase = matriz.linhas.filter((l) => colunasPermitidas.has(l.campo));
@@ -138,15 +175,19 @@ export function aplicarViewSpec(matriz: Matriz, spec: ViewSpec): ResultadoLente 
   }));
 
   const ajustada =
-    fontesOcultas.length > 0 || camposOcultos.length > 0 || !spec.destacarDivergencias;
+    fontesOcultas.length > 0 || camposOcultos.length > 0 || !filtro.destacarDivergencias;
 
   return {
-    matriz: { fontes, linhas },
+    matriz: {
+      fontes,
+      fontesSemDeclaracao: matriz.fontesSemDeclaracao.filter((f) => fontesPermitidas.has(f)),
+      linhas,
+    },
     ajustada,
     fontesOcultas,
     camposOcultos,
-    destacarDivergencias: spec.destacarDivergencias,
-    lente: spec.lente,
+    destacarDivergencias: filtro.destacarDivergencias,
+    lente: lenteBase,
   };
 }
 

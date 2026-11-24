@@ -7,8 +7,7 @@ import type {
   ViewSpec,
 } from '../../shared/model.ts';
 
-// A resposta de GET /api/pedidos não tem tipo em shared/model.ts; fica aqui
-// até a app-infra promover o tipo.
+// Resumo enriquecido de GET /api/pedidos (compatível com ResumoPedidoLista de shared/model.ts).
 export interface PedidoResumo {
   pedidoId: string;
   workspaceId?: string;
@@ -16,6 +15,31 @@ export interface PedidoResumo {
   criadoEm: string;
   ultimoEm: string;
   daSessao?: boolean;
+  emitente?: string | null;
+  destinatario?: string | null;
+  status?: string | null;
+  previsaoEntrega?: string | null;
+  atrasoDias?: number | null;
+  divergencias?: number;
+  tarefas?: number;
+  ancorado?: boolean;
+}
+
+const PEDIDO_KRONA = '35260211222333000181550010000048211000004821';
+const PEDIDO_PACKSUL = '35260244555666000192550010000073101000007310';
+
+// Prioriza pedidos da sessão do visitante no topo e, entre os exemplos da seed,
+// abre primeiro o caso realista com divergências abertas (Krona Eletrônicos).
+export function ordenarPedidosOperacionais(lista: readonly PedidoResumo[]): PedidoResumo[] {
+  return [...lista].sort((a, b) => {
+    const sessaoDif = Number(Boolean(b.daSessao)) - Number(Boolean(a.daSessao));
+    if (sessaoDif !== 0) return sessaoDif;
+    const kronaDif = Number(b.pedidoId === PEDIDO_KRONA) - Number(a.pedidoId === PEDIDO_KRONA);
+    if (kronaDif !== 0) return kronaDif;
+    const divDif = (b.divergencias ?? 0) - (a.divergencias ?? 0);
+    if (divDif !== 0) return divDif;
+    return b.ultimoEm.localeCompare(a.ultimoEm);
+  });
 }
 
 // Quando o visitante sobe o mesmo pedido da seed na propria sessao, /api/pedidos
@@ -115,7 +139,7 @@ async function pedirJson<T>(caminho: string, init?: RequestInit): Promise<T> {
 
 export async function listarPedidos(): Promise<PedidoResumo[]> {
   const r = await pedirJson<{ pedidos: PedidoResumo[]; workspace?: string }>('/api/pedidos');
-  return deduplicarPedidos(r.pedidos, r.workspace);
+  return ordenarPedidosOperacionais(deduplicarPedidos(r.pedidos, r.workspace));
 }
 
 export const obterPedido = (id: string): Promise<ProjecaoPedido> =>
@@ -134,13 +158,13 @@ export const obterViewSpec = (
     signal ? { signal } : undefined,
   );
 
-export async function enviarMandato(texto: string): Promise<RespostaMandato> {
+export async function enviarMandato(texto: string, pedidoId?: string): Promise<RespostaMandato> {
   let resposta: Response;
   try {
     resposta = await fetch('/api/mandatos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texto }),
+      body: JSON.stringify(pedidoId ? { texto, pedidoId } : { texto }),
     });
   } catch {
     throw new ErroMandatoApi('Sem conexão com o servidor.', 0);
@@ -159,15 +183,32 @@ export function enviarArquivo(arquivo: File): Promise<ResultadoIngest> {
   return pedirJson<ResultadoIngest>('/api/ingest', { method: 'POST', body: form });
 }
 
-const EXEMPLOS_SESSAO = [
+interface ArquivoExemploSpec {
+  readonly arquivo: string;
+  readonly tipo: string;
+}
+
+const EXEMPLOS_SESSAO: readonly ArquivoExemploSpec[] = [
   { arquivo: 'nfe-ok.xml', tipo: 'application/xml' },
   { arquivo: 'cte-ok.xml', tipo: 'application/xml' },
   { arquivo: 'planilha.csv', tipo: 'text/csv' },
-] as const;
+];
+
+const EXEMPLOS_POR_PEDIDO: Readonly<Record<string, readonly ArquivoExemploSpec[]>> = {
+  [PEDIDO_KRONA]: [
+    { arquivo: 'krona-01-nfe.xml', tipo: 'application/xml' },
+    { arquivo: 'krona-02-cte.xml', tipo: 'application/xml' },
+    { arquivo: 'krona-03-planilha.csv', tipo: 'text/csv' },
+  ],
+  [PEDIDO_PACKSUL]: [
+    { arquivo: 'packsull-01-nfe.xml', tipo: 'application/xml' },
+    { arquivo: 'packsull-02-cte.xml', tipo: 'application/xml' },
+  ],
+};
 
 // Ingestao real dos exemplos ficticios na sessao do visitante, em ordem: a NF-e
 // cria o pedido e os arquivos seguintes anexam divergencias ao mesmo ledger.
-export async function carregarExemplosNaSessao(): Promise<{
+async function carregarConjuntoNaSessao(conjunto: readonly ArquivoExemploSpec[]): Promise<{
   pedidoId: string | null;
   enviados: number;
   falhas: string[];
@@ -176,7 +217,7 @@ export async function carregarExemplosNaSessao(): Promise<{
   let enviados = 0;
   const falhas: string[] = [];
 
-  for (const item of EXEMPLOS_SESSAO) {
+  for (const item of conjunto) {
     try {
       const resp = await fetch(`/exemplos/${item.arquivo}`);
       if (!resp.ok) {
@@ -193,4 +234,23 @@ export async function carregarExemplosNaSessao(): Promise<{
     }
   }
   return { pedidoId, enviados, falhas };
+}
+
+export function carregarExemplosNaSessao(): Promise<{
+  pedidoId: string | null;
+  enviados: number;
+  falhas: string[];
+}> {
+  return carregarConjuntoNaSessao(EXEMPLOS_SESSAO);
+}
+
+// Copia silenciosamente o mesmo pedido da seed para a sessão isolada do visitante
+// antes de ações de escrita (notificar, propagar, aplicar hipótese, ancorar).
+export function autoForkPedidoNaSessao(pedidoId?: string | null): Promise<{
+  pedidoId: string | null;
+  enviados: number;
+  falhas: string[];
+}> {
+  const conjunto = (pedidoId ? EXEMPLOS_POR_PEDIDO[pedidoId] : undefined) ?? EXEMPLOS_POR_PEDIDO[PEDIDO_KRONA] ?? EXEMPLOS_SESSAO;
+  return carregarConjuntoNaSessao(conjunto);
 }
