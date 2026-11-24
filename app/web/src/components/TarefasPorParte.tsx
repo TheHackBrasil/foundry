@@ -1,4 +1,3 @@
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { PARTES, type CampoVigiado, type Parte, type Tarefa } from '../../../shared/model.ts';
 import { rotuloCampo, rotuloFonte, rotuloParte } from '../format.ts';
 import {
@@ -13,8 +12,10 @@ import {
 interface Props {
   tarefas: readonly Tarefa[];
   filtro: FiltroParte;
-  aoFiltrar: (filtro: FiltroParte, direcao?: -1 | 0 | 1) => void;
   novas: ReadonlySet<string>;
+  direcao: -1 | 0 | 1;
+  painelId: string;
+  rotuloAbaId: string;
 }
 
 function agruparOrigensPorCampo(
@@ -60,153 +61,21 @@ function Item({ grupo, novas }: { grupo: GrupoTarefa; novas: ReadonlySet<string>
   );
 }
 
-// Abas em linha única com indicador GPU (translate3d + scaleX) e máscaras de transbordo.
-export function TarefasPorParte({ tarefas, filtro, aoFiltrar, novas }: Props) {
-  const id = useId();
-  const lista = useRef<HTMLDivElement>(null);
-  const [trilho, setTrilho] = useState<{ x: number; w: number; pronto: boolean }>({ x: 0, w: 0, pronto: false });
-  const [fadeEsq, setFadeEsq] = useState(false);
-  const [fadeDir, setFadeDir] = useState(false);
-  const [direcao, setDirecao] = useState<-1 | 0 | 1>(0);
-
-  const contagem = (parte: Parte): number => agruparTarefas(tarefasDaParte(tarefas, parte)).length;
-  const total = agruparTarefas(tarefas).length;
-  const abas: ReadonlyArray<{ valor: FiltroParte; rotulo: string; n: number }> = [
-    { valor: FILTRO_TODAS, rotulo: 'Todas', n: total },
-    ...PARTES.map((p) => ({ valor: p as FiltroParte, rotulo: rotuloParte(p), n: contagem(p) })),
-  ];
-  const assinaturaContagens = abas.map((a) => a.n).join(',');
-  const indiceAtual = abas.findIndex((a) => a.valor === filtro);
-
-  const partes: Parte[] = filtro === FILTRO_TODAS ? PARTES.filter((p) => contagem(p) > 0) : [filtro];
+export function TarefasPorParte({ tarefas, filtro, novas, direcao, painelId, rotuloAbaId }: Props) {
+  const partes: Parte[] =
+    filtro === FILTRO_TODAS
+      ? PARTES.filter((p) => tarefasDaParte(tarefas, p).length > 0)
+      : [filtro];
   const grupos = partes.map((parte) => ({ parte, itens: agruparTarefas(tarefasDaParte(tarefas, parte)) }));
   const visiveis = grupos.reduce((soma, g) => soma + g.itens.length, 0);
-
-  useLayoutEffect(() => {
-    const container = lista.current;
-    if (!container) return;
-    let ativo = true;
-
-    const atualizarFades = () => {
-      if (!ativo) return;
-      const esq = container.scrollLeft > 2;
-      const dir = container.scrollLeft + container.clientWidth < container.scrollWidth - 2;
-      setFadeEsq(esq);
-      setFadeDir(dir);
-    };
-
-    const atualizar = () => {
-      if (!ativo) return;
-      const ativa = container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
-      if (ativa) {
-        setTrilho({ x: ativa.offsetLeft, w: ativa.offsetWidth, pronto: true });
-      }
-      atualizarFades();
-    };
-
-    atualizar();
-
-    container.addEventListener('scroll', atualizarFades, { passive: true });
-    let ro: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(atualizar);
-      ro.observe(container);
-    }
-    if (typeof document !== 'undefined' && document.fonts?.ready) {
-      void document.fonts.ready.then(atualizar);
-    }
-
-    return () => {
-      ativo = false;
-      container.removeEventListener('scroll', atualizarFades);
-      ro?.disconnect();
-    };
-  }, [filtro, assinaturaContagens]);
-
-  function trocarAba(valor: FiltroParte, indiceDestino: number) {
-    if (valor === filtro) return;
-    const direcaoTroca: -1 | 0 | 1 =
-      indiceAtual === -1 || indiceDestino === indiceAtual
-        ? 0
-        : indiceDestino > indiceAtual
-          ? 1
-          : -1;
-    setDirecao(direcaoTroca);
-    aoFiltrar(valor, direcaoTroca);
-
-    const container = lista.current;
-    const botao = container?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[indiceDestino];
-    if (container && botao) {
-      const margem = 24;
-      const esq = botao.offsetLeft;
-      const dir = esq + botao.offsetWidth;
-      let novoScroll: number | null = null;
-      if (esq < container.scrollLeft + margem) {
-        novoScroll = Math.max(0, esq - margem);
-      } else if (dir > container.scrollLeft + container.clientWidth - margem) {
-        novoScroll = dir - container.clientWidth + margem;
-      }
-      if (novoScroll !== null) {
-        const reduzido =
-          typeof window !== 'undefined' &&
-          typeof window.matchMedia === 'function' &&
-          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        container.scrollTo({ left: novoScroll, behavior: reduzido ? 'auto' : 'smooth' });
-      }
-    }
-  }
-
-  function aoTeclar(e: KeyboardEvent<HTMLButtonElement>, i: number) {
-    const proxima = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: abas.length - 1 }[e.key];
-    if (proxima === undefined) return;
-    e.preventDefault();
-    const destino = (proxima + abas.length) % abas.length;
-    const alvo = abas[destino];
-    if (!alvo) return;
-    trocarAba(alvo.valor, destino);
-    lista.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[destino]?.focus({ preventScroll: true });
-  }
 
   return (
     <div className="tarefas-bloco">
       <div
-        className="abas-wrap"
-        data-fade-esq={fadeEsq ? 'true' : 'false'}
-        data-fade-dir={fadeDir ? 'true' : 'false'}
-      >
-        <div className="abas" role="tablist" aria-label="Parte" ref={lista}>
-          {abas.map((a, i) => (
-            <button
-              key={a.valor}
-              type="button"
-              role="tab"
-              id={`${id}-${a.valor}`}
-              className="aba"
-              aria-selected={filtro === a.valor}
-              aria-controls={`${id}-painel`}
-              tabIndex={filtro === a.valor ? 0 : -1}
-              onClick={() => trocarAba(a.valor, i)}
-              onKeyDown={(e) => aoTeclar(e, i)}
-            >
-              <span>{a.rotulo}</span>
-              <span className="aba-n num">{a.n}</span>
-            </button>
-          ))}
-          {trilho.pronto && (
-            <span
-              className="abas-indicador"
-              aria-hidden="true"
-              style={{ '--ix': `${trilho.x}px`, '--iw-escala': trilho.w } as CSSProperties}
-            />
-          )}
-        </div>
-      </div>
-
-      <div
-        id={`${id}-painel`}
+        id={painelId}
         key={filtro}
         role="tabpanel"
-        aria-labelledby={`${id}-${filtro}`}
+        aria-labelledby={rotuloAbaId}
         className="tarefas-lista"
         data-dir={direcao}
       >

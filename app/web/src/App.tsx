@@ -1,8 +1,8 @@
+import { useCallback, useState } from 'react';
 import { Cabecalho } from './components/Cabecalho.tsx';
 import { EnvioArquivos } from './components/EnvioArquivos.tsx';
 import { PainelPedido } from './components/PainelPedido.tsx';
 import { PedidoLista } from './components/PedidoLista.tsx';
-import { useState } from 'react';
 import { aplicarTema, temaInicial, type Tema } from './tema.ts';
 import { useTorre } from './useTorre.ts';
 
@@ -14,6 +14,14 @@ export function App() {
     setTema(t);
   };
   const vazio = torre.pedidos.estado === 'ok' && torre.pedidos.dados.length === 0;
+  const temPedidoNaSessao = torre.pedidos.estado === 'ok' && torre.pedidos.dados.some((p) => p.daSessao);
+  const selecionarAposEnvio = useCallback(
+    (pedidoId: string) => {
+      torre.selecionar(pedidoId);
+      void torre.recarregarLista();
+    },
+    [torre.selecionar, torre.recarregarLista],
+  );
 
   return (
     <>
@@ -46,7 +54,7 @@ export function App() {
               novas={torre.novas}
               aoVerificar={torre.verificarDeNovo}
               aoAnunciar={torre.anunciar}
-              aoSelecionar={torre.selecionar}
+              aoSelecionar={selecionarAposEnvio}
             />
           ) : (
             <section aria-labelledby="vazio-titulo" className="vazio">
@@ -60,7 +68,7 @@ export function App() {
         </main>
         <aside id="painel-lateral" className="lateral" aria-label="Envio e lista de pedidos">
           <PedidoLista pedidos={torre.pedidos} selecionado={torre.selecionado} aoTentarDeNovo={torre.recarregarLista} />
-          <EnvioArquivos aoEnviar={torre.selecionar} />
+          <EnvioArquivos aoEnviar={selecionarAposEnvio} temPedidoNaSessao={temPedidoNaSessao} />
         </aside>
       </div>
       <div className="so-leitor" role="status" aria-live="polite" aria-atomic="true">

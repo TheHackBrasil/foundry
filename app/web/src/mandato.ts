@@ -39,11 +39,17 @@ export interface ItemNotificar {
   motivo?: NonNullable<Notificacao['motivo']>;
 }
 
+interface ResultadoMandatoBase {
+  alvos: string[];
+  leituraExemplo?: boolean;
+  parteSugerida?: Parte;
+}
+
 export type ResultadoMandatoInterpretado =
-  | { acao: 'propagar'; alvos: string[]; itens: ItemPropagar[]; novosEventos: number }
-  | { acao: 'simular'; alvos: string[]; itens: ItemSimular[]; simulacao: true }
-  | { acao: 'resumir'; alvos: string[]; itens: ItemResumir[] }
-  | { acao: 'notificar'; alvos: string[]; itens: ItemNotificar[] };
+  | (ResultadoMandatoBase & { acao: 'propagar'; itens: ItemPropagar[]; novosEventos: number })
+  | (ResultadoMandatoBase & { acao: 'simular'; itens: ItemSimular[]; simulacao: true })
+  | (ResultadoMandatoBase & { acao: 'resumir'; itens: ItemResumir[] })
+  | (ResultadoMandatoBase & { acao: 'notificar'; itens: ItemNotificar[] });
 
 const PARTES_SET = new Set<string>(PARTES);
 const CAMPOS_SET = new Set<string>(CAMPOS_VIGIADOS);
@@ -115,12 +121,25 @@ function lerNumero(v: unknown): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+function comoParte(v: unknown): Parte | undefined {
+  if (typeof v !== 'string') return undefined;
+  const limpo = v.trim();
+  return PARTES_SET.has(limpo) ? (limpo as Parte) : undefined;
+}
+
 // Normaliza o payload livre de RespostaMandato.resultado.porPedido por acao,
 // alinhado ao formato emitido por app/server/mandatos.ts.
 export function interpretarResultadoMandato(resposta: RespostaMandato): ResultadoMandatoInterpretado {
   const alvos = Array.isArray(resposta.alvos) ? resposta.alvos.filter((a): a is string => typeof a === 'string') : [];
   const bruto = ehRegistro(resposta.resultado) ? resposta.resultado : {};
   const linhas = listaPorPedido(bruto);
+  const leituraExemplo = Boolean(bruto['leituraExemplo']);
+  const parteSugerida = comoParte(resposta.filtros?.parte) ?? comoParte(resposta.alvo);
+  const comum: ResultadoMandatoBase = {
+    alvos,
+    leituraExemplo,
+    ...(parteSugerida ? { parteSugerida } : {}),
+  };
 
   switch (resposta.acao) {
     case 'propagar': {
@@ -138,7 +157,7 @@ export function interpretarResultadoMandato(resposta: RespostaMandato): Resultad
         typeof bruto['novosEventos'] === 'number' && Number.isFinite(bruto['novosEventos'])
           ? Math.max(0, bruto['novosEventos'])
           : itens.reduce((acc, i) => acc + i.eventosNovos, 0);
-      return { acao: 'propagar', alvos, itens, novosEventos };
+      return { ...comum, acao: 'propagar', itens, novosEventos };
     }
 
     case 'simular': {
@@ -156,7 +175,7 @@ export function interpretarResultadoMandato(resposta: RespostaMandato): Resultad
           tarefasPorParte: contarPorParte(tarefas),
         };
       });
-      return { acao: 'simular', alvos, itens, simulacao: true };
+      return { ...comum, acao: 'simular', itens, simulacao: true };
     }
 
     case 'resumir': {
@@ -165,12 +184,12 @@ export function interpretarResultadoMandato(resposta: RespostaMandato): Resultad
         resumo: typeof item['resumo'] === 'string' && item['resumo'].trim() ? item['resumo'].trim() : 'Sem resumo disponível.',
         via: item['via'] === 'deterministico' ? 'deterministico' : 'llm',
       }));
-      return { acao: 'resumir', alvos, itens };
+      return { ...comum, acao: 'resumir', itens };
     }
 
     case 'notificar': {
       const itens: ItemNotificar[] = linhas.map((item, idx) => {
-        const parte = typeof item['parte'] === 'string' && PARTES_SET.has(item['parte']) ? (item['parte'] as Parte) : null;
+        const parte = comoParte(item['parte']) ?? null;
         const status = item['status'] === 'entregue' ? 'entregue' : 'nao_entregue';
         const motivoBruto = item['motivo'];
         const motivo =
@@ -184,7 +203,7 @@ export function interpretarResultadoMandato(resposta: RespostaMandato): Resultad
           ...(motivo ? { motivo } : {}),
         };
       });
-      return { acao: 'notificar', alvos, itens };
+      return { ...comum, acao: 'notificar', itens };
     }
   }
 }

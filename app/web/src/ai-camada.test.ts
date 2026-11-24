@@ -164,6 +164,44 @@ describe('interpretarResultadoMandato', () => {
       expect(resumoParaAnuncio(notif)).toContain('Envio automático desligado');
     }
   });
+
+  it('extrai leituraExemplo e parteSugerida de filtros.parte ou alvo válido', () => {
+    const porFiltro = interpretarResultadoMandato({
+      acao: 'resumir',
+      alvos: ['p1'],
+      filtros: { parte: 'fiscal' },
+      alvo: 'cd',
+      resultado: {
+        leituraExemplo: true,
+        porPedido: [{ pedidoId: 'p1', resumo: 'Resumo para o fiscal.', via: 'llm' }],
+      },
+    });
+    expect(porFiltro.leituraExemplo).toBe(true);
+    expect(porFiltro.parteSugerida).toBe('fiscal');
+
+    const porAlvo = interpretarResultadoMandato({
+      acao: 'simular',
+      alvos: ['p1'],
+      alvo: 'cd',
+      resultado: {
+        simulacao: true,
+        porPedido: [{ pedidoId: 'p1', divergencias: [], tarefas: [] }],
+      },
+    });
+    expect(porAlvo.leituraExemplo).toBe(false);
+    expect(porAlvo.parteSugerida).toBe('cd');
+
+    const alvoLivre = interpretarResultadoMandato({
+      acao: 'resumir',
+      alvos: ['p1'],
+      alvo: 'Fornecedor Alfa Ltda',
+      resultado: {
+        porPedido: [{ pedidoId: 'p1', resumo: 'Sem divergências.', via: 'deterministico' }],
+      },
+    });
+    expect(alvoLivre.leituraExemplo).toBe(false);
+    expect(alvoLivre.parteSugerida).toBeUndefined();
+  });
 });
 
 describe('cacheLente', () => {

@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
+import type { Parte } from '../../../shared/model.ts';
 import { ErroMandatoApi, carregarExemplosNaSessao, enviarMandato } from '../api.ts';
 import {
   chaveCurta,
@@ -42,11 +43,11 @@ import {
 } from './icones.tsx';
 import { VisualizadorVoz } from './VisualizadorVoz.tsx';
 
-const SUGESTOES: readonly string[] = [
-  'Resuma o estado',
-  'Propague o atraso',
-  'Simule a entrega para 28/01/2026',
-  'Avise a transportadora',
+const SUGESTOES: ReadonlyArray<{ rotulo: string; comando: string }> = [
+  { rotulo: 'Qual o atraso e por que diverge?', comando: 'Qual o atraso e por que os documentos divergem?' },
+  { rotulo: 'Simule entrega para 28/01/2026', comando: 'Simule a entrega para 28/01/2026' },
+  { rotulo: 'Visão do Fiscal', comando: 'Resuma o que importa para o fiscal' },
+  { rotulo: 'Propague tarefas pendentes', comando: 'Propague o atraso' },
 ];
 
 type EstadoMandato =
@@ -67,6 +68,7 @@ interface ConteudoGaveta {
 interface Props {
   aoAnunciar: (texto: string) => void;
   aoSelecionar: (pedidoId: string) => void;
+  aoAplicarPapel?: (papel: Parte) => void;
 }
 
 const plural = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`;
@@ -228,7 +230,7 @@ function elementoEditavel(el: Element | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
 }
 
-export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
+export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Props) {
   const inputId = useId();
   const ajudaId = useId();
   const erroId = useId();
@@ -422,6 +424,9 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
       const interpretado = interpretarResultadoMandato(resposta);
       setExecSeq((n) => n + 1);
       setEstado({ tipo: 'resultado', dados: interpretado });
+      if (interpretado.parteSugerida) {
+        aoAplicarPapel?.(interpretado.parteSugerida);
+      }
       // Aguarda o lote SSE de 300ms para o anuncio do mandato nao ser sobrescrito.
       const frase = resumoParaAnuncio(interpretado);
       anuncioTimerRef.current = window.setTimeout(() => {
@@ -468,22 +473,15 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
     const escolhida = SUGESTOES[proximo];
     if (!escolhida) return;
     setSugestaoAtiva(proximo);
-    setTexto(escolhida);
+    setTexto(escolhida.comando);
     setProvisorio(false);
     if (estado.tipo === 'erro') setEstado({ tipo: 'ocioso' });
   }
 
-  function preencherSugestao(sugestao: string) {
-    if (voz.ouvindo) {
-      concluiuComFocoRef.current = true;
-      voz.cancelar();
-    }
-    voz.limparErro();
-    setSugestaoAtiva(-1);
-    setTexto(sugestao);
-    setProvisorio(false);
-    if (estado.tipo === 'erro') setEstado({ tipo: 'ocioso' });
-    inputRef.current?.focus();
+  function executarSugestao(comando: string) {
+    if (enviando) return;
+    setTexto(comando);
+    void executar(comando);
   }
 
   function fecharErroVoz() {
@@ -575,14 +573,17 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
         }
       }}
     >
-      <h2 id="bloco-mandato" className="so-leitor">
-        Comando operacional
-      </h2>
+      <div className="cmd-cab">
+        <h2 id="bloco-mandato">Pergunte ou comande em português</h2>
+        <p id={ajudaId} className="meta">
+          Tire dúvidas sobre divergências, simule outra data, propague tarefas ou mude a visão por papel.
+        </p>
+      </div>
 
       <div className={classeSuperficie}>
         <form className={classeForm} onSubmit={aoSubmeter} noValidate>
           <label htmlFor={inputId} className="so-leitor">
-            Comando em português para os pedidos da sua sessão
+            Pergunta ou comando em português sobre o pedido
           </label>
 
           <span className="cmd-prefixo" aria-hidden="true">
@@ -618,7 +619,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
                   ? 'Finalizando transcrição…'
                   : voz.ouvindo
                     ? 'Ouvindo em português… fale seu comando'
-                    : 'Comande sua sessão: "resuma o estado", "simule a entrega para 28/01/2026"…'
+                    : 'Ex.: "qual o atraso?", "simule entrega para 28/01/2026", "mostre a visão do fiscal"…'
             }
             disabled={enviando}
             aria-invalid={estado.tipo === 'erro' ? 'true' : undefined}
@@ -800,6 +801,20 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
                         ))}
                       </span>
                     )}
+                    {estadoExibido.dados.leituraExemplo && (
+                      <>
+                        <span className="pilula-sutil">Exemplo (leitura)</span>
+                        <button
+                          type="button"
+                          className="botao-sutil"
+                          disabled={carregandoExemplo}
+                          onClick={() => void importarExemploNaSessao()}
+                          tabIndex={temGaveta ? 0 : -1}
+                        >
+                          {carregandoExemplo ? 'Copiando…' : 'Usar na minha sessão'}
+                        </button>
+                      </>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -833,19 +848,19 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar }: Props) {
         <div className="cmd-chips" role="group" aria-label="Sugestões de comando">
           {SUGESTOES.map((sugestao, idx) => (
             <button
-              key={sugestao}
+              key={sugestao.rotulo}
               type="button"
               className="chip"
               data-ativa={sugestaoAtiva === idx ? 'true' : undefined}
               disabled={enviando}
-              onClick={() => preencherSugestao(sugestao)}
+              onClick={() => executarSugestao(sugestao.comando)}
             >
-              {sugestao}
+              {sugestao.rotulo}
             </button>
           ))}
         </div>
-        <span id={ajudaId} className="cmd-atalho meta">
-          Sessão atual · <kbd className="tecla mono">/</kbd>
+        <span className="cmd-atalho meta">
+          Atalho <kbd className="tecla mono">/</kbd>
         </span>
       </div>
     </section>

@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from 'react';
 import { PARTES } from '../../../shared/model.ts';
 import type { Parte, ProjecaoPedido, RespostaAuditoria, ViewSpec } from '../../../shared/model.ts';
 import { obterViewSpec } from '../api.ts';
@@ -16,6 +26,7 @@ import {
 import { cacheLente, chaveCacheLente } from '../lenteCache.ts';
 import {
   FILTRO_TODAS,
+  agruparTarefas,
   aplicarViewSpec,
   montarMatriz,
   tarefasDaParte,
@@ -44,7 +55,7 @@ interface Props {
 type SnapshotLente =
   | { modo: 'carregando'; papel: Parte }
   | {
-      modo: 'ativa';
+      modo: 'adaptada';
       lente: Parte;
       fontesVisiveis: number;
       fontesTotal: number;
@@ -52,8 +63,11 @@ type SnapshotLente =
       camposTotal: number;
       itensOcultos: readonly string[];
       destacarDivergencias: boolean;
-    };
+    }
+  | { modo: 'avaliada'; lente: Parte }
+  | { modo: 'indisponivel'; papel: Parte };
 
+const ORDEM_ABAS: readonly FiltroParte[] = [FILTRO_TODAS, ...PARTES];
 const NOVO_REGISTRO_MS = 8000;
 
 // Frase que repete, em texto corrido, o que a matriz mostra por célula.
@@ -109,23 +123,27 @@ function Versoes({ versoes }: { versoes: ProjecaoPedido['versoes'] }) {
   const recentes = [...versoes].sort((a, b) => b.geradaEm.localeCompare(a.geradaEm) || b.versao - a.versao);
   return (
     <section aria-labelledby="bloco-versoes">
-      <div className="sec-cab">
-        <div className="sec-cab-grupo">
-          <h2 id="bloco-versoes">Versões recebidas</h2>
-          <p className="meta">Só acréscimo · nada é apagado do registro</p>
-        </div>
-      </div>
-      <ul className="versoes">
-        {recentes.map((v) => (
-          <li key={`${v.fonte}-${v.versao}`}>
-            <span className="versao-ponto" aria-hidden="true" />
-            <time dateTime={v.geradaEm}>{formatarMomento(v.geradaEm)}</time>
-            <span>
-              <strong>{rotuloFonte(v.fonte)}</strong> v{v.versao} {v.versao === 1 ? 'registrada' : 'recebida'}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <details className="versoes-detalhes">
+        <summary className="versoes-sumario">
+          <span id="bloco-versoes" className="versoes-sumario-titulo">
+            Histórico de versões recebidas
+          </span>
+          <span className="meta num">
+            {versoes.length} {versoes.length === 1 ? 'documento' : 'documentos'} · só acréscimo
+          </span>
+        </summary>
+        <ul className="versoes">
+          {recentes.map((v) => (
+            <li key={`${v.fonte}-${v.versao}`}>
+              <span className="versao-ponto" aria-hidden="true" />
+              <time dateTime={v.geradaEm}>{formatarMomento(v.geradaEm)}</time>
+              <span>
+                <strong>{rotuloFonte(v.fonte)}</strong> v{v.versao} {v.versao === 1 ? 'registrada' : 'recebida'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
     </section>
   );
 }
@@ -139,28 +157,49 @@ function Conteudo({
   aoAnunciar,
   aoSelecionar,
 }: Omit<Props, 'projecao'> & { dados: ProjecaoPedido }) {
+  const visaoId = useId();
   const matriz = useMemo(() => montarMatriz(dados.versoes, dados.divergencias), [dados.versoes, dados.divergencias]);
-  const [filtro, setFiltro] = useState<FiltroParte>(
-    () => PARTES.find((p) => tarefasDaParte(dados.tarefas, p).length > 0) ?? FILTRO_TODAS,
-  );
+  const [filtro, setFiltro] = useState<FiltroParte>(FILTRO_TODAS);
   const [specAtivo, setSpecAtivo] = useState<ViewSpec | null>(null);
   const [carregandoLente, setCarregandoLente] = useState(false);
+  const [erroLente, setErroLente] = useState(false);
   const [papelCompondo, setPapelCompondo] = useState<Parte | null>(null);
-  const [ignorarLente, setIgnorarLente] = useState(false);
   const [direcaoLente, setDirecaoLente] = useState<-1 | 0 | 1>(0);
   const [lenteSnapshot, setLenteSnapshot] = useState<SnapshotLente | null>(null);
   const [chaveCopiada, setChaveCopiada] = useState(false);
+  const [trilho, setTrilho] = useState<{ x: number; w: number; pronto: boolean }>({ x: 0, w: 0, pronto: false });
+  const [fadeEsq, setFadeEsq] = useState(false);
+  const [fadeDir, setFadeDir] = useState(false);
 
+  const abasListaRef = useRef<HTMLDivElement>(null);
   const lenteSeq = useRef(0);
   const lenteAbort = useRef<AbortController | null>(null);
   const ultimoTotalRef = useRef(dados.totalEventos);
   const fecharLenteTimerRef = useRef<number | null>(null);
   const copiaTimerRef = useRef<number | null>(null);
-  const btnLenteRef = useRef<HTMLButtonElement>(null);
   const matrizCabRef = useRef<HTMLHeadingElement>(null);
-  const focarAposFecharLenteRef = useRef(false);
   const montouLenteRef = useRef(false);
   const ultimaLenteAnunciadaRef = useRef<string | null>(null);
+
+  const abas = useMemo<ReadonlyArray<{ valor: FiltroParte; rotulo: string; n: number }>>(
+    () => [
+      { valor: FILTRO_TODAS, rotulo: 'Visão completa', n: agruparTarefas(dados.tarefas).length },
+      ...PARTES.map((p) => ({
+        valor: p as FiltroParte,
+        rotulo: rotuloParte(p),
+        n: agruparTarefas(tarefasDaParte(dados.tarefas, p)).length,
+      })),
+    ],
+    [dados.tarefas],
+  );
+  const assinaturaContagens = abas.map((a) => a.n).join(',');
+  const tarefasVisiveis = useMemo(
+    () =>
+      filtro === FILTRO_TODAS
+        ? agruparTarefas(dados.tarefas).length
+        : agruparTarefas(tarefasDaParte(dados.tarefas, filtro)).length,
+    [dados.tarefas, filtro],
+  );
 
   const sinaisConhecidos = useRef<ReadonlySet<string>>(new Set(dados.sinais.map(chaveSinal)));
   const avisosConhecidos = useRef<ReadonlySet<string>>(new Set(dados.notificacoes.map(chaveNotificacao)));
@@ -197,12 +236,54 @@ function Conteudo({
     [],
   );
 
+  useLayoutEffect(() => {
+    const container = abasListaRef.current;
+    if (!container) return;
+    let ativo = true;
+
+    const atualizarFades = () => {
+      if (!ativo) return;
+      const esq = container.scrollLeft > 2;
+      const dir = container.scrollLeft + container.clientWidth < container.scrollWidth - 2;
+      setFadeEsq(esq);
+      setFadeDir(dir);
+    };
+
+    const atualizar = () => {
+      if (!ativo) return;
+      const ativa = container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
+      if (ativa) {
+        setTrilho({ x: ativa.offsetLeft, w: ativa.offsetWidth, pronto: true });
+      }
+      atualizarFades();
+    };
+
+    atualizar();
+
+    container.addEventListener('scroll', atualizarFades, { passive: true });
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(atualizar);
+      ro.observe(container);
+    }
+    if (typeof document !== 'undefined' && document.fonts?.ready) {
+      void document.fonts.ready.then(atualizar);
+    }
+
+    return () => {
+      ativo = false;
+      container.removeEventListener('scroll', atualizarFades);
+      ro?.disconnect();
+    };
+  }, [filtro, assinaturaContagens]);
+
   const buscarLente = useCallback(
     async (papel: Parte, totalEventos: number) => {
       const chave = chaveCacheLente(id, papel, totalEventos);
       const emCache = cacheLente.obter(chave);
       lenteAbort.current?.abort();
       const seq = ++lenteSeq.current;
+      setErroLente(false);
       if (emCache) {
         setSpecAtivo(emCache);
         setCarregandoLente(false);
@@ -219,8 +300,11 @@ function Conteudo({
         cacheLente.guardar(chave, spec);
         setSpecAtivo(spec);
       } catch {
-        // Fallback silencioso para a visao completa: falha de lente nunca bloqueia o painel.
-        if (seq === lenteSeq.current) setSpecAtivo(null);
+        // Fallback honesto para a matriz completa: falha de lente nunca bloqueia o painel.
+        if (seq === lenteSeq.current) {
+          setSpecAtivo(null);
+          setErroLente(true);
+        }
       } finally {
         if (seq === lenteSeq.current) {
           setCarregandoLente(false);
@@ -234,20 +318,20 @@ function Conteudo({
   useEffect(() => {
     if (dados.totalEventos === ultimoTotalRef.current) return;
     ultimoTotalRef.current = dados.totalEventos;
-    if (specAtivo && filtro !== FILTRO_TODAS && !ignorarLente) {
+    if (filtro !== FILTRO_TODAS) {
       void buscarLente(filtro, dados.totalEventos);
     }
-  }, [dados.totalEventos, specAtivo, filtro, ignorarLente, buscarLente]);
+  }, [dados.totalEventos, filtro, buscarLente]);
 
   const aoFiltrar = useCallback(
     (proximo: FiltroParte, direcao: -1 | 0 | 1 = 0) => {
       setFiltro(proximo);
-      setIgnorarLente(false);
       setDirecaoLente(direcao);
       if (proximo === FILTRO_TODAS) {
         lenteAbort.current?.abort();
         lenteSeq.current += 1;
         setCarregandoLente(false);
+        setErroLente(false);
         setPapelCompondo(null);
         setSpecAtivo(null);
         return;
@@ -257,8 +341,70 @@ function Conteudo({
     [buscarLente, dados.totalEventos],
   );
 
+  const trocarPerspectiva = useCallback(
+    (proximo: FiltroParte) => {
+      const indiceAtual = ORDEM_ABAS.indexOf(filtro);
+      const indiceDestino = ORDEM_ABAS.indexOf(proximo);
+      const direcao: -1 | 0 | 1 =
+        indiceAtual === -1 || indiceDestino === -1 || indiceDestino === indiceAtual
+          ? 0
+          : indiceDestino > indiceAtual
+            ? 1
+            : -1;
+
+      if (proximo !== filtro) {
+        aoFiltrar(proximo, direcao);
+      } else if (proximo !== FILTRO_TODAS && !specAtivo && !carregandoLente) {
+        void buscarLente(proximo, dados.totalEventos);
+      }
+
+      const container = abasListaRef.current;
+      const botao =
+        indiceDestino >= 0
+          ? container?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[indiceDestino]
+          : undefined;
+      if (container && botao) {
+        const margem = 24;
+        const esq = botao.offsetLeft;
+        const dir = esq + botao.offsetWidth;
+        let novoScroll: number | null = null;
+        if (esq < container.scrollLeft + margem) {
+          novoScroll = Math.max(0, esq - margem);
+        } else if (dir > container.scrollLeft + container.clientWidth - margem) {
+          novoScroll = dir - container.clientWidth + margem;
+        }
+        if (novoScroll !== null) {
+          const reduzido =
+            typeof window !== 'undefined' &&
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          container.scrollTo({ left: novoScroll, behavior: reduzido ? 'auto' : 'smooth' });
+        }
+      }
+    },
+    [aoFiltrar, buscarLente, carregandoLente, dados.totalEventos, filtro, specAtivo],
+  );
+
+  function aoTeclarAba(e: KeyboardEvent<HTMLButtonElement>, i: number) {
+    const proxima = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: abas.length - 1 }[e.key];
+    if (proxima === undefined) return;
+    e.preventDefault();
+    const destino = (proxima + abas.length) % abas.length;
+    const alvo = abas[destino];
+    if (!alvo) return;
+    trocarPerspectiva(alvo.valor);
+    abasListaRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[destino]?.focus({ preventScroll: true });
+  }
+
+  function voltarVisaoCompleta() {
+    const primeiraAba = abasListaRef.current?.querySelector<HTMLButtonElement>('[role="tab"]');
+    (primeiraAba ?? matrizCabRef.current)?.focus({ preventScroll: true });
+    trocarPerspectiva(FILTRO_TODAS);
+    aoAnunciar('Exibindo visão completa do pedido.');
+  }
+
   const resultadoLente = useMemo<ResultadoLente>(() => {
-    if (specAtivo && filtro !== FILTRO_TODAS && !ignorarLente) {
+    if (specAtivo && filtro !== FILTRO_TODAS) {
       return aplicarViewSpec(matriz, specAtivo);
     }
     return {
@@ -269,7 +415,7 @@ function Conteudo({
       destacarDivergencias: true,
       lente: filtro === FILTRO_TODAS ? 'fornecedor' : filtro,
     };
-  }, [matriz, specAtivo, filtro, ignorarLente]);
+  }, [matriz, specAtivo, filtro]);
 
   const matrizVisivel = resultadoLente.matriz;
   const assinaturaLente = `${resultadoLente.ajustada ? resultadoLente.lente : 'completa'}|${matrizVisivel.fontes.join(',')}|${matrizVisivel.linhas.map((l) => l.campo).join(',')}|${resultadoLente.destacarDivergencias}`;
@@ -283,25 +429,35 @@ function Conteudo({
   );
 
   const conteudoLenteAtual = useMemo<SnapshotLente | null>(() => {
+    if (filtro === FILTRO_TODAS) return null;
     if (carregandoLente && papelCompondo !== null) {
       return { modo: 'carregando', papel: papelCompondo };
     }
-    if (resultadoLente.ajustada) {
-      return {
-        modo: 'ativa',
-        lente: resultadoLente.lente,
-        fontesVisiveis: matrizVisivel.fontes.length,
-        fontesTotal: matriz.fontes.length,
-        camposVisiveis: matrizVisivel.linhas.length,
-        camposTotal: matriz.linhas.length,
-        itensOcultos,
-        destacarDivergencias: resultadoLente.destacarDivergencias,
-      };
+    if (specAtivo && specAtivo.lente === filtro) {
+      if (resultadoLente.ajustada) {
+        return {
+          modo: 'adaptada',
+          lente: resultadoLente.lente,
+          fontesVisiveis: matrizVisivel.fontes.length,
+          fontesTotal: matriz.fontes.length,
+          camposVisiveis: matrizVisivel.linhas.length,
+          camposTotal: matriz.linhas.length,
+          itensOcultos,
+          destacarDivergencias: resultadoLente.destacarDivergencias,
+        };
+      }
+      return { modo: 'avaliada', lente: specAtivo.lente };
+    }
+    if (erroLente) {
+      return { modo: 'indisponivel', papel: filtro };
     }
     return null;
   }, [
+    filtro,
     carregandoLente,
     papelCompondo,
+    specAtivo,
+    erroLente,
     resultadoLente.ajustada,
     resultadoLente.lente,
     resultadoLente.destacarDivergencias,
@@ -337,27 +493,13 @@ function Conteudo({
 
   const lenteExibida = conteudoLenteAtual ?? lenteSnapshot;
 
-  const podeAcionarLente =
-    filtro !== FILTRO_TODAS &&
-    !carregandoLente &&
-    matriz.fontes.length > 0 &&
-    !resultadoLente.ajustada &&
-    (!specAtivo || specAtivo.lente !== filtro || ignorarLente);
-
   useEffect(() => {
-    if (!focarAposFecharLenteRef.current) return;
-    if (podeAcionarLente) {
-      focarAposFecharLenteRef.current = false;
-      btnLenteRef.current?.focus({ preventScroll: true });
-    } else if (!lenteAberta) {
-      focarAposFecharLenteRef.current = false;
-    }
-  }, [podeAcionarLente, lenteAberta]);
-
-  useEffect(() => {
-    const chaveAtual = resultadoLente.ajustada
-      ? `${resultadoLente.lente}|${matrizVisivel.fontes.length}|${matriz.fontes.length}`
-      : null;
+    const chaveAtual =
+      filtro !== FILTRO_TODAS && specAtivo && specAtivo.lente === filtro
+        ? resultadoLente.ajustada
+          ? `adaptada|${resultadoLente.lente}|${matrizVisivel.fontes.length}|${matriz.fontes.length}|${matrizVisivel.linhas.length}`
+          : `avaliada|${specAtivo.lente}`
+        : null;
     if (!montouLenteRef.current) {
       montouLenteRef.current = true;
       ultimaLenteAnunciadaRef.current = chaveAtual;
@@ -365,17 +507,26 @@ function Conteudo({
     }
     if (chaveAtual === ultimaLenteAnunciadaRef.current) return;
     ultimaLenteAnunciadaRef.current = chaveAtual;
-    if (chaveAtual !== null) {
+    if (chaveAtual === null || !specAtivo) return;
+    if (resultadoLente.ajustada) {
       aoAnunciar(
-        `Visão ajustada para ${rotuloParte(resultadoLente.lente)}: ${matrizVisivel.fontes.length} de ${matriz.fontes.length} fontes.`,
+        `Visão adaptada pela IA para ${rotuloParte(resultadoLente.lente)}: ${matrizVisivel.fontes.length} de ${matriz.fontes.length} fontes e ${matrizVisivel.linhas.length} de ${matriz.linhas.length} campos.`,
+      );
+    } else {
+      aoAnunciar(
+        `Visão avaliada pela IA para ${rotuloParte(specAtivo.lente)}: todas as fontes e campos atuais são relevantes.`,
       );
     }
   }, [
     aoAnunciar,
+    filtro,
     matriz.fontes.length,
+    matriz.linhas.length,
     matrizVisivel.fontes.length,
+    matrizVisivel.linhas.length,
     resultadoLente.ajustada,
     resultadoLente.lente,
+    specAtivo,
   ]);
 
   async function copiarChave() {
@@ -428,9 +579,55 @@ function Conteudo({
         <StatusCadeia auditoria={auditoria} aoVerificar={aoVerificar} aoAnunciar={aoAnunciar} />
       </div>
 
-      <BarraMandatos aoAnunciar={aoAnunciar} aoSelecionar={aoSelecionar} />
+      <BarraMandatos aoAnunciar={aoAnunciar} aoSelecionar={aoSelecionar} aoAplicarPapel={trocarPerspectiva} />
 
-      {/* data-fontes segue a matriz completa para as abas nao pularem de coluna durante a lente. */}
+      <section className="perspectiva-secao" aria-labelledby="bloco-visao">
+        <div className="perspectiva-cab">
+          <h2 id="bloco-visao" className="sec-titulo-icone">
+            <IconeLente />
+            <span>Visão por papel</span>
+            <span className="pilula-coord">GenUI</span>
+          </h2>
+          <p className="meta">
+            Escolha um papel: a IA adapta as fontes e campos da matriz e filtra as tarefas abaixo.
+          </p>
+        </div>
+
+        <div
+          className="abas-wrap"
+          data-fade-esq={fadeEsq ? 'true' : 'false'}
+          data-fade-dir={fadeDir ? 'true' : 'false'}
+        >
+          <div className="abas" role="tablist" aria-label="Visão por papel" ref={abasListaRef}>
+            {abas.map((a, i) => (
+              <button
+                key={a.valor}
+                type="button"
+                role="tab"
+                id={`${visaoId}-${a.valor}`}
+                className="aba"
+                aria-selected={filtro === a.valor}
+                aria-controls={`${visaoId}-painel`}
+                tabIndex={filtro === a.valor ? 0 : -1}
+                onClick={() => trocarPerspectiva(a.valor)}
+                onKeyDown={(e) => aoTeclarAba(e, i)}
+              >
+                <span>{a.rotulo}</span>
+                <span className="aba-n num">{a.n}</span>
+              </button>
+            ))}
+            {trilho.pronto && (
+              <span
+                className="abas-indicador"
+                aria-hidden="true"
+                style={{ '--ix': `${trilho.x}px`, '--iw-escala': trilho.w } as CSSProperties}
+              />
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* data-fontes segue a matriz completa para as colunas nao pularem durante a lente. */}
       <div className="cols" data-fontes={matriz.fontes.length}>
         <section aria-labelledby="bloco-matriz">
           <div className="sec-cab">
@@ -442,27 +639,6 @@ function Conteudo({
                 Referência: primeira fonte que declara o campo.
               </p>
             </div>
-            {podeAcionarLente && (
-              <button
-                ref={btnLenteRef}
-                type="button"
-                className="btn-lente"
-                onClick={() => {
-                  setDirecaoLente(0);
-                  setIgnorarLente(false);
-                  if (!specAtivo || specAtivo.lente !== filtro) {
-                    void buscarLente(filtro, dados.totalEventos);
-                  }
-                }}
-              >
-                <IconeLente />
-                <span>
-                  {ignorarLente && specAtivo && specAtivo.lente === filtro
-                    ? `Reativar lente · ${rotuloParte(filtro)}`
-                    : `Lente · ${rotuloParte(filtro)}`}
-                </span>
-              </button>
-            )}
           </div>
 
           <div
@@ -473,19 +649,20 @@ function Conteudo({
             <div className="lente-gaveta-inner">
               {lenteExibida && (
                 <div className="lente-gaveta-pad">
-                  {lenteExibida.modo === 'carregando' ? (
+                  {lenteExibida.modo === 'carregando' && (
                     <div className="lente-faixa lente-faixa-carregando">
                       <span className="lente-status">
                         <span className="cmd-spinner" aria-hidden="true" />
-                        <span>Ajustando visão para {rotuloParte(lenteExibida.papel)}…</span>
+                        <span>IA adaptando a visão para {rotuloParte(lenteExibida.papel)}…</span>
                       </span>
                     </div>
-                  ) : (
+                  )}
+                  {lenteExibida.modo === 'adaptada' && (
                     <div className="lente-faixa">
                       <div className="lente-info">
                         <span className="pilula-coord">
                           <IconeLente />
-                          Visão ajustada para {rotuloParte(lenteExibida.lente)}
+                          Visão adaptada pela IA · {rotuloParte(lenteExibida.lente)}
                         </span>
                         <span className="meta num">
                           {lenteExibida.fontesVisiveis}/{lenteExibida.fontesTotal} fontes ·{' '}
@@ -493,7 +670,7 @@ function Conteudo({
                         </span>
                         {lenteExibida.itensOcultos.length > 0 && (
                           <span className="lente-ocultos">
-                            <span className="meta">Oculto:</span>
+                            <span className="meta">Ocultou:</span>
                             {lenteExibida.itensOcultos.map((nome) => (
                               <span key={nome} className="pilula-sutil">
                                 {nome}
@@ -509,15 +686,50 @@ function Conteudo({
                         type="button"
                         className="botao-sutil"
                         tabIndex={lenteAberta ? 0 : -1}
-                        onClick={() => {
-                          focarAposFecharLenteRef.current = true;
-                          matrizCabRef.current?.focus({ preventScroll: true });
-                          setDirecaoLente(0);
-                          setIgnorarLente(true);
-                          aoAnunciar('Exibindo matriz completa.');
-                        }}
+                        onClick={voltarVisaoCompleta}
                       >
-                        Ver matriz completa
+                        Ver visão completa
+                      </button>
+                    </div>
+                  )}
+                  {lenteExibida.modo === 'avaliada' && (
+                    <div className="lente-faixa">
+                      <div className="lente-info">
+                        <span className="pilula-neutra">
+                          <IconeLente />
+                          Visão avaliada pela IA · {rotuloParte(lenteExibida.lente)}
+                        </span>
+                        <span className="meta">
+                          Todas as fontes e campos atuais são relevantes para este papel.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="botao-sutil"
+                        tabIndex={lenteAberta ? 0 : -1}
+                        onClick={voltarVisaoCompleta}
+                      >
+                        Ver visão completa
+                      </button>
+                    </div>
+                  )}
+                  {lenteExibida.modo === 'indisponivel' && (
+                    <div className="lente-faixa">
+                      <div className="lente-info">
+                        <span className="pilula-sutil">
+                          Matriz completa · {rotuloParte(lenteExibida.papel)}
+                        </span>
+                        <span className="meta">
+                          Adaptação por IA indisponível no momento; tarefas filtradas abaixo.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="botao-sutil"
+                        tabIndex={lenteAberta ? 0 : -1}
+                        onClick={voltarVisaoCompleta}
+                      >
+                        Ver visão completa
                       </button>
                     </div>
                   )}
@@ -539,11 +751,23 @@ function Conteudo({
         <section aria-labelledby="bloco-tarefas">
           <div className="sec-cab">
             <div className="sec-cab-grupo">
-              <h2 id="bloco-tarefas">Tarefas por parte</h2>
+              <h2 id="bloco-tarefas">
+                {filtro === FILTRO_TODAS ? 'Todas as tarefas' : `Tarefas · ${rotuloParte(filtro)}`}
+              </h2>
               <p className="meta">Ações derivadas das divergências abertas por papel.</p>
             </div>
+            <span className="pilula-sutil num">
+              {tarefasVisiveis} {tarefasVisiveis === 1 ? 'tarefa' : 'tarefas'}
+            </span>
           </div>
-          <TarefasPorParte tarefas={dados.tarefas} filtro={filtro} aoFiltrar={aoFiltrar} novas={novas} />
+          <TarefasPorParte
+            tarefas={dados.tarefas}
+            filtro={filtro}
+            novas={novas}
+            direcao={direcaoLente}
+            painelId={`${visaoId}-painel`}
+            rotuloAbaId={`${visaoId}-${filtro}`}
+          />
         </section>
       </div>
 
