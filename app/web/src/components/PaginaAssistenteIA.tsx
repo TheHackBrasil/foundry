@@ -47,6 +47,7 @@ import {
 } from '../mandato.ts';
 import { movimentoReduzidoAgora } from '../shaders/index.ts';
 import { usePresencaAnimada } from '../usePresencaAnimada.ts';
+import { useTextoFluido } from '../useTextoFluido.ts';
 import { useVoz } from '../useVoz.ts';
 import '../assistente.css';
 import { EvidenciaLateralIA } from './EvidenciaLateralIA.tsx';
@@ -391,70 +392,285 @@ function InlineAgente({ texto }: { texto: string }) {
   );
 }
 
-// Resposta em linguagem natural do agente: 'aoVivo' mantem um cursor sutil
-// no fim do ultimo segmento enquanto os deltas ainda chegam.
+// Resposta em linguagem natural do agente: suaviza a cadencia do SSE em 60fps
+// com useTextoFluido, revela cada novo bloco de prosa sem saltos e mantem um
+// cursor mineral fino que se dissolve ao concluir.
 function TextoAgente({ texto, aoVivo }: { texto: string; aoVivo: boolean }) {
-  const segmentos = useMemo(() => dividirProsaAgente(texto), [texto]);
-  const cursor = <span className="agente-cursor" aria-hidden="true" />;
+  const { visivel, compondo } = useTextoFluido(texto, aoVivo);
+  const segmentos = useMemo(() => dividirProsaAgente(visivel), [visivel]);
+  const cursor = (
+    <span
+      className="agente-cursor"
+      data-ativo={compondo ? 'true' : 'false'}
+      aria-hidden="true"
+    />
+  );
   const ultimo = segmentos.length - 1;
-  const ultimoEhParagrafo = ultimo >= 0 && segmentos[ultimo]?.tipo === 'paragrafo';
+  const ultimoSeg = ultimo >= 0 ? segmentos[ultimo] : undefined;
+  const ultimoEhParagrafo = ultimoSeg?.tipo === 'paragrafo';
+  const ultimoEhLista = ultimoSeg?.tipo === 'lista';
+
   return (
-    <div className="agente-texto">
-      {segmentos.map((seg, i) =>
-        seg.tipo === 'lista' ? (
-          <ul key={`lista-${i}`}>
-            {seg.itens.map((item, j) => (
-              <li key={`item-${i}-${j}`}>
-                <InlineAgente texto={item} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p key={`p-${i}`}>
+    <div className="agente-texto" data-compondo={compondo ? 'true' : 'false'}>
+      {segmentos.map((seg, i) => {
+        const ehUltimoSeg = i === ultimo;
+        if (seg.tipo === 'lista') {
+          const ultimoItem = seg.itens.length - 1;
+          return (
+            <ul
+              key={`lista-${i}`}
+              className="agente-seg"
+              style={{ '--seg-i': Math.min(i, 6) } as CSSProperties}
+            >
+              {seg.itens.map((item, j) => (
+                <li
+                  key={`item-${i}-${j}`}
+                  className="agente-item"
+                  style={{ '--item-i': Math.min(j, 8) } as CSSProperties}
+                >
+                  <InlineAgente texto={item} />
+                  {ehUltimoSeg && j === ultimoItem ? cursor : null}
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        return (
+          <p
+            key={`p-${i}`}
+            className="agente-seg"
+            style={{ '--seg-i': Math.min(i, 6) } as CSSProperties}
+          >
             {seg.linhas.map((linha, j) => (
               <Fragment key={`l-${i}-${j}`}>
                 {j > 0 && <br />}
                 <InlineAgente texto={linha} />
               </Fragment>
             ))}
-            {aoVivo && i === ultimo ? cursor : null}
+            {ehUltimoSeg ? cursor : null}
           </p>
-        ),
+        );
+      })}
+      {compondo && !ultimoEhParagrafo && !ultimoEhLista && (
+        <p className="agente-cursor-linha">{cursor}</p>
       )}
-      {aoVivo && !ultimoEhParagrafo && <p className="agente-cursor-linha">{cursor}</p>}
     </div>
   );
 }
 
-// Trilha fina das tools enquanto a resposta nao chega; dissolve (classe de
-// saida no CSS da camada ops) no primeiro texto_delta ou no encerramento.
-function TrilhaFerramentasAgente({
-  tools,
-  dissolvendo,
-}: {
-  tools: readonly ToolTurnoIA[];
-  dissolvendo: boolean;
-}) {
+const TOOLS_VISUAIS = new Set([
+  'simular_cenario',
+  'comparar_fontes',
+  'preparar_notificacao',
+  'enviar_notificacao',
+  'propagar_divergencias',
+]);
+
+function iconeDaTool(nome: string) {
+  switch (nome) {
+    case 'simular_cenario':
+      return <IconeCalendario />;
+    case 'comparar_fontes':
+      return <IconeCaixa />;
+    case 'listar_tarefas_setor':
+      return <IconeGalpao />;
+    case 'consultar_auditoria':
+      return <IconeFiscal />;
+    case 'preparar_notificacao':
+    case 'enviar_notificacao':
+      return <IconeCaminhao />;
+    case 'propagar_divergencias':
+      return <IconeComando />;
+    default:
+      return <IconeRota />;
+  }
+}
+
+function rotuloBlueprintGenUI(tools: readonly ToolTurnoIA[]): string {
+  if (tools.some((t) => t.nome === 'simular_cenario')) {
+    return 'Compondo simulador interativo e mapa causal…';
+  }
+  if (tools.some((t) => t.nome === 'preparar_notificacao' || t.nome === 'enviar_notificacao')) {
+    return 'Preparando cartões de despacho por setor…';
+  }
+  if (tools.some((t) => t.nome === 'comparar_fontes')) {
+    return 'Montando comparador documental…';
+  }
+  return 'Compondo visão operacional…';
+}
+
+function IconeCheckAnimado() {
   return (
-    <ol
-      className="agente-tools"
-      data-dissolvendo={dissolvendo ? 'true' : undefined}
-      aria-live="polite"
-      aria-label="Ferramentas consultadas pelo agente"
+    <svg
+      className="ia-check-anim"
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
     >
-      {tools.map((tool) => (
-        <li key={tool.id} className="agente-tool" data-status={tool.status}>
-          {tool.status === 'executando' ? (
-            <span className="cmd-spinner" aria-hidden="true" />
-          ) : tool.status === 'concluida' ? (
-            <IconeConfere />
-          ) : (
+      <path
+        d="M3.2 8.4 6.5 11.7 12.8 4.8"
+        pathLength={1}
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// Trilha viva unificada de raciocinio e ferramentas: aberta com pulso mineral
+// enquanto o agente consulta o ledger, e recolhe suavemente via grid-template-rows
+// para uma linha discreta e expansivel assim que a resposta em prosa chega.
+function TrilhaVivaAgente({
+  etapas,
+  tools,
+  carregando,
+  temTexto,
+}: {
+  etapas: readonly EtapaStreamGenUI[];
+  tools: readonly ToolTurnoIA[];
+  carregando: boolean;
+  temTexto: boolean;
+}) {
+  const [expandidoManual, setExpandidoManual] = useState<boolean | null>(null);
+  const ativa = carregando && !temTexto;
+  const expandido = expandidoManual !== null ? expandidoManual : ativa;
+
+  const etapaAtual = etapas.at(-1);
+  const concluidas = tools.filter((t) => t.status === 'concluida').length;
+  const comErro = tools.filter((t) => t.status === 'erro').length;
+  const executando = tools.some((t) => t.status === 'executando');
+
+  const tituloResumo = useMemo(() => {
+    if (ativa) {
+      if (executando) {
+        const emCurso = tools.filter((t) => t.status === 'executando');
+        if (emCurso.length === 1) return emCurso[0]?.resumo || 'Consultando registro…';
+        return `Consultando ${emCurso.length} fontes em paralelo…`;
+      }
+      return etapaAtual?.rotulo ?? 'Interpretando e consultando o registro…';
+    }
+    if (tools.length === 0) {
+      return etapaAtual?.rotulo ?? 'Consulta concluída';
+    }
+    const base =
+      concluidas === 1 ? '1 consulta concluída' : `${concluidas} consultas concluídas`;
+    const ultimaConcluida = [...tools].reverse().find((t) => t.status === 'concluida');
+    if (comErro > 0) {
+      return `${base} · ${comErro} aviso${comErro === 1 ? '' : 's'}`;
+    }
+    return ultimaConcluida?.resumo ? `${base} · ${ultimaConcluida.resumo}` : base;
+  }, [ativa, executando, tools, etapaAtual, concluidas, comErro]);
+
+  if (!carregando && tools.length === 0) return null;
+
+  return (
+    <div
+      className="ia-trilha-viva"
+      data-ativa={ativa ? 'true' : 'false'}
+      data-expandido={expandido ? 'true' : 'false'}
+      aria-live="polite"
+    >
+      <span className="ia-trilha-feixe" aria-hidden="true" />
+      <button
+        type="button"
+        className="ia-trilha-cab"
+        aria-expanded={expandido}
+        disabled={tools.length === 0 && etapas.length === 0}
+        onClick={() => setExpandidoManual((atual) => !(atual ?? ativa))}
+      >
+        <span className="ia-trilha-indicador" aria-hidden="true">
+          {ativa ? (
+            <EmblemaMonolitos tamanho={17} />
+          ) : comErro > 0 && concluidas === 0 ? (
             <IconeErro />
+          ) : (
+            <IconeCheckAnimado />
           )}
-          <span>{tool.resumo || tool.nome}</span>
-        </li>
-      ))}
-    </ol>
+        </span>
+        <span key={etapaAtual?.id ?? (ativa ? 'ativa' : 'fim')} className="ia-trilha-titulo">
+          {tituloResumo}
+        </span>
+        {(tools.length > 0 || etapas.length > 0) && <ChevronSeletor />}
+      </button>
+
+      {(tools.length > 0 || (ativa && etapas.length > 0)) && (
+        <div className="ia-trilha-gaveta" data-aberta={expandido ? 'true' : 'false'}>
+          <div className="ia-trilha-gaveta-inner">
+            <ol className="ia-trilha-lista" aria-label="Ferramentas consultadas pelo agente">
+              {tools.length > 0
+                ? tools.map((tool, i) => (
+                    <li
+                      key={tool.id}
+                      className="ia-tool-linha"
+                      data-status={tool.status}
+                      style={{ '--tool-i': Math.min(i, 8) } as CSSProperties}
+                    >
+                      <span className="ia-tool-estado" aria-hidden="true">
+                        {tool.status === 'executando' ? (
+                          <span className="ia-tool-pulso" />
+                        ) : tool.status === 'concluida' ? (
+                          <IconeCheckAnimado />
+                        ) : (
+                          <IconeErro />
+                        )}
+                      </span>
+                      <span className="ia-tool-icone" aria-hidden="true">
+                        {iconeDaTool(tool.nome)}
+                      </span>
+                      <span className="ia-tool-texto">{tool.resumo || tool.nome}</span>
+                    </li>
+                  ))
+                : etapas.map((et, i) => (
+                    <li
+                      key={et.id}
+                      className="ia-tool-linha"
+                      data-status={et.concluida ? 'concluida' : 'executando'}
+                      style={{ '--tool-i': Math.min(i, 6) } as CSSProperties}
+                    >
+                      <span className="ia-tool-estado" aria-hidden="true">
+                        {et.concluida ? <IconeCheckAnimado /> : <span className="ia-tool-pulso" />}
+                      </span>
+                      <span className="ia-tool-texto">
+                        {et.rotulo}
+                        {et.detalhe ? ` · ${et.detalhe}` : ''}
+                      </span>
+                    </li>
+                  ))}
+            </ol>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Blueprint arquitetonico exibido enquanto uma tool visual prepara os blocos
+// GenUI: evita que os paineis interativos surjam do nada na tela.
+function EsqueletoGenUI({ rotulo }: { rotulo: string }) {
+  return (
+    <div className="ia-genui-blueprint" role="status" aria-live="polite" aria-label={rotulo}>
+      <div className="ia-blueprint-cab">
+        <span className="ia-blueprint-linha-curta" />
+        <span className="ia-blueprint-rotulo">{rotulo}</span>
+      </div>
+      <div className="ia-blueprint-grade">
+        <div className="ia-blueprint-laje" style={{ '--bp-i': 0 } as CSSProperties}>
+          <span className="ia-blueprint-barra w-40" />
+          <span className="ia-blueprint-barra w-85" />
+          <span className="ia-blueprint-barra w-65" />
+        </div>
+        <div className="ia-blueprint-laje" style={{ '--bp-i': 1 } as CSSProperties}>
+          <span className="ia-blueprint-barra w-55" />
+          <span className="ia-blueprint-barra w-75" />
+          <span className="ia-blueprint-barra w-50" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1080,6 +1296,9 @@ export function PaginaAssistenteIA({
             etapas: adicionarOuAtualizarEtapa(t.etapas, ev),
           }));
         } else if (ev.tipo === 'tool') {
+          if (ev.status === 'concluida') {
+            emitirPulsoSuperficie(null);
+          }
           atualizarTurno(turnoId, (t) => ({
             ...t,
             tools: acumularToolTurno(t.tools, ev),
@@ -1593,14 +1812,12 @@ export function PaginaAssistenteIA({
                               </div>
                             ) : (
                               <>
-                                {turno.tools.length > 0 && (
-                                  <TrilhaFerramentasAgente
-                                    tools={turno.tools}
-                                    dissolvendo={
-                                      turno.textoAgente.length > 0 || !turno.carregando
-                                    }
-                                  />
-                                )}
+                                <TrilhaVivaAgente
+                                  etapas={turno.etapas}
+                                  tools={turno.tools}
+                                  carregando={turno.carregando}
+                                  temTexto={turno.textoAgente.length > 0}
+                                />
                                 {turno.textoAgente ? (
                                   <TextoAgente
                                     texto={turno.textoAgente}
@@ -1608,8 +1825,7 @@ export function PaginaAssistenteIA({
                                   />
                                 ) : null}
                                 {projecaoTurno &&
-                                (turno.carregando ||
-                                  turno.viewSpec !== null ||
+                                (turno.viewSpec !== null ||
                                   turno.blocosStream.length > 0) ? (
                                   <PalcoGenUI
                                     spec={turno.viewSpec}
@@ -1642,20 +1858,14 @@ export function PaginaAssistenteIA({
                                     }
                                     aoAnunciar={aoAnunciar}
                                     slotLoader={<EmblemaMonolitos tamanho={20} />}
+                                    ocultarTrilha={true}
                                   />
-                                ) : turno.carregando && !turno.textoAgente ? (
-                                  <div
-                                    className="ia-turno-carregando"
-                                    role="status"
-                                    aria-live="polite"
-                                  >
-                                    <EmblemaMonolitos tamanho={20} />
-                                    <span>
-                                      {turno.etapas.at(-1)?.rotulo ??
-                                        'Consultando estado do pedido…'}
-                                    </span>
-                                  </div>
-                                ) : !turno.textoAgente && turno.interpretado ? (
+                                ) : turno.carregando &&
+                                  turno.tools.some((t) => TOOLS_VISUAIS.has(t.nome)) ? (
+                                  <EsqueletoGenUI rotulo={rotuloBlueprintGenUI(turno.tools)} />
+                                ) : !turno.carregando &&
+                                  !turno.textoAgente &&
+                                  turno.interpretado ? (
                                   <RespostaFallbackTurno dados={turno.interpretado} />
                                 ) : null}
                               </>

@@ -149,6 +149,7 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
   const eventosGravados: Evento[] = [];
   let pedidoIdResolvido: string | undefined;
   let textoFinal = '';
+  let textoJaStreamado = false;
 
   for (let i = 0; i < MAX_ITERACOES; i++) {
     emitir({
@@ -156,9 +157,13 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
       id: `agente-${i}`,
       rotulo: i === 0 ? 'Interpretando e planejando' : 'Sintetizando o que encontrei',
     });
-    const resposta = await chatComTools(mensagens, schemas, { signal: op.signal });
+    const resposta = await chatComTools(mensagens, schemas, {
+      signal: op.signal,
+      onDelta: (delta) => emitir({ tipo: 'texto_delta', delta }),
+    });
     if (resposta.toolCalls.length === 0) {
       textoFinal = resposta.texto;
+      textoJaStreamado = Boolean(resposta.streamouTexto);
       break;
     }
 
@@ -209,9 +214,9 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
     }
   }
 
-  // Streaming do texto final: no caminho normal o texto ja veio inteiro na
-  // resposta com tools, entao vai por fatias; no estouro do teto a chamada
-  // de sintese sem tools pode streamar de verdade.
+  // Streaming do texto final: quando o provedor suportou SSE no chatComTools,
+  // cada token ja saiu em tempo real por onDelta; no fallback JSON comum ou
+  // no estouro do teto, streamamos/fatiamos aqui.
   if (textoFinal === '') {
     emitir({ tipo: 'etapa', id: 'sintese', rotulo: 'Sintetizando a resposta final' });
     try {
@@ -224,7 +229,7 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
       textoFinal = resumoDoQueEncontrei(toolsExecutadas);
       for (const delta of fatiarTexto(textoFinal)) emitir({ tipo: 'texto_delta', delta });
     }
-  } else {
+  } else if (!textoJaStreamado) {
     for (const delta of fatiarTexto(textoFinal)) emitir({ tipo: 'texto_delta', delta });
   }
 

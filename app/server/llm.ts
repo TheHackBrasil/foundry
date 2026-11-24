@@ -160,17 +160,127 @@ export interface OpcoesChatAgente {
   modelo?: string; // sobrescreve cfg.modelo quando presente
   temperatura?: number;
   signal?: AbortSignal;
+  onDelta?: (delta: string) => void;
 }
 
 export interface RespostaChatTools {
   texto: string;
   toolCalls: ChamadaToolLlm[];
   finishReason: string;
+  streamouTexto?: boolean;
+}
+
+function parseArgumentosTool(argBruto: unknown): Record<string, unknown> {
+  if (typeof argBruto === 'string' && argBruto.trim() !== '') {
+    try {
+      const p = JSON.parse(argBruto) as unknown;
+      if (typeof p === 'object' && p !== null && !Array.isArray(p)) return p as Record<string, unknown>;
+    } catch {
+      // JSON quebrado vira {}: a tool devolve erro estruturado legivel
+      // para o modelo corrigir, nunca excecao solta no loop.
+    }
+    return {};
+  }
+  if (typeof argBruto === 'object' && argBruto !== null && !Array.isArray(argBruto)) {
+    return argBruto as Record<string, unknown>;
+  }
+  return {};
+}
+
+// Leitor SSE compartilhado para chat com tools em streaming: acumula
+// delta.content (emitindo cada token via onDelta em tempo real) e
+// delta.tool_calls fragmentados por indice ate [DONE].
+async function lerStreamChatTools(
+  resp: Response,
+  onDelta?: (delta: string) => void,
+): Promise<RespostaChatTools> {
+  if (!resp.body) throw new ErroLlm('invalido', 'resposta SSE do LLM sem corpo');
+  const leitor = resp.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let texto = '';
+  let finishReason = '';
+  let streamouTexto = false;
+  const chamadasPorIndice = new Map<number, { id: string; nome: string; args: string }>();
+
+  const finalizar = (): RespostaChatTools => {
+    const toolCalls: ChamadaToolLlm[] = [];
+    const ordenadas = [...chamadasPorIndice.entries()].sort((a, b) => a[0] - b[0]);
+    for (const [idx, item] of ordenadas) {
+      if (!item.nome) continue;
+      toolCalls.push({
+        id: item.id || `call_${idx}`,
+        nome: item.nome,
+        argumentos: parseArgumentosTool(item.args),
+      });
+    }
+    return { texto, toolCalls, finishReason, streamouTexto };
+  };
+
+  try {
+    for (;;) {
+      const { value, done } = await leitor.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let fim = buf.indexOf('\n');
+      while (fim >= 0) {
+        const linha = buf.slice(0, fim).trim();
+        buf = buf.slice(fim + 1);
+        if (linha.startsWith('data:')) {
+          const dados = linha.slice(5).trim();
+          if (dados === '[DONE]') return finalizar();
+          try {
+            const frame = JSON.parse(dados) as {
+              choices?: Array<{
+                finish_reason?: unknown;
+                delta?: {
+                  content?: unknown;
+                  tool_calls?: Array<{
+                    index?: unknown;
+                    id?: unknown;
+                    function?: { name?: unknown; arguments?: unknown };
+                  }>;
+                };
+              }>;
+            };
+            const escolha = frame.choices?.[0];
+            if (typeof escolha?.finish_reason === 'string' && escolha.finish_reason !== '') {
+              finishReason = escolha.finish_reason;
+            }
+            const delta = escolha?.delta;
+            if (typeof delta?.content === 'string' && delta.content !== '') {
+              texto += delta.content;
+              streamouTexto = true;
+              onDelta?.(delta.content);
+            }
+            if (Array.isArray(delta?.tool_calls)) {
+              for (const [pos, tc] of delta.tool_calls.entries()) {
+                const idx = typeof tc?.index === 'number' && Number.isInteger(tc.index) ? tc.index : pos;
+                const atual = chamadasPorIndice.get(idx) ?? { id: '', nome: '', args: '' };
+                if (typeof tc?.id === 'string' && tc.id !== '') atual.id = tc.id;
+                if (typeof tc?.function?.name === 'string') atual.nome += tc.function.name;
+                if (typeof tc?.function?.arguments === 'string') atual.args += tc.function.arguments;
+                chamadasPorIndice.set(idx, atual);
+              }
+            }
+          } catch {
+            // frame incompleto ou fora do formato: ignora sem derrubar o stream
+          }
+        }
+        fim = buf.indexOf('\n');
+      }
+    }
+    return finalizar();
+  } catch (e) {
+    if (e instanceof ErroLlm) throw e;
+    throw new ErroLlm('indisponivel', `stream do LLM interrompido (${(e as Error).message})`);
+  }
 }
 
 // Uma chamada de chat com tools declaradas: devolve o texto livre e as
-// chamadas pedidas pelo modelo. Provedor sem tool calling responde texto
-// comum e toolCalls sai vazio (o agente degrada para conversa pura).
+// chamadas pedidas pelo modelo. Quando onDelta e fornecido, pede stream:true
+// para entregar tokens em tempo real; se o provedor responder JSON comum,
+// faz fallback transparente.
 export async function chatComTools(
   mensagens: MensagemAgenteLlm[],
   tools: DefinicaoToolLlm[],
@@ -181,6 +291,7 @@ export async function chatComTools(
 
   const corpoBase: Record<string, unknown> = {
     messages: mensagens,
+    ...(opcoes.onDelta ? { stream: true } : {}),
     // tools vazio pede resposta final ao modelo: omitir a chave evita
     // provedor que recusa array vazio.
     ...(tools.length > 0
@@ -214,6 +325,11 @@ export async function chatComTools(
     resp = await postLlm(cfg, corpoBase, opcoes.signal);
   }
 
+  const contentType = resp.headers?.get?.('content-type') ?? '';
+  if (contentType.includes('text/event-stream')) {
+    return lerStreamChatTools(resp, opcoes.onDelta);
+  }
+
   interface MsgResposta {
     content?: unknown;
     tool_calls?: unknown;
@@ -237,26 +353,18 @@ export async function chatComTools(
       const nome = tc?.function?.name;
       // Call sem nome nao tem como ser enderecada a uma tool registrada.
       if (typeof nome !== 'string' || nome === '') continue;
-      let argumentos: Record<string, unknown> = {};
-      const argBruto = tc?.function?.arguments;
-      if (typeof argBruto === 'string' && argBruto.trim() !== '') {
-        try {
-          const p = JSON.parse(argBruto) as unknown;
-          if (typeof p === 'object' && p !== null && !Array.isArray(p)) argumentos = p as Record<string, unknown>;
-        } catch {
-          // JSON quebrado vira {}: a tool devolve erro estruturado legivel
-          // para o modelo corrigir, nunca excecao solta no loop.
-        }
-      } else if (typeof argBruto === 'object' && argBruto !== null && !Array.isArray(argBruto)) {
-        argumentos = argBruto as Record<string, unknown>;
-      }
-      toolCalls.push({ id: typeof tc?.id === 'string' && tc.id !== '' ? tc.id : `call_${i}`, nome, argumentos });
+      toolCalls.push({
+        id: typeof tc?.id === 'string' && tc.id !== '' ? tc.id : `call_${i}`,
+        nome,
+        argumentos: parseArgumentosTool(tc?.function?.arguments),
+      });
     }
   }
   return {
     texto: typeof msg.content === 'string' ? msg.content : '',
     toolCalls,
     finishReason: typeof escolha?.finish_reason === 'string' ? escolha.finish_reason : '',
+    streamouTexto: false,
   };
 }
 
@@ -282,7 +390,7 @@ export async function chatTextoStream(
     opcoes.signal,
   );
 
-  const contentType = resp.headers.get('content-type') ?? '';
+  const contentType = resp.headers?.get?.('content-type') ?? '';
   if (!contentType.includes('text/event-stream')) {
     let json: { choices?: Array<{ message?: { content?: unknown } }> };
     try {

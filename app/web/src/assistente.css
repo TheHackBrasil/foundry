@@ -830,13 +830,367 @@ main[data-rota='ia'] {
 
 .ia-turno-resposta {
   min-width: 0;
+  display: grid;
+  gap: 1.125rem;
   font-size: 0.96875rem;
   line-height: 1.6;
 }
 
+/* ---------- Trilha viva unificada de raciocínio e tools (mármore/pedra + accordion 0fr/1fr) ---------- */
+.ia-trilha-viva {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--ia-r-md);
+  border: 1px solid color-mix(in srgb, var(--border-strong) 34%, var(--border));
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: var(--ia-bevel-cetim), var(--ia-sombra-base);
+  animation: ia-trilha-entrar 320ms var(--ia-ease-enter) backwards;
+  transition:
+    background-color 260ms ease,
+    border-color 260ms ease,
+    box-shadow 260ms ease;
+}
+
+.ia-trilha-viva::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--ia-veio-marmore);
+  background-size: 380px 380px;
+  opacity: 0.1;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+:root[data-tema='dark'] .ia-trilha-viva::before {
+  opacity: 0.11;
+  mix-blend-mode: screen;
+}
+
+.ia-trilha-viva[data-ativa='false'] {
+  background: color-mix(in srgb, var(--surface) 64%, transparent);
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  box-shadow: none;
+}
+
+.ia-trilha-feixe {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--change) 85%, transparent) 48%,
+    transparent 100%
+  );
+  transform: translate3d(-100%, 0, 0);
+  transition: opacity 280ms ease;
+}
+
+.ia-trilha-viva[data-ativa='true'] .ia-trilha-feixe {
+  opacity: 1;
+  animation: ia-feixe-varrer 1.65s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.ia-trilha-cab {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+.ia-trilha-cab:disabled {
+  cursor: default;
+}
+
+.ia-trilha-cab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: var(--ia-r-md);
+}
+
+.ia-trilha-cab .ia-pedido-chevron {
+  margin-inline-start: auto;
+  opacity: 0.65;
+  transform: rotate(0deg);
+  transition: transform 240ms var(--ia-ease-enter), opacity 160ms ease;
+}
+
+.ia-trilha-viva[data-expandido='true'] .ia-trilha-cab .ia-pedido-chevron {
+  transform: rotate(180deg);
+  opacity: 0.95;
+}
+
+.ia-trilha-indicador {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+  color: var(--ok);
+}
+
+.ia-trilha-viva[data-ativa='true'] .ia-selo-monolitos {
+  animation: ia-monolito-respirar 1.8s ease-in-out infinite;
+}
+
+.ia-trilha-titulo {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.84375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: ia-etapa-trocar 260ms var(--ia-ease-enter) backwards;
+}
+
+.ia-trilha-viva[data-ativa='false'] .ia-trilha-titulo {
+  font-weight: 550;
+  color: var(--text2);
+}
+
+.ia-trilha-gaveta {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 340ms var(--ia-ease-enter),
+    opacity 220ms ease;
+}
+
+.ia-trilha-gaveta[data-aberta='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.ia-trilha-gaveta-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.ia-trilha-lista {
+  display: grid;
+  gap: 0.4375rem;
+  padding: 0.125rem 0.875rem 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  padding-top: 0.625rem;
+}
+
+.ia-tool-linha {
+  display: flex;
+  align-items: center;
+  gap: 0.5625rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text2);
+  animation: ia-tool-entrar 300ms var(--ia-ease-enter) calc(var(--tool-i, 0) * 50ms) backwards;
+}
+
+.ia-tool-linha[data-status='concluida'] {
+  color: var(--text);
+}
+
+.ia-tool-linha[data-status='erro'] {
+  color: var(--error);
+}
+
+.ia-tool-estado {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  color: var(--ok);
+}
+
+.ia-tool-linha[data-status='erro'] .ia-tool-estado {
+  color: var(--error);
+}
+
+.ia-tool-pulso {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--ia-r-pill);
+  background: var(--change);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--change) 24%, transparent);
+  animation: ia-pulso-status 1.15s ease-in-out infinite;
+}
+
+.ia-check-anim {
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--ok);
+}
+
+.ia-check-anim path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: ia-check-desenhar 360ms var(--ia-ease-enter) backwards;
+}
+
+.ia-tool-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text2);
+  opacity: 0.8;
+  flex: none;
+}
+
+.ia-tool-icone svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.ia-tool-texto {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ---------- Prosa fluida SSE do agente (ink-settle + cursor mineral fino) ---------- */
+.ia-turno-resposta .agente-texto {
+  gap: 0.75rem;
+  font-size: 0.96875rem;
+  line-height: 1.68;
+}
+
+.ia-turno-resposta .agente-seg {
+  animation: ia-prosa-entrar 320ms var(--ia-ease-enter) backwards;
+}
+
+.ia-turno-resposta .agente-item {
+  animation: ia-prosa-entrar 280ms var(--ia-ease-enter) backwards;
+}
+
+.ia-turno-resposta .agente-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-inline-start: 0.25rem;
+  border-radius: 999px;
+  background: var(--change);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--change) 55%, transparent);
+  vertical-align: -0.16em;
+  transform-origin: center bottom;
+  transition: opacity 280ms ease, transform 280ms var(--ia-ease-enter);
+}
+
+.ia-turno-resposta .agente-cursor[data-ativo='true'] {
+  opacity: 1;
+  transform: scaleY(1);
+  animation: ia-cursor-respirar 920ms ease-in-out infinite;
+}
+
+.ia-turno-resposta .agente-cursor[data-ativo='false'] {
+  opacity: 0;
+  transform: scaleY(0.35);
+  animation: none;
+  pointer-events: none;
+}
+
+/* ---------- Blueprint arquitetônico GenUI enquanto bloco visual é forjado ---------- */
+.ia-genui-blueprint {
+  position: relative;
+  display: grid;
+  gap: 0.875rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  animation: ia-trilha-entrar 340ms var(--ia-ease-enter) backwards;
+}
+
+.ia-blueprint-cab {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.ia-blueprint-linha-curta {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--ia-r-pill);
+  background: var(--change);
+  animation: ia-pulso-status 1.2s ease-in-out infinite;
+}
+
+.ia-blueprint-rotulo {
+  font-size: 0.84375rem;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+.ia-blueprint-grade {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem;
+}
+
+.ia-blueprint-laje {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 0.5625rem;
+  padding: 1rem;
+  border-radius: var(--ia-r-md);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
+  animation: ia-tool-entrar 360ms var(--ia-ease-enter) calc(var(--bp-i, 0) * 90ms) backwards;
+}
+
+.ia-blueprint-laje::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    108deg,
+    transparent 24%,
+    color-mix(in srgb, var(--change) 10%, transparent) 48%,
+    color-mix(in srgb, var(--surface) 50%, transparent) 52%,
+    transparent 74%
+  );
+  transform: translate3d(-120%, 0, 0);
+  animation: ia-feixe-varrer 1.75s cubic-bezier(0.4, 0, 0.2, 1) calc(var(--bp-i, 0) * 180ms) infinite;
+}
+
+.ia-blueprint-barra {
+  display: block;
+  height: 0.625rem;
+  border-radius: var(--ia-r-pill);
+  background: color-mix(in srgb, var(--border-strong) 22%, var(--surface2));
+}
+
+.ia-blueprint-barra.w-40 { width: 40%; }
+.ia-blueprint-barra.w-50 { width: 50%; }
+.ia-blueprint-barra.w-55 { width: 55%; }
+.ia-blueprint-barra.w-65 { width: 65%; }
+.ia-blueprint-barra.w-75 { width: 75%; }
+.ia-blueprint-barra.w-85 { width: 85%; }
+
 /* PalcoGenUI integrado sem bordas duplicadas nem caixa-dentro-de-caixa. */
 .ia-turno-resposta .palco-genui {
-  padding: 0;
+  padding: 1rem 0 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -1739,6 +2093,9 @@ main[data-rota='ia'] {
   .ia-parte-item[data-foco-ativo='true']:hover {
     background: var(--change-bg);
   }
+  .ia-trilha-cab:not(:disabled):hover {
+    background: var(--tint-soft);
+  }
   .ia-parte-torre:hover {
     background: var(--surface2);
     border-color: var(--border-strong);
@@ -1841,6 +2198,92 @@ main[data-rota='ia'] {
   }
 }
 
+@keyframes ia-trilha-entrar {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes ia-feixe-varrer {
+  from {
+    transform: translate3d(-110%, 0, 0);
+  }
+  to {
+    transform: translate3d(125%, 0, 0);
+  }
+}
+
+@keyframes ia-monolito-respirar {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes ia-etapa-trocar {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes ia-tool-entrar {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 7px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes ia-check-desenhar {
+  from {
+    stroke-dashoffset: 1;
+    opacity: 0.3;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes ia-prosa-entrar {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes ia-cursor-respirar {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.96;
+  }
+}
+
 /* ---------- breakpoints responsivos (1440 / 960 / 390 / 320px) ---------- */
 @media (max-width: 1179px) {
   .ia-estudio[data-evidencia='ancorada'] .ia-corpo {
@@ -1861,7 +2304,8 @@ main[data-rota='ia'] {
   .ia-santuario {
     gap: 1.5rem;
   }
-  .ia-partidas-grid {
+  .ia-partidas-grid,
+  .ia-blueprint-grade {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.6875rem;
   }
@@ -1948,9 +2392,35 @@ main[data-rota='ia'] {
   .ia-partida-pilula,
   .ia-turno,
   .ia-evidencia-col,
-  .ia-santuario-status {
+  .ia-santuario-status,
+  .ia-trilha-viva,
+  .ia-trilha-titulo,
+  .ia-tool-linha,
+  .ia-genui-blueprint,
+  .ia-blueprint-laje,
+  .ia-turno-resposta .agente-seg,
+  .ia-turno-resposta .agente-item {
     animation: ia-aparecer-suave 130ms ease backwards;
     animation-delay: 0ms;
+  }
+  .ia-trilha-feixe,
+  .ia-blueprint-laje::after,
+  .ia-tool-pulso,
+  .ia-blueprint-linha-curta,
+  .ia-trilha-viva[data-ativa='true'] .ia-selo-monolitos,
+  .ia-check-anim path,
+  .ia-turno-resposta .agente-cursor {
+    animation: none;
+  }
+  .ia-trilha-feixe,
+  .ia-blueprint-laje::after {
+    opacity: 0;
+  }
+  .ia-trilha-gaveta {
+    transition: opacity 130ms ease;
+  }
+  .ia-trilha-cab .ia-pedido-chevron {
+    transition: none;
   }
   .ia-santuario[data-saindo='true'] {
     animation: none;
@@ -2016,7 +2486,9 @@ main[data-rota='ia'] {
   .ia-partida-pilula,
   .ia-pedido-menu,
   .ia-turno-erro,
-  .ia-composer-alerta {
+  .ia-composer-alerta,
+  .ia-trilha-viva,
+  .ia-blueprint-laje {
     border: 1px solid CanvasText;
   }
   .ia-pedido-gatilho,

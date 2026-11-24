@@ -137,6 +137,7 @@ export function GrafoDomino({
   const [hoverParte, setHoverParte] = useState<Parte | null>(null);
   const [visivel, setVisivel] = useState(true);
   const [revelado, setRevelado] = useState(() => typeof IntersectionObserver === 'undefined');
+  const [ondaInicial, setOndaInicial] = useState(false);
 
   const wrapRef = useRef<HTMLElement>(null);
   const centroRef = useRef<HTMLDivElement>(null);
@@ -164,6 +165,15 @@ export function GrafoDomino({
     io.observe(el);
     return () => io.disconnect();
   }, [divergencias.length]);
+
+  // Pulso causal único na chegada do grafo para tornar visível a direção
+  // divergência -> setor antes de assentar em repouso.
+  useEffect(() => {
+    if (!revelado) return;
+    setOndaInicial(true);
+    const t = window.setTimeout(() => setOndaInicial(false), 1750);
+    return () => window.clearTimeout(t);
+  }, [revelado, modo]);
   const [geom, setGeom] = useState<GeometriaSvg>({
     largura: 240,
     altura: 280,
@@ -467,7 +477,7 @@ export function GrafoDomino({
 
       <div className="domino-palco">
         <div className="domino-col" role="group" aria-label="O que divergiu">
-          {nosDivergencia.map((no) => {
+          {nosDivergencia.map((no, noIdx) => {
             const pressionado = isolamentoEfetivo === no.campo;
             const destacado =
               focoCampoAtivo === no.campo ||
@@ -488,6 +498,7 @@ export function GrafoDomino({
                 }}
                 type="button"
                 className="domino-no domino-card-div slab-mineral"
+                style={{ '--no-i': Math.min(noIdx, 6) } as CSSProperties}
                 aria-pressed={pressionado}
                 aria-label={textoAria}
                 data-ativo={destacado ? 'true' : undefined}
@@ -579,11 +590,14 @@ export function GrafoDomino({
                     strokeDasharray={tracejado}
                     markerEnd={`url(#${ativa ? markerAtivoId : markerDimId})`}
                   />
-                  {enfase && !ehSimulacao && (
+                  {(enfase || (ondaInicial && ativa)) && !ehSimulacao && (
                     <path
                       d={d}
                       pathLength={1}
-                      className="domino-fluxo-pulso"
+                      className={
+                        enfase ? 'domino-fluxo-pulso' : 'domino-fluxo-pulso domino-fluxo-chegada'
+                      }
+                      style={{ '--edge-i': Math.min(idx, 10) } as CSSProperties}
                       fill="none"
                       strokeLinecap="round"
                     />
@@ -634,7 +648,7 @@ export function GrafoDomino({
         </div>
 
         <div className="domino-col" role="group" aria-label="Quem precisa agir">
-          {setoresAtivos.map((setor) => {
+          {setoresAtivos.map((setor, setorIdx) => {
             const pressionado = parteIsoladaEfetiva === setor.parte;
             const destacado =
               focoParteAtiva === setor.parte ||
@@ -653,6 +667,7 @@ export function GrafoDomino({
                 }}
                 type="button"
                 className="domino-no domino-card-setor slab-mineral"
+                style={{ '--no-i': Math.min(setorIdx, 6) } as CSSProperties}
                 aria-pressed={pressionado}
                 aria-label={`${rotuloParte(setor.parte)}: ${setor.totalAcoes} ${setor.totalAcoes === 1 ? 'ação' : 'ações'}${setor.primeiraAcao ? `. Prioridade: ${setor.primeiraAcao}` : ''}`}
                 data-ativo={destacado ? 'true' : undefined}

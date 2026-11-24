@@ -174,6 +174,46 @@ describe('llm.ts com tools (T310)', () => {
     expect(texto).toBe('resposta unica');
     expect(deltas).toEqual(['resposta unica']);
   });
+
+  it('chatComTools com onDelta streama tokens SSE em tempo real', async () => {
+    envLlm();
+    const sse =
+      'data: {"choices":[{"delta":{"content":"Krona "}}]}\n\n' +
+      'data: {"choices":[{"delta":{"content":"atrasou 5 dias."},"finish_reason":"stop"}]}\n\n' +
+      'data: [DONE]\n\n';
+    const f = filaLlm(new Response(sse, { headers: { 'content-type': 'text/event-stream' } }));
+    const deltas: string[] = [];
+    const r = await chatComTools(
+      [{ role: 'user', content: 'como esta a Krona?' }],
+      [{ nome: 'consultar_pedido', descricao: 'Consulta', parametros: { type: 'object' } }],
+      { onDelta: (d) => deltas.push(d) },
+    );
+    expect(r.texto).toBe('Krona atrasou 5 dias.');
+    expect(r.streamouTexto).toBe(true);
+    expect(r.toolCalls).toEqual([]);
+    expect(deltas).toEqual(['Krona ', 'atrasou 5 dias.']);
+    const corpo = JSON.parse(chamada(f)[1].body) as { stream?: boolean; reasoning_effort?: string };
+    expect(corpo.stream).toBe(true);
+    expect(corpo.reasoning_effort).toBe('none');
+  });
+
+  it('chatComTools em SSE remonta tool_calls fragmentados por indice', async () => {
+    envLlm();
+    const sse =
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a","function":{"name":"consultar_","arguments":"{\\"ped"}}]}}]}\n\n' +
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"pedido","arguments":"ido\\":\\"krona\\"}"}}]},"finish_reason":"tool_calls"}]}\n\n' +
+      'data: [DONE]\n\n';
+    filaLlm(new Response(sse, { headers: { 'content-type': 'text/event-stream' } }));
+    const deltas: string[] = [];
+    const r = await chatComTools(
+      [{ role: 'user', content: 'krona' }],
+      [{ nome: 'consultar_pedido', descricao: 'Consulta', parametros: { type: 'object' } }],
+      { onDelta: (d) => deltas.push(d) },
+    );
+    expect(deltas).toEqual([]);
+    expect(r.streamouTexto).toBe(false);
+    expect(r.toolCalls).toEqual([{ id: 'call_a', nome: 'consultar_pedido', argumentos: { pedido: 'krona' } }]);
+  });
 });
 
 describe('ferramentas do agente sobre PGlite (T311/T312)', () => {

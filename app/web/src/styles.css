@@ -2557,9 +2557,9 @@ main[data-rota='ia'] {
   pointer-events: none;
 }
 
-/* Coreografia SVG: draw-in único ao entrar na viewport + fluxo causal luminoso sob foco. */
+/* Coreografia SVG: draw-in único ao entrar na viewport + fluxo causal luminoso sob foco e na chegada. */
 .domino-aresta {
-  transition: opacity 180ms ease;
+  transition: opacity 200ms ease, stroke-width 200ms ease;
 }
 .domino-aresta-ativa { opacity: 0.72; }
 .domino-aresta-enfase { opacity: 0.96; }
@@ -2572,8 +2572,15 @@ main[data-rota='ia'] {
 .domino-wrap[data-revelado='true'] .domino-aresta-solida {
   stroke-dashoffset: 0;
   transition:
-    stroke-dashoffset var(--dur-draw) var(--ease-out) calc(var(--edge-i, 0) * 45ms),
-    opacity 180ms ease;
+    stroke-dashoffset 620ms var(--ease-out) calc(150ms + var(--edge-i, 0) * 52ms),
+    opacity 200ms ease;
+}
+
+.domino-aresta-sim {
+  animation: domino-sim-marcha 1.8s linear infinite;
+}
+.domino-wrap[data-visivel='false'] .domino-aresta-sim {
+  animation-play-state: paused;
 }
 
 .domino-fluxo-pulso {
@@ -2585,6 +2592,13 @@ main[data-rota='ia'] {
   pointer-events: none;
   animation: fluxo-causal 1350ms linear infinite;
 }
+.domino-fluxo-chegada {
+  stroke: var(--change);
+  stroke-width: 2.6;
+  stroke-dasharray: 0.18 0.82;
+  opacity: 0.92;
+  animation: fluxo-causal-chegada 1050ms cubic-bezier(0.22, 1, 0.36, 1) calc(220ms + var(--edge-i, 0) * 65ms) 1 both;
+}
 :root[data-tema='dark'] .domino-fluxo-pulso {
   stroke: var(--cord);
   stroke-width: 2.75;
@@ -2592,6 +2606,59 @@ main[data-rota='ia'] {
 }
 .domino-wrap[data-visivel='false'] .domino-fluxo-pulso {
   animation-play-state: paused;
+}
+
+/* Cascata causal sincronizada: divergências (esquerda) -> setas SVG -> setores (direita). */
+.domino-wrap[data-revelado='true'] .domino-card-div {
+  animation: domino-no-esq 440ms var(--ease-enter) calc(var(--no-i, 0) * 65ms) backwards;
+}
+.domino-wrap[data-revelado='true'] .domino-card-setor {
+  animation: domino-no-dir 460ms var(--ease-enter) calc(230ms + var(--no-i, 0) * 65ms) backwards;
+}
+
+@keyframes domino-no-esq {
+  from {
+    opacity: 0;
+    transform: translate3d(-14px, 0, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+@keyframes domino-no-dir {
+  from {
+    opacity: 0;
+    transform: translate3d(14px, 0, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+@keyframes fluxo-causal-chegada {
+  0% {
+    stroke-dashoffset: 1.18;
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.95;
+  }
+  82% {
+    opacity: 0.9;
+  }
+  100% {
+    stroke-dashoffset: -0.18;
+    opacity: 0;
+  }
+}
+@keyframes domino-sim-marcha {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .domino-no {
@@ -2982,26 +3049,89 @@ main[data-rota='ia'] {
 
 /* ---------- PalcoGenUI + Drawers presença animada (sobrescreve @layer forseti-ops) ---------- */
 .palco-genui {
+  position: relative;
   padding: 1rem 0 0.5rem;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  border-top: 1px solid var(--border);
+  border-top: 0;
   gap: 1.25rem;
+  animation: genui-palco-entrar 440ms var(--ease-enter) backwards;
+}
+.palco-genui::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--change) 52%, var(--border)) 0%,
+    var(--border) 68%,
+    transparent 100%
+  );
+  transform-origin: left center;
+  animation: genui-regua-desenhar 560ms var(--ease-enter) backwards;
 }
 .palco-cab h2 {
   font: 700 1.25rem/1.2 var(--font-title);
   letter-spacing: -0.02em;
 }
+.palco-curtain {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows 380ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 240ms ease;
+}
+.palco-curtain[data-recolhido='true'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+.palco-curtain-inner {
+  overflow: hidden;
+  display: grid;
+  gap: 1.25rem;
+  min-height: 0;
+}
 .palco-grid { gap: 1.25rem 1.5rem; }
 .palco-bloco {
+  position: relative;
+  overflow: hidden;
   padding: 1.125rem 0 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   border-top: 1px solid var(--border);
   gap: 0.875rem;
-  animation: entrar-bloco 360ms var(--ease-enter) calc(var(--bloco-i, 0) * 60ms) backwards;
+  animation: genui-laje-forjar 540ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--bloco-i, 0) * 115ms) backwards;
+}
+/* Feixe mineral de chegada única ao materializar o bloco GenUI. */
+.palco-bloco::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    108deg,
+    transparent 24%,
+    color-mix(in srgb, var(--change) 11%, transparent) 48%,
+    color-mix(in srgb, var(--surface) 38%, transparent) 52%,
+    transparent 74%
+  );
+  transform: translate3d(-125%, 0, 0);
+  animation: genui-brilho-forja 780ms cubic-bezier(0.22, 1, 0.36, 1) calc(80ms + var(--bloco-i, 0) * 115ms) 1 forwards;
+}
+:root[data-tema='dark'] .palco-bloco::after {
+  background: linear-gradient(
+    108deg,
+    transparent 24%,
+    color-mix(in srgb, var(--change) 16%, transparent) 49%,
+    rgba(255, 255, 255, 0.08) 53%,
+    transparent 74%
+  );
 }
 .palco-bloco-cab h3 { font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.015em; }
 .palco-resumo-texto { font-size: 1rem; line-height: 1.62; max-width: 72ch; color: var(--text); }
@@ -3009,6 +3139,150 @@ main[data-rota='ia'] {
 .palco-sinais-rotulo { display: inline-flex; align-items: center; gap: 0.4375rem; }
 .palco-sinal-resumo { font-size: 0.9375rem; line-height: 1.52; color: var(--text); }
 .checklist-titulo { font-size: 0.9375rem; font-weight: 600; color: var(--text); }
+
+/* Coreografias internas por tipo de bloco GenUI */
+.palco-item-cascata {
+  animation: genui-item-entrar 380ms cubic-bezier(0.16, 1, 0.3, 1) calc(110ms + var(--item-i, 0) * 55ms) backwards;
+}
+.palco-bloco[data-bloco-tipo='comparador_conflito'] .comparador-lado:first-child {
+  animation: genui-duelo-esq 440ms cubic-bezier(0.16, 1, 0.3, 1) 110ms backwards;
+}
+.palco-bloco[data-bloco-tipo='comparador_conflito'] .comparador-lado:last-child {
+  animation: genui-duelo-dir 440ms cubic-bezier(0.16, 1, 0.3, 1) 150ms backwards;
+}
+.palco-bloco[data-bloco-tipo='comparador_conflito'] .comparador-vs {
+  animation: genui-duelo-vs 360ms cubic-bezier(0.34, 1.4, 0.64, 1) 210ms backwards;
+}
+.sim-vivo-campo {
+  animation: genui-item-entrar 400ms cubic-bezier(0.16, 1, 0.3, 1) calc(80ms + var(--sim-i, 0) * 55ms) backwards;
+}
+.sim-vivo-resultado {
+  transition: opacity 180ms ease;
+}
+.sim-vivo-resultado[data-simulando='true'] {
+  opacity: 0.72;
+}
+.sim-vivo-resumo-cab {
+  animation: genui-pulso-resumo 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.sim-row.sim-b {
+  animation: genui-item-entrar 340ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--stagger, 0) * 50ms) backwards;
+}
+.sim-parte-tag {
+  animation: genui-chip-entrar 300ms cubic-bezier(0.16, 1, 0.3, 1) calc(70ms + var(--parte-i, 0) * 45ms) backwards;
+}
+.palco-followup-chip {
+  animation: genui-chip-entrar 360ms cubic-bezier(0.16, 1, 0.3, 1) calc(220ms + var(--chip-i, 0) * 50ms) backwards;
+}
+
+@keyframes genui-palco-entrar {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes genui-regua-desenhar {
+  from {
+    transform: scaleX(0);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+@keyframes genui-laje-forjar {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0) scale(0.984);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+@keyframes genui-brilho-forja {
+  0% {
+    transform: translate3d(-125%, 0, 0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(135%, 0, 0);
+    opacity: 0;
+  }
+}
+@keyframes genui-item-entrar {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes genui-duelo-esq {
+  from {
+    opacity: 0;
+    transform: translate3d(-12px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes genui-duelo-dir {
+  from {
+    opacity: 0;
+    transform: translate3d(12px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes genui-duelo-vs {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes genui-pulso-resumo {
+  from {
+    opacity: 0.45;
+    transform: translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes genui-chip-entrar {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
 .citacao-btn {
   display: inline;
   margin: 0 0.125rem;
@@ -3358,6 +3632,10 @@ main[data-rota='ia'] {
   .cmd-tremor,
   .cmd-orbita > span,
   .domino-fluxo-pulso,
+  .domino-fluxo-chegada,
+  .domino-aresta-sim,
+  .palco-genui::before,
+  .palco-bloco::after,
   .mx-medidor-base,
   .mx-medidor-desvio,
   .comparador-barra-a,
@@ -3366,7 +3644,10 @@ main[data-rota='ia'] {
   .tarefa-focada::after {
     animation: none;
   }
-  .domino-fluxo-pulso { opacity: 0; }
+  .domino-fluxo-pulso,
+  .domino-fluxo-chegada,
+  .palco-bloco::after { opacity: 0; }
+  .palco-curtain { transition: opacity 120ms ease; }
   .domino-aresta-solida {
     stroke-dasharray: none;
     stroke-dashoffset: 0;
@@ -3414,7 +3695,19 @@ main[data-rota='ia'] {
   .rota-palco,
   .kpi-hero-item,
   .tarefas-grupo,
+  .palco-genui,
   .palco-bloco,
+  .palco-item-cascata,
+  .palco-followup-chip,
+  .sim-vivo-campo,
+  .sim-vivo-resumo-cab,
+  .sim-row.sim-b,
+  .sim-parte-tag,
+  .domino-wrap[data-revelado='true'] .domino-card-div,
+  .domino-wrap[data-revelado='true'] .domino-card-setor,
+  .palco-bloco[data-bloco-tipo='comparador_conflito'] .comparador-lado:first-child,
+  .palco-bloco[data-bloco-tipo='comparador_conflito'] .comparador-lado:last-child,
+  .palco-bloco[data-bloco-tipo='comparador_conflito'] .comparador-vs,
   .tarefas-lista[data-dir='1'],
   .tarefas-lista[data-dir='-1'],
   .voz-ativo,

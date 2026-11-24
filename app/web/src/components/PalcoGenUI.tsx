@@ -76,6 +76,7 @@ export interface PalcoGenUIProps {
   aoFechar?: () => void;
   aoAnunciar: (texto: string) => void;
   slotLoader?: ReactNode;
+  ocultarTrilha?: boolean;
 }
 
 function alvoIgual(a: AlvoFocoGenUI | null, b: AlvoFocoGenUI | null): boolean {
@@ -201,6 +202,7 @@ function BlocoResumoCitado({
   return (
     <article
       className="palco-bloco palco-bloco-largo"
+      data-bloco-tipo="resumo_citado"
       aria-label={bloco.titulo}
       style={{ '--bloco-i': indice } as CSSProperties}
     >
@@ -270,6 +272,7 @@ function BlocoComparadorConflito({
   return (
     <article
       className="palco-bloco"
+      data-bloco-tipo="comparador_conflito"
       aria-label={bloco.titulo}
       style={{ '--bloco-i': indice } as CSSProperties}
     >
@@ -368,6 +371,7 @@ function BlocoLinhaTempoCausal({
   return (
     <article
       className="palco-bloco"
+      data-bloco-tipo="linha_tempo_causal"
       aria-label={bloco.titulo}
       style={{ '--bloco-i': indice } as CSSProperties}
     >
@@ -387,12 +391,16 @@ function BlocoLinhaTempoCausal({
       {versoesOrdenadas.length === 0 ? (
         <p className="dica">Nenhuma versão registrada neste pedido ainda.</p>
       ) : (
-        <ol className="checklist-lista">
-          {versoesOrdenadas.map((v) => {
+        <ol className="checklist-lista palco-timeline-lista">
+          {versoesOrdenadas.map((v, vIdx) => {
             const declarados = CAMPOS_VIGIADOS.filter((c) => v.campos[c] !== undefined);
             const alvo: AlvoFocoGenUI = { tipo: 'versao', versao: v.versao };
             return (
-              <li key={`${v.fonte}-${v.versao}`}>
+              <li
+                key={`${v.fonte}-${v.versao}`}
+                className="palco-item-cascata"
+                style={{ '--item-i': Math.min(vIdx, 8) } as CSSProperties}
+              >
                 <button
                   type="button"
                   className="checklist-item"
@@ -542,6 +550,7 @@ function BlocoCartoesDespacho({
   return (
     <article
       className="palco-bloco palco-bloco-largo"
+      data-bloco-tipo="cartoes_despacho"
       aria-label={bloco.titulo}
       style={{ '--bloco-i': indice } as CSSProperties}
     >
@@ -553,7 +562,7 @@ function BlocoCartoesDespacho({
         <p className="dica">Nenhuma parte selecionada para despacho.</p>
       ) : (
         <div className="despacho-grid">
-          {partesUnicas.map((parte) => {
+          {partesUnicas.map((parte, pIdx) => {
             const contato = contatoPorParte.get(parte);
             const rascunho = bloco.rascunhos.find((r) => r.parte === parte);
             const tarefasParte = agruparTarefas(tarefasDaParte(projecao.tarefas, parte));
@@ -570,7 +579,11 @@ function BlocoCartoesDespacho({
             const textareaId = `${baseId}-${parte}`;
 
             return (
-              <div key={parte} className="despacho-card">
+              <div
+                key={parte}
+                className="despacho-card palco-item-cascata"
+                style={{ '--item-i': Math.min(pIdx, 6) } as CSSProperties}
+              >
                 <div className="domino-no-topo">
                   <strong>{rotuloParte(parte)}</strong>
                   {!contato ? (
@@ -695,6 +708,7 @@ function BlocoChecklistPapel({
   return (
     <article
       className="palco-bloco palco-bloco-largo"
+      data-bloco-tipo="checklist_papel"
       aria-label={bloco.titulo}
       style={{ '--bloco-i': indice } as CSSProperties}
     >
@@ -715,7 +729,7 @@ function BlocoChecklistPapel({
         </p>
       ) : (
         <ul className="checklist-lista">
-          {gruposOrdenados.map((grupo) => {
+          {gruposOrdenados.map((grupo, gIdx) => {
             const principal = grupo.ocorrencias[0];
             if (!principal) return null;
             const d = principal.divergencia;
@@ -727,7 +741,11 @@ function BlocoChecklistPapel({
             };
             const prioritario = bloco.camposPrioritarios.includes(d.campo);
             return (
-              <li key={`${grupo.parte}-${grupo.titulo}`}>
+              <li
+                key={`${grupo.parte}-${grupo.titulo}`}
+                className="palco-item-cascata"
+                style={{ '--item-i': Math.min(gIdx, 8) } as CSSProperties}
+              >
                 <button
                   type="button"
                   className="checklist-item"
@@ -771,6 +789,7 @@ function BlocoMatrizFocada({
   return (
     <article
       className="palco-bloco palco-bloco-largo"
+      data-bloco-tipo="matriz_focada"
       aria-label={bloco.titulo}
       style={{ '--bloco-i': indice } as CSSProperties}
     >
@@ -828,6 +847,7 @@ export function PalcoGenUI({
   aoFechar,
   aoAnunciar,
   slotLoader,
+  ocultarTrilha = false,
 }: PalcoGenUIProps) {
   useEffect(() => {
     garantirEstilosOps();
@@ -895,6 +915,7 @@ export function PalcoGenUI({
           <article
             key={bloco.id}
             className="palco-bloco palco-bloco-largo"
+            data-bloco-tipo="domino_impacto"
             aria-label={bloco.titulo}
             style={{ '--bloco-i': indice } as CSSProperties}
           >
@@ -941,6 +962,7 @@ export function PalcoGenUI({
           <article
             key={bloco.id}
             className="palco-bloco palco-bloco-largo"
+            data-bloco-tipo="simulador_interativo"
             aria-label={bloco.titulo}
             style={{ '--bloco-i': indice } as CSSProperties}
           >
@@ -1054,7 +1076,7 @@ export function PalcoGenUI({
         </div>
       </header>
 
-      {carregando && (
+      {carregando && !ocultarTrilha && (
         <div className="palco-trilha-viva" role="status" aria-live="polite">
           {slotLoader}
           <ol className="palco-etapas">
@@ -1086,30 +1108,44 @@ export function PalcoGenUI({
         </div>
       )}
 
-      {!recolhidoLocal && blocosAtivos.length > 0 && (
+      {(blocosAtivos.length > 0 || (spec && spec.followUps.length > 0)) && (
         <div
-          className="palco-grid"
-          style={compactosCount === 1 ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}
+          className="palco-curtain"
+          data-recolhido={recolhidoLocal ? 'true' : 'false'}
+          aria-hidden={recolhidoLocal || undefined}
         >
-          {blocosAtivos.map((bloco, idx) => renderizarBloco(bloco, idx))}
-        </div>
-      )}
+          <div className="palco-curtain-inner">
+            {blocosAtivos.length > 0 && (
+              <div
+                className="palco-grid"
+                style={
+                  compactosCount === 1 ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined
+                }
+              >
+                {blocosAtivos.map((bloco, idx) => renderizarBloco(bloco, idx))}
+              </div>
+            )}
 
-      {!recolhidoLocal && spec && spec.followUps.length > 0 && (
-        <nav className="palco-followups" aria-label="Próximas ações sugeridas">
-          <span className="meta">Continuar:</span>
-          {spec.followUps.map((f, i) => (
-            <button
-              key={`${f.comando}-${i}`}
-              type="button"
-              className="chip"
-              data-intencao={f.intencao}
-              onClick={() => aoExecutarComando(f.comando)}
-            >
-              {f.rotulo}
-            </button>
-          ))}
-        </nav>
+            {spec && spec.followUps.length > 0 && (
+              <nav className="palco-followups" aria-label="Próximas ações sugeridas">
+                <span className="meta">Continuar:</span>
+                {spec.followUps.map((f, i) => (
+                  <button
+                    key={`${f.comando}-${i}`}
+                    type="button"
+                    className="chip palco-followup-chip"
+                    data-intencao={f.intencao}
+                    style={{ '--chip-i': Math.min(i, 6) } as CSSProperties}
+                    tabIndex={recolhidoLocal ? -1 : undefined}
+                    onClick={() => aoExecutarComando(f.comando)}
+                  >
+                    {f.rotulo}
+                  </button>
+                ))}
+              </nav>
+            )}
+          </div>
+        </div>
       )}
     </section>
   );

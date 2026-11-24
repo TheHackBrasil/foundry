@@ -403,7 +403,7 @@ export function SimuladorVivo({
       </div>
 
       <div className="sim-vivo-grade">
-        <div className="sim-vivo-campo">
+        <div className="sim-vivo-campo" style={{ '--sim-i': 0 } as CSSProperties}>
           <div className="sim-vivo-label">
             <label htmlFor={dataId}>Previsão de entrega</label>
             {atuais.previsaoEntrega && (
@@ -455,7 +455,7 @@ export function SimuladorVivo({
           </div>
         </div>
 
-        <div className="sim-vivo-campo">
+        <div className="sim-vivo-campo" style={{ '--sim-i': 1 } as CSSProperties}>
           <div className="sim-vivo-label">
             <label htmlFor={pesoId}>Peso total (kg)</label>
             {atuais.pesoTotal !== undefined && (
@@ -500,7 +500,7 @@ export function SimuladorVivo({
           </div>
         </div>
 
-        <div className="sim-vivo-campo">
+        <div className="sim-vivo-campo" style={{ '--sim-i': 2 } as CSSProperties}>
           <div className="sim-vivo-label">
             <label htmlFor={volId}>Volumes</label>
             {atuais.volumes !== undefined && (
@@ -535,7 +535,7 @@ export function SimuladorVivo({
           </div>
         </div>
 
-        <div className="sim-vivo-campo">
+        <div className="sim-vivo-campo" style={{ '--sim-i': 3 } as CSSProperties}>
           <div className="sim-vivo-label">
             <span>Status do pedido</span>
             {atuais.status && (
@@ -583,8 +583,16 @@ export function SimuladorVivo({
       )}
 
       {temHipotese && (
-        <div className="cmd-bloco" aria-busy={simulando || undefined}>
-          <div className="palco-cab-linha" role="status">
+        <div
+          className="cmd-bloco sim-vivo-resultado"
+          aria-busy={simulando || undefined}
+          data-simulando={simulando ? 'true' : undefined}
+        >
+          <div
+            key={`${assinaturaHipotese}-${simulado ? simulado.divergencias.length : 'p'}`}
+            className="palco-cab-linha sim-vivo-resumo-cab"
+            role="status"
+          >
             {simulando && <span className="cmd-spinner" aria-hidden="true" />}
             <strong className="num" style={{ fontSize: '0.90625rem' }}>
               {simulado
@@ -647,8 +655,12 @@ export function SimuladorVivo({
           {resumoPartes.length > 0 && (
             <div className="sim-partes-lista">
               <span className="meta">Tarefas por papel:</span>
-              {resumoPartes.map((p) => (
-                <span key={p.parte} className="pilula-coord num">
+              {resumoPartes.map((p, pIdx) => (
+                <span
+                  key={p.parte}
+                  className="pilula-coord num sim-parte-tag"
+                  style={{ '--parte-i': Math.min(pIdx, 6) } as CSSProperties}
+                >
                   {rotuloParte(p.parte)} · {p.quantidade}
                 </span>
               ))}
