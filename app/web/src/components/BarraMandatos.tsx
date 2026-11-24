@@ -7,9 +7,23 @@ import {
   type CSSProperties,
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
-import type { Parte } from '../../../shared/model.ts';
-import { ErroMandatoApi, carregarExemplosNaSessao, enviarMandato } from '../api.ts';
+import type {
+  AlvoFocoGenUI,
+  BlocoGenUI,
+  CampoVigiado,
+  CamposObservados,
+  Contato,
+  EventoStreamMandato,
+  Parte,
+  ProjecaoPedido,
+  RespostaMandato,
+  RespostaSimulacao,
+  ViewSpecV2,
+} from '../../../shared/model.ts';
+import { ErroMandatoApi } from '../api.ts';
+import { aplicarHipoteseComoPlanilha, transmitirMandatoStream } from '../apiOps.ts';
 import {
   chaveCurta,
   formatarDuracao,
@@ -30,48 +44,72 @@ import {
   type ItemSimular,
   type ResultadoMandatoInterpretado,
 } from '../mandato.ts';
+import {
+  CamadaShader,
+  SeloMonolitosShader,
+  type ResolucaoShader,
+} from '../shaders/index.ts';
 import { useVoz } from '../useVoz.ts';
 import {
+  IconeAssistente,
   IconeComando,
   IconeErro,
+  IconeExterno,
   IconeFechar,
   IconeMic,
   IconeOk,
   IconeParar,
   IconeRetorno,
-  IconeSeta,
 } from './icones.tsx';
+import { PalcoGenUI, type EtapaStreamGenUI } from './PalcoGenUI.tsx';
 import { VisualizadorVoz } from './VisualizadorVoz.tsx';
 
 const SUGESTOES: ReadonlyArray<{ rotulo: string; comando: string }> = [
   { rotulo: 'Qual o atraso e por que diverge?', comando: 'Qual o atraso e por que os documentos divergem?' },
-  { rotulo: 'Simule entrega para 28/01/2026', comando: 'Simule a entrega para 28/01/2026' },
+  { rotulo: 'Simule entrega 28/01/2026', comando: 'Simule a entrega para 28/01/2026' },
   { rotulo: 'Visão do Fiscal', comando: 'Resuma o que importa para o fiscal' },
-  { rotulo: 'Propague tarefas pendentes', comando: 'Propague o atraso' },
+  { rotulo: 'Propague tarefas', comando: 'Propague o atraso' },
 ];
 
-type EstadoMandato =
-  | { tipo: 'ocioso' }
-  | { tipo: 'enviando' }
-  | { tipo: 'resultado'; dados: ResultadoMandatoInterpretado }
-  | { tipo: 'aviso'; mensagem: string }
-  | { tipo: 'erro'; mensagem: string; status: number; motivo?: string };
+const LIMITE_TURNOS = 6;
 
-type EstadoGaveta = Extract<EstadoMandato, { tipo: 'resultado' | 'aviso' | 'erro' }>;
-
-interface ConteudoGaveta {
-  vozErro: string | null;
-  estado: EstadoGaveta | null;
-  seq: number;
+interface TurnoMandato {
+  id: number;
+  comando: string;
+  interpretado: ResultadoMandatoInterpretado;
+  spec: ViewSpecV2 | null;
+  etapas: EtapaStreamGenUI[];
+  blocos: BlocoGenUI[];
 }
 
 interface Props {
+  pedidoId: string;
+  daSessao: boolean;
+  projecao: ProjecaoPedido;
+  contatos: readonly Contato[];
+  focoAtivo: AlvoFocoGenUI | null;
+  aoFocar: (alvo: AlvoFocoGenUI | null) => void;
   aoAnunciar: (texto: string) => void;
   aoSelecionar: (pedidoId: string) => void;
   aoAplicarPapel?: (papel: Parte) => void;
+  aoNotificar: (parte: Parte, campo?: CampoVigiado) => Promise<void>;
+  aoAbrirAgenda: (parte?: Parte) => void;
+  aoAbrirAssistente: (comando?: string) => void;
+  aoGarantirSessao: (pedidoId?: string | null) => Promise<string | null>;
+  aoRecarregarPedido: () => Promise<void>;
+  aoSimulacaoAtiva?: (ativa: boolean) => void;
+  aoPulsoDomino?: () => void;
 }
 
-const plural = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`;
+function elementoEditavel(el: Element | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
+
+function resumirComandoCurto(texto: string): string {
+  return texto.length > 34 ? `${texto.slice(0, 33).trimEnd()}…` : texto;
+}
 
 function CartaoPropagar({ itens, novosEventos }: { itens: readonly ItemPropagar[]; novosEventos: number }) {
   return (
@@ -150,10 +188,7 @@ function CartaoSimular({ itens }: { itens: readonly ItemSimular[] }) {
                       </div>
                       <div role="cell" data-col="Impacto">
                         {delta ? (
-                          <span className="delta-pilula">
-                            <IconeSeta />
-                            {delta}
-                          </span>
+                          <span className="delta-pilula mono">{delta}</span>
                         ) : (
                           <span className="meta">Mudança de estado</span>
                         )}
@@ -224,43 +259,72 @@ function CartaoNotificar({ itens }: { itens: readonly ItemNotificar[] }) {
   );
 }
 
-function elementoEditavel(el: Element | null): boolean {
-  if (!(el instanceof HTMLElement)) return false;
-  const tag = el.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
-}
-
-export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Props) {
+export function BarraMandatos({
+  pedidoId,
+  daSessao,
+  projecao,
+  contatos,
+  focoAtivo,
+  aoFocar,
+  aoAnunciar,
+  aoSelecionar,
+  aoAplicarPapel,
+  aoNotificar,
+  aoAbrirAgenda,
+  aoAbrirAssistente,
+  aoGarantirSessao,
+  aoRecarregarPedido,
+  aoSimulacaoAtiva,
+  aoPulsoDomino,
+}: Props) {
   const inputId = useId();
-  const ajudaId = useId();
   const erroId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const enviarBtnRef = useRef<HTMLButtonElement>(null);
   const vozBtnRef = useRef<HTMLButtonElement>(null);
   const pararBtnRef = useRef<HTMLButtonElement>(null);
   const anuncioTimerRef = useRef<number | null>(null);
+  const resolucaoTimerRef = useRef<number | null>(null);
+  const tremorTimerRef = useRef<number | null>(null);
+  const tremorRafRef = useRef<number | null>(null);
+  const abortStreamRef = useRef<AbortController | null>(null);
   const textoPreVozRef = useRef('');
   const focouPararRef = useRef(false);
   const eraOuvindoRef = useRef(false);
   const concluiuComFocoRef = useRef(false);
-  const fecharGavetaTimerRef = useRef<number | null>(null);
-  const tremorTimerRef = useRef<number | null>(null);
-  const tremorRafRef = useRef<number | null>(null);
+  const turnoSeqRef = useRef(0);
 
   const [texto, setTexto] = useState('');
   const [provisorio, setProvisorio] = useState(false);
-  const [estado, setEstado] = useState<EstadoMandato>({ tipo: 'ocioso' });
-  const [execSeq, setExecSeq] = useState(0);
-  const [gavetaSnapshot, setGavetaSnapshot] = useState<ConteudoGaveta | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [etapasLive, setEtapasLive] = useState<EtapaStreamGenUI[]>([]);
+  const [blocosLive, setBlocosLive] = useState<BlocoGenUI[]>([]);
+  const [erroCmd, setErroCmd] = useState<string | null>(null);
+  const [turnos, setTurnos] = useState<TurnoMandato[]>([]);
+  const [turnoAtivoId, setTurnoAtivoId] = useState<number | null>(null);
+  const [palcoAberto, setPalcoAberto] = useState(false);
   const [tremendo, setTremendo] = useState(false);
   const [sugestaoAtiva, setSugestaoAtiva] = useState(-1);
-  const [carregandoExemplo, setCarregandoExemplo] = useState(false);
+  const [origemClique, setOrigemClique] = useState<readonly [number, number]>([0.5, 0.5]);
+  const [resolucaoBotao, setResolucaoBotao] = useState<ResolucaoShader>(null);
 
   const limparTimerAnuncio = useCallback(() => {
     if (anuncioTimerRef.current !== null) {
       window.clearTimeout(anuncioTimerRef.current);
       anuncioTimerRef.current = null;
     }
+  }, []);
+
+  const marcarResolucao = useCallback((res: 'ok' | 'erro') => {
+    if (resolucaoTimerRef.current !== null) {
+      window.clearTimeout(resolucaoTimerRef.current);
+      resolucaoTimerRef.current = null;
+    }
+    setResolucaoBotao(res);
+    resolucaoTimerRef.current = window.setTimeout(() => {
+      setResolucaoBotao(null);
+      resolucaoTimerRef.current = null;
+    }, 450);
   }, []);
 
   const acionarTremor = useCallback(() => {
@@ -285,8 +349,9 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
 
   useEffect(
     () => () => {
+      abortStreamRef.current?.abort();
       limparTimerAnuncio();
-      if (fecharGavetaTimerRef.current !== null) window.clearTimeout(fecharGavetaTimerRef.current);
+      if (resolucaoTimerRef.current !== null) window.clearTimeout(resolucaoTimerRef.current);
       if (tremorTimerRef.current !== null) window.clearTimeout(tremorTimerRef.current);
       if (tremorRafRef.current !== null) window.cancelAnimationFrame(tremorRafRef.current);
     },
@@ -298,7 +363,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
       const base = textoPreVozRef.current;
       setTexto(base ? `${base} ${trecho}` : trecho);
       setProvisorio(ehProvisorio);
-      setEstado((prev) => (prev.tipo === 'erro' ? { tipo: 'ocioso' } : prev));
+      setErroCmd(null);
     },
     aoConcluir: (textoFinal) => {
       const base = textoPreVozRef.current;
@@ -318,8 +383,6 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
     inputRef.current?.focus();
   }, [cancelarReconhecimento]);
 
-  // Transfere foco para "Parar" ao entrar em ditado (o botão "Voz" desmonta),
-  // restaura ao sair sem conclusão e permite cancelar com Escape globalmente.
   useEffect(() => {
     const eraOuvindo = eraOuvindoRef.current;
     eraOuvindoRef.current = voz.ouvindo;
@@ -358,38 +421,6 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
     return () => window.removeEventListener('keydown', aoTeclarGlobal);
   }, []);
 
-  const estadoGaveta: EstadoGaveta | null =
-    estado.tipo === 'resultado' || estado.tipo === 'aviso' || estado.tipo === 'erro' ? estado : null;
-  const temGaveta = estadoGaveta !== null || Boolean(voz.erro);
-
-  // Mantém o snapshot durante o recolhimento de 200ms para grid-template-rows animar o fechamento.
-  useEffect(() => {
-    if (fecharGavetaTimerRef.current !== null) {
-      window.clearTimeout(fecharGavetaTimerRef.current);
-      fecharGavetaTimerRef.current = null;
-    }
-    if (temGaveta) {
-      setGavetaSnapshot({ vozErro: voz.erro, estado: estadoGaveta, seq: execSeq });
-      return;
-    }
-    fecharGavetaTimerRef.current = window.setTimeout(() => {
-      setGavetaSnapshot(null);
-      fecharGavetaTimerRef.current = null;
-    }, 200);
-    return () => {
-      if (fecharGavetaTimerRef.current !== null) {
-        window.clearTimeout(fecharGavetaTimerRef.current);
-        fecharGavetaTimerRef.current = null;
-      }
-    };
-  }, [temGaveta, voz.erro, estadoGaveta, execSeq]);
-
-  const exibido: ConteudoGaveta | null = temGaveta
-    ? { vozErro: voz.erro, estado: estadoGaveta, seq: execSeq }
-    : gavetaSnapshot;
-
-  const enviando = estado.tipo === 'enviando';
-
   function alternarVoz() {
     if (voz.fase === 'finalizando') return;
     if (!voz.ouvindo) {
@@ -399,54 +430,166 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
     voz.alternar();
   }
 
-  async function executar(comando: string) {
-    const limpo = comando.trim();
-    setSugestaoAtiva(-1);
-    if (!limpo) {
-      setExecSeq((n) => n + 1);
-      setEstado({ tipo: 'erro', status: 400, mensagem: 'Digite um comando em português para continuar.' });
-      acionarTremor();
-      inputRef.current?.focus();
-      return;
-    }
-    // Cancela em vez de parar para evitar onend tardio sobrescrever o texto ou roubar foco.
-    if (voz.ouvindo) {
-      concluiuComFocoRef.current = true;
-      voz.cancelar();
-    }
-    voz.limparErro();
-    limparTimerAnuncio();
-    setProvisorio(false);
-    setEstado({ tipo: 'enviando' });
-
-    try {
-      const resposta = await enviarMandato(limpo);
-      const interpretado = interpretarResultadoMandato(resposta);
-      setExecSeq((n) => n + 1);
-      setEstado({ tipo: 'resultado', dados: interpretado });
-      if (interpretado.parteSugerida) {
-        aoAplicarPapel?.(interpretado.parteSugerida);
-      }
-      // Aguarda o lote SSE de 300ms para o anuncio do mandato nao ser sobrescrito.
-      const frase = resumoParaAnuncio(interpretado);
-      anuncioTimerRef.current = window.setTimeout(() => {
-        aoAnunciar(frase);
-        anuncioTimerRef.current = null;
-      }, 420);
-    } catch (e) {
-      const mensagem =
-        e instanceof ErroMandatoApi
-          ? e.message
-          : e instanceof Error
-            ? e.message
-            : 'Não foi possível executar o comando agora.';
-      const status = e instanceof ErroMandatoApi ? e.status : 0;
-      const motivo = e instanceof ErroMandatoApi ? e.motivo : undefined;
-      setExecSeq((n) => n + 1);
-      setEstado({ tipo: 'erro', mensagem, status, ...(motivo ? { motivo } : {}) });
-      acionarTremor();
-    }
+  function capturarOrigemClique(e: ReactMouseEvent<HTMLButtonElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    setOrigemClique([x, y]);
   }
+
+  const executar = useCallback(
+    async (comando: string) => {
+      const limpo = comando.trim();
+      setSugestaoAtiva(-1);
+      if (!limpo) {
+        setErroCmd('Digite um comando em português para continuar.');
+        acionarTremor();
+        inputRef.current?.focus();
+        return;
+      }
+
+      if (voz.ouvindo) {
+        concluiuComFocoRef.current = true;
+        voz.cancelar();
+      }
+      voz.limparErro();
+      limparTimerAnuncio();
+      setProvisorio(false);
+      setErroCmd(null);
+      setResolucaoBotao(null);
+      setEnviando(true);
+      setEtapasLive([]);
+      setBlocosLive([]);
+      setPalcoAberto(true);
+
+      abortStreamRef.current?.abort();
+      const ctrl = new AbortController();
+      abortStreamRef.current = ctrl;
+
+      let etapasColetadas: EtapaStreamGenUI[] = [];
+      let blocosColetados: BlocoGenUI[] = [];
+
+      const lidarEvento = (ev: EventoStreamMandato) => {
+        if (ev.tipo === 'etapa') {
+          etapasColetadas = [
+            ...etapasColetadas.map((et) => ({ ...et, concluida: true })),
+            {
+              id: ev.id,
+              rotulo: ev.rotulo,
+              ...(ev.detalhe ? { detalhe: ev.detalhe } : {}),
+              concluida: false,
+            },
+          ];
+          setEtapasLive(etapasColetadas);
+        } else if (ev.tipo === 'bloco') {
+          blocosColetados = [...blocosColetados, ev.bloco];
+          setBlocosLive(blocosColetados);
+        }
+      };
+
+      async function rodarStream(alvoPedidoId: string): Promise<RespostaMandato> {
+        return transmitirMandatoStream(limpo, {
+          pedidoId: alvoPedidoId,
+          signal: ctrl.signal,
+          aoEvento: lidarEvento,
+        });
+      }
+
+      try {
+        let resposta: RespostaMandato;
+        try {
+          resposta = await rodarStream(pedidoId);
+        } catch (errInicial) {
+          const precisaSessao =
+            errInicial instanceof ErroMandatoApi &&
+            (errInicial.status === 403 || errInicial.motivo === 'sem_alvo');
+          if (!precisaSessao) throw errInicial;
+
+          etapasColetadas = [
+            {
+              id: 'sessao',
+              rotulo: 'Preparando cópia isolada da sessão',
+              concluida: false,
+            },
+          ];
+          setEtapasLive(etapasColetadas);
+          const idSessao = await aoGarantirSessao(pedidoId);
+          if (!idSessao) throw errInicial;
+          etapasColetadas = [{ id: 'sessao', rotulo: 'Sessão isolada pronta', concluida: true }];
+          blocosColetados = [];
+          setEtapasLive(etapasColetadas);
+          setBlocosLive([]);
+          resposta = await rodarStream(idSessao);
+        }
+
+        if (ctrl.signal.aborted) return;
+
+        const interpretado = interpretarResultadoMandato(resposta);
+        const etapasFinal = etapasColetadas.map((et) => ({ ...et, concluida: true }));
+        const novoId = ++turnoSeqRef.current;
+        const novoTurno: TurnoMandato = {
+          id: novoId,
+          comando: limpo,
+          interpretado,
+          spec: resposta.viewSpec ?? null,
+          etapas: etapasFinal,
+          blocos: blocosColetados,
+        };
+
+        setTurnos((anteriores) => [novoTurno, ...anteriores].slice(0, LIMITE_TURNOS));
+        setTurnoAtivoId(novoId);
+        setPalcoAberto(true);
+        marcarResolucao('ok');
+
+        const ehSimulacao =
+          resposta.acao === 'simular' || resposta.viewSpec?.layout === 'simulacao';
+        aoSimulacaoAtiva?.(ehSimulacao);
+
+        if (resposta.acao === 'propagar' || resposta.acao === 'notificar') {
+          aoPulsoDomino?.();
+          void aoRecarregarPedido();
+        }
+        if (interpretado.parteSugerida) {
+          aoAplicarPapel?.(interpretado.parteSugerida);
+        }
+
+        const frase = resumoParaAnuncio(interpretado);
+        anuncioTimerRef.current = window.setTimeout(() => {
+          aoAnunciar(frase);
+          anuncioTimerRef.current = null;
+        }, 420);
+      } catch (e) {
+        if (ctrl.signal.aborted) return;
+        const mensagem =
+          e instanceof ErroMandatoApi
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : 'Não foi possível executar o comando agora.';
+        setErroCmd(mensagem);
+        marcarResolucao('erro');
+        acionarTremor();
+      } finally {
+        if (!ctrl.signal.aborted) {
+          setEnviando(false);
+        }
+      }
+    },
+    [
+      acionarTremor,
+      aoAnunciar,
+      aoAplicarPapel,
+      aoGarantirSessao,
+      aoPulsoDomino,
+      aoRecarregarPedido,
+      aoSimulacaoAtiva,
+      limparTimerAnuncio,
+      marcarResolucao,
+      pedidoId,
+      voz,
+    ],
+  );
 
   function aoSubmeter(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -475,68 +618,57 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
     setSugestaoAtiva(proximo);
     setTexto(escolhida.comando);
     setProvisorio(false);
-    if (estado.tipo === 'erro') setEstado({ tipo: 'ocioso' });
+    setErroCmd(null);
   }
 
-  function executarSugestao(comando: string) {
-    if (enviando) return;
-    setTexto(comando);
-    void executar(comando);
+  function selecionarTurno(turno: TurnoMandato) {
+    setTurnoAtivoId(turno.id);
+    setPalcoAberto(true);
+    setErroCmd(null);
+    const ehSim = turno.interpretado.acao === 'simular' || turno.spec?.layout === 'simulacao';
+    aoSimulacaoAtiva?.(ehSim);
   }
 
-  function fecharErroVoz() {
-    inputRef.current?.focus();
+  function fecharPalco() {
+    setPalcoAberto(false);
+    setErroCmd(null);
     voz.limparErro();
-  }
-
-  function fecharSaida() {
+    aoSimulacaoAtiva?.(false);
     inputRef.current?.focus();
-    limparTimerAnuncio();
-    voz.limparErro();
-    setEstado({ tipo: 'ocioso' });
   }
 
-  async function importarExemploNaSessao() {
-    if (carregandoExemplo) return;
-    setCarregandoExemplo(true);
-    try {
-      const r = await carregarExemplosNaSessao();
-      if (r.enviados === 0 || !r.pedidoId) {
-        const detalhe = r.falhas[0] ?? 'Não foi possível carregar os arquivos de exemplo.';
-        setExecSeq((n) => n + 1);
-        setEstado({ tipo: 'erro', status: 0, mensagem: detalhe });
-        acionarTremor();
-        return;
+  async function aplicarHipotese(hipotese: CamposObservados) {
+    let alvo = pedidoId;
+    if (!daSessao) {
+      const novoId = await aoGarantirSessao(pedidoId);
+      if (!novoId) {
+        throw new Error('Não foi possível preparar a sessão isolada para gravar a atualização.');
       }
-      aoSelecionar(r.pedidoId);
-      const aviso = `${plural(r.enviados, 'arquivo de exemplo carregado', 'arquivos de exemplo carregados')} na sua sessão. Execute o comando de novo.`;
-      setExecSeq((n) => n + 1);
-      setEstado({ tipo: 'aviso', mensagem: aviso });
-      aoAnunciar(aviso);
-      enviarBtnRef.current?.focus();
-    } finally {
-      setCarregandoExemplo(false);
+      alvo = novoId;
     }
+    const r = await aplicarHipoteseComoPlanilha(alvo, hipotese);
+    aoPulsoDomino?.();
+    if (r.pedidoId) aoSelecionar(r.pedidoId);
+    await aoRecarregarPedido();
+    aoSimulacaoAtiva?.(false);
+    aoAnunciar('Atualização aplicada como planilha na sua sessão.');
   }
 
-  const estadoExibido = exibido?.estado ?? null;
-  const precisaSessao =
-    estadoExibido?.tipo === 'erro' &&
-    (estadoExibido.motivo === 'sem_alvo' || estadoExibido.status === 403);
+  const turnoAtivo = turnos.find((t) => t.id === turnoAtivoId) ?? turnos[0] ?? null;
+  const mostrarPalcoGenUI =
+    palcoAberto &&
+    (enviando ||
+      Boolean(turnoAtivo?.spec) ||
+      (turnoAtivo !== null && turnoAtivo.blocos.length > 0));
+  const mostrarFallbackCard =
+    palcoAberto && !enviando && turnoAtivo !== null && !turnoAtivo.spec && turnoAtivo.blocos.length === 0;
+  const temErroVisivel = Boolean(erroCmd || voz.erro);
 
   const classeSuperficie = [
     'cmd',
     enviando ? 'cmd-enviando' : '',
-    estado.tipo === 'erro' || voz.erro ? 'cmd-erro' : '',
+    temErroVisivel ? 'cmd-erro' : '',
     tremendo ? 'cmd-tremor' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const classeForm = [
-    'cmd-form',
-    voz.ouvindo ? 'cmd-form-ouvindo' : '',
-    voz.ouvindo && temGaveta ? 'cmd-form-com-gaveta' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -558,7 +690,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
   return (
     <section
       className="mandato-secao"
-      aria-labelledby="bloco-mandato"
+      aria-label="Barra de comandos operacionais"
       onKeyDown={(e) => {
         if (e.key !== 'Escape') return;
         if (voz.ouvindo) {
@@ -567,35 +699,28 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
         } else if (sugestaoAtiva !== -1) {
           e.preventDefault();
           setSugestaoAtiva(-1);
-        } else if (temGaveta) {
+        } else if (palcoAberto || temErroVisivel) {
           e.preventDefault();
-          fecharSaida();
+          fecharPalco();
         }
       }}
     >
-      <div className="cmd-cab">
-        <h2 id="bloco-mandato">Pergunte ou comande em português</h2>
-        <p id={ajudaId} className="meta">
-          Tire dúvidas sobre divergências, simule outra data, propague tarefas ou mude a visão por papel.
-        </p>
-      </div>
-
       <div className={classeSuperficie}>
-        <form className={classeForm} onSubmit={aoSubmeter} noValidate>
+        <span className="cmd-feixe-topo" aria-hidden="true">
+          <CamadaShader shader="liraVoz" ativo={enviando} modo={1} className="cmd-feixe-shader" />
+        </span>
+
+        <form className={voz.ouvindo ? 'cmd-form cmd-form-ouvindo' : 'cmd-form'} onSubmit={aoSubmeter} noValidate>
           <label htmlFor={inputId} className="so-leitor">
-            Pergunta ou comando em português sobre o pedido
+            Pergunte, simule ou comande sobre este pedido
           </label>
 
           <span className="cmd-prefixo" aria-hidden="true">
-            <span className={`icone-troca ${!enviando && !voz.ouvindo ? 'visivel' : ''}`}>
+            {enviando ? (
+              <SeloMonolitosShader ativo={true} tamanho={18} />
+            ) : (
               <IconeComando />
-            </span>
-            <span className={`icone-troca ${voz.ouvindo ? 'visivel' : ''}`}>
-              <span className="cmd-pulso" />
-            </span>
-            <span className={`icone-troca ${enviando ? 'visivel' : ''}`}>
-              <span className="cmd-spinner" />
-            </span>
+            )}
           </span>
 
           <input
@@ -609,7 +734,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
               setTexto(e.target.value);
               setProvisorio(false);
               setSugestaoAtiva(-1);
-              if (estado.tipo === 'erro') setEstado({ tipo: 'ocioso' });
+              if (erroCmd) setErroCmd(null);
             }}
             onKeyDown={aoTeclarInput}
             placeholder={
@@ -619,13 +744,19 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
                   ? 'Finalizando transcrição…'
                   : voz.ouvindo
                     ? 'Ouvindo em português… fale seu comando'
-                    : 'Ex.: "qual o atraso?", "simule entrega para 28/01/2026", "mostre a visão do fiscal"…'
+                    : 'Pergunte, simule ou comande sobre este pedido…'
             }
             disabled={enviando}
-            aria-invalid={estado.tipo === 'erro' ? 'true' : undefined}
-            aria-describedby={estado.tipo === 'erro' ? `${ajudaId} ${erroId}` : ajudaId}
+            aria-invalid={erroCmd ? 'true' : undefined}
+            aria-describedby={erroCmd ? erroId : undefined}
             className={provisorio ? 'cmd-input cmd-input-provisorio' : 'cmd-input'}
           />
+
+          {!voz.ouvindo && !texto && (
+            <kbd className="tecla mono cmd-atalho-inline" aria-hidden="true">
+              /
+            </kbd>
+          )}
 
           <div className="cmd-acoes">
             {voz.ouvindo ? (
@@ -665,7 +796,7 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
                   disabled={enviando}
                 >
                   <IconeMic />
-                  <span>Voz</span>
+                  <span className="cmd-voz-label">Voz</span>
                 </button>
               )
             )}
@@ -675,194 +806,158 @@ export function BarraMandatos({ aoAnunciar, aoSelecionar, aoAplicarPapel }: Prop
               type="submit"
               className="cmd-btn-enviar"
               disabled={enviando}
+              onMouseDown={capturarOrigemClique}
             >
-              <span>{enviando ? 'Traduzindo…' : 'Executar'}</span>
-              {!enviando && <IconeRetorno />}
+              <CamadaShader
+                shader="ignicaoBotao"
+                ativo={enviando}
+                origem={origemClique}
+                resolverEm={resolucaoBotao}
+                raioPx={4}
+                className="cmd-btn-shader"
+              />
+              <span className="cmd-btn-conteudo">
+                <span>{enviando ? 'Executando…' : 'Executar'}</span>
+                {!enviando && <IconeRetorno />}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="cmd-btn-assistente"
+              onClick={() => aoAbrirAssistente(texto.trim() || undefined)}
+              title="Abrir workspace completo do Assistente IA"
+            >
+              <IconeAssistente />
+              <span className="cmd-assistente-label">Assistente</span>
+              <IconeExterno />
             </button>
           </div>
         </form>
-
-        <div
-          className={`cmd-gaveta ${temGaveta ? 'cmd-gaveta-aberta' : ''}`}
-          aria-hidden={!temGaveta || undefined}
-          inert={!temGaveta || undefined}
-        >
-          <div className="cmd-gaveta-inner">
-            {exibido?.vozErro && (
-              <div
-                className="cmd-painel cmd-painel-erro"
-                role={temGaveta ? 'alert' : undefined}
-              >
-                <div className="cmd-painel-cab">
-                  <span className="pilula-erro">
-                    <IconeErro />
-                    Microfone indisponível
-                  </span>
-                  <button
-                    type="button"
-                    className="botao-fechar"
-                    aria-label="Fechar aviso de microfone"
-                    onClick={fecharErroVoz}
-                    tabIndex={temGaveta ? 0 : -1}
-                  >
-                    <IconeFechar />
-                  </button>
-                </div>
-                <p className="cmd-erro-msg">{exibido.vozErro}</p>
-              </div>
-            )}
-
-            {estadoExibido?.tipo === 'erro' && (
-              <div
-                key={`erro-${exibido?.seq ?? 0}`}
-                className="cmd-painel cmd-painel-erro"
-                role={temGaveta ? 'alert' : undefined}
-              >
-                <div className="cmd-painel-cab">
-                  <span className="pilula-erro">
-                    <IconeErro />
-                    Comando recusado
-                  </span>
-                  <button
-                    type="button"
-                    className="botao-fechar"
-                    aria-label="Fechar aviso de erro"
-                    onClick={fecharSaida}
-                    tabIndex={temGaveta ? 0 : -1}
-                  >
-                    <IconeFechar />
-                  </button>
-                </div>
-                <p id={erroId} className="cmd-erro-msg">
-                  {estadoExibido.mensagem}
-                </p>
-                {precisaSessao && (
-                  <div className="cmd-recupera">
-                    <p className="meta">
-                      Os pedidos iniciais são compartilhados para leitura. Carregue os arquivos fictícios na sua sessão para comandar ao vivo.
-                    </p>
-                    <button
-                      type="button"
-                      className="botao"
-                      disabled={carregandoExemplo}
-                      onClick={() => void importarExemploNaSessao()}
-                      tabIndex={temGaveta ? 0 : -1}
-                    >
-                      {carregandoExemplo ? 'Carregando exemplos…' : 'Carregar exemplo na minha sessão'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {estadoExibido?.tipo === 'aviso' && (
-              <div key={`aviso-${exibido?.seq ?? 0}`} className="cmd-painel cmd-painel-ok">
-                <div className="cmd-painel-cab">
-                  <span className="pilula-ok">
-                    <IconeOk />
-                    Sessão pronta
-                  </span>
-                  <button
-                    type="button"
-                    className="botao-fechar"
-                    aria-label="Fechar aviso"
-                    onClick={fecharSaida}
-                    tabIndex={temGaveta ? 0 : -1}
-                  >
-                    <IconeFechar />
-                  </button>
-                </div>
-                <p className="cmd-resumo">{estadoExibido.mensagem}</p>
-              </div>
-            )}
-
-            {estadoExibido?.tipo === 'resultado' && (
-              <div key={`res-${exibido?.seq ?? 0}`} className="cmd-painel">
-                <div className="cmd-painel-cab">
-                  <div className="cmd-painel-meta">
-                    <span className="pilula-coord mono">{rotuloAcaoMandato(estadoExibido.dados.acao)}</span>
-                    {estadoExibido.dados.acao === 'simular' && (
-                      <span className="pilula-sutil">Nenhum campo gravado</span>
-                    )}
-                    {estadoExibido.dados.alvos.length > 0 && (
-                      <span className="cmd-alvos meta">
-                        {estadoExibido.dados.alvos.length === 1 ? 'Pedido ' : 'Pedidos '}
-                        {estadoExibido.dados.alvos.map((alvo, idx) => (
-                          <span key={alvo}>
-                            {idx > 0 && ', '}
-                            <a
-                              href={`#/pedido/${encodeURIComponent(alvo)}`}
-                              className="mono"
-                              tabIndex={temGaveta ? 0 : -1}
-                            >
-                              {chaveCurta(alvo)}
-                            </a>
-                          </span>
-                        ))}
-                      </span>
-                    )}
-                    {estadoExibido.dados.leituraExemplo && (
-                      <>
-                        <span className="pilula-sutil">Exemplo (leitura)</span>
-                        <button
-                          type="button"
-                          className="botao-sutil"
-                          disabled={carregandoExemplo}
-                          onClick={() => void importarExemploNaSessao()}
-                          tabIndex={temGaveta ? 0 : -1}
-                        >
-                          {carregandoExemplo ? 'Copiando…' : 'Usar na minha sessão'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="botao-fechar"
-                    aria-label="Fechar resultado do comando"
-                    onClick={fecharSaida}
-                    tabIndex={temGaveta ? 0 : -1}
-                  >
-                    <IconeFechar />
-                  </button>
-                </div>
-
-                {estadoExibido.dados.acao === 'propagar' && (
-                  <CartaoPropagar
-                    itens={estadoExibido.dados.itens}
-                    novosEventos={estadoExibido.dados.novosEventos}
-                  />
-                )}
-                {estadoExibido.dados.acao === 'simular' && <CartaoSimular itens={estadoExibido.dados.itens} />}
-                {estadoExibido.dados.acao === 'resumir' && <CartaoResumir itens={estadoExibido.dados.itens} />}
-                {estadoExibido.dados.acao === 'notificar' && (
-                  <CartaoNotificar itens={estadoExibido.dados.itens} />
-                )}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
-      <div className="cmd-rodape">
-        <div className="cmd-chips" role="group" aria-label="Sugestões de comando">
-          {SUGESTOES.map((sugestao, idx) => (
+      {turnos.length > 0 && (
+        <nav className="cmd-turnos" aria-label="Histórico de respostas da sessão">
+          <span className="meta">Turnos:</span>
+          {turnos.map((t) => {
+            const ativo = palcoAberto && turnoAtivo?.id === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                className="cmd-turno-btn"
+                aria-pressed={ativo}
+                onClick={() => selecionarTurno(t)}
+              >
+                <span className="cmd-turno-acao mono">{rotuloAcaoMandato(t.interpretado.acao)}</span>
+                <span>{resumirComandoCurto(t.comando)}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      {temErroVisivel && (
+        <div className="cmd-erro-faixa" role="alert">
+          <span className="cmd-erro-texto" id={erroId}>
+            <IconeErro />
+            <span>{voz.erro ?? erroCmd}</span>
+          </span>
+          <button
+            type="button"
+            className="botao-fechar"
+            aria-label="Fechar aviso"
+            onClick={() => {
+              setErroCmd(null);
+              voz.limparErro();
+              inputRef.current?.focus();
+            }}
+          >
+            <IconeFechar />
+          </button>
+        </div>
+      )}
+
+      {mostrarPalcoGenUI && (
+        <div className="cmd-palco-wrap">
+          <PalcoGenUI
+            spec={enviando ? null : (turnoAtivo?.spec ?? null)}
+            etapas={enviando ? etapasLive : (turnoAtivo?.etapas ?? [])}
+            blocosStream={enviando ? blocosLive : (turnoAtivo?.blocos ?? [])}
+            carregando={enviando}
+            projecao={projecao}
+            pedidoId={pedidoId}
+            daSessao={daSessao}
+            contatos={contatos}
+            focoAtivo={focoAtivo}
+            aoFocar={aoFocar}
+            aoExecutarComando={(cmd) => {
+              setTexto(cmd);
+              void executar(cmd);
+            }}
+            aoSelecionarPapel={(p) => aoAplicarPapel?.(p)}
+            aoNotificar={aoNotificar}
+            aoAbrirAgenda={aoAbrirAgenda}
+            aoSimularResultado={(res: { hipotese: CamposObservados; resultado: RespostaSimulacao } | null) =>
+              aoSimulacaoAtiva?.(res !== null)
+            }
+            aoAplicarHipotese={aplicarHipotese}
+            aoFechar={fecharPalco}
+            aoAnunciar={aoAnunciar}
+            slotLoader={<SeloMonolitosShader ativo={true} tamanho={24} />}
+          />
+        </div>
+      )}
+
+      {mostrarFallbackCard && turnoAtivo && (
+        <div className="cmd-painel cmd-painel-isolado">
+          <div className="cmd-painel-cab">
+            <div className="cmd-painel-meta">
+              <span className="pilula-coord mono">{rotuloAcaoMandato(turnoAtivo.interpretado.acao)}</span>
+              {turnoAtivo.interpretado.acao === 'simular' && (
+                <span className="pilula-sutil">Nenhum campo gravado</span>
+              )}
+              {turnoAtivo.interpretado.alvos.length > 0 && (
+                <span className="cmd-alvos meta">
+                  {turnoAtivo.interpretado.alvos.length === 1 ? 'Pedido ' : 'Pedidos '}
+                  {turnoAtivo.interpretado.alvos.map((alvo, idx) => (
+                    <span key={alvo}>
+                      {idx > 0 && ', '}
+                      <a href={`#/pedido/${encodeURIComponent(alvo)}`} className="mono">
+                        {chaveCurta(alvo)}
+                      </a>
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
             <button
-              key={sugestao.rotulo}
               type="button"
-              className="chip"
-              data-ativa={sugestaoAtiva === idx ? 'true' : undefined}
-              disabled={enviando}
-              onClick={() => executarSugestao(sugestao.comando)}
+              className="botao-fechar"
+              aria-label="Fechar resultado do comando"
+              onClick={fecharPalco}
             >
-              {sugestao.rotulo}
+              <IconeFechar />
             </button>
-          ))}
+          </div>
+
+          {turnoAtivo.interpretado.acao === 'propagar' && (
+            <CartaoPropagar
+              itens={turnoAtivo.interpretado.itens}
+              novosEventos={turnoAtivo.interpretado.novosEventos}
+            />
+          )}
+          {turnoAtivo.interpretado.acao === 'simular' && (
+            <CartaoSimular itens={turnoAtivo.interpretado.itens} />
+          )}
+          {turnoAtivo.interpretado.acao === 'resumir' && (
+            <CartaoResumir itens={turnoAtivo.interpretado.itens} />
+          )}
+          {turnoAtivo.interpretado.acao === 'notificar' && (
+            <CartaoNotificar itens={turnoAtivo.interpretado.itens} />
+          )}
         </div>
-        <span className="cmd-atalho meta">
-          Atalho <kbd className="tecla mono">/</kbd>
-        </span>
-      </div>
+      )}
     </section>
   );
 }

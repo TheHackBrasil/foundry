@@ -202,7 +202,7 @@ const EXEMPLOS_POR_PEDIDO: Readonly<Record<string, readonly ArquivoExemploSpec[]
   ],
   [PEDIDO_PACKSUL]: [
     { arquivo: 'packsull-01-nfe.xml', tipo: 'application/xml' },
-    { arquivo: 'packsull-02-cte.xml', tipo: 'application/xml' },
+    { arquivo: 'packsull-02-planilha.csv', tipo: 'text/csv' },
   ],
 };
 

@@ -1,18 +1,86 @@
+import { useMemo, useState } from 'react';
 import type { PedidoResumo } from '../api.ts';
-import type { Carga } from '../useTorre.ts';
 import { chaveCurta, formatarMomento } from '../format.ts';
+import type { Carga, RotaTorre } from '../useTorre.ts';
 
 interface Props {
   pedidos: Carga<PedidoResumo[]>;
   selecionado: string | null;
+  rota: RotaTorre;
   aoTentarDeNovo: () => void;
+  aoSelecionarMobile?: () => void;
 }
 
-export function PedidoLista({ pedidos, selecionado, aoTentarDeNovo }: Props) {
+function temConflito(p: PedidoResumo): boolean {
+  return (p.divergencias ?? 0) > 0 || (p.atrasoDias ?? 0) > 0 || p.status === 'cancelada';
+}
+
+function seloOperacional(p: PedidoResumo): { texto: string; classe: string } {
+  if (p.status === 'cancelada') {
+    return { texto: 'Cancelada', classe: 'rail-badge-erro' };
+  }
+  if (typeof p.atrasoDias === 'number' && p.atrasoDias > 0) {
+    return { texto: `+${p.atrasoDias}d atraso`, classe: 'rail-badge-warn' };
+  }
+  const divs = p.divergencias ?? 0;
+  if (divs > 0) {
+    return {
+      texto: `${divs} ${divs === 1 ? 'conflito' : 'conflitos'}`,
+      classe: 'rail-badge-coord',
+    };
+  }
+  return { texto: 'Confere', classe: 'rail-badge-ok' };
+}
+
+function sufixoChave(id: string): string {
+  return id.length > 8 ? `…${id.slice(-6)}` : id;
+}
+
+export function PedidoLista({
+  pedidos,
+  selecionado,
+  rota,
+  aoTentarDeNovo,
+  aoSelecionarMobile,
+}: Props) {
+  const [soConflito, setSoConflito] = useState(false);
+
+  const listaCompleta = pedidos.estado === 'ok' ? pedidos.dados : [];
+  const totalConflitos = useMemo(
+    () => listaCompleta.filter(temConflito).length,
+    [listaCompleta],
+  );
+  const visiveis = useMemo(
+    () => (soConflito ? listaCompleta.filter(temConflito) : listaCompleta),
+    [listaCompleta, soConflito],
+  );
+
   return (
     <section className="lista" aria-labelledby="lista-titulo">
-      <h2 id="lista-titulo">Pedidos</h2>
+      <div className="lista-cab">
+        <h2 id="lista-titulo">Pedidos</h2>
+        {pedidos.estado === 'ok' && listaCompleta.length > 0 && (
+          <div className="rail-filtro" role="group" aria-label="Filtrar pedidos">
+            <button
+              type="button"
+              aria-pressed={!soConflito}
+              onClick={() => setSoConflito(false)}
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              aria-pressed={soConflito}
+              onClick={() => setSoConflito(true)}
+            >
+              Com conflito{totalConflitos > 0 ? ` (${totalConflitos})` : ''}
+            </button>
+          </div>
+        )}
+      </div>
+
       {pedidos.estado === 'carregando' && <p className="dica">Carregando pedidos…</p>}
+
       {pedidos.estado === 'erro' && (
         <div className="aviso-erro" role="alert">
           <p>Não foi possível carregar os pedidos: {pedidos.mensagem}</p>
@@ -21,29 +89,82 @@ export function PedidoLista({ pedidos, selecionado, aoTentarDeNovo }: Props) {
           </button>
         </div>
       )}
-      {pedidos.estado === 'ok' && pedidos.dados.length === 0 && (
+
+      {pedidos.estado === 'ok' && listaCompleta.length === 0 && (
         <p className="dica">Nenhum pedido ainda. Envie uma NF-e em XML para criar o primeiro.</p>
       )}
-      {pedidos.estado === 'ok' && pedidos.dados.length > 0 && (
+
+      {pedidos.estado === 'ok' && listaCompleta.length > 0 && visiveis.length === 0 && (
+        <div className="lista-vazio-filtro">
+          <p className="dica">Nenhum pedido com conflito aberto.</p>
+          <button
+            type="button"
+            className="rail-btn-sutil"
+            onClick={() => setSoConflito(false)}
+          >
+            Mostrar todos
+          </button>
+        </div>
+      )}
+
+      {pedidos.estado === 'ok' && visiveis.length > 0 && (
         <nav aria-label="Lista de pedidos">
           <ul className="lista-itens">
-            {pedidos.dados.map((p) => (
-              <li key={p.pedidoId}>
-                <a
-                  href={`#/pedido/${encodeURIComponent(p.pedidoId)}`}
-                  aria-current={p.pedidoId === selecionado ? 'page' : undefined}
-                  title={p.pedidoId}
-                >
-                  <div className="lista-item-topo">
-                    <span className="mono">{chaveCurta(p.pedidoId)}</span>
-                    {p.daSessao && <span className="pilula-rail">Sessão</span>}
-                  </div>
-                  <span className="meta num">
-                    {p.totalEventos} {p.totalEventos === 1 ? 'evento' : 'eventos'} · {formatarMomento(p.ultimoEm)}
-                  </span>
-                </a>
-              </li>
-            ))}
+            {visiveis.map((p) => {
+              const selo = seloOperacional(p);
+              const emitente = p.emitente?.trim();
+              const destinatario = p.destinatario?.trim();
+              const href =
+                rota === 'ia'
+                  ? `#/ia/${encodeURIComponent(p.pedidoId)}`
+                  : `#/pedido/${encodeURIComponent(p.pedidoId)}`;
+              const divs = p.divergencias;
+              const tars = p.tarefas;
+              const temContagemOp = divs !== undefined || tars !== undefined;
+              const nDiv = divs ?? 0;
+              const nTar = tars ?? 0;
+
+              return (
+                <li key={p.pedidoId}>
+                  <a
+                    href={href}
+                    aria-current={p.pedidoId === selecionado ? 'page' : undefined}
+                    title={emitente ? `${emitente} · ${p.pedidoId}` : p.pedidoId}
+                    onClick={aoSelecionarMobile}
+                  >
+                    <div className="lista-item-topo">
+                      <span className={emitente ? 'lista-emitente' : 'lista-emitente mono'}>
+                        {emitente ?? chaveCurta(p.pedidoId)}
+                      </span>
+                      <span className={`rail-badge num ${selo.classe}`}>{selo.texto}</span>
+                    </div>
+
+                    <div className="lista-sub">
+                      {destinatario ? (
+                        <span className="lista-dest">→ {destinatario}</span>
+                      ) : (
+                        <span className="lista-dest">{formatarMomento(p.ultimoEm)}</span>
+                      )}
+                      <span className="lista-chave mono">{sufixoChave(p.pedidoId)}</span>
+                    </div>
+
+                    <div className="lista-rodape">
+                      <span className="meta num">
+                        {temContagemOp
+                          ? `${nDiv} ${nDiv === 1 ? 'divergência' : 'divergências'} · ${nTar} ${nTar === 1 ? 'tarefa' : 'tarefas'}`
+                          : `${p.totalEventos} ${p.totalEventos === 1 ? 'evento' : 'eventos'}`}
+                      </span>
+                      {(p.daSessao || p.ancorado) && (
+                        <span className="lista-tags">
+                          {p.daSessao && <span className="pilula-rail">Sessão</span>}
+                          {p.ancorado && <span className="pilula-rail">Ancorado</span>}
+                        </span>
+                      )}
+                    </div>
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         </nav>
       )}

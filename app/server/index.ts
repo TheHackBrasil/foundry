@@ -388,8 +388,8 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
           ? { previsaoEntrega: proj.pedido.campos.previsaoEntrega }
           : {}),
         atrasoDias: calcularAtrasoDias(proj),
-        divergencias: proj.divergencias.length,
-        tarefas: proj.tarefas.length,
+        divergencias: new Set(proj.divergencias.map((d) => d.campo)).size,
+        tarefas: new Set(proj.tarefas.map((t) => `${t.parte}|${t.titulo}`)).size,
         ancorado: ancora !== null,
       });
     }
