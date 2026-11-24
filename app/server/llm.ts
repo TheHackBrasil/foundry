@@ -79,7 +79,16 @@ async function postLlm(cfg: LlmConfig, corpo: Record<string, unknown>, externo?:
   } catch (e) {
     throw new ErroLlm('indisponivel', `LLM inalcancavel (${(e as Error).message})`);
   }
-  if (!resp.ok) throw new ErroLlm('indisponivel', `LLM HTTP ${resp.status}`);
+  if (!resp.ok) {
+    let detalhe = '';
+    try {
+      detalhe = (await resp.text()).slice(0, 280).replace(/\s+/g, ' ').trim();
+    } catch {
+      // ignora erro ao ler corpo de diagnostico
+    }
+    console.warn(`[llm] HTTP ${resp.status} modelo=${cfg.modelo}${detalhe ? ` corpo=${detalhe}` : ''}`);
+    throw new ErroLlm('indisponivel', `LLM HTTP ${resp.status}`);
+  }
   return resp;
 }
 

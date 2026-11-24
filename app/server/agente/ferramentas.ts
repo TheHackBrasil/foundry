@@ -203,19 +203,29 @@ const ENUM_CAMPO = { type: 'string', enum: [...CAMPOS_VIGIADOS] } as const;
 const ENUM_PARTE = { type: 'string', enum: [...PARTES] } as const;
 
 export const TOOLS_AGENTE: ToolAgente[] = [
-  definirTool<{ pedido?: string }>({
+  definirTool<{ limite?: number }>({
     nome: 'listar_pedidos',
     descricao:
       'Lista os pedidos visiveis no workspace (sessao do visitante + exemplos) com emitente, status, contagens de divergencias e tarefas.',
-    schema: { type: 'object', properties: {}, additionalProperties: false },
-    validar: (args) => {
-      exigirObjeto(args);
-      return {};
+    schema: {
+      type: 'object',
+      properties: {
+        limite: { type: 'integer', description: 'Maximo de pedidos a listar (padrao 15)' },
+      },
     },
-    executar: async (ctx) => {
+    validar: (args) => {
+      const obj = exigirObjeto(args);
+      const raw = obj['limite'];
+      if (raw === undefined || raw === null) return {};
+      if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 1) {
+        throw new Error('O argumento "limite" precisa ser um numero positivo.');
+      }
+      return { limite: Math.min(30, Math.floor(raw)) };
+    },
+    executar: async (ctx, args) => {
       const lista = await ctx.sessao.listarPedidos();
       const pedidos = [];
-      for (const item of lista.slice(0, 15)) {
+      for (const item of lista.slice(0, args.limite ?? 15)) {
         const leitor = ctx.sessao.paraWorkspace(item.workspaceId);
         const proj = projetar(await leitor.eventosDoPedido(item.pedidoId));
         pedidos.push({
@@ -241,7 +251,7 @@ export const TOOLS_AGENTE: ToolAgente[] = [
     nome: 'consultar_pedido',
     descricao:
       'Consulta um pedido: rota emitente-destinatario, itens, valores declarados por fonte, divergencias ativas, tarefas por setor, sinais e integridade da cadeia.',
-    schema: { type: 'object', properties: { ...PROP_PEDIDO }, additionalProperties: false },
+    schema: { type: 'object', properties: { ...PROP_PEDIDO } },
     validar: (args) => ({ pedido: textoOpcional(exigirObjeto(args), 'pedido') }),
     executar: async (ctx, args) => {
       const r = await pedidoDaTool(ctx, args.pedido);
@@ -289,7 +299,6 @@ export const TOOLS_AGENTE: ToolAgente[] = [
     schema: {
       type: 'object',
       properties: { ...PROP_PEDIDO, campo: { ...ENUM_CAMPO, description: 'Campo vigiado a comparar; omita para todos os divergentes' } },
-      additionalProperties: false,
     },
     validar: (args) => {
       const obj = exigirObjeto(args);
@@ -331,10 +340,9 @@ export const TOOLS_AGENTE: ToolAgente[] = [
       properties: {
         ...PROP_PEDIDO,
         campo: { ...ENUM_CAMPO, description: 'Campo vigiado a alterar na hipotese' },
-        valor: { description: 'Valor hipotetico: data AAAA-MM-DD ou DD/MM/AAAA, numero ou status', anyOf: [{ type: 'string' }, { type: 'number' }] },
+        valor: { type: 'string', description: 'Valor hipotetico em texto: data AAAA-MM-DD ou DD/MM/AAAA, numero (ex.: "600", "15") ou status' },
       },
       required: ['campo', 'valor'],
-      additionalProperties: false,
     },
     validar: (args) => {
       const obj = exigirObjeto(args);
@@ -385,7 +393,6 @@ export const TOOLS_AGENTE: ToolAgente[] = [
         partes: { type: 'array', items: { ...ENUM_PARTE }, description: 'Setores a listar (fornecedor, transportadora, cd, fiscal, financeiro)' },
       },
       required: ['partes'],
-      additionalProperties: false,
     },
     validar: (args) => {
       const obj = exigirObjeto(args);
@@ -419,7 +426,7 @@ export const TOOLS_AGENTE: ToolAgente[] = [
     nome: 'consultar_auditoria',
     descricao:
       'Verifica a integridade da cadeia de eventos do pedido: hash elo a elo, total de eventos, raiz Merkle e ultima ancora registrada.',
-    schema: { type: 'object', properties: { ...PROP_PEDIDO }, additionalProperties: false },
+    schema: { type: 'object', properties: { ...PROP_PEDIDO } },
     validar: (args) => ({ pedido: textoOpcional(exigirObjeto(args), 'pedido') }),
     executar: async (ctx, args) => {
       const r = await pedidoDaTool(ctx, args.pedido);
@@ -452,7 +459,6 @@ export const TOOLS_AGENTE: ToolAgente[] = [
       type: 'object',
       properties: { ...PROP_PEDIDO, parte: { ...ENUM_PARTE, description: 'Setor a avisar' } },
       required: ['parte'],
-      additionalProperties: false,
     },
     validar: (args) => {
       const obj = exigirObjeto(args);
@@ -502,7 +508,6 @@ export const TOOLS_AGENTE: ToolAgente[] = [
       type: 'object',
       properties: { ...PROP_PEDIDO, parte: { ...ENUM_PARTE, description: 'Setor a avisar' } },
       required: ['parte'],
-      additionalProperties: false,
     },
     validar: (args) => {
       const obj = exigirObjeto(args);
@@ -562,7 +567,6 @@ export const TOOLS_AGENTE: ToolAgente[] = [
     schema: {
       type: 'object',
       properties: { ...PROP_PEDIDO, campo: { ...ENUM_CAMPO, description: 'Restringe a propagacao a um campo vigiado' } },
-      additionalProperties: false,
     },
     validar: (args) => {
       const obj = exigirObjeto(args);
