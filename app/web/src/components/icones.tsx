@@ -1,9 +1,17 @@
 // Ícones geométricos leves e consistentes: o significado sempre vem junto em texto.
 const base = { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': true, focusable: false } as const;
+const micro = { viewBox: '0 0 16 16', width: 14, height: 14, 'aria-hidden': true, focusable: false } as const;
 const traco = {
   fill: 'none',
   stroke: 'currentColor',
   strokeWidth: 1.6,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+} as const;
+const tracoMicro = {
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.5,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
 } as const;
@@ -169,7 +177,33 @@ export function IconeTorre() {
 export function IconeAssistente() {
   return (
     <svg {...base}>
-      <path {...traco} d="M8 2.25 9.6 6.4 13.75 8 9.6 9.6 8 13.75 6.4 9.6 2.25 8 6.4 6.4Z" />
+      <path
+        {...tracoMicro}
+        d="M3.25 4.75V3.25h1.5M11.25 3.25h1.5v1.5M12.75 11.25v1.5h-1.5M4.75 12.75h-1.5v-1.5M5.5 10.75V7.25M8 10.75V5.25M10.5 10.75V8.25"
+      />
+    </svg>
+  );
+}
+
+export function IconeSol() {
+  return (
+    <svg {...micro}>
+      <circle {...tracoMicro} cx="8" cy="8" r="2.75" />
+      <path
+        {...tracoMicro}
+        d="M8 2.25v1.25M8 12.5v1.25M2.25 8H3.5M12.5 8h1.25M3.95 3.95l.9.9M11.15 11.15l.9.9M12.05 3.95l-.9.9M4.85 11.15l-.9.9"
+      />
+    </svg>
+  );
+}
+
+export function IconeLua() {
+  return (
+    <svg {...micro}>
+      <path
+        {...tracoMicro}
+        d="M12.75 9.85A5.25 5.25 0 0 1 6.15 3.25a5.25 5.25 0 1 0 6.6 6.6Z"
+      />
     </svg>
   );
 }

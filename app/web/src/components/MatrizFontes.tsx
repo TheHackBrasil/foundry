@@ -406,6 +406,7 @@ export function MatrizFontes({
 
   const classes = [
     'mx',
+    'slab-mineral',
     carregandoLente ? 'mx-carregando' : '',
     modoSimulacao ? 'mx-simulacao' : '',
   ]
@@ -484,7 +485,7 @@ export function MatrizFontes({
           ))}
         </div>
         <div role="rowgroup" className="mx-corpo">
-          {matriz.linhas.map((linha) => {
+          {matriz.linhas.map((linha, rowIdx) => {
             const focada = linhaEstaFocada(linha, focoAtivo);
             const alvoLinha = alvoPrincipalLinha(linha);
             const podeFocarLinha = Boolean(aoFocar && alvoLinha && linha.divergente);
@@ -521,6 +522,7 @@ export function MatrizFontes({
                 className={classesLinha}
                 key={linha.campo}
                 data-flip-id={`row-${linha.campo}`}
+                style={{ '--row-i': Math.min(rowIdx, 5) } as CSSProperties}
               >
                 <div role="rowheader" className="rh">
                   {podeFocarLinha && alvoLinha ? (

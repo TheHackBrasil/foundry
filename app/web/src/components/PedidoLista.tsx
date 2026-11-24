@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { PedidoResumo } from '../api.ts';
 import { chaveCurta, formatarMomento } from '../format.ts';
+import { useIndicadorDeslizante } from '../useIndicadorDeslizante.ts';
 import type { Carga, RotaTorre } from '../useTorre.ts';
 
 interface Props {
@@ -45,6 +46,7 @@ export function PedidoLista({
   aoSelecionarMobile,
 }: Props) {
   const [soConflito, setSoConflito] = useState(false);
+  const filtroRef = useRef<HTMLDivElement>(null);
 
   const listaCompleta = pedidos.estado === 'ok' ? pedidos.dados : [];
   const totalConflitos = useMemo(
@@ -56,12 +58,28 @@ export function PedidoLista({
     [listaCompleta, soConflito],
   );
 
+  const filtroGeo = useIndicadorDeslizante(
+    filtroRef,
+    '[aria-pressed="true"]',
+    `${soConflito ? '1' : '0'}-${totalConflitos}-${listaCompleta.length}`,
+  );
+
   return (
     <section className="lista" aria-labelledby="lista-titulo">
       <div className="lista-cab">
         <h2 id="lista-titulo">Pedidos ativos</h2>
         {pedidos.estado === 'ok' && listaCompleta.length > 0 && (
-          <div className="rail-filtro" role="group" aria-label="Filtrar pedidos">
+          <div ref={filtroRef} className="rail-filtro" role="group" aria-label="Filtrar pedidos">
+            {filtroGeo.pronto && (
+              <span
+                className="rail-filtro-thumb"
+                aria-hidden="true"
+                data-animar={filtroGeo.animar ? 'true' : 'false'}
+                style={{
+                  clipPath: `inset(${filtroGeo.clipTop}px ${filtroGeo.clipRight}px ${filtroGeo.clipBottom}px ${filtroGeo.clipLeft}px round 999px)`,
+                }}
+              />
+            )}
             <button
               type="button"
               aria-pressed={!soConflito}
@@ -119,11 +137,6 @@ export function PedidoLista({
                 rota === 'ia'
                   ? `#/ia/${encodeURIComponent(p.pedidoId)}`
                   : `#/pedido/${encodeURIComponent(p.pedidoId)}`;
-              const divs = p.divergencias;
-              const tars = p.tarefas;
-              const temContagemOp = divs !== undefined || tars !== undefined;
-              const nDiv = divs ?? 0;
-              const nTar = tars ?? 0;
 
               return (
                 <li key={p.pedidoId}>
@@ -151,20 +164,6 @@ export function PedidoLista({
                         <span className="lista-dest">{formatarMomento(p.ultimoEm)}</span>
                       )}
                       <span className="lista-chave mono">{sufixoChave(p.pedidoId)}</span>
-                    </div>
-
-                    <div className="lista-rodape">
-                      <span className="meta num">
-                        {temContagemOp
-                          ? `${nDiv} ${nDiv === 1 ? 'divergência' : 'divergências'} · ${nTar} ${nTar === 1 ? 'tarefa' : 'tarefas'}`
-                          : `${p.totalEventos} ${p.totalEventos === 1 ? 'evento' : 'eventos'}`}
-                      </span>
-                      {(p.daSessao || p.ancorado) && (
-                        <span className="lista-tags">
-                          {p.daSessao && <span className="pilula-rail">Sessão</span>}
-                          {p.ancorado && <span className="pilula-rail">Ancorado</span>}
-                        </span>
-                      )}
                     </div>
                   </a>
                 </li>

@@ -1,32 +1,21 @@
 import type { RefObject } from 'react';
 import type { Tema } from '../tema.ts';
-import type { EstadoStream } from '../useStream.ts';
 import type { RotaTorre } from '../useTorre.ts';
 import {
   IconeAgenda,
+  IconeAssistente,
+  IconeLua,
   IconeMenu,
-  IconePausa,
-  IconeRetomar,
   IconeRevisao,
+  IconeSol,
   IconeTorre,
 } from './icones.tsx';
 import { Marca } from './Marca.tsx';
 
-const ROTULO_STREAM: Record<EstadoStream, string> = {
-  conectando: 'Conectando…',
-  ao_vivo: 'Ao vivo',
-  reconectando: 'Reconectando…',
-};
-
 interface Props {
   rota: RotaTorre;
   pedidoId: string | null;
-  stream: EstadoStream;
-  pulsoEventoSeq: number;
-  pausado: boolean;
-  pendentes: number;
   revisaoPendentes: number;
-  aoPausar: () => void;
   aoAbrirRevisao: () => void;
   aoAbrirAgenda: () => void;
   aoAbrirMenuMobile: () => void;
@@ -39,12 +28,7 @@ interface Props {
 export function Cabecalho({
   rota,
   pedidoId,
-  stream,
-  pulsoEventoSeq,
-  pausado,
-  pendentes,
   revisaoPendentes,
-  aoPausar,
   aoAbrirRevisao,
   aoAbrirAgenda,
   aoAbrirMenuMobile,
@@ -85,23 +69,6 @@ export function Cabecalho({
         </a>
 
         <div className="topo-ops topo-so-desktop">
-          <a
-            href={hrefAlterno}
-            className={rota === 'torre' ? 'topo-pill-ia' : 'topo-btn topo-btn-volta'}
-          >
-            {rota === 'torre' ? (
-              <>
-                <span className="topo-ponto-ia" aria-hidden="true" />
-                <span>Assistente IA · Escuta</span>
-              </>
-            ) : (
-              <>
-                <IconeTorre />
-                <span>Voltar à Torre</span>
-              </>
-            )}
-          </a>
-          <span className="topo-divisoria" aria-hidden="true" />
           <button
             type="button"
             className={revisaoPendentes > 0 ? 'topo-btn topo-btn-alerta' : 'topo-btn'}
@@ -114,9 +81,9 @@ export function Cabecalho({
           >
             <IconeRevisao />
             <span>Revisão</span>
-            <span className={revisaoPendentes > 0 ? 'topo-cont topo-cont-alerta num' : 'topo-cont num'}>
-              {revisaoPendentes}
-            </span>
+            {revisaoPendentes > 0 && (
+              <span className="topo-cont topo-cont-alerta num">{revisaoPendentes}</span>
+            )}
           </button>
           <button type="button" className="topo-btn" onClick={aoAbrirAgenda}>
             <IconeAgenda />
@@ -146,15 +113,11 @@ export function Cabecalho({
 
         <a
           href={hrefAlterno}
-          className={
-            rota === 'torre'
-              ? 'topo-pill-ia topo-so-mobile topo-atalho-rota'
-              : 'topo-btn topo-so-mobile topo-atalho-rota'
-          }
+          className="topo-btn topo-so-mobile topo-atalho-rota"
         >
           {rota === 'torre' ? (
             <>
-              <span className="topo-ponto-ia" aria-hidden="true" />
+              <IconeAssistente />
               <span>IA</span>
             </>
           ) : (
@@ -165,35 +128,15 @@ export function Cabecalho({
           )}
         </a>
 
-        <p className={`vivo topo-so-desktop ${pausado ? 'vivo-pausado' : `vivo-${stream}`}`}>
-          <span className="vivo-ponto" aria-hidden="true">
-            {pulsoEventoSeq > 0 && !pausado && stream === 'ao_vivo' && (
-              <span key={pulsoEventoSeq} className="vivo-pulso-unico" />
-            )}
-          </span>
-          <span>
-            {pausado
-              ? `Pausado${pendentes > 0 ? ` · ${pendentes}` : ''}`
-              : ROTULO_STREAM[stream]}
-          </span>
-        </p>
-
-        <button
-          type="button"
-          className="topo-btn topo-so-desktop"
-          onClick={aoPausar}
-          aria-label={pausado ? 'Retomar atualizações ao vivo' : 'Pausar atualizações ao vivo'}
-        >
-          {pausado ? <IconeRetomar /> : <IconePausa />}
-          <span>{pausado ? 'Retomar' : 'Pausar'}</span>
-        </button>
-
-        <div className="tema" role="group" aria-label="Tema">
+        <div className="tema" role="group" aria-label="Tema" data-tema-ativo={tema}>
+          <span className="tema-pill" aria-hidden="true" />
           <button type="button" aria-pressed={tema === 'light'} onClick={() => aoTema('light')}>
-            Claro
+            <IconeSol />
+            <span>Claro</span>
           </button>
           <button type="button" aria-pressed={tema === 'dark'} onClick={() => aoTema('dark')}>
-            Escuro
+            <IconeLua />
+            <span>Escuro</span>
           </button>
         </div>
       </div>

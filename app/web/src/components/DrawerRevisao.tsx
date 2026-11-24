@@ -23,6 +23,7 @@ import {
   rotuloCampo,
   rotuloFonte,
 } from '../format.ts';
+import { usePresencaAnimada } from '../usePresencaAnimada.ts';
 import { IconeConfere, IconeDiverge, IconeErro, IconeFechar, IconeOk } from './icones.tsx';
 
 export interface DrawerRevisaoProps {
@@ -136,6 +137,7 @@ export function DrawerRevisao({
   const [decidindoId, setDecidindoId] = useState<number | null>(null);
   const [erroDecisao, setErroDecisao] = useState<string | null>(null);
   const [recibo, setRecibo] = useState<string | null>(null);
+  const presenca = usePresencaAnimada(aberto, 200);
 
   useEffect(() => {
     garantirEstilosOps();
@@ -242,7 +244,7 @@ export function DrawerRevisao({
     }
   }
 
-  if (!aberto) return null;
+  if (!presenca.montado) return null;
 
   function renderizarItem(item: ItemRevisao) {
     const p = item.payload ?? {};
@@ -479,13 +481,15 @@ export function DrawerRevisao({
   return (
     <div
       className="drawer-backdrop"
+      data-fase={presenca.fase}
       onClick={(e: MouseEvent<HTMLDivElement>) => {
         if (e.target === e.currentTarget) aoFechar();
       }}
     >
       <div
         ref={painelRef}
-        className="drawer-panel"
+        className="drawer-panel slab-mineral"
+        data-fase={presenca.fase}
         role="dialog"
         aria-modal="true"
         aria-labelledby={tituloId}

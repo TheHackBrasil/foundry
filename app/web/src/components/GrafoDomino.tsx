@@ -1,4 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import {
   CAMPOS_VIGIADOS,
   PARTES,
@@ -127,10 +135,35 @@ export function GrafoDomino({
   const [parteIsolada, setParteIsolada] = useState<Parte | null>(null);
   const [hoverCampo, setHoverCampo] = useState<CampoVigiado | null>(null);
   const [hoverParte, setHoverParte] = useState<Parte | null>(null);
+  const [visivel, setVisivel] = useState(true);
+  const [revelado, setRevelado] = useState(() => typeof IntersectionObserver === 'undefined');
 
+  const wrapRef = useRef<HTMLElement>(null);
   const centroRef = useRef<HTMLDivElement>(null);
   const esqRefs = useRef<Map<CampoVigiado, HTMLButtonElement>>(new Map());
   const dirRefs = useRef<Map<Parte, HTMLButtonElement>>(new Map());
+
+  // Dispara draw-in uma única vez ao entrar na viewport e pausa pulsos fora de tela.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setVisivel(true);
+      setRevelado(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        const emTela = entry.isIntersecting;
+        setVisivel(emTela);
+        if (emTela) setRevelado(true);
+      },
+      { threshold: 0.08 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [divergencias.length]);
   const [geom, setGeom] = useState<GeometriaSvg>({
     largura: 240,
     altura: 280,
@@ -326,7 +359,8 @@ export function GrafoDomino({
   if (nosDivergencia.length === 0) {
     return (
       <section
-        className="domino-wrap domino-acordo"
+        ref={wrapRef}
+        className="domino-wrap domino-acordo slab-mineral"
         role="group"
         aria-label="Mapa de impacto causal"
       >
@@ -367,9 +401,9 @@ export function GrafoDomino({
     return true;
   });
 
-  // Calcula posição vertical ancorada apenas quando 1 regra específica está isolada.
+  // Calcula posição vertical ancorada apenas quando há hover ou isolamento ativo de 1 regra.
   const regraAncoradaY: number | null = (() => {
-    if (regrasVisiveis.length !== 1) return null;
+    if (!temFiltroAtivo || regrasVisiveis.length !== 1) return null;
     const unica = regrasVisiveis[0];
     if (!unica) return null;
     const ativas = arestas.filter((a) => a.campo === unica.campo && arestaAtiva(a));
@@ -386,9 +420,12 @@ export function GrafoDomino({
 
   return (
     <section
+      ref={wrapRef}
       className="domino-wrap"
       role="group"
       aria-label="Mapa causal de divergências para ações por setor"
+      data-visivel={visivel ? 'true' : 'false'}
+      data-revelado={revelado ? 'true' : 'false'}
     >
       {(titulo || ehSimulacao || temIsolamento) && (
         <div className="domino-cab">
@@ -420,11 +457,10 @@ export function GrafoDomino({
       )}
 
       <div className="domino-col-titulos" aria-hidden="true">
-        <span>O que divergiu ({nosDivergencia.length})</span>
-        <span className="domino-col-titulo-centro">Regra causal</span>
+        <span>Divergências ({nosDivergencia.length})</span>
+        <span className="domino-col-titulo-centro">Fluxo causal</span>
         <span>
-          Quem precisa agir ({setoresAtivos.length}{' '}
-          {setoresAtivos.length === 1 ? 'setor' : 'setores'} · {totalAcoes}{' '}
+          Setores ({setoresAtivos.length} · {totalAcoes}{' '}
           {totalAcoes === 1 ? 'ação' : 'ações'})
         </span>
       </div>
@@ -451,7 +487,7 @@ export function GrafoDomino({
                   else esqRefs.current.delete(no.campo);
                 }}
                 type="button"
-                className="domino-no domino-card-div"
+                className="domino-no domino-card-div slab-mineral"
                 aria-pressed={pressionado}
                 aria-label={textoAria}
                 data-ativo={destacado ? 'true' : undefined}
@@ -508,7 +544,7 @@ export function GrafoDomino({
               </marker>
             </defs>
 
-            {arestas.map((a) => {
+            {arestas.map((a, idx) => {
               const iEsq = nosDivergencia.findIndex((n) => n.campo === a.campo);
               const iDir = setoresAtivos.findIndex((s) => s.parte === a.parte);
               const y1 =
@@ -523,19 +559,36 @@ export function GrafoDomino({
               const d = `M 3 ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${xFim} ${y2}`;
               const ativa = arestaAtiva(a);
               const enfase = temFiltroAtivo && ativa;
+              const classeAresta = [
+                'domino-aresta',
+                ehSimulacao ? 'domino-aresta-sim' : 'domino-aresta-solida',
+                enfase ? 'domino-aresta-enfase' : ativa ? 'domino-aresta-ativa' : 'domino-aresta-dim',
+              ].join(' ');
 
               return (
-                <path
-                  key={a.chave}
-                  d={d}
-                  fill="none"
-                  stroke={ativa ? 'var(--change)' : 'var(--border-strong)'}
-                  strokeWidth={enfase ? 2.4 : ativa ? 1.8 : 1.25}
-                  strokeLinecap="round"
-                  strokeDasharray={tracejado}
-                  opacity={enfase ? 0.96 : ativa ? 0.72 : 0.18}
-                  markerEnd={`url(#${ativa ? markerAtivoId : markerDimId})`}
-                />
+                <g key={a.chave}>
+                  <path
+                    d={d}
+                    pathLength={ehSimulacao ? undefined : 1}
+                    className={classeAresta}
+                    style={{ '--edge-i': Math.min(idx, 10) } as CSSProperties}
+                    fill="none"
+                    stroke={ativa ? 'var(--change)' : 'var(--border-strong)'}
+                    strokeWidth={enfase ? 2.4 : ativa ? 1.75 : 1.2}
+                    strokeLinecap="round"
+                    strokeDasharray={tracejado}
+                    markerEnd={`url(#${ativa ? markerAtivoId : markerDimId})`}
+                  />
+                  {enfase && !ehSimulacao && (
+                    <path
+                      d={d}
+                      pathLength={1}
+                      className="domino-fluxo-pulso"
+                      fill="none"
+                      strokeLinecap="round"
+                    />
+                  )}
+                </g>
               );
             })}
 
@@ -561,39 +614,14 @@ export function GrafoDomino({
             })}
           </svg>
 
-          {regraAncoradaY !== null && regrasVisiveis[0] ? (
+          {regraAncoradaY !== null && regrasVisiveis[0] && (
             <div
               className="domino-regra-ancorada"
-              style={{ top: `${regraAncoradaY}px` }}
+              style={{ '--ry': `${regraAncoradaY}px` } as CSSProperties}
             >
               <span className="domino-regra-pill domino-regra-pill-ativa">
                 {regrasVisiveis[0].regraCausal}
               </span>
-            </div>
-          ) : (
-            <div className="domino-regras-pilha" role="group" aria-label="Regras causais ativas">
-              {regrasVisiveis.map((no) => {
-                const selecionada = isolamentoEfetivo === no.campo || hoverCampo === no.campo;
-                return (
-                  <button
-                    key={no.campo}
-                    type="button"
-                    className={
-                      selecionada
-                        ? 'domino-regra-pill domino-regra-pill-ativa'
-                        : 'domino-regra-pill'
-                    }
-                    aria-pressed={isolamentoEfetivo === no.campo}
-                    onMouseEnter={() => setHoverCampo(no.campo)}
-                    onMouseLeave={() =>
-                      setHoverCampo((atual) => (atual === no.campo ? null : atual))
-                    }
-                    onClick={() => alternarDivergencia(no)}
-                  >
-                    {no.regraCausal}
-                  </button>
-                );
-              })}
             </div>
           )}
         </div>
@@ -624,7 +652,7 @@ export function GrafoDomino({
                   else dirRefs.current.delete(setor.parte);
                 }}
                 type="button"
-                className="domino-no domino-card-setor"
+                className="domino-no domino-card-setor slab-mineral"
                 aria-pressed={pressionado}
                 aria-label={`${rotuloParte(setor.parte)}: ${setor.totalAcoes} ${setor.totalAcoes === 1 ? 'ação' : 'ações'}${setor.primeiraAcao ? `. Prioridade: ${setor.primeiraAcao}` : ''}`}
                 data-ativo={destacado ? 'true' : undefined}

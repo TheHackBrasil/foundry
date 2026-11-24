@@ -25,6 +25,7 @@ import {
   rotuloFonte,
   variacao,
 } from '../format.ts';
+import { usePresencaAnimada } from '../usePresencaAnimada.ts';
 import {
   IconeConfere,
   IconeCopiar,
@@ -109,6 +110,7 @@ export function DrawerAuditoria({
     tipo: 'ok' | 'warn' | 'erro';
     texto: string;
   } | null>(null);
+  const presenca = usePresencaAnimada(aberto, 200);
 
   useEffect(() => {
     garantirEstilosOps();
@@ -264,7 +266,7 @@ export function DrawerAuditoria({
     }
   }
 
-  if (!aberto) return null;
+  if (!presenca.montado) return null;
 
   const ancoraOk = ancoraRecente?.ok ? ancoraRecente : null;
   const urlAncora = urlHttpSegura(ancoraOk?.url ?? lerStringSegura(auditoria?.ancora, 'url'));
@@ -283,13 +285,15 @@ export function DrawerAuditoria({
   return (
     <div
       className="drawer-backdrop"
+      data-fase={presenca.fase}
       onClick={(e: MouseEvent<HTMLDivElement>) => {
         if (e.target === e.currentTarget) aoFechar();
       }}
     >
       <div
         ref={painelRef}
-        className="drawer-panel"
+        className="drawer-panel slab-mineral"
+        data-fase={presenca.fase}
         role="dialog"
         aria-modal="true"
         aria-labelledby={tituloId}

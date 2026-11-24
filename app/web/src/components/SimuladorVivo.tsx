@@ -381,10 +381,7 @@ export function SimuladorVivo({
             <IconeDiverge />
             Simulação · nada gravado no ledger
           </span>
-          <span className="meta num">
-            Motor determinístico · sem IA
-            {latenciaMs !== null ? ` · ${latenciaMs} ms` : ''}
-          </span>
+          {latenciaMs !== null && <span className="meta num">{latenciaMs} ms</span>}
         </div>
         <div className="palco-cab-acoes">
           {temHipotese && (

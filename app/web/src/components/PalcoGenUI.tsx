@@ -42,7 +42,6 @@ import {
   IconeDiverge,
   IconeErro,
   IconeFechar,
-  IconeLente,
   IconeOk,
   IconeSeta,
   IconeSinal,
@@ -165,10 +164,12 @@ function calcularProporcaoDesvio(
 
 function BlocoResumoCitado({
   bloco,
+  indice,
   focoAtivo,
   aoAlternarFoco,
 }: {
   bloco: Extract<BlocoGenUI, { tipo: 'resumo_citado' }>;
+  indice: number;
   focoAtivo: AlvoFocoGenUI | null;
   aoAlternarFoco: (alvo: AlvoFocoGenUI, rotulo: string) => void;
 }) {
@@ -197,29 +198,14 @@ function BlocoResumoCitado({
     [bloco.citacoes, usadas],
   );
 
-  const classeSev =
-    bloco.severidade === 'critico'
-      ? 'pilula-erro'
-      : bloco.severidade === 'atencao'
-        ? 'pilula-warn'
-        : 'pilula-sutil';
-  const textoSev =
-    bloco.severidade === 'critico'
-      ? 'Crítico'
-      : bloco.severidade === 'atencao'
-        ? 'Atenção'
-        : 'Informativo';
-
   return (
-    <article className="palco-bloco palco-bloco-largo" aria-label={bloco.titulo}>
+    <article
+      className="palco-bloco palco-bloco-largo"
+      aria-label={bloco.titulo}
+      style={{ '--bloco-i': indice } as CSSProperties}
+    >
       <div className="palco-bloco-cab">
         <h3>{bloco.titulo}</h3>
-        <div className="palco-cab-linha">
-          <span className={classeSev}>{textoSev}</span>
-          <span className="pilula-sutil">
-            {bloco.via === 'llm' ? 'Síntese IA' : 'Determinístico'}
-          </span>
-        </div>
       </div>
 
       <p className="palco-resumo-texto">
@@ -262,11 +248,13 @@ function BlocoResumoCitado({
 
 function BlocoComparadorConflito({
   bloco,
+  indice,
   projecao,
   focoAtivo,
   aoAlternarFoco,
 }: {
   bloco: Extract<BlocoGenUI, { tipo: 'comparador_conflito' }>;
+  indice: number;
   projecao: ProjecaoPedido;
   focoAtivo: AlvoFocoGenUI | null;
   aoAlternarFoco: (alvo: AlvoFocoGenUI, rotulo: string) => void;
@@ -280,7 +268,11 @@ function BlocoComparadorConflito({
   const alvoB: AlvoFocoGenUI = { tipo: 'celula', campo: bloco.campo, fonte: bloco.fonteB };
 
   return (
-    <article className="palco-bloco" aria-label={bloco.titulo}>
+    <article
+      className="palco-bloco"
+      aria-label={bloco.titulo}
+      style={{ '--bloco-i': indice } as CSSProperties}
+    >
       <div className="palco-bloco-cab">
         <h3>{bloco.titulo}</h3>
         <span className="pilula-coord">{rotuloCampo(bloco.campo)}</span>
@@ -357,11 +349,13 @@ function BlocoComparadorConflito({
 
 function BlocoLinhaTempoCausal({
   bloco,
+  indice,
   projecao,
   focoAtivo,
   aoAlternarFoco,
 }: {
   bloco: Extract<BlocoGenUI, { tipo: 'linha_tempo_causal' }>;
+  indice: number;
   projecao: ProjecaoPedido;
   focoAtivo: AlvoFocoGenUI | null;
   aoAlternarFoco: (alvo: AlvoFocoGenUI, rotulo: string) => void;
@@ -372,7 +366,11 @@ function BlocoLinhaTempoCausal({
   );
 
   return (
-    <article className="palco-bloco" aria-label={bloco.titulo}>
+    <article
+      className="palco-bloco"
+      aria-label={bloco.titulo}
+      style={{ '--bloco-i': indice } as CSSProperties}
+    >
       <div className="palco-bloco-cab">
         <h3>{bloco.titulo}</h3>
         <div className="palco-cab-linha">
@@ -485,6 +483,7 @@ function BlocoLinhaTempoCausal({
 
 function BlocoCartoesDespacho({
   bloco,
+  indice,
   contatos,
   projecao,
   aoNotificar,
@@ -492,6 +491,7 @@ function BlocoCartoesDespacho({
   aoAnunciar,
 }: {
   bloco: Extract<BlocoGenUI, { tipo: 'cartoes_despacho' }>;
+  indice: number;
   contatos: readonly Contato[];
   projecao: ProjecaoPedido;
   aoNotificar: (parte: Parte, campo?: CampoVigiado) => Promise<void>;
@@ -540,12 +540,13 @@ function BlocoCartoesDespacho({
   }
 
   return (
-    <article className="palco-bloco palco-bloco-largo" aria-label={bloco.titulo}>
+    <article
+      className="palco-bloco palco-bloco-largo"
+      aria-label={bloco.titulo}
+      style={{ '--bloco-i': indice } as CSSProperties}
+    >
       <div className="palco-bloco-cab">
         <h3>{bloco.titulo}</h3>
-        <span className="meta">
-          Revise o rascunho e confirme o canal real da agenda antes de enviar
-        </span>
       </div>
 
       {partesUnicas.length === 0 ? (
@@ -602,9 +603,7 @@ function BlocoCartoesDespacho({
 
                 <div className="drawer-field">
                   <div className="domino-no-topo">
-                    <label htmlFor={textareaId}>
-                      {rascunho?.via === 'llm' ? 'Rascunho IA' : 'Rascunho determinístico'}
-                    </label>
+                    <label htmlFor={textareaId}>Mensagem</label>
                     {rascunho && (
                       <span className="pilula-sutil">{rotuloCampo(rascunho.campo)}</span>
                     )}
@@ -666,12 +665,14 @@ function BlocoCartoesDespacho({
 
 function BlocoChecklistPapel({
   bloco,
+  indice,
   projecao,
   focoAtivo,
   aoAlternarFoco,
   aoSelecionarPapel,
 }: {
   bloco: Extract<BlocoGenUI, { tipo: 'checklist_papel' }>;
+  indice: number;
   projecao: ProjecaoPedido;
   focoAtivo: AlvoFocoGenUI | null;
   aoAlternarFoco: (alvo: AlvoFocoGenUI, rotulo: string) => void;
@@ -692,7 +693,11 @@ function BlocoChecklistPapel({
   }, [projecao.tarefas, bloco.parte, bloco.camposPrioritarios]);
 
   return (
-    <article className="palco-bloco palco-bloco-largo" aria-label={bloco.titulo}>
+    <article
+      className="palco-bloco palco-bloco-largo"
+      aria-label={bloco.titulo}
+      style={{ '--bloco-i': indice } as CSSProperties}
+    >
       <div className="palco-bloco-cab">
         <h3>{bloco.titulo}</h3>
         <button
@@ -754,15 +759,21 @@ function BlocoChecklistPapel({
 
 function BlocoMatrizFocada({
   bloco,
+  indice,
   focoAtivo,
   aoAlternarFoco,
 }: {
   bloco: Extract<BlocoGenUI, { tipo: 'matriz_focada' }>;
+  indice: number;
   focoAtivo: AlvoFocoGenUI | null;
   aoAlternarFoco: (alvo: AlvoFocoGenUI, rotulo: string) => void;
 }) {
   return (
-    <article className="palco-bloco palco-bloco-largo" aria-label={bloco.titulo}>
+    <article
+      className="palco-bloco palco-bloco-largo"
+      aria-label={bloco.titulo}
+      style={{ '--bloco-i': indice } as CSSProperties}
+    >
       <div className="palco-bloco-cab">
         <h3>{bloco.titulo}</h3>
         <span className="meta">
@@ -854,41 +865,23 @@ export function PalcoGenUI({
     aoSimularResultado?.(res);
   }
 
-  const seloOrigem = (() => {
-    if (spec?.layout === 'simulacao') {
-      return (
-        <span className="pilula-warn">
-          <IconeDiverge />
-          Simulação
-        </span>
-      );
-    }
-    if (spec?.origem === 'llm') {
-      return (
-        <span className="pilula-coord">
-          <IconeLente />
-          Composto pela IA
-        </span>
-      );
-    }
-    if (spec?.origem === 'deterministico') {
-      return (
-        <span className="pilula-neutra">
-          <IconeConfere />
-          Visão determinística
-        </span>
-      );
-    }
-    return null;
-  })();
+  const seloOrigem =
+    spec?.layout === 'simulacao' ? (
+      <span className="pilula-warn">
+        <IconeDiverge />
+        Simulação
+      </span>
+    ) : null;
 
-  function renderizarBloco(bloco: BlocoGenUI) {
+  function renderizarBloco(bloco: BlocoGenUI, idx: number) {
+    const indice = Math.min(idx, 4);
     switch (bloco.tipo) {
       case 'resumo_citado':
         return (
           <BlocoResumoCitado
             key={bloco.id}
             bloco={bloco}
+            indice={indice}
             focoAtivo={focoAtivo}
             aoAlternarFoco={alternarFoco}
           />
@@ -897,7 +890,12 @@ export function PalcoGenUI({
       case 'domino_impacto': {
         const usarSim = bloco.modo === 'simulacao' && simLive !== null;
         return (
-          <article key={bloco.id} className="palco-bloco palco-bloco-largo" aria-label={bloco.titulo}>
+          <article
+            key={bloco.id}
+            className="palco-bloco palco-bloco-largo"
+            aria-label={bloco.titulo}
+            style={{ '--bloco-i': indice } as CSSProperties}
+          >
             <GrafoDomino
               divergencias={usarSim ? simLive.resultado.divergencias : projecao.divergencias}
               tarefas={usarSim ? simLive.resultado.tarefas : projecao.tarefas}
@@ -917,6 +915,7 @@ export function PalcoGenUI({
           <BlocoComparadorConflito
             key={bloco.id}
             bloco={bloco}
+            indice={indice}
             projecao={projecao}
             focoAtivo={focoAtivo}
             aoAlternarFoco={alternarFoco}
@@ -928,6 +927,7 @@ export function PalcoGenUI({
           <BlocoLinhaTempoCausal
             key={bloco.id}
             bloco={bloco}
+            indice={indice}
             projecao={projecao}
             focoAtivo={focoAtivo}
             aoAlternarFoco={alternarFoco}
@@ -936,7 +936,12 @@ export function PalcoGenUI({
 
       case 'simulador_interativo':
         return (
-          <article key={bloco.id} className="palco-bloco palco-bloco-largo" aria-label={bloco.titulo}>
+          <article
+            key={bloco.id}
+            className="palco-bloco palco-bloco-largo"
+            aria-label={bloco.titulo}
+            style={{ '--bloco-i': indice } as CSSProperties}
+          >
             <div className="palco-bloco-cab">
               <h3>{bloco.titulo}</h3>
             </div>
@@ -958,6 +963,7 @@ export function PalcoGenUI({
           <BlocoCartoesDespacho
             key={bloco.id}
             bloco={bloco}
+            indice={indice}
             contatos={contatos}
             projecao={projecao}
             aoNotificar={aoNotificar}
@@ -971,6 +977,7 @@ export function PalcoGenUI({
           <BlocoChecklistPapel
             key={bloco.id}
             bloco={bloco}
+            indice={indice}
             projecao={projecao}
             focoAtivo={focoAtivo}
             aoAlternarFoco={alternarFoco}
@@ -983,6 +990,7 @@ export function PalcoGenUI({
           <BlocoMatrizFocada
             key={bloco.id}
             bloco={bloco}
+            indice={indice}
             focoAtivo={focoAtivo}
             aoAlternarFoco={alternarFoco}
           />
@@ -1076,35 +1084,12 @@ export function PalcoGenUI({
         </div>
       )}
 
-      {!carregando && etapas.length > 0 && !recolhidoLocal && (
-        <details className="palco-trilha-detalhes">
-          <summary className="palco-trilha-sumario">
-            <span>
-              Composto em {etapas.length} {etapas.length === 1 ? 'etapa' : 'etapas'} · ver trilha
-            </span>
-          </summary>
-          <div className="palco-trilha-corpo">
-            <ol className="palco-etapas">
-              {etapas.map((et) => (
-                <li key={et.id} className="palco-etapa" data-concluida={et.concluida ? 'true' : 'false'}>
-                  <IconeConfere />
-                  <span>
-                    {et.rotulo}
-                    {et.detalhe ? ` · ${et.detalhe}` : ''}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </details>
-      )}
-
       {!recolhidoLocal && blocosAtivos.length > 0 && (
         <div
           className="palco-grid"
           style={compactosCount === 1 ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}
         >
-          {blocosAtivos.map(renderizarBloco)}
+          {blocosAtivos.map((bloco, idx) => renderizarBloco(bloco, idx))}
         </div>
       )}
 

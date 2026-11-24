@@ -5,8 +5,9 @@ import {
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
+  type CSSProperties,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import type {
   AlvoFocoGenUI,
@@ -40,15 +41,14 @@ import {
   type ResultadoMandatoInterpretado,
 } from '../mandato.ts';
 import { movimentoReduzidoAgora } from '../shaders/index.ts';
+import { usePresencaAnimada } from '../usePresencaAnimada.ts';
 import { useVoz } from '../useVoz.ts';
 import '../assistente.css';
 import { EvidenciaLateralIA } from './EvidenciaLateralIA.tsx';
 import {
   IconeComando,
   IconeConfere,
-  IconeDiverge,
   IconeErro,
-  IconeExterno,
   IconeFechar,
   IconeMais,
   IconeMic,
@@ -56,15 +56,20 @@ import {
   IconePainelLateral,
   IconeParar,
   IconeRetorno,
+  IconeSeta,
 } from './icones.tsx';
 import { PalcoGenUI, type EtapaStreamGenUI } from './PalcoGenUI.tsx';
 import { SuperficieMineralIA, type EstadoSuperficieIA } from './SuperficieMineralIA.tsx';
 import { VisualizadorVoz } from './VisualizadorVoz.tsx';
 
 interface PartidaSugerida {
-  readonly categoria: string;
   readonly comando: string;
   readonly apoio: string;
+}
+
+interface PontoTela {
+  readonly x: number;
+  readonly y: number;
 }
 
 interface TurnoIA {
@@ -84,61 +89,44 @@ interface TurnoIA {
 
 const PARTIDAS_DIVERGENTE: readonly PartidaSugerida[] = [
   {
-    categoria: 'Diagnóstico',
-    comando: 'Qual o atraso real e quais áreas são impactadas?',
-    apoio: 'Resumo citado e mapa dominó das tarefas por setor',
+    comando: 'Qual o atraso real e quem é impactado?',
+    apoio: 'Resumo e mapa por setor',
   },
   {
-    categoria: 'Simulação',
     comando: 'Simule a entrega para 28/01/2026',
-    apoio: 'Testa impacto de prazo sem gravar no registro',
+    apoio: 'Impacto sem gravar no registro',
   },
   {
-    categoria: 'Visão por setor',
     comando: 'Mostre a visão e as ações do Fiscal',
-    apoio: 'Comparador de conflitos e lista priorizada para o Fiscal',
+    apoio: 'Conflitos e fila do Fiscal',
   },
   {
-    categoria: 'Despacho',
     comando: 'Avise a transportadora sobre a divergência',
-    apoio: 'Rascunho revisável e envio pelo canal da agenda',
+    apoio: 'Rascunho revisável para envio',
   },
 ];
 
 const PARTIDAS_CONSISTENTE: readonly PartidaSugerida[] = [
   {
-    categoria: 'Auditoria',
-    comando: 'Resuma o estado atual e confirme se há pendências',
-    apoio: 'Síntese citada dos documentos e campos vigiados',
+    comando: 'Resuma o pedido e verifique pendências',
+    apoio: 'Síntese dos campos vigiados',
   },
   {
-    categoria: 'Simulação',
     comando: 'Simule a entrega para 28/01/2026',
-    apoio: 'Calcula quais setores seriam acionados em caso de atraso',
+    apoio: 'Setores acionados em atraso',
   },
   {
-    categoria: 'Conferência',
-    comando: 'Confira peso total e volumes entre NF-e e CT-e',
-    apoio: 'Comparação direta dos valores declarados por fonte',
+    comando: 'Confira peso e volumes entre NF-e e CT-e',
+    apoio: 'Valores declarados por fonte',
   },
   {
-    categoria: 'Visão por setor',
     comando: 'Mostre a visão e as ações do CD',
-    apoio: 'Conferência de recebimento, volumes e janela prevista',
+    apoio: 'Recebimento, volumes e janela',
   },
 ];
 
-const DIA_MS = 86_400_000;
-
 function codigoCurtoPedido(id: string): string {
   return /^\d{44}$/.test(id) ? id.slice(-6) : chaveCurta(id);
-}
-
-function rotuloOpcaoPedido(p: PedidoResumo): string {
-  const codigo = codigoCurtoPedido(p.pedidoId);
-  const nome = p.emitente?.trim();
-  const base = nome ? `${nome} · ${codigo}` : codigo;
-  return p.daSessao ? `${base} (sessão)` : base;
 }
 
 function horarioAtualCurto(): string {
@@ -151,29 +139,24 @@ function horarioAtualCurto(): string {
 function elementoEditavel(el: Element | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
   const tag = el.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  return (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    el.isContentEditable ||
+    el.closest('[role="listbox"]') !== null
+  );
 }
 
 function ehAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError';
 }
 
-function calcularAtrasoProjecao(dados: ProjecaoPedido | null): number | null {
-  if (!dados) return null;
-  for (const d of dados.divergencias) {
-    if (d.campo !== 'previsaoEntrega') continue;
-    const a = Date.parse(`${String(d.valorA).slice(0, 10)}T00:00:00Z`);
-    const b = Date.parse(`${String(d.valorB).slice(0, 10)}T00:00:00Z`);
-    if (Number.isNaN(a) || Number.isNaN(b)) continue;
-    const dias = Math.round((b - a) / DIA_MS);
-    if (dias !== 0) return dias;
-  }
-  return null;
-}
-
-function formatarDeltaDiasCurto(dias: number): string {
-  const sinal = dias > 0 ? '+' : '\u2212';
-  return `${sinal}${Math.abs(dias)}d`;
+function centroElemento(el: HTMLElement | null): PontoTela | null {
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  return { x: rect.left + rect.width * 0.5, y: rect.top + rect.height * 0.5 };
 }
 
 function formatarListaFontes(dados: ProjecaoPedido | null): string {
@@ -245,6 +228,253 @@ function EmblemaMonolitos({ tamanho = 20 }: { tamanho?: number }) {
   );
 }
 
+function ChevronSeletor() {
+  return (
+    <svg
+      className="ia-pedido-chevron"
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="m4 6.25 4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+interface SeletorPedidoPopoverProps {
+  pedidos: readonly PedidoResumo[];
+  pedidoId: string | null;
+  divergenteAtual: boolean;
+  aoSelecionar: (id: string) => void;
+}
+
+function SeletorPedidoPopover({
+  pedidos,
+  pedidoId,
+  divergenteAtual,
+  aoSelecionar,
+}: SeletorPedidoPopoverProps) {
+  const listboxId = useId();
+  const raizRef = useRef<HTMLDivElement>(null);
+  const gatilhoRef = useRef<HTMLButtonElement>(null);
+  const listaRef = useRef<HTMLDivElement>(null);
+
+  const [aberto, setAberto] = useState(false);
+  const [indiceAtivo, setIndiceAtivo] = useState(0);
+  const presenca = usePresencaAnimada(aberto, 170);
+
+  const indiceSelecionado = useMemo(
+    () => Math.max(0, pedidos.findIndex((p) => p.pedidoId === pedidoId)),
+    [pedidos, pedidoId],
+  );
+  const pedidoAtual = pedidoId ? (pedidos.find((p) => p.pedidoId === pedidoId) ?? null) : null;
+
+  const abrir = useCallback(
+    (indiceInicial?: number) => {
+      if (pedidos.length === 0) return;
+      setIndiceAtivo(indiceInicial ?? indiceSelecionado);
+      setAberto(true);
+    },
+    [pedidos.length, indiceSelecionado],
+  );
+
+  const fechar = useCallback((restaurarFoco = false) => {
+    setAberto(false);
+    if (restaurarFoco) {
+      window.requestAnimationFrame(() => {
+        gatilhoRef.current?.focus();
+      });
+    }
+  }, []);
+
+  const selecionarPorIndice = useCallback(
+    (idx: number) => {
+      const alvo = pedidos[idx];
+      if (!alvo) return;
+      if (alvo.pedidoId !== pedidoId) {
+        aoSelecionar(alvo.pedidoId);
+      }
+      fechar(true);
+    },
+    [pedidos, pedidoId, aoSelecionar, fechar],
+  );
+
+  useEffect(() => {
+    if (!aberto) return;
+    window.requestAnimationFrame(() => {
+      listaRef.current?.focus();
+    });
+  }, [aberto]);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const aoClicarFora = (e: PointerEvent) => {
+      if (raizRef.current && e.target instanceof Node && !raizRef.current.contains(e.target)) {
+        fechar(false);
+      }
+    };
+    document.addEventListener('pointerdown', aoClicarFora);
+    return () => document.removeEventListener('pointerdown', aoClicarFora);
+  }, [aberto, fechar]);
+
+  function aoTeclarGatilho(e: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (pedidos.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      abrir((indiceSelecionado + 1) % pedidos.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      abrir((indiceSelecionado - 1 + pedidos.length) % pedidos.length);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (aberto) {
+        fechar(false);
+      } else {
+        abrir(indiceSelecionado);
+      }
+    }
+  }
+
+  function aoTeclarLista(e: ReactKeyboardEvent<HTMLDivElement>) {
+    if (pedidos.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndiceAtivo((atual) => (atual + 1) % pedidos.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceAtivo((atual) => (atual - 1 + pedidos.length) % pedidos.length);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setIndiceAtivo(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setIndiceAtivo(pedidos.length - 1);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      selecionarPorIndice(indiceAtivo);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      fechar(true);
+    } else if (e.key === 'Tab') {
+      fechar(false);
+    }
+  }
+
+  const nomeAtual = pedidoAtual?.emitente?.trim() || 'Pedido';
+  const codigoAtual = pedidoAtual ? codigoCurtoPedido(pedidoAtual.pedidoId) : null;
+
+  return (
+    <div ref={raizRef} className="ia-pedido-seletor">
+      <button
+        ref={gatilhoRef}
+        type="button"
+        className="ia-pedido-gatilho"
+        aria-haspopup="listbox"
+        aria-expanded={aberto}
+        aria-controls={listboxId}
+        aria-label="Pedido ativo para consulta"
+        disabled={pedidos.length === 0}
+        onClick={() => (aberto ? fechar(false) : abrir(indiceSelecionado))}
+        onKeyDown={aoTeclarGatilho}
+      >
+        {pedidoAtual ? (
+          <>
+            <span
+              className="ia-pedido-ponto"
+              data-status={divergenteAtual ? 'divergente' : 'ok'}
+              aria-hidden="true"
+            />
+            <span className="ia-pedido-texto">
+              <span className="ia-pedido-nome">{nomeAtual}</span>
+              <span className="ia-pedido-sep" aria-hidden="true">
+                ·
+              </span>
+              <span className="ia-pedido-cod mono num">{codigoAtual}</span>
+            </span>
+          </>
+        ) : (
+          <span className="ia-pedido-vazio">Nenhum pedido disponível</span>
+        )}
+        <ChevronSeletor />
+      </button>
+
+      {presenca.montado && (
+        <div
+          ref={listaRef}
+          id={listboxId}
+          role="listbox"
+          tabIndex={-1}
+          aria-label="Pedidos disponíveis"
+          aria-activedescendant={`${listboxId}-opt-${indiceAtivo}`}
+          className="ia-pedido-menu"
+          data-fase={presenca.fase}
+          onKeyDown={aoTeclarLista}
+        >
+          {pedidos.map((p, idx) => {
+            const selecionado = p.pedidoId === pedidoId;
+            const ativo = idx === indiceAtivo;
+            const qtdDiv = p.divergencias ?? 0;
+            const divergente = qtdDiv > 0;
+            const codigo = codigoCurtoPedido(p.pedidoId);
+            const emitente = p.emitente?.trim() || `Pedido ${codigo}`;
+
+            return (
+              <div
+                key={p.pedidoId}
+                id={`${listboxId}-opt-${idx}`}
+                role="option"
+                aria-selected={selecionado}
+                className="ia-pedido-opcao"
+                data-ativo={ativo ? 'true' : undefined}
+                onMouseEnter={() => setIndiceAtivo(idx)}
+                onClick={() => selecionarPorIndice(idx)}
+              >
+                <span
+                  className="ia-pedido-ponto"
+                  data-status={divergente ? 'divergente' : 'ok'}
+                  aria-hidden="true"
+                />
+                <span className="ia-pedido-opcao-corpo">
+                  <span className="ia-pedido-opcao-topo">
+                    <span className="ia-pedido-opcao-nome">{emitente}</span>
+                    <span className="ia-pedido-opcao-cod mono num">{codigo}</span>
+                  </span>
+                  <span className="ia-pedido-opcao-sub">
+                    <span
+                      className="ia-pedido-opcao-status"
+                      data-status={divergente ? 'divergente' : 'ok'}
+                    >
+                      {divergente
+                        ? `${qtdDiv} ${qtdDiv === 1 ? 'conflito' : 'conflitos'}`
+                        : 'Consistente'}
+                    </span>
+                    {p.daSessao && <span className="ia-pedido-opcao-sessao">Sua sessão</span>}
+                  </span>
+                </span>
+                {selecionado && (
+                  <span className="ia-pedido-opcao-check" aria-hidden="true">
+                    <IconeConfere />
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Fallback editorial quando o servidor concluir um mandato sem anexar ViewSpecV2.
 function RespostaFallbackTurno({ dados }: { dados: ResultadoMandatoInterpretado }) {
   return (
@@ -304,7 +534,6 @@ export function PaginaAssistenteIA({
     garantirEstilosOps();
   }, []);
 
-  const seletorId = useId();
   const inputId = useId();
   const erroInputId = useId();
   const evidenciaId = useId();
@@ -317,7 +546,9 @@ export function PaginaAssistenteIA({
   const evidenciaBtnRef = useRef<HTMLButtonElement>(null);
   const ultimoTurnoRef = useRef<HTMLElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const sairSantuarioTimerRef = useRef<number | null>(null);
   const turnoSeqRef = useRef(0);
+  const turnosCountRef = useRef(0);
   const comandoInicialConsumidoRef = useRef<string | null>(null);
 
   // Refs de gestão de foco WCAG 2.2 AA para voz.
@@ -327,14 +558,17 @@ export function PaginaAssistenteIA({
   const concluiuComFocoRef = useRef(false);
 
   const [turnos, setTurnos] = useState<TurnoIA[]>([]);
-  const [modoEscutaAtivo, setModoEscutaAtivo] = useState(false);
+  const [saindoSantuario, setSaindoSantuario] = useState(false);
   const [pulsoSeq, setPulsoSeq] = useState(0);
+  const [pulsoOrigem, setPulsoOrigem] = useState<PontoTela | null>(null);
   const [texto, setTexto] = useState('');
   const [provisorio, setProvisorio] = useState(false);
   const [erroInput, setErroInput] = useState<string | null>(null);
   const [focoAtivo, setFocoAtivo] = useState<AlvoFocoGenUI | null>(null);
   const [desktopLargo, setDesktopLargo] = useState<boolean>(desktopSplitInicial);
   const [preferenciaEvidencia, setPreferenciaEvidencia] = useState<boolean | null>(null);
+
+  turnosCountRef.current = turnos.length;
 
   const pedidoAtual = useMemo(
     () => (pedidoId ? (pedidos.find((p) => p.pedidoId === pedidoId) ?? null) : null),
@@ -343,7 +577,8 @@ export function PaginaAssistenteIA({
 
   const dadosProjecao = projecao.estado === 'ok' ? projecao.dados : null;
   const algumTurnoStreaming = turnos.some((t) => t.carregando);
-  const emSantuario = turnos.length === 0 || modoEscutaAtivo;
+  const temConversa = turnos.length > 0;
+  const emSantuario = !temConversa || saindoSantuario;
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
@@ -362,6 +597,7 @@ export function PaginaAssistenteIA({
       : !emSantuario && desktopLargo && dadosProjecao !== null;
 
   const evidenciaComoGaveta = painelEvidenciaAberto && (!desktopLargo || emSantuario);
+  const presencaGaveta = usePresencaAnimada(evidenciaComoGaveta, 200);
 
   // Marca o palco principal como inert enquanto a gaveta sobreposta de evidências está aberta.
   useEffect(() => {
@@ -395,6 +631,10 @@ export function PaginaAssistenteIA({
   useEffect(
     () => () => {
       abortRef.current?.abort();
+      if (sairSantuarioTimerRef.current !== null) {
+        window.clearTimeout(sairSantuarioTimerRef.current);
+        sairSantuarioTimerRef.current = null;
+      }
     },
     [],
   );
@@ -474,17 +714,17 @@ export function PaginaAssistenteIA({
     return () => window.removeEventListener('keydown', aoTeclarGlobal);
   }, [evidenciaComoGaveta]);
 
-  // Rola suavemente para o início do turno recém-adicionado quando visível na conversa.
+  // Rola suavemente para o início do turno recém-adicionado assim que a conversa fica visível.
   const totalTurnos = turnos.length;
   useEffect(() => {
-    if (totalTurnos === 0 || modoEscutaAtivo) return;
+    if (totalTurnos === 0 || emSantuario) return;
     const alvo = ultimoTurnoRef.current;
     if (!alvo || typeof alvo.scrollIntoView !== 'function') return;
     alvo.scrollIntoView({
       behavior: movimentoReduzidoAgora() ? 'auto' : 'smooth',
       block: 'start',
     });
-  }, [totalTurnos, modoEscutaAtivo]);
+  }, [totalTurnos, emSantuario]);
 
   const atualizarTurno = useCallback(
     (turnoId: string, fn: (atual: TurnoIA) => TurnoIA) => {
@@ -493,12 +733,21 @@ export function PaginaAssistenteIA({
     [],
   );
 
-  const emitirPulsoSuperficie = useCallback(() => {
+  const emitirPulsoSuperficie = useCallback((origem: PontoTela | null = null) => {
+    setPulsoOrigem(origem);
     setPulsoSeq((s) => s + 1);
   }, []);
 
+  const cancelarSaidaSantuario = useCallback(() => {
+    if (sairSantuarioTimerRef.current !== null) {
+      window.clearTimeout(sairSantuarioTimerRef.current);
+      sairSantuarioTimerRef.current = null;
+    }
+    setSaindoSantuario(false);
+  }, []);
+
   const executarComando = useCallback(
-    async (comandoBruto: string, limparCampo = true) => {
+    async (comandoBruto: string, limparCampo = true, origem: PontoTela | null = null) => {
       const limpo = comandoBruto.trim();
       if (algumTurnoStreaming) return;
 
@@ -516,10 +765,19 @@ export function PaginaAssistenteIA({
       voz.limparErro();
       setErroInput(null);
       setProvisorio(false);
-      setModoEscutaAtivo(false);
       if (limparCampo) setTexto('');
 
-      emitirPulsoSuperficie();
+      emitirPulsoSuperficie(origem);
+
+      // Coreografia de saída do Santuário enquanto o stream SSE já dispara sem latência.
+      if (turnosCountRef.current === 0 && !movimentoReduzidoAgora()) {
+        cancelarSaidaSantuario();
+        setSaindoSantuario(true);
+        sairSantuarioTimerRef.current = window.setTimeout(() => {
+          sairSantuarioTimerRef.current = null;
+          setSaindoSantuario(false);
+        }, 170);
+      }
 
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -551,7 +809,7 @@ export function PaginaAssistenteIA({
             etapas: adicionarOuAtualizarEtapa(t.etapas, ev),
           }));
         } else if (ev.tipo === 'bloco') {
-          emitirPulsoSuperficie();
+          emitirPulsoSuperficie(null);
           atualizarTurno(turnoId, (t) => ({
             ...t,
             blocosStream: acumularBlocoUnico(t.blocosStream, ev.bloco),
@@ -630,7 +888,7 @@ export function PaginaAssistenteIA({
           erro: null,
         }));
 
-        emitirPulsoSuperficie();
+        emitirPulsoSuperficie(null);
         aoAnunciar(resumoParaAnuncio(interpretado));
 
         if (resposta.acao === 'propagar' || resposta.acao === 'notificar') {
@@ -668,6 +926,7 @@ export function PaginaAssistenteIA({
       dadosProjecao,
       atualizarTurno,
       emitirPulsoSuperficie,
+      cancelarSaidaSantuario,
       aoGarantirSessao,
       aoSelecionarPedido,
       aoAnunciar,
@@ -687,7 +946,7 @@ export function PaginaAssistenteIA({
     if (comandoInicialConsumidoRef.current === chave) return;
     comandoInicialConsumidoRef.current = chave;
     aoConsumirComandoInicial?.();
-    void executarComando(limpo, false);
+    void executarComando(limpo, false, null);
   }, [
     comandoInicial,
     pedidoId,
@@ -697,34 +956,17 @@ export function PaginaAssistenteIA({
     executarComando,
   ]);
 
-  function aoTrocarPedido(e: ChangeEvent<HTMLSelectElement>) {
-    const novoId = e.target.value;
-    if (!novoId || novoId === pedidoId) return;
-    aoSelecionarPedido(novoId);
-  }
-
   function iniciarNovaConversa() {
     abortRef.current?.abort();
     abortRef.current = null;
+    cancelarSaidaSantuario();
     setTurnos([]);
-    setModoEscutaAtivo(false);
     setFocoAtivo(null);
     setErroInput(null);
     voz.limparErro();
-    emitirPulsoSuperficie();
+    emitirPulsoSuperficie(null);
     aoAnunciar('Nova conversa iniciada.');
     inputRef.current?.focus();
-  }
-
-  function alternarModoEscuta() {
-    setModoEscutaAtivo((atual) => {
-      const proximo = !atual;
-      if (proximo) {
-        setPreferenciaEvidencia(null);
-        emitirPulsoSuperficie();
-      }
-      return proximo;
-    });
   }
 
   function alternarVoz() {
@@ -732,7 +974,7 @@ export function PaginaAssistenteIA({
     if (!voz.ouvindo) {
       textoPreVozRef.current = texto.trim();
       setErroInput(null);
-      emitirPulsoSuperficie();
+      emitirPulsoSuperficie(centroElemento(vozBtnRef.current));
     }
     voz.alternar();
   }
@@ -740,7 +982,7 @@ export function PaginaAssistenteIA({
   function aoSubmeter(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (algumTurnoStreaming) return;
-    void executarComando(texto, true);
+    void executarComando(texto, true, centroElemento(enviarBtnRef.current));
   }
 
   const lidarFocarDoPalco = useCallback((alvo: AlvoFocoGenUI | null) => {
@@ -774,14 +1016,13 @@ export function PaginaAssistenteIA({
     [aoGarantirSessao, aoRecarregarPedido],
   );
 
-  // Telemetria real do pedido ativo (campos divergentes distintos + tarefas agrupadas).
+  // Telemetria real do pedido ativo para o ponto de status e subtítulo do Santuário.
   const qtdDivergencias = dadosProjecao
     ? new Set(dadosProjecao.divergencias.map((d) => d.campo)).size
     : (pedidoAtual?.divergencias ?? 0);
   const qtdTarefas = dadosProjecao
     ? new Set(dadosProjecao.tarefas.map((t) => `${t.parte}|${t.titulo}`)).size
     : (pedidoAtual?.tarefas ?? 0);
-  const atrasoDias = pedidoAtual?.atrasoDias ?? calcularAtrasoProjecao(dadosProjecao);
   const partidasAtivas = qtdDivergencias > 0 ? PARTIDAS_DIVERGENTE : PARTIDAS_CONSISTENTE;
 
   const estadoSuperficie: EstadoSuperficieIA = voz.ouvindo
@@ -806,15 +1047,13 @@ export function PaginaAssistenteIA({
 
   const codigoPedido = pedidoId ? codigoCurtoPedido(pedidoId) : null;
 
-  const etiquetaSantuario = voz.ouvindo
+  const statusAtivoSantuario = voz.ouvindo
     ? voz.fase === 'iniciando'
-      ? 'ATIVANDO MICROFONE · AGUARDANDO VOZ'
-      : 'ESCUTANDO · FALE SEU MANDATO'
+      ? 'Ativando microfone'
+      : 'Ouvindo comando'
     : algumTurnoStreaming
-      ? 'PROCESSANDO · CONSULTANDO REGISTRO'
-      : codigoPedido
-        ? `ASSISTENTE OPERACIONAL · PEDIDO ${codigoPedido}`
-        : 'ASSISTENTE OPERACIONAL';
+      ? 'Consultando registro'
+      : null;
 
   const tituloSantuario = voz.ouvindo
     ? texto.trim() || 'Fale o que deseja investigar ou simular.'
@@ -822,7 +1061,7 @@ export function PaginaAssistenteIA({
 
   const subtituloSantuario = useMemo(() => {
     if (!pedidoId) {
-      return 'Selecione um pedido no cabeçalho para investigar divergências ou simular prazos.';
+      return 'Selecione um pedido acima para investigar divergências ou simular prazos.';
     }
     if (projecao.estado === 'carregando' && !dadosProjecao) {
       return `Carregando registro do pedido ${codigoCurtoPedido(pedidoId)}…`;
@@ -849,91 +1088,43 @@ export function PaginaAssistenteIA({
         <div className="ia-fundo-sticky">
           <SuperficieMineralIA
             estado={estadoSuperficie}
-            modoFundo={emSantuario ? 'santuario' : 'conversa'}
+            modoFundo={temConversa ? 'conversa' : 'santuario'}
             analyserRef={voz.analyserRef}
             energiaRef={voz.energiaRef}
             pulsoExternoSeq={pulsoSeq}
+            pulsoOrigem={pulsoOrigem}
           />
-          {!emSantuario && <div className="ia-veu-conversa" />}
+          <div className="ia-veu-conversa" data-ativo={temConversa ? 'true' : 'false'} />
         </div>
       </div>
 
       <div ref={palcoPrincipalRef} className="ia-palco-principal">
         <header className="ia-topo">
           <div className="ia-topo-identidade">
-            <div className="ia-contexto-pedido">
-              <label htmlFor={seletorId} className="so-leitor">
-                Pedido ativo para consulta
-              </label>
-              <select
-                id={seletorId}
-                className="ia-select"
-                value={pedidoId ?? ''}
-                disabled={pedidos.length === 0}
-                onChange={aoTrocarPedido}
-              >
-                {pedidos.length === 0 ? (
-                  <option value="">Nenhum pedido disponível</option>
-                ) : (
-                  pedidos.map((p) => (
-                    <option key={p.pedidoId} value={p.pedidoId}>
-                      {rotuloOpcaoPedido(p)}
-                    </option>
-                  ))
-                )}
-              </select>
-
-              {pedidoId && (
-                <div className="ia-telemetria" aria-label="Resumo operacional do pedido ativo">
-                  {qtdDivergencias > 0 ? (
-                    <span className="ia-telemetria-divergente mono num">
-                      <IconeDiverge />
-                      <span>
-                        {qtdDivergencias} {qtdDivergencias === 1 ? 'conflito' : 'conflitos'}
-                        {atrasoDias !== null && atrasoDias !== 0
-                          ? ` · ${formatarDeltaDiasCurto(atrasoDias)}`
-                          : ''}
-                        {` · ${qtdTarefas} ${qtdTarefas === 1 ? 'tarefa' : 'tarefas'}`}
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="pilula-ok">
-                      <IconeConfere />
-                      <span>Consistente</span>
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+            <SeletorPedidoPopover
+              pedidos={pedidos}
+              pedidoId={pedidoId}
+              divergenteAtual={qtdDivergencias > 0}
+              aoSelecionar={aoSelecionarPedido}
+            />
           </div>
 
           <div className="ia-topo-acoes">
-            {turnos.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  className="botao-sutil ia-btn-topo"
-                  aria-pressed={modoEscutaAtivo}
-                  onClick={alternarModoEscuta}
-                >
-                  <span>{modoEscutaAtivo ? 'Ver conversa' : 'Modo escuta'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="botao-sutil ia-btn-topo"
-                  onClick={iniciarNovaConversa}
-                >
-                  <IconeMais />
-                  <span>Nova conversa</span>
-                </button>
-              </>
+            {temConversa && (
+              <button
+                type="button"
+                className="ia-btn-topo"
+                onClick={iniciarNovaConversa}
+              >
+                <IconeMais />
+                <span>Nova conversa</span>
+              </button>
             )}
 
             <button
               ref={evidenciaBtnRef}
               type="button"
-              className="botao-sutil ia-btn-topo"
+              className="ia-btn-topo"
               aria-pressed={painelEvidenciaAberto}
               aria-controls={evidenciaId}
               data-tem-foco={!painelEvidenciaAberto && focoAtivo !== null ? 'true' : undefined}
@@ -946,29 +1137,23 @@ export function PaginaAssistenteIA({
                   : 'Evidências'}
               </span>
             </button>
-
-            <button
-              type="button"
-              className="botao ia-btn-topo"
-              disabled={!pedidoId}
-              onClick={() => {
-                if (pedidoId) aoAbrirNaTorre(pedidoId, focoAtivo);
-              }}
-            >
-              <IconeExterno />
-              <span>Ver na Torre</span>
-            </button>
           </div>
         </header>
 
         <div className="ia-corpo">
           <section className="ia-conversa" aria-label="Estúdio de consulta operacional">
             {emSantuario ? (
-              <div className="ia-santuario">
+              <div
+                className="ia-santuario"
+                data-saindo={saindoSantuario ? 'true' : undefined}
+              >
                 <div className="ia-santuario-cab">
-                  <p className="ia-santuario-eyebrow mono" aria-live="polite">
-                    {etiquetaSantuario}
-                  </p>
+                  {statusAtivoSantuario && (
+                    <p className="ia-santuario-status" role="status" aria-live="polite">
+                      <span className="ia-status-ponto" aria-hidden="true" />
+                      <span>{statusAtivoSantuario}</span>
+                    </p>
+                  )}
                   <h1 className="ia-santuario-titulo">{tituloSantuario}</h1>
                   <p className="ia-santuario-subtitulo">{subtituloSantuario}</p>
                 </div>
@@ -990,26 +1175,32 @@ export function PaginaAssistenteIA({
                 )}
 
                 <div className="ia-partidas-grid" role="group" aria-label="Sugestões para começar">
-                  {partidasAtivas.map((item) => (
+                  {partidasAtivas.map((item, idx) => (
                     <button
                       key={item.comando}
                       type="button"
                       className="ia-partida-pilula"
+                      data-pulso-proprio="true"
+                      style={{ '--i': idx } as CSSProperties}
                       disabled={algumTurnoStreaming || !pedidoId}
-                      onClick={() => {
-                        void executarComando(item.comando, false);
+                      onClick={(e) => {
+                        const origem =
+                          e.clientX > 0 || e.clientY > 0
+                            ? { x: e.clientX, y: e.clientY }
+                            : centroElemento(e.currentTarget);
+                        void executarComando(item.comando, false, origem);
                       }}
                     >
-                      <span className="ia-partida-cat mono">{item.categoria}</span>
-                      <span className="ia-partida-cmd">{item.comando}</span>
-                      <span className="ia-partida-apoio">{item.apoio}</span>
+                      <span className="ia-partida-corpo">
+                        <span className="ia-partida-cmd">{item.comando}</span>
+                        <span className="ia-partida-apoio">{item.apoio}</span>
+                      </span>
+                      <span className="ia-partida-seta" aria-hidden="true">
+                        <IconeSeta />
+                      </span>
                     </button>
                   ))}
                 </div>
-
-                <p className="ia-santuario-dica mono">
-                  Clique no fundo para pulsar · Fale ou digite abaixo
-                </p>
               </div>
             ) : (
               <div className="ia-thread-wrap">
@@ -1036,21 +1227,15 @@ export function PaginaAssistenteIA({
                           aria-busy={turno.carregando || undefined}
                         >
                           <header className="ia-turno-entrada">
-                            <div className="ia-turno-meta">
-                              <span className="ia-turno-papel mono">OPERADOR</span>
-                              {turno.pedidoId && (
-                                <span className="pilula-neutra mono num">
-                                  {codigoCurtoPedido(turno.pedidoId)}
-                                </span>
-                              )}
-                              <time className="meta mono num">{turno.criadoEm}</time>
-                              {turno.autoForkAplicado && (
-                                <span className="ia-turno-nota-sessao">
-                                  Cópia criada na sua sessão para gravar
-                                </span>
-                              )}
+                            <div className="ia-turno-titulo-linha">
+                              <h2 className="ia-turno-comando">{turno.comando}</h2>
+                              <time className="ia-turno-hora mono num">{turno.criadoEm}</time>
                             </div>
-                            <h2 className="ia-turno-comando">{turno.comando}</h2>
+                            {turno.autoForkAplicado && (
+                              <span className="ia-turno-nota-sessao">
+                                Cópia criada na sua sessão para gravar
+                              </span>
+                            )}
                           </header>
 
                           <div className="ia-turno-resposta">
@@ -1066,7 +1251,7 @@ export function PaginaAssistenteIA({
                                     className="botao-sutil"
                                     disabled={algumTurnoStreaming}
                                     onClick={() => {
-                                      void executarComando(turno.comando, false);
+                                      void executarComando(turno.comando, false, null);
                                     }}
                                   >
                                     Tentar novamente
@@ -1090,7 +1275,7 @@ export function PaginaAssistenteIA({
                                 focoAtivo={turno.pedidoId === pedidoId ? focoAtivo : null}
                                 aoFocar={lidarFocarDoPalco}
                                 aoExecutarComando={(cmd) => {
-                                  void executarComando(cmd, false);
+                                  void executarComando(cmd, false, null);
                                 }}
                                 aoSelecionarPapel={lidarSelecionarPapel}
                                 aoNotificar={(parte, campo) =>
@@ -1204,7 +1389,9 @@ export function PaginaAssistenteIA({
               data-ouvindo={voz.ouvindo ? 'true' : undefined}
               data-erro={erroInput || voz.erro ? 'true' : undefined}
             >
-              <span className="ia-composer-linha-progresso" aria-hidden="true" />
+              <span className="ia-composer-progresso-trilha" aria-hidden="true">
+                <span className="ia-composer-linha-progresso" />
+              </span>
 
               <form className="ia-composer-form" onSubmit={aoSubmeter} noValidate>
                 <label htmlFor={inputId} className="so-leitor">
@@ -1286,6 +1473,7 @@ export function PaginaAssistenteIA({
                         ref={vozBtnRef}
                         type="button"
                         className="cmd-btn-voz ia-btn-voz"
+                        data-pulso-proprio="true"
                         aria-pressed="false"
                         aria-label="Ditar comando por voz"
                         onClick={alternarVoz}
@@ -1301,33 +1489,36 @@ export function PaginaAssistenteIA({
                     ref={enviarBtnRef}
                     type="submit"
                     className="ia-btn-executar"
+                    data-pulso-proprio="true"
                     disabled={algumTurnoStreaming}
                   >
                     <span className="ia-btn-conteudo">
-                      <span>{algumTurnoStreaming ? 'Compondo…' : 'Executar'}</span>
-                      {!algumTurnoStreaming && <IconeRetorno />}
+                      {algumTurnoStreaming ? (
+                        <>
+                          <span className="ia-orbita" aria-hidden="true">
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                          <span>Compondo</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Executar</span>
+                          <IconeRetorno />
+                        </>
+                      )}
                     </span>
                   </button>
                 </div>
               </form>
             </div>
-
-            <div className="ia-composer-dica">
-              <span className="meta">
-                Respostas ancoradas no registro do pedido
-                {codigoPedido ? ` · ${codigoPedido}` : ''}
-              </span>
-              <span className="ia-atalho-hint meta">
-                Atalho <kbd className="tecla mono">/</kbd> · <kbd className="tecla mono">Enter</kbd>{' '}
-                para enviar
-              </span>
-            </div>
           </div>
         </footer>
       </div>
 
-      {evidenciaComoGaveta && (
-        <div className="ia-gaveta-camada">
+      {presencaGaveta.montado && (
+        <div className="ia-gaveta-camada" data-fase={presencaGaveta.fase}>
           <div
             className="ia-gaveta-fundo"
             aria-hidden="true"
@@ -1343,6 +1534,7 @@ export function PaginaAssistenteIA({
             aoAbrirNaTorre={aoAbrirNaTorre}
             aoFechar={fecharGavetaEvidencia}
             ehGaveta={true}
+            faseGaveta={presencaGaveta.fase}
           />
         </div>
       )}

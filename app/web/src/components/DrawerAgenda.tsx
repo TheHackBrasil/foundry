@@ -18,6 +18,7 @@ import {
 } from '../../../shared/model.ts';
 import { garantirEstilosOps, listarContatos, salvarContato } from '../apiOps.ts';
 import { rotuloCanalContato, rotuloParte } from '../format.ts';
+import { usePresencaAnimada } from '../usePresencaAnimada.ts';
 import { IconeAviso, IconeConfere, IconeErro, IconeFechar, IconeOk } from './icones.tsx';
 
 export interface DrawerAgendaProps {
@@ -78,6 +79,7 @@ export function DrawerAgenda({
   const [salvando, setSalvando] = useState(false);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
   const [salvoMsg, setSalvoMsg] = useState<string | null>(null);
+  const presenca = usePresencaAnimada(aberto, 200);
 
   useEffect(() => {
     garantirEstilosOps();
@@ -227,18 +229,20 @@ export function DrawerAgenda({
     }
   }
 
-  if (!aberto) return null;
+  if (!presenca.montado) return null;
 
   return (
     <div
       className="drawer-backdrop"
+      data-fase={presenca.fase}
       onClick={(e: MouseEvent<HTMLDivElement>) => {
         if (e.target === e.currentTarget) aoFechar();
       }}
     >
       <div
         ref={painelRef}
-        className="drawer-panel"
+        className="drawer-panel slab-mineral"
+        data-fase={presenca.fase}
         role="dialog"
         aria-modal="true"
         aria-labelledby={tituloId}
@@ -331,7 +335,7 @@ export function DrawerAgenda({
                       {c.nome} · <span className="mono">{c.destino}</span>
                     </span>
                   ) : (
-                    <span className="meta">Clique para cadastrar canal e destinatário.</span>
+                    <span className="meta">Sem canal configurado</span>
                   )}
                 </button>
               );

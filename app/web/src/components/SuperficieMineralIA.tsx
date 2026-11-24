@@ -8,6 +8,7 @@ export interface SuperficieMineralIAProps {
   analyserRef?: RefObject<AnalyserNode | null>;
   energiaRef?: RefObject<number>;
   pulsoExternoSeq?: number;
+  pulsoOrigem?: { x: number; y: number } | null;
   className?: string;
 }
 
@@ -401,8 +402,8 @@ void main() {
   float dLavAmt = clamp(surgicalFresnel * (0.42 + 0.34 * stateActivity), 0.0, 0.66) * vig;
   colDark = mix(colDark, dLavender, dLavAmt * 0.54);
   colDark += dLavender * pow(surgicalFresnel, 2.2) * (0.18 + 0.18 * stateActivity) * vig;
-  // Acalma ligeiramente o fundo no modo conversa para priorizar leitura GenUI
-  colDark = mix(colDark, dBg, uModoConversa * 0.34);
+  // Acalma suavemente o relevo no modo conversa; o véu radial CSS assume a atenuação de leitura
+  colDark = mix(colDark, dBg, uModoConversa * 0.10);
 
   // --- CLARO: Porcelana/Celadon Arquitetônica + Santuário Papel Luminoso ---
   float perimMask = 1.0 - smoothstep(0.15, 0.65, surf.sanctuary);
@@ -442,7 +443,7 @@ void main() {
   ) * vig;
   vec3 lAccent = mix(lAmethyst, lLilacRim, 0.32);
   colLight = mix(colLight, lAccent, lRimAmt * 0.64);
-  colLight = mix(colLight, lSanctuaryPaper, uModoConversa * 0.32);
+  colLight = mix(colLight, lSanctuaryPaper, uModoConversa * 0.10);
 
   vec3 col = mix(colDark, colLight, uTheme);
 
@@ -508,6 +509,7 @@ export function SuperficieMineralIA({
   analyserRef,
   energiaRef,
   pulsoExternoSeq = 0,
+  pulsoOrigem = null,
   className,
 }: SuperficieMineralIAProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -519,18 +521,28 @@ export function SuperficieMineralIA({
   const modoFundoRef = useRef<'santuario' | 'conversa'>(modoFundo);
   const analyserPropRef = useRef(analyserRef);
   const energiaPropRef = useRef(energiaRef);
+  const pulsoOrigemRef = useRef(pulsoOrigem);
   const pulsoExternoAnteriorRef = useRef(pulsoExternoSeq);
-  const dispararPulsoCentroRef = useRef<(() => void) | null>(null);
+  const dispararPulsoCentroRef = useRef<((forca?: number) => void) | null>(null);
+  const dispararPulsoCoordRef = useRef<((x: number, y: number, forca?: number) => void) | null>(
+    null,
+  );
   const atualizarEstaticoRef = useRef<(() => void) | null>(null);
 
   estadoRef.current = estado;
   modoFundoRef.current = modoFundo;
   analyserPropRef.current = analyserRef;
   energiaPropRef.current = energiaRef;
+  pulsoOrigemRef.current = pulsoOrigem;
 
   useEffect(() => {
     if (pulsoExternoSeq > pulsoExternoAnteriorRef.current) {
-      dispararPulsoCentroRef.current?.();
+      const origem = pulsoOrigemRef.current;
+      if (origem) {
+        dispararPulsoCoordRef.current?.(origem.x, origem.y, 1.05);
+      } else {
+        dispararPulsoCentroRef.current?.(0.95);
+      }
     }
     pulsoExternoAnteriorRef.current = pulsoExternoSeq;
   }, [pulsoExternoSeq]);
@@ -692,17 +704,18 @@ export function SuperficieMineralIA({
       cursorPulso = (cursorPulso + 1) % 4;
     }
 
-    function emitirPulsoCentro() {
+    function emitirPulsoCentro(forca = 0.95) {
       if (reducedMotion) return;
       const base = cursorPulso * 4;
       bufferPulsos[base + 0] = 0.0;
       bufferPulsos[base + 1] = 0.0;
       bufferPulsos[base + 2] = 0.0;
-      bufferPulsos[base + 3] = 0.78;
+      bufferPulsos[base + 3] = forca;
       cursorPulso = (cursorPulso + 1) % 4;
     }
 
     dispararPulsoCentroRef.current = emitirPulsoCentro;
+    dispararPulsoCoordRef.current = emitirPulsoCoordenada;
 
     function amostrarAudio(dt: number) {
       let alvoLevel = 0;
@@ -778,7 +791,8 @@ export function SuperficieMineralIA({
       temaValor += (temaAlvo - temaValor) * (1 - Math.exp(-5.4 * dt));
 
       const conversaAlvo = modoFundoRef.current === 'conversa' ? 1.0 : 0.0;
-      conversaValor += (conversaAlvo - conversaValor) * (1 - Math.exp(-4.2 * dt));
+      // Constante 3.4 sincroniza o assentamento do shader com a transição de 620ms do véu CSS
+      conversaValor += (conversaAlvo - conversaValor) * (1 - Math.exp(-3.4 * dt));
 
       const est = estadoRef.current;
       const tIdle = est === 'ocioso' ? 1 : 0;
@@ -901,6 +915,9 @@ export function SuperficieMineralIA({
 
     const aoCliqueJanela = (e: PointerEvent) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.target instanceof Element && e.target.closest('[data-pulso-proprio="true"]')) {
+        return;
+      }
       emitirPulsoCoordenada(e.clientX, e.clientY, 0.88);
     };
 
@@ -1002,6 +1019,7 @@ export function SuperficieMineralIA({
 
     return () => {
       dispararPulsoCentroRef.current = null;
+      dispararPulsoCoordRef.current = null;
       atualizarEstaticoRef.current = null;
       pararLoop();
       obsTema.disconnect();

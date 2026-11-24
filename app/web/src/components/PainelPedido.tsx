@@ -46,15 +46,14 @@ import {
   type ResultadoLente,
 } from '../matriz.ts';
 import { SeloMonolitosShader } from '../shaders/index.ts';
+import { useIndicadorDeslizante } from '../useIndicadorDeslizante.ts';
 import type { Carga } from '../useTorre.ts';
 import { BarraMandatos } from './BarraMandatos.tsx';
 import { GrafoDomino } from './GrafoDomino.tsx';
 import {
-  IconeAssistente,
   IconeConfere,
   IconeCopiar,
   IconeDiverge,
-  IconeExterno,
 } from './icones.tsx';
 import { MatrizFontes, type TrilhoFonte } from './MatrizFontes.tsx';
 import { PalcoGenUI } from './PalcoGenUI.tsx';
@@ -224,13 +223,13 @@ function Versoes({ versoes }: { versoes: ProjecaoPedido['versoes'] }) {
   );
   return (
     <section aria-labelledby="bloco-versoes">
-      <details className="versoes-detalhes">
+      <details className="versoes-detalhes slab-mineral">
         <summary className="versoes-sumario">
           <span id="bloco-versoes" className="versoes-sumario-titulo">
             Histórico de versões recebidas
           </span>
           <span className="meta num">
-            {versoes.length} {versoes.length === 1 ? 'documento' : 'documentos'} · só acréscimo
+            {versoes.length} {versoes.length === 1 ? 'documento' : 'documentos'}
           </span>
         </summary>
         <ul className="versoes">
@@ -290,11 +289,6 @@ function Conteudo({
   const [origemDomino, setOrigemDomino] = useState<readonly [number, number]>([0.5, 0.5]);
   const [pulsoRefracao, setPulsoRefracao] = useState(0);
   const [chaveCopiada, setChaveCopiada] = useState(false);
-  const [trilho, setTrilho] = useState<{ x: number; w: number; pronto: boolean }>({
-    x: 0,
-    w: 0,
-    pronto: false,
-  });
   const [fadeEsq, setFadeEsq] = useState(false);
   const [fadeDir, setFadeDir] = useState(false);
 
@@ -341,12 +335,10 @@ function Conteudo({
     [dados.tarefas, totalTarefasAgrupadas],
   );
   const assinaturaContagens = abas.map((a) => a.n).join(',');
-  const tarefasVisiveis = useMemo(
-    () =>
-      filtro === FILTRO_TODAS
-        ? totalTarefasAgrupadas
-        : agruparTarefas(tarefasDaParte(dados.tarefas, filtro)).length,
-    [dados.tarefas, filtro, totalTarefasAgrupadas],
+  const trilhoGeo = useIndicadorDeslizante(
+    abasListaRef,
+    '[role="tab"][aria-selected="true"]',
+    `${filtro}|${assinaturaContagens}`,
   );
 
   const sinaisConhecidos = useRef<ReadonlySet<string>>(new Set(dados.sinais.map(chaveSinal)));
@@ -398,25 +390,13 @@ function Conteudo({
       setFadeDir(dir);
     };
 
-    const atualizar = () => {
-      if (!ativo) return;
-      const ativa = container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
-      if (ativa) {
-        setTrilho({ x: ativa.offsetLeft, w: ativa.offsetWidth, pronto: true });
-      }
-      atualizarFades();
-    };
-
-    atualizar();
+    atualizarFades();
 
     container.addEventListener('scroll', atualizarFades, { passive: true });
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(atualizar);
+      ro = new ResizeObserver(atualizarFades);
       ro.observe(container);
-    }
-    if (typeof document !== 'undefined' && document.fonts?.ready) {
-      void document.fonts.ready.then(atualizar);
     }
 
     return () => {
@@ -795,10 +775,10 @@ function Conteudo({
         </div>
       </header>
 
-      <section className="kpi-hero-faixa" aria-label="Resumo operacional do pedido">
+      <section className="kpi-hero-faixa slab-mineral" aria-label="Resumo operacional do pedido">
         {kpisDivergencia.length > 0 ? (
           <>
-            {kpisDivergencia.map((kpi) => {
+            {kpisDivergencia.map((kpi, idx) => {
               const ativo =
                 (focoAtivo?.tipo === 'divergencia' || focoAtivo?.tipo === 'celula') &&
                 focoAtivo.campo === kpi.campo;
@@ -807,6 +787,7 @@ function Conteudo({
                   key={kpi.campo}
                   type="button"
                   className="kpi-hero-item kpi-hero-clicavel"
+                  style={{ '--stagger': Math.min(idx, 4) } as CSSProperties}
                   aria-pressed={ativo}
                   onClick={() => alternarKpiCampo(kpi)}
                 >
@@ -819,6 +800,7 @@ function Conteudo({
             <button
               type="button"
               className="kpi-hero-item kpi-hero-clicavel"
+              style={{ '--stagger': Math.min(kpisDivergencia.length, 4) } as CSSProperties}
               aria-pressed={false}
               onClick={() => {
                 document.getElementById('bloco-tarefas')?.scrollIntoView({
@@ -839,12 +821,12 @@ function Conteudo({
           </>
         ) : (
           <>
-            <div className="kpi-hero-item">
+            <div className="kpi-hero-item" style={{ '--stagger': 0 } as CSSProperties}>
               <span className="kpi-hero-label">Conciliação</span>
               <span className="kpi-hero-valor kpi-hero-valor-ok mono num">0 divergências</span>
               <span className="kpi-hero-contexto">Fontes em acordo</span>
             </div>
-            <div className="kpi-hero-item">
+            <div className="kpi-hero-item" style={{ '--stagger': 1 } as CSSProperties}>
               <span className="kpi-hero-label">Documentos</span>
               <span className="kpi-hero-valor mono num">
                 {dados.versoes.length}{' '}
@@ -852,7 +834,7 @@ function Conteudo({
               </span>
               <span className="kpi-hero-contexto">Verificados na cadeia</span>
             </div>
-            <div className="kpi-hero-item">
+            <div className="kpi-hero-item" style={{ '--stagger': 2 } as CSSProperties}>
               <span className="kpi-hero-label">Tarefas abertas</span>
               <span className="kpi-hero-valor mono num">{totalTarefasAgrupadas}</span>
               <span className="kpi-hero-contexto">Nenhuma ação pendente</span>
@@ -907,11 +889,12 @@ function Conteudo({
                 <span className="aba-n mono num">{a.n}</span>
               </button>
             ))}
-            {trilho.pronto && (
+            {trilhoGeo.pronto && (
               <span
                 className="abas-indicador"
                 aria-hidden="true"
-                style={{ '--ix': `${trilho.x}px`, '--iw-escala': trilho.w } as CSSProperties}
+                data-animar={trilhoGeo.animar ? 'true' : 'false'}
+                style={{ '--ix': `${trilhoGeo.x}px`, '--iw-escala': trilhoGeo.largura } as CSSProperties}
               />
             )}
           </div>
@@ -1012,9 +995,6 @@ function Conteudo({
               <h2 id="bloco-matriz" ref={matrizCabRef} tabIndex={-1}>
                 Fontes e campos
               </h2>
-              <p className="meta">
-                Referência: primeira fonte que declara o campo. Clique em divergências para destacar tarefas.
-              </p>
             </div>
           </div>
 
@@ -1042,11 +1022,7 @@ function Conteudo({
               <h2 id="bloco-tarefas">
                 {filtro === FILTRO_TODAS ? 'Tarefas abertas' : `Tarefas · ${rotuloParte(filtro)}`}
               </h2>
-              <p className="meta">Ações derivadas das divergências por setor.</p>
             </div>
-            <span className="pilula-sutil mono num">
-              {tarefasVisiveis} {tarefasVisiveis === 1 ? 'tarefa' : 'tarefas'}
-            </span>
           </div>
           <TarefasPorParte
             tarefas={dados.tarefas}
@@ -1068,21 +1044,7 @@ function Conteudo({
         <div className="sec-cab">
           <div className="sec-cab-grupo">
             <h2 id="bloco-domino">Mapa de impacto causal</h2>
-            <p className="meta">
-              {dados.divergencias.length > 0
-                ? 'Da divergência entre documentos à regra acionada e aos setores responsáveis. Passe ou clique para isolar.'
-                : 'Conferência causal entre os documentos declarados e os setores operacionais.'}
-            </p>
           </div>
-          <button
-            type="button"
-            className="botao-sutil sec-domino-ia"
-            onClick={() => aoAbrirAssistente()}
-          >
-            <IconeAssistente />
-            <span>Abrir no Assistente IA</span>
-            <IconeExterno />
-          </button>
         </div>
         <GrafoDomino
           divergencias={dados.divergencias}

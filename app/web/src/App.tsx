@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { AlvoFocoGenUI, CampoVigiado, Parte } from '../../shared/model.ts';
 import { ErroApi } from './api.ts';
 import { ancorarPedido, notificarDireto } from './apiOps.ts';
@@ -12,8 +12,6 @@ import {
   IconeAssistente,
   IconeFechar,
   IconeMais,
-  IconePausa,
-  IconeRetomar,
   IconeTorre,
 } from './components/icones.tsx';
 import { Marca } from './components/Marca.tsx';
@@ -22,6 +20,8 @@ import { PainelPedido } from './components/PainelPedido.tsx';
 import { PedidoLista } from './components/PedidoLista.tsx';
 import { rotuloMotivoNotificacao, rotuloParte } from './format.ts';
 import { aplicarTema, temaInicial, type Tema } from './tema.ts';
+import { useIndicadorDeslizante } from './useIndicadorDeslizante.ts';
+import { usePresencaAnimada } from './usePresencaAnimada.ts';
 import { useTorre } from './useTorre.ts';
 
 export function App() {
@@ -41,6 +41,10 @@ export function App() {
   const fecharMenuBtnRef = useRef<HTMLButtonElement | null>(null);
   const envioBtnRef = useRef<HTMLButtonElement | null>(null);
   const fecharEnvioBtnRef = useRef<HTMLButtonElement | null>(null);
+  const railNavRef = useRef<HTMLElement | null>(null);
+
+  const navIndicador = useIndicadorDeslizante(railNavRef, '[aria-current="page"]', torre.rota);
+  const presencaEnvio = usePresencaAnimada(envioAberto, 200);
 
   const trocarTema = (t: Tema) => {
     aplicarTema(t);
@@ -268,7 +272,6 @@ export function App() {
                   <Marca tema="dark" />
                   <span className="rail-nome">Forseti</span>
                 </div>
-                <span className="rail-selo">Dados sintéticos</span>
               </div>
 
               <button
@@ -282,7 +285,20 @@ export function App() {
               </button>
             </div>
 
-            <nav className="rail-nav" aria-label="Navegação principal">
+            <nav ref={railNavRef} className="rail-nav" aria-label="Navegação principal">
+              {navIndicador.pronto && (
+                <span
+                  className="rail-nav-indicador"
+                  aria-hidden="true"
+                  data-animar={navIndicador.animar ? 'true' : 'false'}
+                  style={
+                    {
+                      '--ny': `${navIndicador.y}px`,
+                      '--nh': `${navIndicador.altura}px`,
+                    } as CSSProperties
+                  }
+                />
+              )}
               <a
                 href={hrefTorre}
                 className="rail-nav-link"
@@ -331,17 +347,6 @@ export function App() {
                 <IconeAgenda />
                 <span>Agenda de contatos</span>
               </button>
-              <button
-                type="button"
-                className="rail-op-btn"
-                onClick={() => {
-                  torre.alternarPausa();
-                  fecharMenuMobile();
-                }}
-              >
-                {torre.pausado ? <IconeRetomar /> : <IconePausa />}
-                <span>{torre.pausado ? 'Retomar ao vivo' : 'Pausar ao vivo'}</span>
-              </button>
             </div>
           </div>
         </aside>
@@ -350,12 +355,7 @@ export function App() {
           <Cabecalho
             rota={torre.rota}
             pedidoId={torre.selecionado}
-            stream={torre.estadoStream}
-            pulsoEventoSeq={torre.pulsoEventoSeq}
-            pausado={torre.pausado}
-            pendentes={torre.pendentes}
             revisaoPendentes={torre.revisaoPendentes}
-            aoPausar={torre.alternarPausa}
             aoAbrirRevisao={abrirRevisao}
             aoAbrirAgenda={() => abrirAgenda()}
             aoAbrirMenuMobile={() => setMenuMobileAberto((a) => !a)}
@@ -366,74 +366,77 @@ export function App() {
           />
 
           <main id="conteudo" tabIndex={-1} data-rota={torre.rota}>
-            {torre.rota === 'ia' ? (
-              <PaginaAssistenteIA
-                pedidos={listaPedidos}
-                pedidoId={torre.selecionado}
-                projecao={torre.projecao}
-                contatos={torre.contatos}
-                comandoInicial={comandoInicialIA}
-                aoConsumirComandoInicial={() => setComandoInicialIA(null)}
-                aoSelecionarPedido={torre.selecionar}
-                aoAbrirNaTorre={(pid, foco) => {
-                  setFocoPendenteTorre(foco ?? null);
-                  torre.irParaTorre(pid);
-                }}
-                aoAbrirAgenda={abrirAgenda}
-                aoGarantirSessao={torre.garantirPedidoNaSessao}
-                aoNotificar={notificarComAutoFork}
-                aoRecarregarPedido={torre.recarregarPedidoAtual}
-                aoAnunciar={torre.anunciar}
-              />
-            ) : torre.selecionado ? (
-              <PainelPedido
-                key={torre.selecionado}
-                id={torre.selecionado}
-                daSessao={daSessaoAtual}
-                projecao={torre.projecao}
-                auditoria={torre.auditoria}
-                contatos={torre.contatos}
-                novas={torre.novas}
-                pulsoEventoSeq={torre.pulsoEventoSeq}
-                focoInicial={focoPendenteTorre}
-                aoConsumirFocoInicial={() => setFocoPendenteTorre(null)}
-                aoVerificar={torre.verificarDeNovo}
-                aoAbrirAuditoria={() => setAuditoriaAberto(true)}
-                aoAncorar={ancorarComAutoFork}
-                aoAbrirAgenda={abrirAgenda}
-                aoAbrirAssistente={abrirAssistente}
-                aoGarantirSessao={torre.garantirPedidoNaSessao}
-                aoNotificar={(parte, campo) =>
-                  notificarComAutoFork(torre.selecionado!, parte, campo)
-                }
-                aoRecarregarPedido={torre.recarregarPedidoAtual}
-                aoAnunciar={torre.anunciar}
-                aoSelecionar={selecionarAposEnvio}
-              />
-            ) : (
-              <section aria-labelledby="vazio-titulo" className="vazio">
-                <h1 id="vazio-titulo">{vazio ? 'Nada para mostrar ainda' : 'Escolha um pedido'}</h1>
-                <p className="dica">
-                  Envie uma NF-e, CT-e, planilha ou e-mail. O Forseti compara o que cada fonte
-                  declara, aponta divergências e gera tarefas por setor.
-                </p>
-                <button
-                  type="button"
-                  className="botao vazio-acao"
-                  onClick={() => setEnvioAberto(true)}
-                >
-                  <IconeMais />
-                  <span>Enviar documento</span>
-                </button>
-              </section>
-            )}
+            <div key={torre.rota} className="rota-palco" data-rota={torre.rota}>
+              {torre.rota === 'ia' ? (
+                <PaginaAssistenteIA
+                  pedidos={listaPedidos}
+                  pedidoId={torre.selecionado}
+                  projecao={torre.projecao}
+                  contatos={torre.contatos}
+                  comandoInicial={comandoInicialIA}
+                  aoConsumirComandoInicial={() => setComandoInicialIA(null)}
+                  aoSelecionarPedido={torre.selecionar}
+                  aoAbrirNaTorre={(pid, foco) => {
+                    setFocoPendenteTorre(foco ?? null);
+                    torre.irParaTorre(pid);
+                  }}
+                  aoAbrirAgenda={abrirAgenda}
+                  aoGarantirSessao={torre.garantirPedidoNaSessao}
+                  aoNotificar={notificarComAutoFork}
+                  aoRecarregarPedido={torre.recarregarPedidoAtual}
+                  aoAnunciar={torre.anunciar}
+                />
+              ) : torre.selecionado ? (
+                <PainelPedido
+                  key={torre.selecionado}
+                  id={torre.selecionado}
+                  daSessao={daSessaoAtual}
+                  projecao={torre.projecao}
+                  auditoria={torre.auditoria}
+                  contatos={torre.contatos}
+                  novas={torre.novas}
+                  pulsoEventoSeq={torre.pulsoEventoSeq}
+                  focoInicial={focoPendenteTorre}
+                  aoConsumirFocoInicial={() => setFocoPendenteTorre(null)}
+                  aoVerificar={torre.verificarDeNovo}
+                  aoAbrirAuditoria={() => setAuditoriaAberto(true)}
+                  aoAncorar={ancorarComAutoFork}
+                  aoAbrirAgenda={abrirAgenda}
+                  aoAbrirAssistente={abrirAssistente}
+                  aoGarantirSessao={torre.garantirPedidoNaSessao}
+                  aoNotificar={(parte, campo) =>
+                    notificarComAutoFork(torre.selecionado!, parte, campo)
+                  }
+                  aoRecarregarPedido={torre.recarregarPedidoAtual}
+                  aoAnunciar={torre.anunciar}
+                  aoSelecionar={selecionarAposEnvio}
+                />
+              ) : (
+                <section aria-labelledby="vazio-titulo" className="vazio">
+                  <h1 id="vazio-titulo">{vazio ? 'Nada para mostrar ainda' : 'Escolha um pedido'}</h1>
+                  <p className="dica">
+                    Envie uma NF-e, CT-e, planilha ou e-mail. O Forseti compara o que cada fonte
+                    declara, aponta divergências e gera tarefas por setor.
+                  </p>
+                  <button
+                    type="button"
+                    className="botao vazio-acao"
+                    onClick={() => setEnvioAberto(true)}
+                  >
+                    <IconeMais />
+                    <span>Enviar documento</span>
+                  </button>
+                </section>
+              )}
+            </div>
           </main>
         </div>
       </div>
 
-      {envioAberto && (
+      {presencaEnvio.montado && (
         <div
           className="modal-backdrop"
+          data-fase={presencaEnvio.fase}
           onClick={(e) => {
             if (e.target === e.currentTarget) fecharEnvioModal();
           }}
@@ -442,7 +445,8 @@ export function App() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-envio-titulo"
-            className="modal-envio"
+            className="modal-envio slab-mineral"
+            data-fase={presencaEnvio.fase}
           >
             <header className="modal-envio-cab">
               <div>

@@ -24,6 +24,7 @@ import {
   type LinhaMatriz,
 } from '../matriz.ts';
 import { movimentoReduzidoAgora } from '../shaders/index.ts';
+import type { FasePresenca } from '../usePresencaAnimada.ts';
 import type { Carga } from '../useTorre.ts';
 import {
   IconeConfere,
@@ -44,6 +45,7 @@ export interface EvidenciaLateralIAProps {
   aoAbrirNaTorre: (pedidoId: string, foco?: AlvoFocoGenUI | null) => void;
   aoFechar?: () => void;
   ehGaveta?: boolean;
+  faseGaveta?: FasePresenca;
 }
 
 function codigoCurtoPedido(id: string): string {
@@ -155,6 +157,7 @@ export function EvidenciaLateralIA({
   aoAbrirNaTorre,
   aoFechar,
   ehGaveta = false,
+  faseGaveta,
 }: EvidenciaLateralIAProps) {
   const painelRef = useRef<HTMLElement>(null);
   const fecharBtnRef = useRef<HTMLButtonElement>(null);
@@ -162,9 +165,9 @@ export function EvidenciaLateralIA({
 
   // Move foco para o botão fechar ao abrir como gaveta sobreposta em viewports estreitas.
   useEffect(() => {
-    if (!ehGaveta) return;
+    if (!ehGaveta || faseGaveta === 'saindo') return;
     fecharBtnRef.current?.focus();
-  }, [ehGaveta]);
+  }, [ehGaveta, faseGaveta]);
 
   // Rola o item destacado dentro da coluna lateral ao receber foco de uma citação ou grafo.
   useEffect(() => {
@@ -222,6 +225,7 @@ export function EvidenciaLateralIA({
       ref={painelRef}
       id={id}
       className={ehGaveta ? 'ia-evidencia ia-evidencia-gaveta' : 'ia-evidencia'}
+      data-fase={ehGaveta ? faseGaveta : undefined}
       role={ehGaveta ? 'dialog' : undefined}
       aria-modal={ehGaveta ? 'true' : undefined}
       aria-label="Evidências ao vivo do pedido"
@@ -262,27 +266,17 @@ export function EvidenciaLateralIA({
 
         {pedidoId && dados && (
           <div className="ia-evidencia-identidade">
-            <p className="ia-evidencia-rota">
-              {dados.pedido
-                ? `${dados.pedido.emitente.nome} → ${dados.pedido.destinatario.nome}`
-                : `Pedido ${codigoCurtoPedido(pedidoId)}`}
-            </p>
-            <div className="ia-evidencia-selos">
-              <span className="pilula-neutra mono num">{codigoCurtoPedido(pedidoId)}</span>
-              {matriz && matriz.linhas.some((l) => l.divergente) ? (
-                <span className="pilula-coord num">
-                  <IconeDiverge />
-                  {matriz.linhas.filter((l) => l.divergente).length}{' '}
-                  {matriz.linhas.filter((l) => l.divergente).length === 1 ? 'conflito' : 'conflitos'}
-                </span>
-              ) : (
-                <span className="pilula-ok">
-                  <IconeConfere />
-                  Consistente
-                </span>
-              )}
-              {daSessao && <span className="pilula-sutil">Sua sessão</span>}
+            <div className="ia-evidencia-meta-linha">
+              <span className="ia-evidencia-codigo mono num">
+                Pedido {codigoCurtoPedido(pedidoId)}
+              </span>
+              {daSessao && <span className="ia-evidencia-sessao">Sua sessão</span>}
             </div>
+            {dados.pedido && (
+              <p className="ia-evidencia-rota">
+                {dados.pedido.emitente.nome} → {dados.pedido.destinatario.nome}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -348,9 +342,6 @@ export function EvidenciaLateralIA({
         <section className="ia-evidencia-bloco" aria-label="Mini-matriz de campos vigiados">
           <div className="ia-evidencia-sec-cab">
             <h3>Campos vigiados</h3>
-            <span className="ia-evidencia-contador mono num">
-              {matriz.fontes.length} {matriz.fontes.length === 1 ? 'fonte' : 'fontes'}
-            </span>
           </div>
 
           {matriz.fontes.length === 0 ? (

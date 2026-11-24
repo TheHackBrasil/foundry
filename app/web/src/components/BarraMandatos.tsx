@@ -51,10 +51,8 @@ import {
 } from '../shaders/index.ts';
 import { useVoz } from '../useVoz.ts';
 import {
-  IconeAssistente,
   IconeComando,
   IconeErro,
-  IconeExterno,
   IconeFechar,
   IconeMic,
   IconeOk,
@@ -221,11 +219,6 @@ function CartaoResumir({ itens }: { itens: readonly ItemResumir[] }) {
       {itens.map((item) => (
         <div key={item.pedidoId} className="cmd-bloco">
           <p className="cmd-resumo">{item.resumo}</p>
-          <p className="meta">
-            {item.via === 'deterministico'
-              ? 'Resumo determinístico montado direto do registro.'
-              : 'Redigido a partir do estado consolidado do pedido.'}
-          </p>
         </div>
       ))}
     </div>
@@ -271,7 +264,6 @@ export function BarraMandatos({
   aoAplicarPapel,
   aoNotificar,
   aoAbrirAgenda,
-  aoAbrirAssistente,
   aoGarantirSessao,
   aoRecarregarPedido,
   aoSimulacaoAtiva,
@@ -666,6 +658,7 @@ export function BarraMandatos({
 
   const classeSuperficie = [
     'cmd',
+    'slab-mineral',
     enviando ? 'cmd-enviando' : '',
     temErroVisivel ? 'cmd-erro' : '',
     tremendo ? 'cmd-tremor' : '',
@@ -752,12 +745,6 @@ export function BarraMandatos({
             className={provisorio ? 'cmd-input cmd-input-provisorio' : 'cmd-input'}
           />
 
-          {!voz.ouvindo && !texto && (
-            <kbd className="tecla mono cmd-atalho-inline" aria-hidden="true">
-              /
-            </kbd>
-          )}
-
           <div className="cmd-acoes">
             {voz.ouvindo ? (
               <div className="voz-ativo">
@@ -813,24 +800,20 @@ export function BarraMandatos({
                 ativo={enviando}
                 origem={origemClique}
                 resolverEm={resolucaoBotao}
-                raioPx={4}
+                raioPx={999}
                 className="cmd-btn-shader"
               />
               <span className="cmd-btn-conteudo">
+                {enviando && (
+                  <span className="cmd-orbita" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                )}
                 <span>{enviando ? 'Executando…' : 'Executar'}</span>
                 {!enviando && <IconeRetorno />}
               </span>
-            </button>
-
-            <button
-              type="button"
-              className="cmd-btn-assistente"
-              onClick={() => aoAbrirAssistente(texto.trim() || undefined)}
-              title="Abrir workspace completo do Assistente IA"
-            >
-              <IconeAssistente />
-              <span className="cmd-assistente-label">Assistente</span>
-              <IconeExterno />
             </button>
           </div>
         </form>

@@ -28,14 +28,13 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
   return (
     <div className="sinais-avisos" data-ambos={ambos ? 'true' : 'false'}>
       {sinais.length > 0 && (
-        <section className="painel-card" aria-labelledby="bloco-sinais">
+        <section className="painel-card slab-mineral" aria-labelledby="bloco-sinais">
           <div className="sec-cab">
             <div className="sec-cab-grupo">
               <h2 id="bloco-sinais" className="sec-titulo-icone">
                 <IconeSinal />
                 Sinais consultivos
               </h2>
-              <p className="meta">Leitura de texto livre · não altera campos vigiados</p>
             </div>
           </div>
           <ul className="registros-lista">
@@ -72,14 +71,13 @@ export function SinaisEAvisos({ sinais, notificacoes, sinaisNovos, avisosNovos }
       )}
 
       {notificacoes.length > 0 && (
-        <section className="painel-card" aria-labelledby="bloco-avisos">
+        <section className="painel-card slab-mineral" aria-labelledby="bloco-avisos">
           <div className="sec-cab">
             <div className="sec-cab-grupo">
               <h2 id="bloco-avisos" className="sec-titulo-icone">
                 <IconeAviso />
                 Avisos
               </h2>
-              <p className="meta">Registro do que saiu ou motivo de não entrega</p>
             </div>
           </div>
           <ul className="registros-lista">

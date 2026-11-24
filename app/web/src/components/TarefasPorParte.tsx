@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   PARTES,
   type AlvoFocoGenUI,
@@ -143,10 +143,11 @@ function ItemTarefa({
     <li className={classes}>
       <div className="tarefa-cab">
         <p className="tarefa-titulo">{grupo.titulo}</p>
-        <div className="tarefa-badges">
-          {!unica && <span className="pilula-sutil num">{grupo.ocorrencias.length} origens</span>}
-          {nova && <span className="pilula-coord">Nova</span>}
-        </div>
+        {nova && (
+          <div className="tarefa-badges">
+            <span className="pilula-coord">Nova</span>
+          </div>
+        )}
       </div>
 
       {unica && <p className="tarefa-detalhe">{grupo.ocorrencias[0]?.detalhe}</p>}
@@ -182,6 +183,7 @@ function ItemTarefa({
 
 function SetorTarefas({
   parte,
+  indice,
   itens,
   contato,
   novas,
@@ -191,6 +193,7 @@ function SetorTarefas({
   aoAbrirAgenda,
 }: {
   parte: Parte;
+  indice: number;
   itens: readonly GrupoTarefa[];
   contato: Contato | undefined;
   novas: ReadonlySet<string>;
@@ -238,7 +241,12 @@ function SetorTarefas({
   return (
     <section
       aria-label={rotuloParte(parte)}
-      className={setorFocado ? 'tarefas-grupo tarefas-grupo-focado' : 'tarefas-grupo'}
+      className={
+        setorFocado
+          ? 'tarefas-grupo slab-mineral tarefas-grupo-focado'
+          : 'tarefas-grupo slab-mineral'
+      }
+      style={{ '--grp-i': Math.min(indice, 5) } as CSSProperties}
     >
       <div className="tarefas-grupo-cab">
         <div className="tarefas-grupo-info">
@@ -377,11 +385,12 @@ export function TarefasPorParte({
         )}
         {visiveis > 0 && (
           <div className="tarefas-superficie">
-            {grupos.map(({ parte, itens }) =>
+            {grupos.map(({ parte, itens }, idx) =>
               itens.length === 0 ? null : (
                 <SetorTarefas
                   key={parte}
                   parte={parte}
+                  indice={idx}
                   itens={itens}
                   contato={contatoPorParte.get(parte)}
                   novas={novas}
