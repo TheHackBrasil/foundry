@@ -42,21 +42,24 @@ export class ErroMandato extends Error {
 
 const MAX_TEXTO_COMANDO = 1_000;
 
-const PROMPT_MANDATO = `Voce traduz um comando em portugues sobre pedidos logisticos para JSON.
+const PROMPT_MANDATO = `Voce traduz uma pergunta ou comando em portugues sobre pedidos logisticos para JSON.
 Responda APENAS JSON neste formato:
 {"acao": "propagar" | "simular" | "resumir" | "notificar", "filtros": { ... }, "alvo": "string opcional"}
 
 Acoes:
-- propagar: repropagar divergencias e tarefas dos pedidos do filtro ("propague o atraso").
-- simular: um "e se?" sem gravar nada ("simule a entrega sexta"); exige filtros.campo e filtros.valor.
-- resumir: resumir o estado do pedido para um papel ("resuma para o CD").
-- notificar: avisar uma parte sobre a tarefa dela ("avise a transportadora"); exige a parte.
+- resumir: QUALQUER pergunta, duvida, pedido de explicacao, diagnostico, status, atraso, divergencia, tarefas ou pedido de visao por papel ("resuma o estado", "qual o atraso?", "por que o peso esta diferente?", "o que o fiscal precisa fazer?", "mostre a visao do CD", "quais documentos divergem?").
+- simular: cenario hipotetico "e se?" sem gravar nada ("simule a entrega para 28/01/2026", "e se o peso for 600 kg?"); exige filtros.campo e filtros.valor.
+- propagar: repropagar divergencias e gerar tarefas pendentes na cadeia ("propague o atraso", "repropague tarefas").
+- notificar: enviar aviso/notificacao para uma parte ("avise a transportadora", "notifique o CD"); exige filtros.parte.
 
 Filtros (todos opcionais):
 {"pedidoId": string, "fornecedor": string, "parte": "fornecedor"|"transportadora"|"cd"|"fiscal"|"financeiro", "campo": "previsaoEntrega"|"pesoTotal"|"volumes"|"status", "valor": string|number}
-"atraso" no comando aponta para o campo "previsaoEntrega".
-alvo: o destino em texto livre quando o comando nao encaixa nos filtros (ex.: "cd", "transportadora", numero do pedido).
-Se o comando pedir algo fora dessas acoes, responda {"acao": "nenhuma"}.
+Regras importantes:
+- Sempre preencha filtros.parte quando o usuario mencionar um papel (fornecedor, transportadora, cd, fiscal, financeiro).
+- "atraso" ou "entrega" aponta para o campo "previsaoEntrega".
+- Em simular, datas em filtros.valor devem sair no formato AAAA-MM-DD (ex.: "28/01/2026" -> "2026-01-28"); pesoTotal e volumes devem sair como numero.
+- alvo: destino livre so quando nao encaixar nos filtros (ex.: nome de fornecedor ou chave de 44 digitos). Nao coloque frases inteiras em alvo.
+- So responda {"acao": "nenhuma"} para pedidos destrutivos (apagar, excluir, cancelar nota, alterar campo diretamente) ou assuntos completamente alheios a pedidos logisticos.
 Comando:
 `;
 
@@ -153,19 +156,17 @@ async function bateFornecedor(sessao: LedgerStore, pedidoId: string, alvo: strin
   return nome !== '' && norm(nome).includes(norm(alvo));
 }
 
-// Resolve os pedidos alvo do filtro. So a sessao do chamador executa: a seed
-// e somente leitura, e pedido dela citado de proposito responde 403.
-async function resolverAlvos(sessao: LedgerStore, mandato: MandatoParseado, maxAlvos: number): Promise<string[]> {
-  const f = normalizarFiltros(mandato);
-  if (f.pedidoId) {
-    const dono = await sessao.wsDoPedido(f.pedidoId);
-    if (dono === null) throw new ErroMandato('sem_alvo', 'O comando não resolveu nenhum pedido da sua sessão.');
-    if (dono !== sessao.workspace) throw new ErroRequisicao(403, mensagens.seedSomenteLeitura('agir sobre um pedido de exemplo'));
-    return [f.pedidoId];
-  }
-  let alvos = (await sessao.listarPedidos())
-    .filter((p) => p.workspaceId === sessao.workspace)
-    .map((p) => p.pedidoId);
+// Acoes somente leitura (resumir e simular) podem ler a seed visivel quando a
+// sessao ainda nao tem pedidos proprios, sem jamais gravar evento na seed.
+const ehSomenteLeitura = (acao: AcaoMandato): boolean => acao === 'resumir' || acao === 'simular';
+
+async function filtrarCandidatos(
+  sessao: LedgerStore,
+  candidatos: string[],
+  mandato: MandatoParseado,
+  f: FiltrosMandato,
+): Promise<string[]> {
+  let alvos = candidatos;
   if (f.fornecedor) {
     const fornecedor = f.fornecedor;
     const batidos: string[] = [];
@@ -174,8 +175,9 @@ async function resolverAlvos(sessao: LedgerStore, mandato: MandatoParseado, maxA
     }
     alvos = batidos;
   }
-  // Para notificar a parte e o destinatario, nao um filtro de pedidos.
-  if (f.parte && mandato.acao !== 'notificar') {
+  // Para notificar a parte e o destinatario; para resumir a resposta pode
+  // explicar inclusive quando a parte nao tem tarefas abertas.
+  if (f.parte && mandato.acao !== 'notificar' && mandato.acao !== 'resumir') {
     const parte = f.parte;
     const comTarefa: string[] = [];
     for (const id of alvos) {
@@ -184,6 +186,44 @@ async function resolverAlvos(sessao: LedgerStore, mandato: MandatoParseado, maxA
     }
     alvos = comTarefa;
   }
+  return alvos;
+}
+
+// Resolve os pedidos alvo do filtro. Escritas (propagar, notificar) exigem
+// pedidos proprios da sessao; leituras/simulacoes podem consultar a seed em
+// modo somente leitura quando a sessao ainda esta vazia.
+async function resolverAlvos(
+  sessao: LedgerStore,
+  mandato: MandatoParseado,
+  maxAlvos: number,
+): Promise<{ alvos: string[]; somenteLeitura: boolean }> {
+  const f = normalizarFiltros(mandato);
+  if (f.pedidoId) {
+    const dono = await sessao.wsDoPedido(f.pedidoId);
+    if (dono === null) throw new ErroMandato('sem_alvo', 'O comando não resolveu nenhum pedido da sua sessão.');
+    if (dono !== sessao.workspace) {
+      if (ehSomenteLeitura(mandato.acao)) {
+        return { alvos: [f.pedidoId], somenteLeitura: true };
+      }
+      throw new ErroRequisicao(403, mensagens.seedSomenteLeitura('agir sobre um pedido de exemplo'));
+    }
+    return { alvos: [f.pedidoId], somenteLeitura: false };
+  }
+  const todos = await sessao.listarPedidos();
+  const proprios = todos.filter((p) => p.workspaceId === sessao.workspace).map((p) => p.pedidoId);
+
+  let alvos = await filtrarCandidatos(sessao, proprios, mandato, f);
+  let somenteLeitura = false;
+
+  if (alvos.length === 0 && proprios.length === 0 && ehSomenteLeitura(mandato.acao)) {
+    const daSeed = todos.filter((p) => p.workspaceId !== sessao.workspace).map((p) => p.pedidoId);
+    const achadosSeed = await filtrarCandidatos(sessao, daSeed, mandato, f);
+    if (achadosSeed.length > 0) {
+      alvos = achadosSeed;
+      somenteLeitura = true;
+    }
+  }
+
   if (alvos.length === 0) {
     throw new ErroMandato('sem_alvo', 'O comando não resolveu nenhum pedido da sua sessão.');
   }
@@ -193,7 +233,7 @@ async function resolverAlvos(sessao: LedgerStore, mandato: MandatoParseado, maxA
       `O filtro resolve ${alvos.length} pedidos; o limite por comando é ${maxAlvos}. Refine com pedidoId ou fornecedor.`,
     );
   }
-  return alvos;
+  return { alvos, somenteLeitura };
 }
 
 interface ExecucaoPedido {
@@ -236,14 +276,27 @@ async function propagarPedido(tx: LedgerStore, pedidoId: string, campo: FiltrosM
   };
 }
 
+function normalizarValorHipotese(campo: FiltrosMandato['campo'], valor: string | number): string | number {
+  if (campo === 'previsaoEntrega' && typeof valor === 'string') {
+    const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(valor.trim());
+    if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  }
+  if ((campo === 'pesoTotal' || campo === 'volumes') && typeof valor === 'string') {
+    const num = Number(valor.replace(/[^\d.,-]/g, '').replace(',', '.'));
+    if (Number.isFinite(num)) return num;
+  }
+  return valor;
+}
+
 // Mesma funcao do /api/simulate: hipotese 'manual' contra o valor real, sem
-// gravar nada alem do evento mandato.
+// gravar nada alem do evento mandato (ou nada, em leitura da seed).
 async function simularPedido(tx: LedgerStore, pedidoId: string, f: FiltrosMandato): Promise<ExecucaoPedido> {
   if (!f.campo || f.valor === undefined) {
     throw new ErroMandato('acao_ambigua', 'Simular precisa de campo e valor (ex.: "simule a entrega para 2026-02-01").');
   }
   const proj = projetar(await tx.eventosDoPedido(pedidoId));
-  const hipotese: CamposObservados = { [f.campo]: f.valor } as CamposObservados;
+  const valor = normalizarValorHipotese(f.campo, f.valor);
+  const hipotese: CamposObservados = { [f.campo]: valor } as CamposObservados;
   const divs = simularHipotese(proj.versoes, hipotese);
   const tarefas = propagarTodas(divs);
   return {
@@ -264,40 +317,65 @@ function resumoDeterministico(proj: ProjecaoPedido, pedidoId: string): string {
     `${proj.divergencias.length} divergência(s) e ${proj.tarefas.length} tarefa(s) na cadeia.`;
 }
 
-// Texto para humano redigido pela LLM; sem ela ou com saida invalida, o
-// resumo deterministico cobre (NFR-degradacao).
-async function resumoParaPapel(proj: ProjecaoPedido, pedidoId: string, parte: Parte | undefined): Promise<{ texto: string; via: 'llm' | 'deterministico' }> {
+// Texto para humano redigido pela LLM com base estrita no ledger; sem ela ou
+// com saida invalida, o resumo deterministico cobre (NFR-degradacao).
+async function resumoParaPapel(
+  proj: ProjecaoPedido,
+  pedidoId: string,
+  parte: Parte | undefined,
+  perguntaUsuario: string,
+): Promise<{ texto: string; via: 'llm' | 'deterministico' }> {
   try {
-    const porParte: Record<string, number> = {};
-    for (const t of proj.tarefas) porParte[t.parte] = (porParte[t.parte] ?? 0) + 1;
+    const porParte: Record<string, string[]> = {};
+    for (const t of proj.tarefas) {
+      const lista = porParte[t.parte] ?? [];
+      if (!lista.includes(t.titulo)) lista.push(t.titulo);
+      porParte[t.parte] = lista;
+    }
     const contexto = {
       pedidoId,
       papel: parte ?? 'operacao',
-      campos: proj.pedido?.campos ?? {},
-      divergencias: proj.divergencias.map((d) => ({ campo: d.campo, de: `${d.fonteA}: ${String(d.valorA)}`, para: `${d.fonteB}: ${String(d.valorB)}` })),
+      pergunta: perguntaUsuario.slice(0, 400),
+      emitente: proj.pedido?.emitente.nome ?? null,
+      destinatario: proj.pedido?.destinatario.nome ?? null,
+      camposConsolidados: proj.pedido?.campos ?? {},
+      fontes: proj.versoes.map((v) => ({ fonte: v.fonte, versao: v.versao, campos: v.campos })),
+      divergencias: proj.divergencias.map((d) => ({
+        campo: d.campo,
+        de: `${d.fonteA}: ${String(d.valorA)}`,
+        para: `${d.fonteB}: ${String(d.valorB)}`,
+      })),
       tarefasPorParte: porParte,
+      sinais: proj.sinais.map((s) => ({ tipo: s.tipo, fonte: s.fonte, resumo: s.resumo })),
     };
     const r = (await chatJson(
       [
         {
           role: 'user',
           content:
-            'Resuma em ate 3 frases em portugues o estado deste pedido para o papel indicado. ' +
-            'Responda APENAS JSON: {"resumo": string}\n' + JSON.stringify(contexto),
+            'Responda diretamente em portugues (em ate 4 frases claras e objetivas) a pergunta ou solicitacao do usuario sobre este pedido logistico. ' +
+            'Use APENAS os fatos do JSON abaixo: cite datas, valores e fontes reais (NF-e, CT-e, Planilha, CC-e). ' +
+            'Nunca invente dados que nao estejam no registro. Responda APENAS JSON: {"resumo": string}\n' +
+            JSON.stringify(contexto),
         },
       ],
-      { maxTokens: 300 },
+      { maxTokens: 420 },
     )) as { resumo?: unknown };
-    if (typeof r.resumo === 'string' && r.resumo.trim()) return { texto: r.resumo.trim().slice(0, 600), via: 'llm' };
+    if (typeof r.resumo === 'string' && r.resumo.trim()) return { texto: r.resumo.trim().slice(0, 900), via: 'llm' };
   } catch {
     // fallback deterministico cobre indisponivel e invalido
   }
   return { texto: resumoDeterministico(proj, pedidoId), via: 'deterministico' };
 }
 
-async function resumirPedido(tx: LedgerStore, pedidoId: string, parte: Parte | undefined): Promise<ExecucaoPedido> {
+async function resumirPedido(
+  tx: LedgerStore,
+  pedidoId: string,
+  parte: Parte | undefined,
+  perguntaUsuario: string,
+): Promise<ExecucaoPedido> {
   const proj = projetar(await tx.eventosDoPedido(pedidoId));
-  const r = await resumoParaPapel(proj, pedidoId, parte);
+  const r = await resumoParaPapel(proj, pedidoId, parte, perguntaUsuario);
   return { eventos: [], resumo: { via: r.via }, resultado: { resumo: r.texto, via: r.via } };
 }
 
@@ -320,7 +398,12 @@ async function notificarPedido(tx: LedgerStore, pedidoId: string, f: FiltrosMand
   };
 }
 
-function executarAcao(tx: LedgerStore, pedidoId: string, mandato: MandatoParseado): Promise<ExecucaoPedido> {
+function executarAcao(
+  tx: LedgerStore,
+  pedidoId: string,
+  mandato: MandatoParseado,
+  texto: string,
+): Promise<ExecucaoPedido> {
   const f = normalizarFiltros(mandato);
   switch (mandato.acao) {
     case 'propagar':
@@ -328,7 +411,7 @@ function executarAcao(tx: LedgerStore, pedidoId: string, mandato: MandatoParsead
     case 'simular':
       return simularPedido(tx, pedidoId, f);
     case 'resumir':
-      return resumirPedido(tx, pedidoId, f.parte);
+      return resumirPedido(tx, pedidoId, f.parte, texto);
     case 'notificar':
       return notificarPedido(tx, pedidoId, f);
   }
@@ -342,11 +425,8 @@ export interface ResultadoExecucao {
 }
 
 // Resolve o filtro e executa pedido a pedido: acao + evento mandato na mesma
-// transacao por pedido (RF5). O lock por (workspace, pedido) no topo e o mesmo
-// do pipeline: sem ele dois propagar concorrentes leem eventoExiste=false
-// juntos e inserem divergencia/tarefa duplicadas no append-only. O fetch de
-// rede do notificar e o da LLM do resumir rolam dentro da tx, limitados pelos
-// timeouts curtos das envs.
+// transacao por pedido (RF5). Quando resumir/simular le a seed por ausencia de
+// pedidos proprios na sessao, executa sem gravar nada na seed.
 export async function executarMandato(
   sessao: LedgerStore,
   texto: string,
@@ -360,13 +440,18 @@ export async function executarMandato(
   if (mandato.acao === 'simular' && (!f.campo || f.valor === undefined)) {
     throw new ErroMandato('acao_ambigua', 'Simular precisa de campo e valor (ex.: "simule a entrega para 2026-02-01").');
   }
-  const alvos = await resolverAlvos(sessao, mandato, opcoes.maxAlvos);
+  const { alvos, somenteLeitura } = await resolverAlvos(sessao, mandato, opcoes.maxAlvos);
   const porPedido: Array<Record<string, unknown>> = [];
   const eventos: Evento[] = [];
   for (const pedidoId of alvos) {
+    if (somenteLeitura) {
+      const parcial = await executarAcao(sessao, pedidoId, mandato, texto);
+      porPedido.push({ pedidoId, ...parcial.resultado });
+      continue;
+    }
     const exec = await sessao.transaction(async (tx) => {
       await tx.travarPedido(pedidoId);
-      const parcial = await executarAcao(tx, pedidoId, mandato);
+      const parcial = await executarAcao(tx, pedidoId, mandato, texto);
       const evMandato = await tx.append(pedidoId, 'mandato', {
         ator: 'workspace',
         texto: texto.slice(0, 500),
@@ -381,6 +466,7 @@ export async function executarMandato(
     eventos.push(...exec.gravados);
   }
   const resultado: Record<string, unknown> = { porPedido };
+  if (somenteLeitura) resultado['leituraExemplo'] = true;
   if (mandato.acao === 'simular') resultado['simulacao'] = true;
   if (mandato.acao === 'propagar') {
     resultado['novosEventos'] = porPedido.reduce((acc, p) => acc + Number(p['eventosNovos'] ?? 0), 0);

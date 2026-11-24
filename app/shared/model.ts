@@ -177,6 +177,8 @@ export interface MandatoParseado {
 export interface RespostaMandato {
   acao: AcaoMandato;
   alvos: string[];
+  filtros?: FiltrosMandato;
+  alvo?: string;
   resultado: Record<string, unknown>;
 }
 

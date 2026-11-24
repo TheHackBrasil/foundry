@@ -351,6 +351,68 @@ describe('camada ai com PGlite', () => {
     expect(porPedido.resumo).toContain('divergência');
   });
 
+  it('resumir envia pergunta do usuario a LLM e normaliza data DD/MM/AAAA em simular', async () => {
+    envLlm();
+    const f = vi.fn(async () => respostaChat({ resumo: 'A entrega atrasou 5 dias na planilha.' }));
+    vi.stubGlobal('fetch', f);
+    const execRes = await executarMandato(
+      sessao,
+      'qual o atraso desse pedido?',
+      { acao: 'resumir', filtros: { pedidoId: CHAVE } },
+      { maxAlvos: 5 },
+    );
+    const corpoPrompt = JSON.parse(chamada(f)[1].body) as { messages: Array<{ content: string }> };
+    expect(corpoPrompt.messages[0]?.content).toContain('qual o atraso desse pedido?');
+    const itemRes = (execRes.resultado['porPedido'] as Array<{ resumo: string; via: string }>)[0]!;
+    expect(itemRes).toEqual({ pedidoId: CHAVE, resumo: 'A entrega atrasou 5 dias na planilha.', via: 'llm' });
+
+    const execSim = await executarMandato(
+      sessao,
+      'simule entrega para 28/01/2026',
+      { acao: 'simular', filtros: { pedidoId: CHAVE, campo: 'previsaoEntrega', valor: '28/01/2026' } },
+      { maxAlvos: 5 },
+    );
+    const itemSim = (execSim.resultado['porPedido'] as Array<{ divergencias: Array<{ valorB: string }> }>)[0]!;
+    expect(itemSim.divergencias[0]?.valorB).toBe('2026-01-28');
+  });
+
+  it('sessao vazia pode resumir e simular pedido da seed sem gravar nada; propagar segue recusado', async () => {
+    const seedStore = store.paraWorkspace('seed');
+    const chaveSeed = '35260123456789000123550010000000011000009999';
+    await seedStore.append(chaveSeed, 'nfe', {
+      fonte: 'nfe',
+      campos: { previsaoEntrega: '2026-01-20', status: 'emitida' },
+      dados: { emitente: { nome: 'Fornecedor Seed' }, destinatario: { nome: 'CD Seed' } },
+    });
+    const visitanteVazio = store.paraWorkspace('00000000-0000-4000-8000-00000000eeee');
+    const antesSeed = (await seedStore.eventosDoPedido(chaveSeed)).length;
+
+    const res = await executarMandato(visitanteVazio, 'qual o estado?', { acao: 'resumir', filtros: {} }, { maxAlvos: 5 });
+    expect(res.alvos).toEqual([chaveSeed]);
+    expect(res.resultado['leituraExemplo']).toBe(true);
+    expect(res.eventos).toEqual([]);
+    expect((await seedStore.eventosDoPedido(chaveSeed)).length).toBe(antesSeed);
+
+    const sim = await executarMandato(
+      visitanteVazio,
+      'simule entrega para 28/01/2026',
+      { acao: 'simular', filtros: { campo: 'previsaoEntrega', valor: '28/01/2026' } },
+      { maxAlvos: 5 },
+    );
+    expect(sim.alvos).toEqual([chaveSeed]);
+    expect(sim.resultado['leituraExemplo']).toBe(true);
+    expect(sim.eventos).toEqual([]);
+    expect((await seedStore.eventosDoPedido(chaveSeed)).length).toBe(antesSeed);
+
+    await expect(
+      executarMandato(visitanteVazio, 'propague o atraso', { acao: 'propagar', filtros: {} }, { maxAlvos: 5 }),
+    ).rejects.toMatchObject({ motivo: 'sem_alvo' });
+
+    await expect(
+      executarMandato(visitanteVazio, 'propague na seed', { acao: 'propagar', filtros: { pedidoId: chaveSeed } }, { maxAlvos: 5 }),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
   it('mandato notificar com Nvoip desligada registra nao_entregue sem rede', async () => {
     const f = vi.fn();
     vi.stubGlobal('fetch', f);

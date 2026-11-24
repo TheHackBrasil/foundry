@@ -53,11 +53,17 @@ export function validarViewSpec(json: unknown): ViewSpec | null {
   };
 }
 
-const PROMPT = `Voce monta a especificacao de visao de um pedido logistico para um papel.
+const PROMPT = `Voce monta a especificacao de visao (GenUI) de um pedido logistico para um papel especifico.
 Responda APENAS JSON:
 {"versao": 1, "fontesVisiveis": FonteDocumento[], "colunas": CampoVigiado[], "lente": Parte, "destacarDivergencias": boolean}
 Enums: FonteDocumento em nfe|cte|cce|planilha|pdf|imap|manual; CampoVigiado em previsaoEntrega|pesoTotal|volumes|status; Parte em fornecedor|transportadora|cd|fiscal|financeiro.
-Mostre so as fontes que ajudam o papel a decidir; destaque divergencias quando elas importam para ele.
+Filtre de verdade para reduzir ruido cognitivo — cada papel decide coisas diferentes (use apenas fontes presentes no pedido):
+- fornecedor: foca na divergencia entre a NF-e emitida e o reportado (ex.: nfe + planilha ou cte; campos com divergencia relevante para o emissor).
+- transportadora: foca em entrega, rota e carga (ex.: nfe, cte, planilha; colunas previsaoEntrega, pesoTotal, volumes, status — omita cce fiscal).
+- cd: foca em doca e recebimento fisico (ex.: nfe, planilha; colunas previsaoEntrega, volumes, status — omita cce).
+- fiscal: foca nos documentos fiscais (nfe, cte, cce; colunas pesoTotal, volumes, status — omita planilha e previsaoEntrega).
+- financeiro: foca em faturamento, frete e multa/SLA (nfe, cte, planilha; colunas pesoTotal, previsaoEntrega, status — omita cce e volumes).
+Mantenha pelo menos 1 fonte presente e 1 coluna. Destaque divergencias quando importam para o papel.
 Pedido:
 `;
 
