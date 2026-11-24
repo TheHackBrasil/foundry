@@ -504,26 +504,27 @@ const OPS_BASE_CSS = `@layer forseti-ops {
     color: var(--text);
   }
   .citacao-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
+    display: inline;
     vertical-align: baseline;
     margin: 0 0.125rem;
-    padding: 0.0625rem 0.4375rem;
+    padding: 0 0.125rem 0.0625rem;
     border: 0;
-    border-radius: var(--r-sm, 6px);
-    background: var(--change-bg);
-    color: var(--change);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--change) 35%, transparent);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    line-height: 1.45;
+    border-bottom: 1.5px solid color-mix(in srgb, var(--change) 52%, transparent);
+    border-radius: 0;
+    background: transparent;
+    color: var(--text);
+    box-shadow: none;
+    font-size: 0.92em;
+    font-weight: 550;
+    line-height: inherit;
     cursor: pointer;
-    transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
   }
   .citacao-btn[aria-pressed='true'] {
-    background: var(--change);
-    color: var(--on-primary);
+    background: color-mix(in srgb, var(--change-bg) 82%, transparent);
+    color: var(--change);
+    border-bottom-color: var(--change);
+    border-radius: 3px;
     box-shadow: none;
   }
   .palco-citacoes-rodape {
@@ -919,8 +920,8 @@ const OPS_BASE_CSS = `@layer forseti-ops {
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .citacao-btn:hover { background: color-mix(in srgb, var(--change) 20%, var(--change-bg)); }
-    .citacao-btn[aria-pressed='true']:hover { background: var(--change); }
+    .citacao-btn:hover { background: transparent; color: var(--change); border-bottom-color: var(--change); }
+    .citacao-btn[aria-pressed='true']:hover { background: color-mix(in srgb, var(--change-bg) 90%, transparent); }
     .comparador-lado:hover,
     .checklist-item:hover,
     .domino-no:hover,
