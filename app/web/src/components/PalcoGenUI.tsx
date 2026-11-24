@@ -839,7 +839,9 @@ export function PalcoGenUI({
     resultado: RespostaSimulacao;
   } | null>(null);
 
-  if (!spec && !carregando && blocosStream.length === 0 && etapas.length === 0) {
+  // Encerrado sem spec nem blocos (ex.: resposta so em texto do agente) nao
+  // renderiza um palco vazio so porque a trilha de etapas ficou registrada.
+  if (!carregando && !spec && blocosStream.length === 0) {
     return null;
   }
 

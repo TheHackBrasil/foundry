@@ -323,10 +323,42 @@ export interface ViewSpecV2 {
   };
 }
 
+// Turno da conversa multi-turn do assistente (spec 0009): viaja no corpo de
+// POST /api/mandatos/stream; o servidor saneia e nunca persiste.
+export interface TurnoConversa {
+  papel: 'usuario' | 'assistente';
+  texto: string;
+}
+
+export type StatusExecucaoTool = 'executando' | 'concluida' | 'erro';
+
+// Registro da trilha visivel de ferramentas do agente: uma linha legivel por
+// chamada, exibida no front enquanto a resposta nao chega.
+export interface ToolExecutada {
+  nome: string;
+  resumo: string;
+  status: 'concluida' | 'erro';
+}
+
+// Payload do evento 'fim' do agente (spec 0009): texto final em linguagem
+// natural, trilha de ferramentas, pedido resolvido durante o loop, viewSpec
+// composta quando tools visuais rodaram e dados estruturados da ultima tool
+// relevante (simulacao, notificacao).
+export interface ResultadoAgente {
+  textoFinal: string;
+  toolsExecutadas: ToolExecutada[];
+  pedidoIdResolvido?: string;
+  viewSpec?: ViewSpecV2;
+  resultado?: Record<string, unknown>;
+}
+
 export type EventoStreamMandato =
-  | { tipo: 'etapa'; id: 'ledger' | 'intencao' | 'motor' | 'composicao'; rotulo: string; detalhe?: string }
+  | { tipo: 'etapa'; id: string; rotulo: string; detalhe?: string }
+  | { tipo: 'tool'; nome: string; resumo: string; status: StatusExecucaoTool }
+  | { tipo: 'texto_delta'; delta: string }
   | { tipo: 'bloco'; bloco: BlocoGenUI }
   | { tipo: 'concluido'; resposta: RespostaMandato }
+  | { tipo: 'fim'; resultado: ResultadoAgente }
   | { tipo: 'erro'; status: number; motivo?: string; mensagem: string };
 
 export interface ResumoPedidoLista {

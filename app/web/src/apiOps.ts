@@ -9,8 +9,10 @@ import type {
   Parte,
   RespostaMandato,
   RespostaSimulacao,
+  ResultadoAgente,
   ResultadoAncora,
   ResultadoIngest,
+  TurnoConversa,
   ViewSpecV2,
 } from '../../shared/model.ts';
 import {
@@ -33,8 +35,17 @@ export interface ResultadoNotificarDireto {
 
 export interface OpcoesStreamMandato {
   pedidoId?: string;
+  historico?: TurnoConversa[];
   signal?: AbortSignal;
   aoEvento: (ev: EventoStreamMandato) => void;
+}
+
+// Saida do fluxo SSE: 'resposta' cobre o contrato classico (evento 'concluido')
+// e 'agente' o contrato conversacional (evento 'fim', spec 0009). Os dois
+// chegam juntos quando o servidor emite o 'concluido' sintetico de compat.
+export interface ResultadoStreamMandato {
+  resposta?: RespostaMandato;
+  agente?: ResultadoAgente;
 }
 
 function ehAbortError(err: unknown, signal?: AbortSignal): boolean {
@@ -78,6 +89,10 @@ export function obterViewSpecV2(
   return pedirJsonOps<ViewSpecV2>(url, signal ? { signal } : undefined);
 }
 
+const STATUS_TOOL_STREAM = new Set(['executando', 'concluida', 'erro']);
+
+// Aceita os eventos do fluxo classico e os do agente (spec 0009). Evento
+// desconhecido ou malformado e descartado em silencio, como ja ocorria.
 function parseEventoStream(bruto: string): EventoStreamMandato | null {
   let parsed: unknown;
   try {
@@ -88,6 +103,22 @@ function parseEventoStream(bruto: string): EventoStreamMandato | null {
   if (!ehObjeto(parsed) || typeof parsed['tipo'] !== 'string') return null;
   const tipo = parsed['tipo'];
   if (tipo === 'etapa' || tipo === 'bloco' || tipo === 'concluido' || tipo === 'erro') {
+    return parsed as unknown as EventoStreamMandato;
+  }
+  if (tipo === 'tool') {
+    if (typeof parsed['nome'] !== 'string' || typeof parsed['resumo'] !== 'string') return null;
+    const status = parsed['status'];
+    if (typeof status !== 'string' || !STATUS_TOOL_STREAM.has(status)) return null;
+    return parsed as unknown as EventoStreamMandato;
+  }
+  if (tipo === 'texto_delta') {
+    return typeof parsed['delta'] === 'string'
+      ? (parsed as unknown as EventoStreamMandato)
+      : null;
+  }
+  if (tipo === 'fim') {
+    const resultado = parsed['resultado'];
+    if (!ehObjeto(resultado) || typeof resultado['textoFinal'] !== 'string') return null;
     return parsed as unknown as EventoStreamMandato;
   }
   return null;
@@ -111,7 +142,7 @@ function ehRespostaMandato(v: unknown): v is RespostaMandato {
 export async function transmitirMandatoStream(
   texto: string,
   opcoes: OpcoesStreamMandato,
-): Promise<RespostaMandato> {
+): Promise<ResultadoStreamMandato> {
   let resposta: Response;
   try {
     resposta = await fetch('/api/mandatos/stream', {
@@ -121,8 +152,11 @@ export async function transmitirMandatoStream(
         Accept: 'text/event-stream',
       },
       body: JSON.stringify({
-        texto,
+        comando: texto,
         ...(opcoes.pedidoId ? { pedidoId: opcoes.pedidoId } : {}),
+        ...(opcoes.historico && opcoes.historico.length > 0
+          ? { historico: opcoes.historico }
+          : {}),
       }),
       ...(opcoes.signal ? { signal: opcoes.signal } : {}),
     });
@@ -135,7 +169,7 @@ export async function transmitirMandatoStream(
   if (resposta.status === 404) {
     const direta = await enviarMandato(texto);
     opcoes.aoEvento({ tipo: 'concluido', resposta: direta });
-    return direta;
+    return { resposta: direta };
   }
 
   if (!resposta.ok) {
@@ -150,18 +184,19 @@ export async function transmitirMandatoStream(
       const json: unknown = await resposta.json().catch(() => null);
       if (ehRespostaMandato(json)) {
         opcoes.aoEvento({ tipo: 'concluido', resposta: json });
-        return json;
+        return { resposta: json };
       }
     }
     const direta = await enviarMandato(texto);
     opcoes.aoEvento({ tipo: 'concluido', resposta: direta });
-    return direta;
+    return { resposta: direta };
   }
 
   const reader = resposta.body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
   let respostaFinal: RespostaMandato | null = null;
+  let agenteFinal: ResultadoAgente | null = null;
   let erroStream: ErroMandatoApi | null = null;
 
   const processarQuadro = (quadro: string) => {
@@ -172,6 +207,8 @@ export async function transmitirMandatoStream(
     opcoes.aoEvento(ev);
     if (ev.tipo === 'concluido') {
       respostaFinal = ev.resposta;
+    } else if (ev.tipo === 'fim') {
+      agenteFinal = ev.resultado;
     } else if (ev.tipo === 'erro') {
       erroStream = new ErroMandatoApi(ev.mensagem, ev.status, ev.motivo);
     }
@@ -204,7 +241,12 @@ export async function transmitirMandatoStream(
   }
 
   if (erroStream) throw erroStream;
-  if (respostaFinal) return respostaFinal;
+  if (respostaFinal || agenteFinal) {
+    return {
+      ...(respostaFinal ? { resposta: respostaFinal } : {}),
+      ...(agenteFinal ? { agente: agenteFinal } : {}),
+    };
+  }
   throw new ErroMandatoApi('O servidor encerrou o fluxo sem concluir o comando.', 0);
 }
 
@@ -919,6 +961,73 @@ const OPS_BASE_CSS = `@layer forseti-ops {
     box-shadow: inset 0 0 0 1.5px var(--change);
   }
 
+  /* Resposta conversacional do agente (spec 0009): prosa digitada ao vivo
+     e trilha fina de ferramentas que se dissolve quando o texto chega. */
+  .agente-texto {
+    display: grid;
+    gap: 0.625rem;
+    max-width: 68ch;
+    font-size: 0.96875rem;
+    line-height: 1.65;
+    color: var(--text);
+  }
+  .agente-texto strong { font-weight: 650; }
+  .agente-texto code {
+    padding: 0.0625rem 0.3125rem;
+    border-radius: var(--r-sm, 6px);
+    background: var(--surface2);
+    box-shadow: inset 0 0 0 1px var(--hairline);
+    font: 400 0.86em/1.4 var(--font-mono);
+  }
+  .agente-texto ul {
+    display: grid;
+    gap: 0.375rem;
+    padding-inline-start: 1.25rem;
+    list-style: disc;
+  }
+  .agente-cursor {
+    display: inline-block;
+    width: 0.5rem;
+    height: 1.05em;
+    margin-inline-start: 0.1875rem;
+    border-radius: 1px;
+    background: var(--change);
+    vertical-align: -0.15em;
+    animation: agente-cursor-pulso 1.05s ease-in-out infinite;
+  }
+  .agente-cursor-linha { min-height: 1.05em; }
+  @keyframes agente-cursor-pulso {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 0.9; }
+  }
+  .agente-tools {
+    display: grid;
+    gap: 0.375rem;
+    max-height: 14rem;
+    margin: 0 0 0.875rem;
+    padding: 0;
+    list-style: none;
+    overflow: hidden;
+    opacity: 1;
+    transition: opacity 280ms ease, max-height 300ms ease, margin 300ms ease;
+  }
+  .agente-tools[data-dissolvendo='true'] {
+    max-height: 0;
+    margin-bottom: 0;
+    opacity: 0;
+  }
+  .agente-tool {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--text2);
+  }
+  .agente-tool svg { width: 0.875rem; height: 0.875rem; flex: none; }
+  .agente-tool .cmd-spinner { flex: none; }
+  .agente-tool[data-status='concluida'] svg { color: var(--ok); }
+  .agente-tool[data-status='erro'] { color: var(--error); }
+
   @media (hover: hover) and (pointer: fine) {
     .citacao-btn:hover { background: transparent; color: var(--change); border-bottom-color: var(--change); }
     .citacao-btn[aria-pressed='true']:hover { background: color-mix(in srgb, var(--change-bg) 90%, transparent); }
@@ -945,10 +1054,13 @@ const OPS_BASE_CSS = `@layer forseti-ops {
 
   @media (prefers-reduced-motion: reduce) {
     .citacao-btn, .comparador-lado, .checklist-item, .domino-no, .agenda-papel-btn { transition: none; }
+    .agente-tools { transition: none; }
+    .agente-cursor { animation: none; opacity: 0.7; }
   }
 
   @media (forced-colors: active) {
-    .palco-genui, .palco-bloco, .domino-motor, .domino-no, .drawer-panel, .drawer-card, .despacho-card, .sim-vivo-campo {
+    .palco-genui, .palco-bloco, .domino-motor, .domino-no, .drawer-panel, .drawer-card, .despacho-card, .sim-vivo-campo,
+    .agente-texto code {
       border: 1px solid CanvasText;
     }
     .citacao-btn, .comparador-lado, .checklist-item, .agenda-papel-btn {

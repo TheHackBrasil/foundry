@@ -481,11 +481,35 @@ export function BarraMandatos({
       };
 
       async function rodarStream(alvoPedidoId: string): Promise<RespostaMandato> {
-        return transmitirMandatoStream(limpo, {
+        const saida = await transmitirMandatoStream(limpo, {
           pedidoId: alvoPedidoId,
           signal: ctrl.signal,
           aoEvento: lidarEvento,
         });
+        const { resposta, agente } = saida;
+        // No fluxo do agente (spec 0009) a viewSpec chega no 'fim': acopla ao
+        // RespostaMandato de compat quando o 'concluido' nao a trouxe.
+        if (resposta) {
+          return agente?.viewSpec && !resposta.viewSpec
+            ? { ...resposta, viewSpec: agente.viewSpec }
+            : resposta;
+        }
+        // Sem 'concluido' de compat: sintetiza um resumo com o texto final.
+        const alvo = agente?.pedidoIdResolvido ?? alvoPedidoId;
+        return {
+          acao: 'resumir',
+          alvos: [alvo],
+          resultado: {
+            porPedido: [
+              {
+                pedidoId: alvo,
+                resumo: agente?.textoFinal.trim() || 'Resposta concluída.',
+                via: 'llm',
+              },
+            ],
+          },
+          ...(agente?.viewSpec ? { viewSpec: agente.viewSpec } : {}),
+        };
       }
 
       try {

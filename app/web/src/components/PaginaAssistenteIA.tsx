@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -17,7 +18,10 @@ import type {
   EventoStreamMandato,
   Parte,
   ProjecaoPedido,
-  RespostaMandato,
+  ResultadoAgente,
+  StatusExecucaoTool,
+  ToolExecutada,
+  TurnoConversa,
   ViewSpecV2,
 } from '../../../shared/model.ts';
 import { ErroMandatoApi, type PedidoResumo } from '../api.ts';
@@ -25,6 +29,7 @@ import {
   aplicarHipoteseComoPlanilha,
   garantirEstilosOps,
   transmitirMandatoStream,
+  type ResultadoStreamMandato,
 } from '../apiOps.ts';
 import type { PaginaAssistenteIAProps } from '../assistenteContrato.ts';
 import {
@@ -98,6 +103,15 @@ interface PontoTela {
   readonly y: number;
 }
 
+// Linha da trilha de ferramentas do agente: o evento 'tool' do SSE nao traz
+// id de chamada, entao a identidade local combina nome e posicao de chegada.
+interface ToolTurnoIA {
+  id: string;
+  nome: string;
+  resumo: string;
+  status: StatusExecucaoTool;
+}
+
 interface TurnoIA {
   id: string;
   comando: string;
@@ -108,6 +122,9 @@ interface TurnoIA {
   blocosStream: BlocoGenUI[];
   viewSpec: ViewSpecV2 | null;
   interpretado: ResultadoMandatoInterpretado | null;
+  textoAgente: string;
+  tools: ToolTurnoIA[];
+  agente: ResultadoAgente | null;
   projecaoSnapshot: ProjecaoPedido | null;
   autoForkAplicado: boolean;
   erro: { mensagem: string; status: number; motivo?: string } | null;
@@ -226,6 +243,219 @@ function acumularBlocoUnico(
   const idx = atuais.findIndex((b) => b.id === bloco.id);
   if (idx === -1) return [...atuais, bloco];
   return atuais.map((b, i) => (i === idx ? bloco : b));
+}
+
+// 'executando' abre uma linha nova; 'concluida'/'erro' fecha a execucao mais
+// recente com o mesmo nome, ou anexa uma linha ja encerrada quando o evento
+// de abertura nao chegou.
+function acumularToolTurno(
+  atuais: readonly ToolTurnoIA[],
+  ev: { nome: string; resumo: string; status: StatusExecucaoTool },
+): ToolTurnoIA[] {
+  if (ev.status === 'executando') {
+    return [
+      ...atuais,
+      { id: `${ev.nome}-${atuais.length}`, nome: ev.nome, resumo: ev.resumo, status: 'executando' },
+    ];
+  }
+  for (let i = atuais.length - 1; i >= 0; i--) {
+    const atual = atuais[i];
+    if (atual && atual.nome === ev.nome && atual.status === 'executando') {
+      return atuais.map((t, j) =>
+        j === i ? { ...t, resumo: ev.resumo || t.resumo, status: ev.status } : t,
+      );
+    }
+  }
+  return [
+    ...atuais,
+    { id: `${ev.nome}-${atuais.length}`, nome: ev.nome, resumo: ev.resumo, status: ev.status },
+  ];
+}
+
+// No 'fim', a trilha final do servidor (toolsExecutadas) reconcilia as linhas
+// ainda abertas: cada 'executando' pega o desfecho com o mesmo nome, ou fecha
+// como 'concluida' quando o servidor nao a reportou.
+function reconciliarToolsTurno(
+  atuais: readonly ToolTurnoIA[],
+  finais: readonly ToolExecutada[] | undefined,
+): ToolTurnoIA[] {
+  const pendentes = [...(finais ?? [])];
+  return atuais.map((t) => {
+    if (t.status !== 'executando') return t;
+    const idx = pendentes.findIndex((f) => f.nome === t.nome);
+    const final = idx >= 0 ? pendentes.splice(idx, 1)[0] : undefined;
+    return {
+      ...t,
+      resumo: final?.resumo ? final.resumo : t.resumo,
+      status: final ? final.status : 'concluida',
+    };
+  });
+}
+
+const LIMITE_TURNOS_HISTORICO = 10;
+const LIMITE_CARACTERES_TURNO = 1200;
+
+function cortarTextoHistorico(texto: string): string {
+  const limpo = texto.trim();
+  return limpo.length > LIMITE_CARACTERES_TURNO
+    ? `${limpo.slice(0, LIMITE_CARACTERES_TURNO).trimEnd()}…`
+    : limpo;
+}
+
+// Fala do assistente registrada no turno: o texto natural do agente quando
+// existe; nos turnos do fluxo classico, o resumo gerado para o anuncio.
+function textoAssistenteDoTurno(turno: TurnoIA): string {
+  if (turno.agente && turno.agente.textoFinal.trim()) return turno.agente.textoFinal;
+  if (turno.textoAgente.trim()) return turno.textoAgente;
+  if (turno.interpretado) return resumoParaAnuncio(turno.interpretado);
+  return '';
+}
+
+// Historico multi-turn do corpo (spec 0009, RF20): pares usuario/assistente
+// dos ultimos turnos finalizados, mais antigo primeiro, sem turno em voo nem
+// turno que terminou em erro.
+function montarHistoricoConversa(turnos: readonly TurnoIA[]): TurnoConversa[] {
+  const historico: TurnoConversa[] = [];
+  const elegiveis = turnos.filter((t) => !t.carregando && !t.erro).slice(-LIMITE_TURNOS_HISTORICO);
+  for (const turno of elegiveis) {
+    const usuario = cortarTextoHistorico(turno.comando);
+    const assistente = cortarTextoHistorico(textoAssistenteDoTurno(turno));
+    if (!usuario || !assistente) continue;
+    historico.push({ papel: 'usuario', texto: usuario });
+    historico.push({ papel: 'assistente', texto: assistente });
+  }
+  return historico;
+}
+
+// Anuncio acessivel do turno do agente: primeira frase do texto final,
+// com teto curto para o leitor de tela.
+function resumoAgenteParaAnuncio(textoFinal: string): string {
+  const limpo = textoFinal.trim();
+  if (!limpo) return 'Resposta concluída.';
+  const primeiraLinha = limpo.split('\n', 1)[0] ?? limpo;
+  const fimFrase = primeiraLinha.search(/[.!?](\s|$)/);
+  const base = fimFrase >= 0 ? primeiraLinha.slice(0, fimFrase + 1) : primeiraLinha;
+  return base.length > 140 ? `${base.slice(0, 139).trimEnd()}…` : base;
+}
+
+type SegmentoProsa =
+  | { tipo: 'paragrafo'; linhas: string[] }
+  | { tipo: 'lista'; itens: string[] };
+
+// Markdown minimo do agente (RF21): blocos separados por linha em branco,
+// linhas '- '/'• ' viram lista, '**negrito**' e '`codigo`' sao inline.
+function dividirProsaAgente(texto: string): SegmentoProsa[] {
+  const segmentos: SegmentoProsa[] = [];
+  for (const bloco of texto.split(/\n{2,}/)) {
+    if (!bloco.trim()) continue;
+    let linhasParagrafo: string[] = [];
+    const fecharParagrafo = () => {
+      if (linhasParagrafo.length === 0) return;
+      segmentos.push({ tipo: 'paragrafo', linhas: linhasParagrafo });
+      linhasParagrafo = [];
+    };
+    for (const linha of bloco.split('\n')) {
+      const aparada = linha.trimStart();
+      const marcador = aparada.startsWith('- ') ? 2 : aparada.startsWith('•') ? 1 : 0;
+      if (marcador > 0) {
+        fecharParagrafo();
+        const item = aparada.slice(marcador).trimStart();
+        const ultimo = segmentos[segmentos.length - 1];
+        if (ultimo && ultimo.tipo === 'lista') ultimo.itens.push(item);
+        else segmentos.push({ tipo: 'lista', itens: [item] });
+      } else if (aparada || linhasParagrafo.length > 0) {
+        linhasParagrafo.push(linha);
+      }
+    }
+    fecharParagrafo();
+  }
+  return segmentos;
+}
+
+const RE_INLINE_AGENTE = /(\*\*[^*\n]+\*\*|`[^`\n]+`)/g;
+
+// Formatacao inline do texto do agente em JSX puro: sem dangerouslySetInnerHTML.
+function InlineAgente({ texto }: { texto: string }) {
+  return (
+    <>
+      {texto.split(RE_INLINE_AGENTE).map((parte, i) => {
+        if (parte.length > 4 && parte.startsWith('**') && parte.endsWith('**')) {
+          return <strong key={`b${i}`}>{parte.slice(2, -2)}</strong>;
+        }
+        if (parte.length > 2 && parte.startsWith('`') && parte.endsWith('`')) {
+          return <code key={`c${i}`}>{parte.slice(1, -1)}</code>;
+        }
+        return <Fragment key={`t${i}`}>{parte}</Fragment>;
+      })}
+    </>
+  );
+}
+
+// Resposta em linguagem natural do agente: 'aoVivo' mantem um cursor sutil
+// no fim do ultimo segmento enquanto os deltas ainda chegam.
+function TextoAgente({ texto, aoVivo }: { texto: string; aoVivo: boolean }) {
+  const segmentos = useMemo(() => dividirProsaAgente(texto), [texto]);
+  const cursor = <span className="agente-cursor" aria-hidden="true" />;
+  const ultimo = segmentos.length - 1;
+  const ultimoEhParagrafo = ultimo >= 0 && segmentos[ultimo]?.tipo === 'paragrafo';
+  return (
+    <div className="agente-texto">
+      {segmentos.map((seg, i) =>
+        seg.tipo === 'lista' ? (
+          <ul key={`lista-${i}`}>
+            {seg.itens.map((item, j) => (
+              <li key={`item-${i}-${j}`}>
+                <InlineAgente texto={item} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p key={`p-${i}`}>
+            {seg.linhas.map((linha, j) => (
+              <Fragment key={`l-${i}-${j}`}>
+                {j > 0 && <br />}
+                <InlineAgente texto={linha} />
+              </Fragment>
+            ))}
+            {aoVivo && i === ultimo ? cursor : null}
+          </p>
+        ),
+      )}
+      {aoVivo && !ultimoEhParagrafo && <p className="agente-cursor-linha">{cursor}</p>}
+    </div>
+  );
+}
+
+// Trilha fina das tools enquanto a resposta nao chega; dissolve (classe de
+// saida no CSS da camada ops) no primeiro texto_delta ou no encerramento.
+function TrilhaFerramentasAgente({
+  tools,
+  dissolvendo,
+}: {
+  tools: readonly ToolTurnoIA[];
+  dissolvendo: boolean;
+}) {
+  return (
+    <ol
+      className="agente-tools"
+      data-dissolvendo={dissolvendo ? 'true' : undefined}
+      aria-live="polite"
+      aria-label="Ferramentas consultadas pelo agente"
+    >
+      {tools.map((tool) => (
+        <li key={tool.id} className="agente-tool" data-status={tool.status}>
+          {tool.status === 'executando' ? (
+            <span className="cmd-spinner" aria-hidden="true" />
+          ) : tool.status === 'concluida' ? (
+            <IconeConfere />
+          ) : (
+            <IconeErro />
+          )}
+          <span>{tool.resumo || tool.nome}</span>
+        </li>
+      ))}
+    </ol>
+  );
 }
 
 function desktopSplitInicial(): boolean {
@@ -583,6 +813,7 @@ export function PaginaAssistenteIA({
   const sairSantuarioTimerRef = useRef<number | null>(null);
   const turnoSeqRef = useRef(0);
   const turnosCountRef = useRef(0);
+  const turnosRef = useRef<TurnoIA[]>([]);
   const comandoInicialConsumidoRef = useRef<string | null>(null);
 
   // Refs de gestão de foco WCAG 2.2 AA para voz.
@@ -603,6 +834,7 @@ export function PaginaAssistenteIA({
   const [preferenciaEvidencia, setPreferenciaEvidencia] = useState<boolean | null>(null);
 
   turnosCountRef.current = turnos.length;
+  turnosRef.current = turnos;
 
   const pedidoAtual = useMemo(
     () => (pedidoId ? (pedidos.find((p) => p.pedidoId === pedidoId) ?? null) : null),
@@ -829,10 +1061,15 @@ export function PaginaAssistenteIA({
         blocosStream: [],
         viewSpec: null,
         interpretado: null,
+        textoAgente: '',
+        tools: [],
+        agente: null,
         projecaoSnapshot: dadosProjecao,
         autoForkAplicado: false,
         erro: null,
       };
+      // O historico sai dos turnos ja finalizados, antes deste entrar na lista.
+      const historicoConversa = montarHistoricoConversa(turnosRef.current);
       setTurnos((prev) => [...prev, novoTurno]);
 
       const lidarEvento = (ev: EventoStreamMandato) => {
@@ -842,11 +1079,32 @@ export function PaginaAssistenteIA({
             ...t,
             etapas: adicionarOuAtualizarEtapa(t.etapas, ev),
           }));
+        } else if (ev.tipo === 'tool') {
+          atualizarTurno(turnoId, (t) => ({
+            ...t,
+            tools: acumularToolTurno(t.tools, ev),
+          }));
+        } else if (ev.tipo === 'texto_delta') {
+          atualizarTurno(turnoId, (t) => ({
+            ...t,
+            textoAgente: t.textoAgente + ev.delta,
+          }));
         } else if (ev.tipo === 'bloco') {
           emitirPulsoSuperficie(null);
           atualizarTurno(turnoId, (t) => ({
             ...t,
             blocosStream: acumularBlocoUnico(t.blocosStream, ev.bloco),
+          }));
+        } else if (ev.tipo === 'fim') {
+          const resultado = ev.resultado;
+          atualizarTurno(turnoId, (t) => ({
+            ...t,
+            pedidoId: resultado.pedidoIdResolvido || t.pedidoId,
+            textoAgente: resultado.textoFinal || t.textoAgente,
+            tools: reconciliarToolsTurno(t.tools, resultado.toolsExecutadas),
+            viewSpec: resultado.viewSpec ?? t.viewSpec,
+            agente: resultado,
+            etapas: t.etapas.map((et) => ({ ...et, concluida: true })),
           }));
         } else if (ev.tipo === 'concluido') {
           atualizarTurno(turnoId, (t) => ({
@@ -859,10 +1117,11 @@ export function PaginaAssistenteIA({
       const rodarStream = async (
         alvoId: string | null,
         jaTentouFork: boolean,
-      ): Promise<RespostaMandato | null> => {
+      ): Promise<ResultadoStreamMandato | null> => {
         try {
           return await transmitirMandatoStream(limpo, {
             ...(alvoId ? { pedidoId: alvoId } : {}),
+            historico: historicoConversa,
             signal: controller.signal,
             aoEvento: lidarEvento,
           });
@@ -906,27 +1165,55 @@ export function PaginaAssistenteIA({
       };
 
       try {
-        const resposta = await rodarStream(pedidoId, false);
-        if (!resposta || controller.signal.aborted) return;
+        const saida = await rodarStream(pedidoId, false);
+        if (!saida || controller.signal.aborted) return;
 
-        const interpretado = interpretarResultadoMandato(resposta);
-        const alvoResolvido = resposta.alvos[0] ?? idInicial;
+        const resposta = saida.resposta ?? null;
+        const agente = saida.agente ?? null;
+        const interpretado = resposta ? interpretarResultadoMandato(resposta) : null;
+        const alvosResposta =
+          resposta && Array.isArray(resposta.alvos) ? resposta.alvos : [];
+        const alvoResolvido = agente?.pedidoIdResolvido ?? alvosResposta[0] ?? idInicial;
+        const specFinal = agente?.viewSpec ?? resposta?.viewSpec ?? null;
 
         atualizarTurno(turnoId, (t) => ({
           ...t,
           pedidoId: alvoResolvido || t.pedidoId,
           carregando: false,
           etapas: t.etapas.map((et) => ({ ...et, concluida: true })),
-          viewSpec: resposta.viewSpec ?? null,
-          interpretado,
+          viewSpec: t.viewSpec ?? specFinal,
+          interpretado: interpretado ?? t.interpretado,
+          agente: t.agente ?? agente,
+          textoAgente: t.textoAgente || (agente?.textoFinal ?? ''),
           erro: null,
         }));
 
         emitirPulsoSuperficie(null);
-        aoAnunciar(resumoParaAnuncio(interpretado));
 
-        if (resposta.acao === 'propagar' || resposta.acao === 'notificar') {
+        if (agente && agente.textoFinal.trim()) {
+          aoAnunciar(resumoAgenteParaAnuncio(agente.textoFinal));
+        } else if (interpretado) {
+          aoAnunciar(resumoParaAnuncio(interpretado));
+        }
+
+        const houveEscrita =
+          resposta?.acao === 'propagar' ||
+          resposta?.acao === 'notificar' ||
+          (Array.isArray(agente?.toolsExecutadas) &&
+            agente.toolsExecutadas.some(
+              (tool) =>
+                (tool.nome === 'propagar_divergencias' ||
+                  tool.nome === 'enviar_notificacao') &&
+                tool.status === 'concluida',
+            ));
+        if (houveEscrita) {
           void aoRecarregarPedido();
+        }
+
+        // Pedido resolvido pelo agente vira o foco da tela quando difere do
+        // atual: projecao, evidencias e palco acompanham (mesma regra do fork).
+        if (agente?.pedidoIdResolvido && agente.pedidoIdResolvido !== pedidoId) {
+          aoSelecionarPedido(agente.pedidoIdResolvido);
         }
       } catch (err) {
         if (ehAbortError(err) || controller.signal.aborted) return;
@@ -1248,10 +1535,18 @@ export function PaginaAssistenteIA({
                 <ol className="ia-thread" aria-label="Turnos da consulta">
                   {turnos.map((turno, idx) => {
                     const ehUltimo = idx === turnos.length - 1;
+                    // O snapshot so serve quando retrata o mesmo pedido do
+                    // turno: pedidoIdResolvido (ou fork) pode muda-lo no meio.
+                    const snapshotServe =
+                      turno.projecaoSnapshot !== null &&
+                      (turno.projecaoSnapshot.pedido === null ||
+                        turno.projecaoSnapshot.pedido.id === turno.pedidoId);
                     const projecaoTurno =
                       turno.pedidoId === pedidoId && dadosProjecao
                         ? dadosProjecao
-                        : turno.projecaoSnapshot;
+                        : snapshotServe
+                          ? turno.projecaoSnapshot
+                          : null;
                     const turnoDaSessao =
                       turno.autoForkAplicado ||
                       Boolean(pedidos.find((p) => p.pedidoId === turno.pedidoId)?.daSessao);
@@ -1296,49 +1591,75 @@ export function PaginaAssistenteIA({
                                 </div>
                                 <p className="ia-turno-erro-msg">{turno.erro.mensagem}</p>
                               </div>
-                            ) : projecaoTurno &&
-                              (turno.carregando ||
-                                turno.viewSpec !== null ||
-                                turno.blocosStream.length > 0) ? (
-                              <PalcoGenUI
-                                spec={turno.viewSpec}
-                                etapas={turno.etapas}
-                                blocosStream={turno.blocosStream}
-                                carregando={turno.carregando}
-                                projecao={projecaoTurno}
-                                pedidoId={turno.pedidoId || (pedidoId ?? '')}
-                                daSessao={turnoDaSessao}
-                                contatos={contatos}
-                                focoAtivo={turno.pedidoId === pedidoId ? focoAtivo : null}
-                                aoFocar={lidarFocarDoPalco}
-                                aoExecutarComando={(cmd) => {
-                                  void executarComando(cmd, false, null);
-                                }}
-                                aoSelecionarPapel={lidarSelecionarPapel}
-                                aoNotificar={(parte, campo) =>
-                                  lidarNotificarDoPalco(
-                                    turno.pedidoId || (pedidoId ?? ''),
-                                    parte,
-                                    campo,
-                                  )
-                                }
-                                aoAbrirAgenda={aoAbrirAgenda}
-                                aoAplicarHipotese={(hipotese) =>
-                                  lidarAplicarHipotese(turno.pedidoId || (pedidoId ?? ''), hipotese)
-                                }
-                                aoAnunciar={aoAnunciar}
-                                slotLoader={<EmblemaMonolitos tamanho={20} />}
-                              />
-                            ) : turno.carregando ? (
-                              <div className="ia-turno-carregando" role="status" aria-live="polite">
-                                <EmblemaMonolitos tamanho={20} />
-                                <span>
-                                  {turno.etapas.at(-1)?.rotulo ?? 'Consultando estado do pedido…'}
-                                </span>
-                              </div>
-                            ) : turno.interpretado ? (
-                              <RespostaFallbackTurno dados={turno.interpretado} />
-                            ) : null}
+                            ) : (
+                              <>
+                                {turno.tools.length > 0 && (
+                                  <TrilhaFerramentasAgente
+                                    tools={turno.tools}
+                                    dissolvendo={
+                                      turno.textoAgente.length > 0 || !turno.carregando
+                                    }
+                                  />
+                                )}
+                                {turno.textoAgente ? (
+                                  <TextoAgente
+                                    texto={turno.textoAgente}
+                                    aoVivo={turno.carregando}
+                                  />
+                                ) : null}
+                                {projecaoTurno &&
+                                (turno.carregando ||
+                                  turno.viewSpec !== null ||
+                                  turno.blocosStream.length > 0) ? (
+                                  <PalcoGenUI
+                                    spec={turno.viewSpec}
+                                    etapas={turno.etapas}
+                                    blocosStream={turno.blocosStream}
+                                    carregando={turno.carregando}
+                                    projecao={projecaoTurno}
+                                    pedidoId={turno.pedidoId || (pedidoId ?? '')}
+                                    daSessao={turnoDaSessao}
+                                    contatos={contatos}
+                                    focoAtivo={turno.pedidoId === pedidoId ? focoAtivo : null}
+                                    aoFocar={lidarFocarDoPalco}
+                                    aoExecutarComando={(cmd) => {
+                                      void executarComando(cmd, false, null);
+                                    }}
+                                    aoSelecionarPapel={lidarSelecionarPapel}
+                                    aoNotificar={(parte, campo) =>
+                                      lidarNotificarDoPalco(
+                                        turno.pedidoId || (pedidoId ?? ''),
+                                        parte,
+                                        campo,
+                                      )
+                                    }
+                                    aoAbrirAgenda={aoAbrirAgenda}
+                                    aoAplicarHipotese={(hipotese) =>
+                                      lidarAplicarHipotese(
+                                        turno.pedidoId || (pedidoId ?? ''),
+                                        hipotese,
+                                      )
+                                    }
+                                    aoAnunciar={aoAnunciar}
+                                    slotLoader={<EmblemaMonolitos tamanho={20} />}
+                                  />
+                                ) : turno.carregando && !turno.textoAgente ? (
+                                  <div
+                                    className="ia-turno-carregando"
+                                    role="status"
+                                    aria-live="polite"
+                                  >
+                                    <EmblemaMonolitos tamanho={20} />
+                                    <span>
+                                      {turno.etapas.at(-1)?.rotulo ??
+                                        'Consultando estado do pedido…'}
+                                    </span>
+                                  </div>
+                                ) : !turno.textoAgente && turno.interpretado ? (
+                                  <RespostaFallbackTurno dados={turno.interpretado} />
+                                ) : null}
+                              </>
+                            )}
                           </div>
                         </article>
                       </li>

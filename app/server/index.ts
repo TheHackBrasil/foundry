@@ -13,7 +13,6 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { simularHipotese } from '../shared/divergence.js';
-import { formatarValor } from '../shared/formato.js';
 import { raizMerkle } from '../shared/merkle.js';
 import { propagarTodas } from '../shared/rules.js';
 import {
@@ -27,9 +26,12 @@ import {
   type Parte,
   type ProjecaoPedido,
   type RespostaMandato,
+  type ResultadoAgente,
+  type TurnoConversa,
   type ViewSpecV2,
 } from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
+import { executarAgente } from './agente/motor.js';
 import { ancorar, configAncoraDoEnv } from './anchor.js';
 import { configDoEnv, inteiroDoEnv, type ConfigServidor } from './config.js';
 import { listarAgenda, validarContato } from './contatos.js';
@@ -71,21 +73,6 @@ export interface BuildOpts {
   config?: ConfigServidor;
 }
 
-const ROTULO_CAMPO_STREAM: Record<CampoVigiado, string> = {
-  previsaoEntrega: 'Previsão',
-  pesoTotal: 'Peso',
-  volumes: 'Volumes',
-  status: 'Status',
-};
-
-const ROTULO_PARTE_STREAM: Record<Parte, string> = {
-  fornecedor: 'Fornecedor',
-  transportadora: 'Transportadora',
-  cd: 'CD',
-  fiscal: 'Fiscal',
-  financeiro: 'Financeiro',
-};
-
 function dataIsoParaUtcMs(valor: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
   if (!m) return null;
@@ -111,26 +98,6 @@ function calcularAtrasoDias(proj: ProjecaoPedido): number | null {
   return Math.round((Math.max(...datas) - Math.min(...datas)) / 86_400_000);
 }
 
-function rotuloIntencaoMandato(mandato: MandatoParseado): string {
-  const f = normalizarFiltros(mandato);
-  switch (mandato.acao) {
-    case 'simular': {
-      if (f.campo && f.valor !== undefined) {
-        const val = normalizarValorHipotese(f.campo, f.valor);
-        const fmt = formatarValor(f.campo, val) + (f.campo === 'pesoTotal' ? ' kg' : '');
-        return `Intenção: Simular · ${ROTULO_CAMPO_STREAM[f.campo]} ${fmt}`;
-      }
-      return 'Intenção: Simular';
-    }
-    case 'resumir':
-      return f.parte ? `Intenção: Resumir · ${ROTULO_PARTE_STREAM[f.parte]}` : 'Intenção: Resumir';
-    case 'propagar':
-      return f.campo ? `Intenção: Propagar · ${ROTULO_CAMPO_STREAM[f.campo]}` : 'Intenção: Propagar';
-    case 'notificar':
-      return f.parte ? `Intenção: Notificar · ${ROTULO_PARTE_STREAM[f.parte]}` : 'Intenção: Notificar';
-  }
-}
-
 function validarCorpoMandato(body: { texto?: unknown; pedidoId?: unknown } | undefined): { texto: string; pedidoId?: string } {
   const bruto = body?.texto;
   if (typeof bruto !== 'string' || !bruto.trim()) {
@@ -144,6 +111,48 @@ function validarCorpoMandato(body: { texto?: unknown; pedidoId?: unknown } | und
   }
   const pedidoId = typeof pidBruto === 'string' && pidBruto.trim() ? pidBruto.trim() : undefined;
   return pedidoId ? { texto, pedidoId } : { texto };
+}
+
+// Corpo do stream conversacional (spec 0009): 'comando' e o nome do campo,
+// 'texto' segue aceito como alias do contrato anterior. historico traz os
+// ultimos turnos da conversa; o servidor saneia formato, teto e tamanho —
+// nada dele e persistido.
+function validarCorpoConversa(
+  body: { comando?: unknown; texto?: unknown; pedidoId?: unknown; historico?: unknown } | undefined,
+): { texto: string; pedidoId?: string; historico?: TurnoConversa[] } {
+  const bruto = body?.comando ?? body?.texto;
+  if (typeof bruto !== 'string' || !bruto.trim()) {
+    throw new ErroRequisicao(400, 'comando é obrigatório');
+  }
+  const texto = bruto.trim();
+  if (texto.length > 1_000) throw new ErroRequisicao(400, 'texto é longo demais');
+  const pidBruto = body?.pedidoId;
+  if (pidBruto !== undefined && pidBruto !== null && typeof pidBruto !== 'string') {
+    throw new ErroRequisicao(400, 'pedidoId inválido');
+  }
+  const pedidoId = typeof pidBruto === 'string' && pidBruto.trim() ? pidBruto.trim() : undefined;
+  const histBruto = body?.historico;
+  if (histBruto !== undefined && !Array.isArray(histBruto)) {
+    throw new ErroRequisicao(400, 'historico inválido');
+  }
+  const historico = Array.isArray(histBruto)
+    ? (histBruto as Array<Record<string, unknown>>)
+        .filter(
+          (t) =>
+            typeof t === 'object' &&
+            t !== null &&
+            (t['papel'] === 'usuario' || t['papel'] === 'assistente') &&
+            typeof t['texto'] === 'string' &&
+            (t['texto'] as string).trim() !== '',
+        )
+        .slice(-20)
+        .map((t) => ({ papel: t['papel'] as TurnoConversa['papel'], texto: (t['texto'] as string).trim() }))
+    : undefined;
+  return {
+    texto,
+    ...(pedidoId ? { pedidoId } : {}),
+    ...(historico && historico.length > 0 ? { historico } : {}),
+  };
 }
 
 // Erro 4xx do Fastify ou dos plugins vira mensagem em portugues; o texto
@@ -513,19 +522,23 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     },
   );
 
-  // Stream SSE de mandato: emite etapas de raciocinio operacional, blocos
-  // deterministicos antecipados e o RespostaMandato completo com ViewSpecV2.
-  app.post<{ Body: { texto?: unknown; pedidoId?: unknown } }>(
+  // Stream SSE do agente conversacional (spec 0009): o comando em pt-BR
+  // entra num loop ReAct onde a LLM escolhe tools sobre o motor
+  // deterministico; a trilha sai por etapa/tool/texto_delta, blocos GenUI
+  // chegam quando tools visuais rodam, 'fim' carrega o ResultadoAgente e
+  // 'concluido' fecha com o RespostaMandato sintetizado do contrato antigo.
+  app.post<{ Body: { comando?: unknown; texto?: unknown; pedidoId?: unknown; historico?: unknown } }>(
     '/api/mandatos/stream',
     { config: limiteEscrita },
     async (req, reply) => {
-      const { texto, pedidoId } = validarCorpoMandato(req.body);
+      const { texto, pedidoId, historico } = validarCorpoConversa(req.body);
       if (!llmConfigDoEnv()) {
         return reply.code(503).send({ erro: 'indisponivel', mensagem: mensagens.llmIndisponivel() });
       }
       if (!mandatosJanela.consumir(ipDoCliente(req))) {
         throw new ErroRequisicao(429, mensagens.muitosMandatos());
       }
+      // Tools de escrita gravam eventos: a seed, leitura para todos, recusa.
       exigirGravavel(req.workspace, 'executar comandos');
       await guarda.exigirEspaco();
 
@@ -553,70 +566,30 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       };
 
       try {
-        // 1. Leitura imediata do pedido selecionado ou primeiro pedido visivel.
-        let totalEventos = 0;
-        let alvoInicial = pedidoId;
-        if (alvoInicial) {
-          const s = await storeDoPedido(sessao, alvoInicial);
-          if (s) totalEventos = (await s.eventosDoPedido(alvoInicial)).length;
-        } else {
-          const visiveis = await sessao.listarPedidos();
-          if (visiveis[0]) {
-            alvoInicial = visiveis[0].pedidoId;
-            totalEventos = visiveis[0].totalEventos;
-          }
-        }
-        emitir({
-          tipo: 'etapa',
-          id: 'ledger',
-          rotulo: `Lendo ${totalEventos} ${totalEventos === 1 ? 'evento' : 'eventos'} da cadeia…`,
-          ...(alvoInicial ? { detalhe: alvoInicial } : {}),
+        // Cliente que fecha o socket aborta as chamadas LLM do loop (o
+        // sinal e combinado com o timeout por chamada dentro de llm.ts).
+        const ctrl = new AbortController();
+        reply.raw.on('close', () => ctrl.abort());
+        const saida = await executarAgente({
+          pergunta: texto,
+          ...(pedidoId ? { pedidoId } : {}),
+          ...(historico ? { historico } : {}),
+          sessao,
+          store,
+          seedWs,
+          onEvento: emitir,
+          signal: ctrl.signal,
         });
-
-        // 2. Interpretacao da intencao pela LLM.
-        const mandato = await interpretarMandato(texto);
-        emitir({ tipo: 'etapa', id: 'intencao', rotulo: rotuloIntencaoMandato(mandato) });
-
-        // 3. Execucao deterministica + antecipacao de blocos estruturais.
-        const exec = await executarMandato(sessao, texto, mandato, {
-          maxAlvos: cfg.mandatos.maxAlvos,
-          ...(pedidoId ? { pedidoIdPadrao: pedidoId } : {}),
-        });
-        for (const e of exec.eventos) canal.evento(e, sessao.workspace);
-        emitir({
-          tipo: 'etapa',
-          id: 'motor',
-          rotulo: `Motor determinístico concluído · ${exec.alvos.length} ${exec.alvos.length === 1 ? 'pedido' : 'pedidos'}`,
-        });
-
-        const viewSpec = await montarViewSpecDoMandato(sessao, texto, mandato, exec);
-        if (viewSpec) {
-          const prioritarios = viewSpec.blocos.filter(
-            (b) => b.tipo === 'simulador_interativo' || b.tipo === 'domino_impacto' || b.tipo === 'comparador_conflito',
-          );
-          const antecipados =
-            prioritarios.length > 0
-              ? prioritarios
-              : viewSpec.blocos.filter((b) => b.tipo !== 'resumo_citado').slice(0, 1);
-          for (const bloco of antecipados) emitir({ tipo: 'bloco', bloco });
-        }
-
-        // 4. Composicao final e entrega da resposta completa.
-        emitir({
-          tipo: 'etapa',
-          id: 'composicao',
-          rotulo: 'Compondo visão contextual…',
-          ...(viewSpec ? { detalhe: viewSpec.tituloVisao } : {}),
-        });
-        const resposta: RespostaMandato = {
-          acao: exec.acao,
-          alvos: exec.alvos,
-          filtros: mandato.filtros,
-          ...(mandato.alvo !== undefined ? { alvo: mandato.alvo } : {}),
-          resultado: exec.resultado,
-          ...(viewSpec ? { viewSpec } : {}),
+        for (const e of saida.eventos) canal.evento(e, sessao.workspace);
+        const resultado: ResultadoAgente = {
+          textoFinal: saida.textoFinal,
+          toolsExecutadas: saida.toolsExecutadas,
+          ...(saida.pedidoIdResolvido ? { pedidoIdResolvido: saida.pedidoIdResolvido } : {}),
+          ...(saida.viewSpec ? { viewSpec: saida.viewSpec } : {}),
+          ...(saida.resultado ? { resultado: saida.resultado } : {}),
         };
-        emitir({ tipo: 'concluido', resposta });
+        emitir({ tipo: 'fim', resultado });
+        emitir({ tipo: 'concluido', resposta: saida.respostaCompat });
       } catch (err) {
         if (err instanceof ErroLlm) {
           const indisponivel = err.tipo === 'indisponivel';
@@ -626,12 +599,10 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
             motivo: indisponivel ? 'indisponivel' : 'parse_falhou',
             mensagem: indisponivel ? mensagens.llmIndisponivel() : mensagens.llmInvalida(),
           });
-        } else if (err instanceof ErroMandato) {
-          emitir({ tipo: 'erro', status: 422, motivo: err.motivo, mensagem: err.message });
         } else if (err instanceof ErroRequisicao) {
           emitir({ tipo: 'erro', status: err.status, mensagem: err.message });
         } else {
-          req.log.error({ err }, 'erro interno no stream de mandato');
+          req.log.error({ err }, 'erro interno no stream do agente');
           emitir({ tipo: 'erro', status: 500, mensagem: 'Erro interno do servidor. Tente de novo em instantes.' });
         }
       } finally {

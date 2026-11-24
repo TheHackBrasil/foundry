@@ -15,8 +15,9 @@ imutável (A9).
 | [0006](0006-identidade-forseti-v4/spec.md) | Identidade Brandbook v4 no site e nas telas do produto | aprovada | 2026-11-22 |
 | [0007](0007-camada-ai-operacional/spec.md) | Camada AI operacional: ingest universal, mandatos e notificação | rascunho | 2026-11-23 |
 | [0008](0008-blindagem-publica/spec.md) | Blindagem da demo pública (achados de auditoria) | rascunho | 2026-11-23 |
+| [0009](0009-agente-conversacional-tools/spec.md) | Agente conversacional com tool calling interno | rascunho | 2026-11-24 |
 
-**Próximo número livre:** `0009`
+**Próximo número livre:** `0010`
 
 ## Lacunas conhecidas
 

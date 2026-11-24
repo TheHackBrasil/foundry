@@ -55,30 +55,45 @@ export interface OpcoesChat {
   maxTokens?: number;
 }
 
-// Uma chamada de chat com resposta JSON obrigatoria. Devolve o conteudo ja
-// parseado; a forma esperada e responsabilidade de quem chama validar.
-export async function chatJson(mensagens: MensagemChat[], opcoes: OpcoesChat = {}): Promise<unknown> {
-  const cfg = opcoes.cfg !== undefined ? opcoes.cfg : llmConfigDoEnv();
-  if (!cfg) throw new ErroLlm('indisponivel', 'LLM nao configurada (LLM_API_URL/LLM_API_KEY ausentes)');
+// Timeout da chamada encadeado com o cancelamento do chamador (fechar o SSE
+// aborta o loop do agente): o que disparar primeiro vence.
+function sinalDaChamada(cfg: LlmConfig, externo?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(cfg.timeoutMs);
+  if (!externo) return timeout;
+  const anyOf = (AbortSignal as { any?: (sinais: AbortSignal[]) => AbortSignal }).any;
+  return typeof anyOf === 'function' ? anyOf([timeout, externo]) : timeout;
+}
 
+// POST compartilhado pelas tres formas de chat: mesmo endpoint, headers e
+// timeout; quem chama decide se o corpo e JSON unico ou stream SSE.
+async function postLlm(cfg: LlmConfig, corpo: Record<string, unknown>, externo?: AbortSignal): Promise<Response> {
   let resp: Response;
   try {
     resp = await fetch(cfg.url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.chave}` },
       // LLM externo nao pode segurar o fluxo para sempre.
-      signal: AbortSignal.timeout(cfg.timeoutMs),
-      body: JSON.stringify({
-        model: cfg.modelo,
-        messages: mensagens,
-        response_format: { type: 'json_object' },
-        ...(opcoes.maxTokens !== undefined ? { max_completion_tokens: opcoes.maxTokens } : {}),
-      }),
+      signal: sinalDaChamada(cfg, externo),
+      body: JSON.stringify({ model: cfg.modelo, ...corpo }),
     });
   } catch (e) {
     throw new ErroLlm('indisponivel', `LLM inalcancavel (${(e as Error).message})`);
   }
   if (!resp.ok) throw new ErroLlm('indisponivel', `LLM HTTP ${resp.status}`);
+  return resp;
+}
+
+// Uma chamada de chat com resposta JSON obrigatoria. Devolve o conteudo ja
+// parseado; a forma esperada e responsabilidade de quem chama validar.
+export async function chatJson(mensagens: MensagemChat[], opcoes: OpcoesChat = {}): Promise<unknown> {
+  const cfg = opcoes.cfg !== undefined ? opcoes.cfg : llmConfigDoEnv();
+  if (!cfg) throw new ErroLlm('indisponivel', 'LLM nao configurada (LLM_API_URL/LLM_API_KEY ausentes)');
+
+  const resp = await postLlm(cfg, {
+    messages: mensagens,
+    response_format: { type: 'json_object' },
+    ...(opcoes.maxTokens !== undefined ? { max_completion_tokens: opcoes.maxTokens } : {}),
+  });
 
   let json: { choices?: Array<{ message?: { content?: unknown } }> };
   try {
@@ -92,5 +107,204 @@ export async function chatJson(mensagens: MensagemChat[], opcoes: OpcoesChat = {
     return JSON.parse(conteudo) as unknown;
   } catch {
     throw new ErroLlm('invalido', 'conteudo do LLM nao e JSON valido');
+  }
+}
+
+// Agente conversacional (spec 0009): chat com tool calling no formato
+// OpenAI-compativel e streaming de texto. As tools sao declaradas pelo
+// chamador; a LLM so escolhe qual chamar — quem executa e sempre o motor.
+
+// parameters e o JSON Schema dos argumentos da tool, validado pelo servidor.
+export interface DefinicaoToolLlm {
+  nome: string;
+  descricao: string;
+  parametros: Record<string, unknown>;
+}
+
+// Chamada de tool ja validada na forma: id e nome garantidos, argumentos
+// parseados; argumento quebrado vira {} (a tool responde erro estruturado).
+export interface ChamadaToolLlm {
+  id: string;
+  nome: string;
+  argumentos: Record<string, unknown>;
+}
+
+// Os 4 papeis do wire OpenAI: assistant com tool_calls pode trazer content
+// null; role tool devolve o resultado de uma chamada pelo id dela.
+export type MensagemAgenteLlm =
+  | { role: 'system' | 'user'; content: string }
+  | {
+      role: 'assistant';
+      content: string | null;
+      tool_calls?: Array<{
+        id: string;
+        type: 'function';
+        function: { name: string; arguments: string };
+      }>;
+    }
+  | { role: 'tool'; tool_call_id: string; name: string; content: string };
+
+export interface OpcoesChatAgente {
+  cfg?: LlmConfig | null; // default: llmConfigDoEnv()
+  modelo?: string; // sobrescreve cfg.modelo quando presente
+  temperatura?: number;
+  signal?: AbortSignal;
+}
+
+export interface RespostaChatTools {
+  texto: string;
+  toolCalls: ChamadaToolLlm[];
+  finishReason: string;
+}
+
+// Uma chamada de chat com tools declaradas: devolve o texto livre e as
+// chamadas pedidas pelo modelo. Provedor sem tool calling responde texto
+// comum e toolCalls sai vazio (o agente degrada para conversa pura).
+export async function chatComTools(
+  mensagens: MensagemAgenteLlm[],
+  tools: DefinicaoToolLlm[],
+  opcoes: OpcoesChatAgente = {},
+): Promise<RespostaChatTools> {
+  const cfg = opcoes.cfg !== undefined ? opcoes.cfg : llmConfigDoEnv();
+  if (!cfg) throw new ErroLlm('indisponivel', 'LLM nao configurada (LLM_API_URL/LLM_API_KEY ausentes)');
+
+  const resp = await postLlm(
+    cfg,
+    {
+      messages: mensagens,
+      // tools vazio pede resposta final ao modelo: omitir a chave evita
+      // provedor que recusa array vazio.
+      ...(tools.length > 0
+        ? {
+            tools: tools.map((t) => ({
+              type: 'function',
+              function: { name: t.nome, description: t.descricao, parameters: t.parametros },
+            })),
+            tool_choice: 'auto',
+          }
+        : {}),
+      ...(opcoes.modelo ? { model: opcoes.modelo } : {}),
+      ...(opcoes.temperatura !== undefined ? { temperature: opcoes.temperatura } : {}),
+    },
+    opcoes.signal,
+  );
+
+  interface MsgResposta {
+    content?: unknown;
+    tool_calls?: unknown;
+  }
+  let json: { choices?: Array<{ message?: MsgResposta; finish_reason?: unknown }> };
+  try {
+    json = (await resp.json()) as typeof json;
+  } catch {
+    throw new ErroLlm('invalido', 'resposta do LLM nao e um envelope JSON');
+  }
+  const escolha = json.choices?.[0];
+  const msg = escolha?.message;
+  if (typeof msg !== 'object' || msg === null) {
+    throw new ErroLlm('invalido', 'resposta do LLM sem choices[0].message');
+  }
+
+  const toolCalls: ChamadaToolLlm[] = [];
+  if (Array.isArray(msg.tool_calls)) {
+    for (const [i, bruto] of msg.tool_calls.entries()) {
+      const tc = bruto as { id?: unknown; function?: { name?: unknown; arguments?: unknown } } | null;
+      const nome = tc?.function?.name;
+      // Call sem nome nao tem como ser enderecada a uma tool registrada.
+      if (typeof nome !== 'string' || nome === '') continue;
+      let argumentos: Record<string, unknown> = {};
+      const argBruto = tc?.function?.arguments;
+      if (typeof argBruto === 'string' && argBruto.trim() !== '') {
+        try {
+          const p = JSON.parse(argBruto) as unknown;
+          if (typeof p === 'object' && p !== null && !Array.isArray(p)) argumentos = p as Record<string, unknown>;
+        } catch {
+          // JSON quebrado vira {}: a tool devolve erro estruturado legivel
+          // para o modelo corrigir, nunca excecao solta no loop.
+        }
+      } else if (typeof argBruto === 'object' && argBruto !== null && !Array.isArray(argBruto)) {
+        argumentos = argBruto as Record<string, unknown>;
+      }
+      toolCalls.push({ id: typeof tc?.id === 'string' && tc.id !== '' ? tc.id : `call_${i}`, nome, argumentos });
+    }
+  }
+  return {
+    texto: typeof msg.content === 'string' ? msg.content : '',
+    toolCalls,
+    finishReason: typeof escolha?.finish_reason === 'string' ? escolha.finish_reason : '',
+  };
+}
+
+// Chat com texto streamado: cada fragmento de delta.content chama onDelta e
+// acumula no retorno. Provedor que responde JSON comum apesar de stream:true
+// emite o conteudo de uma vez.
+export async function chatTextoStream(
+  mensagens: MensagemAgenteLlm[],
+  onDelta: (delta: string) => void,
+  opcoes: OpcoesChatAgente = {},
+): Promise<string> {
+  const cfg = opcoes.cfg !== undefined ? opcoes.cfg : llmConfigDoEnv();
+  if (!cfg) throw new ErroLlm('indisponivel', 'LLM nao configurada (LLM_API_URL/LLM_API_KEY ausentes)');
+
+  const resp = await postLlm(
+    cfg,
+    {
+      messages: mensagens,
+      stream: true,
+      ...(opcoes.modelo ? { model: opcoes.modelo } : {}),
+      ...(opcoes.temperatura !== undefined ? { temperature: opcoes.temperatura } : {}),
+    },
+    opcoes.signal,
+  );
+
+  const contentType = resp.headers.get('content-type') ?? '';
+  if (!contentType.includes('text/event-stream')) {
+    let json: { choices?: Array<{ message?: { content?: unknown } }> };
+    try {
+      json = (await resp.json()) as typeof json;
+    } catch {
+      throw new ErroLlm('invalido', 'resposta do LLM nao e um envelope JSON');
+    }
+    const conteudo = json.choices?.[0]?.message?.content;
+    if (typeof conteudo !== 'string') throw new ErroLlm('invalido', 'resposta do LLM sem choices[0].message.content');
+    if (conteudo !== '') onDelta(conteudo);
+    return conteudo;
+  }
+
+  if (!resp.body) throw new ErroLlm('invalido', 'resposta SSE do LLM sem corpo');
+  const leitor = resp.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let acumulado = '';
+  try {
+    for (;;) {
+      const { value, done } = await leitor.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let fim = buf.indexOf('\n');
+      while (fim >= 0) {
+        const linha = buf.slice(0, fim).trim();
+        buf = buf.slice(fim + 1);
+        if (linha.startsWith('data:')) {
+          const dados = linha.slice(5).trim();
+          if (dados === '[DONE]') return acumulado;
+          try {
+            const frame = JSON.parse(dados) as { choices?: Array<{ delta?: { content?: unknown } }> };
+            const delta = frame.choices?.[0]?.delta?.content;
+            if (typeof delta === 'string' && delta !== '') {
+              acumulado += delta;
+              onDelta(delta);
+            }
+          } catch {
+            // frame incompleto ou fora do formato: ignora, nao derruba o stream
+          }
+        }
+        fim = buf.indexOf('\n');
+      }
+    }
+    return acumulado;
+  } catch (e) {
+    if (e instanceof ErroLlm) throw e;
+    throw new ErroLlm('indisponivel', `stream do LLM interrompido (${(e as Error).message})`);
   }
 }

@@ -70,6 +70,35 @@ const respostaChat = (conteudo: unknown): Response =>
     json: async () => ({ choices: [{ message: { content: JSON.stringify(conteudo) } }] }),
   }) as Response;
 
+// Envelopes do agente conversacional (spec 0009): texto final ou tool_calls.
+const respAgenteTexto = (texto: string): Response =>
+  ({
+    ok: true,
+    status: 200,
+    json: async () => ({ choices: [{ message: { content: texto }, finish_reason: 'stop' }] }),
+  }) as Response;
+
+const respAgenteTools = (calls: Array<{ nome: string; argumentos: unknown }>): Response =>
+  ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            content: '',
+            tool_calls: calls.map((c, i) => ({
+              id: `call_${i}`,
+              type: 'function',
+              function: { name: c.nome, arguments: JSON.stringify(c.argumentos) },
+            })),
+          },
+          finish_reason: 'tool_calls',
+        },
+      ],
+    }),
+  }) as Response;
+
 const evFake = (tipo: Evento['tipo'], payload: Record<string, unknown>): Evento => ({
   pedidoId: 'pedido-x',
   tipo,
@@ -966,62 +995,64 @@ describe('GenUI v2, mandatos/stream, notificar e lista enriquecida', () => {
     expect(body.viewSpec?.layout).toBe('simulacao');
   });
 
-  it('POST /api/mandatos/stream emite etapas ledger, intencao, motor, bloco e concluido com viewSpec', async () => {
-    // Arrange
+  it('POST /api/mandatos/stream roda o agente: tool, texto_delta, bloco, fim e concluido', async () => {
+    // Arrange: a LLM pede simular_cenario e depois responde em texto (spec 0009).
     envLlm();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        respostaChat({ acao: 'simular', filtros: { campo: 'previsaoEntrega', valor: '28/01/2026' } }),
-      ),
-    );
+    const fila = [
+      respAgenteTools([{ nome: 'simular_cenario', argumentos: { campo: 'previsaoEntrega', valor: '28/01/2026' } }]),
+      respAgenteTexto('Se a entrega virar 28/01, a planilha briga com a NF-e.'),
+    ];
+    vi.stubGlobal('fetch', vi.fn(async () => fila.shift()!));
 
     // Act
     const res = await app.inject({
       method: 'POST',
       url: '/api/mandatos/stream',
-      payload: { texto: 'simule entrega para 28/01/2026', pedidoId: CHAVE },
+      payload: { comando: 'simule entrega para 28/01/2026', pedidoId: CHAVE },
     });
 
     // Assert
     expect(res.statusCode).toBe(200);
     expect(String(res.headers['content-type'])).toContain('text/event-stream');
     const eventos = parseSse(res.body);
-    const etapas = eventos.filter((e): e is Extract<EventoStreamMandato, { tipo: 'etapa' }> => e.tipo === 'etapa');
+    const tipos = eventos.map((e) => e.tipo);
+    expect(tipos[0]).toBe('etapa');
+    expect(tipos.at(-1)).toBe('concluido');
+    expect(tipos.at(-2)).toBe('fim');
+    expect(tipos).toContain('tool');
+    expect(tipos).toContain('texto_delta');
     const blocos = eventos.filter((e): e is Extract<EventoStreamMandato, { tipo: 'bloco' }> => e.tipo === 'bloco');
+    expect(blocos.map((b) => b.bloco.tipo)).toContain('simulador_interativo');
+    const fim = eventos.find((e): e is Extract<EventoStreamMandato, { tipo: 'fim' }> => e.tipo === 'fim')!;
+    expect(fim.resultado.pedidoIdResolvido).toBe(CHAVE);
+    expect(fim.resultado.toolsExecutadas).toEqual([
+      expect.objectContaining({ nome: 'simular_cenario', status: 'concluida' }),
+    ]);
     const concluido = eventos.find(
       (e): e is Extract<EventoStreamMandato, { tipo: 'concluido' }> => e.tipo === 'concluido',
-    );
-
-    expect(etapas.map((e) => e.id)).toEqual(['ledger', 'intencao', 'motor', 'composicao']);
-    expect(etapas[0]!.rotulo).toMatch(/^Lendo \d+ eventos? da cadeia…$/);
-    expect(etapas[1]!.rotulo).toBe('Intenção: Simular · Previsão 28/01/2026');
-    expect(blocos.length).toBeGreaterThanOrEqual(1);
-    expect(blocos.map((b) => b.bloco.tipo)).toContain('simulador_interativo');
-    expect(concluido?.resposta.acao).toBe('simular');
-    expect(concluido?.resposta.alvos).toEqual([CHAVE]);
-    expect(concluido?.resposta.viewSpec?.versao).toBe(2);
+    )!;
+    expect(concluido.resposta.acao).toBe('resumir');
+    expect(concluido.resposta.alvos).toEqual([CHAVE]);
+    expect(concluido.resposta.viewSpec?.versao).toBe(2);
   });
 
-  it('POST /api/mandatos/stream emite evento erro limpo em 403 na seed ou acao ambigua', async () => {
+  it('POST /api/mandatos/stream emite evento erro limpo quando a LLM falha', async () => {
     // Arrange
     envLlm();
-    vi.stubGlobal('fetch', vi.fn(async () => respostaChat({ acao: 'propagar', filtros: {} })));
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new Error('rede caiu'))));
 
-    // Act: tentar propagar em pedido da seed via pedidoId
+    // Act
     const res = await app.inject({
       method: 'POST',
       url: '/api/mandatos/stream',
-      payload: { texto: 'propague o atraso', pedidoId: CHAVE_SEED_TEST },
+      payload: { comando: 'detalhe o pedido', pedidoId: CHAVE },
     });
 
     // Assert
     expect(res.statusCode).toBe(200);
     const eventos = parseSse(res.body);
     const erro = eventos.find((e): e is Extract<EventoStreamMandato, { tipo: 'erro' }> => e.tipo === 'erro');
-    expect(erro).toBeDefined();
-    expect(erro?.status).toBe(403);
-    expect(erro?.mensagem).toContain('só podem ser lidos');
+    expect(erro).toMatchObject({ status: 503, motivo: 'indisponivel' });
   });
 
   it('POST /api/notificar funciona sem LLM na sessao e recusa 403 na seed', async () => {
