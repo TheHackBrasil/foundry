@@ -72,6 +72,16 @@ main[data-rota='ia'] {
   min-width: 0;
 }
 
+/* ---------- Overlay AAA da Matriz Mãe (condutos, travamento de cantos e laser) ---------- */
+.ia-matriz-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 18;
+  pointer-events: none;
+}
+
 /* ---------- fundo WebGL2 SuperficieMineralIA + véu radial contínuo ---------- */
 .ia-fundo-glsl {
   position: absolute;
@@ -1109,84 +1119,6 @@ main[data-rota='ia'] {
   animation: none;
   pointer-events: none;
 }
-
-/* ---------- Blueprint arquitetônico GenUI enquanto bloco visual é forjado ---------- */
-.ia-genui-blueprint {
-  position: relative;
-  display: grid;
-  gap: 0.875rem;
-  padding-top: 1rem;
-  border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  animation: ia-trilha-entrar 340ms var(--ia-ease-enter) backwards;
-}
-
-.ia-blueprint-cab {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-}
-
-.ia-blueprint-linha-curta {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: var(--ia-r-pill);
-  background: var(--change);
-  animation: ia-pulso-status 1.2s ease-in-out infinite;
-}
-
-.ia-blueprint-rotulo {
-  font-size: 0.84375rem;
-  font-weight: 600;
-  color: var(--text2);
-}
-
-.ia-blueprint-grade {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.875rem;
-}
-
-.ia-blueprint-laje {
-  position: relative;
-  overflow: hidden;
-  display: grid;
-  gap: 0.5625rem;
-  padding: 1rem;
-  border-radius: var(--ia-r-md);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  background: color-mix(in srgb, var(--surface) 74%, transparent);
-  animation: ia-tool-entrar 360ms var(--ia-ease-enter) calc(var(--bp-i, 0) * 90ms) backwards;
-}
-
-.ia-blueprint-laje::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    108deg,
-    transparent 24%,
-    color-mix(in srgb, var(--change) 10%, transparent) 48%,
-    color-mix(in srgb, var(--surface) 50%, transparent) 52%,
-    transparent 74%
-  );
-  transform: translate3d(-120%, 0, 0);
-  animation: ia-feixe-varrer 1.75s cubic-bezier(0.4, 0, 0.2, 1) calc(var(--bp-i, 0) * 180ms) infinite;
-}
-
-.ia-blueprint-barra {
-  display: block;
-  height: 0.625rem;
-  border-radius: var(--ia-r-pill);
-  background: color-mix(in srgb, var(--border-strong) 22%, var(--surface2));
-}
-
-.ia-blueprint-barra.w-40 { width: 40%; }
-.ia-blueprint-barra.w-50 { width: 50%; }
-.ia-blueprint-barra.w-55 { width: 55%; }
-.ia-blueprint-barra.w-65 { width: 65%; }
-.ia-blueprint-barra.w-75 { width: 75%; }
-.ia-blueprint-barra.w-85 { width: 85%; }
 
 /* PalcoGenUI integrado sem bordas duplicadas nem caixa-dentro-de-caixa. */
 .ia-turno-resposta .palco-genui {
@@ -2304,8 +2236,7 @@ main[data-rota='ia'] {
   .ia-santuario {
     gap: 1.5rem;
   }
-  .ia-partidas-grid,
-  .ia-blueprint-grade {
+  .ia-partidas-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.6875rem;
   }
@@ -2388,6 +2319,9 @@ main[data-rota='ia'] {
 
 /* ---------- redução de movimento (WCAG 2.2 · Camada CSS) ---------- */
 @media (prefers-reduced-motion: reduce) {
+  .ia-matriz-overlay {
+    display: none;
+  }
   .ia-santuario-cab,
   .ia-partida-pilula,
   .ia-turno,
@@ -2396,24 +2330,19 @@ main[data-rota='ia'] {
   .ia-trilha-viva,
   .ia-trilha-titulo,
   .ia-tool-linha,
-  .ia-genui-blueprint,
-  .ia-blueprint-laje,
   .ia-turno-resposta .agente-seg,
   .ia-turno-resposta .agente-item {
     animation: ia-aparecer-suave 130ms ease backwards;
     animation-delay: 0ms;
   }
   .ia-trilha-feixe,
-  .ia-blueprint-laje::after,
   .ia-tool-pulso,
-  .ia-blueprint-linha-curta,
   .ia-trilha-viva[data-ativa='true'] .ia-selo-monolitos,
   .ia-check-anim path,
   .ia-turno-resposta .agente-cursor {
     animation: none;
   }
-  .ia-trilha-feixe,
-  .ia-blueprint-laje::after {
+  .ia-trilha-feixe {
     opacity: 0;
   }
   .ia-trilha-gaveta {
@@ -2487,8 +2416,7 @@ main[data-rota='ia'] {
   .ia-pedido-menu,
   .ia-turno-erro,
   .ia-composer-alerta,
-  .ia-trilha-viva,
-  .ia-blueprint-laje {
+  .ia-trilha-viva {
     border: 1px solid CanvasText;
   }
   .ia-pedido-gatilho,

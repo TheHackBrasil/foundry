@@ -3105,7 +3105,7 @@ main[data-rota='ia'] {
   box-shadow: none;
   border-top: 1px solid var(--border);
   gap: 0.875rem;
-  animation: genui-laje-forjar 460ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--bloco-i, 0) * 85ms) backwards;
+  animation: genui-laje-forjar 490ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--bloco-i, 0) * 75ms) backwards;
 }
 /* Feixe mineral de chegada única na régua superior ao materializar o bloco GenUI. */
 .palco-bloco::after {
@@ -3196,14 +3196,20 @@ main[data-rota='ia'] {
     opacity: 1;
   }
 }
+/* Rasterização sincronizada à frente laser da Matriz Mãe (compositor GPU puro, sem blur). */
 @keyframes genui-laje-forjar {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 18px, 0) scale(0.988);
+  0% {
+    opacity: 0.12;
+    clip-path: inset(0 0 100% 0);
+    transform: translate3d(0, 10px, 0);
   }
-  to {
+  18% {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0% 0);
+    transform: translate3d(0, 0, 0);
   }
 }
 @keyframes genui-brilho-forja {
@@ -3648,6 +3654,7 @@ main[data-rota='ia'] {
   .domino-fluxo-pulso,
   .domino-fluxo-chegada,
   .palco-bloco::after { opacity: 0; }
+  .palco-bloco { clip-path: none; }
   .palco-curtain { transition: opacity 120ms ease; }
   .domino-aresta-solida {
     stroke-dasharray: none;

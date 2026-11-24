@@ -29,14 +29,16 @@ const FONTES_SET = new Set<string>(FONTES_DOCUMENTO);
 const CAMPOS_SET = new Set<string>(CAMPOS_VIGIADOS);
 const PARTES_SET = new Set<string>(PARTES);
 
-const ROTULO_CAMPO: Record<CampoVigiado, string> = {
+// Exportados para o compositorGenUI do agente: os blocos que ele sintetiza
+// fora do layout compartilham os mesmos rotulos deterministicos.
+export const ROTULO_CAMPO: Record<CampoVigiado, string> = {
   previsaoEntrega: 'Previsão de entrega',
   pesoTotal: 'Peso total',
   volumes: 'Volumes',
   status: 'Status',
 };
 
-const ROTULO_PARTE: Record<Parte, string> = {
+export const ROTULO_PARTE: Record<Parte, string> = {
   fornecedor: 'Fornecedor',
   transportadora: 'Transportadora',
   cd: 'CD',
@@ -69,7 +71,7 @@ const FONTES_PREFERIDAS_PAPEL: Record<Parte, readonly FonteDocumento[]> = {
 };
 
 // Notas factuais alinhadas as regras deterministicas de rules.ts e divergence.ts.
-const NOTA_REGRA_CAMPO: Record<CampoVigiado, string> = {
+export const NOTA_REGRA_CAMPO: Record<CampoVigiado, string> = {
   previsaoEntrega:
     'Regra fiscal (R-006): a CC-e não corrige data de saída e o cancelamento da NF-e só cabe em até 24 h sem circulação da mercadoria; atraso entra pela planilha e propaga tarefas para as 5 partes.',
   pesoTotal:
@@ -158,6 +160,8 @@ export interface OpcoesViewSpecV2 {
   resumoVia?: 'llm' | 'deterministico';
   campoSimulado?: CampoVigiado;
   valorSimulado?: string | number;
+  // Foco editorial fora de simulacao (ex.: campo pedido em comparar_fontes).
+  campoFoco?: CampoVigiado;
 }
 
 function valorComUnidade(campo: CampoVigiado, valor: unknown): string {
@@ -482,7 +486,9 @@ function somarDiasIso(iso: string, dias: number): string | null {
   return `${y}-${mo}-${da}`;
 }
 
-function construirRascunhosDespacho(
+// Exportada para o compositorGenUI: o cartao sintetizado pelo agente usa
+// exatamente a mesma regra deterministica de rascunho dos layouts.
+export function construirRascunhosDespacho(
   proj: ProjecaoPedido,
   papel?: Parte,
 ): Extract<BlocoGenUI, { tipo: 'cartoes_despacho' }>['rascunhos'] {
@@ -777,7 +783,7 @@ export function comporViewSpecV2Deterministico(
 ): ViewSpecV2 {
   const camposPorF = camposDeclaradosPorFonte(proj);
   const fontesAtivas = fontesComValoresDeclarados(camposPorF);
-  const campoFoco = opcoes.campoSimulado ?? campoMencionado(opcoes.pergunta);
+  const campoFoco = opcoes.campoSimulado ?? opcoes.campoFoco ?? campoMencionado(opcoes.pergunta);
   const divs = priorizarDivergencias(divergenciasUnicas(proj), proj, opcoes.papel, campoFoco);
   const divsPapel = opcoes.papel ? divs.filter((d) => divergenciaAfetaPapel(d, proj, opcoes.papel!)) : divs;
 
@@ -1119,7 +1125,7 @@ function aplicarRefinamentoLlmV2(
   }
 
   const camposPorF = camposDeclaradosPorFonte(proj);
-  const campoFoco = opcoes.campoSimulado ?? campoMencionado(opcoes.pergunta);
+  const campoFoco = opcoes.campoSimulado ?? opcoes.campoFoco ?? campoMencionado(opcoes.pergunta);
   const divs = priorizarDivergencias(divergenciasUnicas(proj), proj, opcoes.papel, campoFoco);
   const divsPapel = opcoes.papel ? divs.filter((d) => divergenciaAfetaPapel(d, proj, opcoes.papel!)) : divs;
 

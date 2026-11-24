@@ -1,8 +1,9 @@
 // Motor do agente conversacional (spec 0009, RF11-RF15): loop ReAct onde a
 // LLM escolhe tools, o servidor executa no motor deterministico e devolve
 // cada resultado como role:tool. O texto final sai por texto_delta e as
-// tools visuais disparam a composicao GenUI deterministica no pedido que o
-// loop resolveu. A LLM nunca calcula nem grava: quem escreve e o motor.
+// tools visuais disparam a composicao GenUI no pedido resolvido. A LLM
+// nunca calcula nem grava: quem escreve e o motor. O cliente LLM chega por
+// OpcoesAgente.llm (DIP), com a implementacao de llm.ts como padrao.
 
 import type {
   Evento,
@@ -15,10 +16,16 @@ import type {
   ViewSpecV2,
 } from '../../shared/model.js';
 import { projetar } from '../../shared/projection.js';
-import { chatComTools, chatTextoStream, type ChamadaToolLlm, type DefinicaoToolLlm, type MensagemAgenteLlm } from '../llm.js';
+import {
+  chatComTools,
+  chatTextoStream,
+  type ChamadaToolLlm,
+  type DefinicaoToolLlm,
+  type MensagemAgenteLlm,
+} from '../llm.js';
 import type { LedgerStore } from '../store.js';
-import { comporViewSpecV2Deterministico, type OpcoesViewSpecV2 } from '../viewspec.js';
-import { executarTool, TOOLS_AGENTE, type ContextoTools, type ResultadoTool } from './ferramentas.js';
+import { comporGenUIAgente } from './compositorGenUI.js';
+import { TOOLS_AGENTE, executarTool, type ClienteLlmAgente, type ContextoTools, type ResultadoTool } from './ferramentas.js';
 
 const MAX_ITERACOES = 6;
 const MAX_TURNOS_HISTORICO = 10;
@@ -26,12 +33,13 @@ const MAX_TEXTO_TURNO = 1_200;
 const MAX_PERGUNTA = 4_000;
 
 // System prompt do copiloto (RF13): direto, sem jargao de contrato; a regra
-// de ouro e consultar as ferramentas antes de afirmar fato de pedido.
+// de ouro e consultar as ferramentas antes de afirmar fato de pedido, e a
+// prosa complementa os blocos GenUI em vez de repetir tabelas.
 export const SYSTEM_AGENTE = `Voce e o copiloto senior de operacoes logisticas do Forseti, a torre de controle que vigia pedidos: le os documentos que cada parceiro emite (NF-e, CT-e, planilha, CC-e), compara os campos entre eles e aponta divergencias e tarefas por setor (fornecedor, transportadora, CD, fiscal, financeiro).
 
 Como trabalhar:
 - Antes de afirmar qualquer fato de pedido (numero, data, chave, status, divergencia ou tarefa), consulte as ferramentas. Nunca invente nem estime valores: tudo que voce afirmar precisa ter vindo de uma consulta.
-- Responda em portugues brasileiro, direto e humano. Paragrafos curtos; pode usar **negrito** e listas simples.
+- Responda em portugues brasileiro, direto e humano: 2 a 4 frases ou ate 4 bullets curtos, com **negrito** quando ajudar. Os blocos visuais (matrizes, comparadores, linha do tempo, cartoes de despacho) mostram os detalhes; sua resposta complementa com o que muda, o que fazer e o que esta bloqueado. Nunca despeje em prosa tabela, colunas ou listas de valores que os blocos ja exibem.
 - Explique o dominio em linguagem de operacao: divergencia e quando duas fontes declaram valores diferentes para o mesmo campo; CC-e e a carta de correcao da NF-e (nao muda data de saida); propagar e transformar as divergencias em tarefas por setor; simular e testar um "e se?" sem gravar nada.
 - Se faltar contexto, pergunte so o minimo para destravar a resposta.
 - Nunca exponha JSON, nomes de campos internos, schema ou bastidores de ferramenta na resposta.
@@ -93,13 +101,17 @@ function resumoDoQueEncontrei(executadas: ToolExecutada[]): string {
 }
 
 // Chave do resultado estruturado por nome de tool: o fim carrega os dados
-// da ultima execucao bem-sucedida de cada uma.
+// da ultima execucao de cada uma e o compositor usa essas chaves para
+// decidir layout e lente da visao GenUI.
 const CHAVE_RESULTADO: Record<string, string> = {
   simular_cenario: 'simulacao',
   enviar_notificacao: 'notificacao',
   propagar_divergencias: 'propagacao',
   preparar_notificacao: 'despacho',
   consultar_auditoria: 'auditoria',
+  consultar_pedido: 'consulta',
+  comparar_fontes: 'comparacao',
+  listar_tarefas_setor: 'setores',
 };
 
 export interface OpcoesAgente {
@@ -111,6 +123,8 @@ export interface OpcoesAgente {
   seedWs: string;
   onEvento?: (ev: EventoStreamMandato) => void;
   signal?: AbortSignal;
+  // DIP: cliente LLM injetavel; sem ele, a implementacao de llm.ts.
+  llm?: ClienteLlmAgente;
 }
 
 // ResultadoAgente do fim + o RespostaMandato sintetizado do evento
@@ -121,7 +135,10 @@ export type SaidaAgente = ResultadoAgente & {
   eventos: Evento[];
 };
 
+const LLM_PADRAO: ClienteLlmAgente = { chatComTools, chatTextoStream };
+
 export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
+  const llm = op.llm ?? LLM_PADRAO;
   const emitir = op.onEvento ?? ((): void => undefined);
   emitir({ tipo: 'etapa', id: 'contexto', rotulo: 'Preparando contexto da conversa' });
 
@@ -157,7 +174,7 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
       id: `agente-${i}`,
       rotulo: i === 0 ? 'Interpretando e planejando' : 'Sintetizando o que encontrei',
     });
-    const resposta = await chatComTools(mensagens, schemas, {
+    const resposta = await llm.chatComTools(mensagens, schemas, {
       signal: op.signal,
       onDelta: (delta) => emitir({ tipo: 'texto_delta', delta }),
     });
@@ -210,7 +227,11 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
       for (const b of r.blocosSugeridos ?? []) blocosSugeridos.add(b);
       if (r.eventos) eventosGravados.push(...r.eventos);
       const chave = CHAVE_RESULTADO[tc.nome];
-      if (chave && r.ok) resultadoEstruturado[chave] = r.dados;
+      // A recusa seed_somente_leitura tambem vira resultado estruturado:
+      // dados.parte orienta o despacho GenUI do exemplo somente leitura.
+      if (chave && (r.ok || r.dados['erro'] === 'seed_somente_leitura')) {
+        resultadoEstruturado[chave] = r.dados;
+      }
     }
   }
 
@@ -220,7 +241,7 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
   if (textoFinal === '') {
     emitir({ tipo: 'etapa', id: 'sintese', rotulo: 'Sintetizando a resposta final' });
     try {
-      textoFinal = await chatTextoStream(
+      textoFinal = await llm.chatTextoStream(
         mensagens,
         (delta) => emitir({ tipo: 'texto_delta', delta }),
         { signal: op.signal },
@@ -233,33 +254,23 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
     for (const delta of fatiarTexto(textoFinal)) emitir({ tipo: 'texto_delta', delta });
   }
 
-  // GenUI: so compoe quando alguma tool visual sinalizou bloco e ha pedido
-  // resolvido no loop (RF15).
+  // GenUI (RF15): so compoe quando alguma tool visual sinalizou bloco e ha
+  // pedido resolvido no loop; o compositor decide layout, lente e quais
+  // blocos saem por evento.
   let viewSpec: ViewSpecV2 | undefined;
   if (pedidoIdResolvido && blocosSugeridos.size > 0) {
     const dono = await op.sessao.wsDoPedido(pedidoIdResolvido);
     const leitor = dono === null ? null : dono === op.sessao.workspace ? op.sessao : op.sessao.paraWorkspace(dono);
     if (leitor) {
       const proj = projetar(await leitor.eventosDoPedido(pedidoIdResolvido));
-      const opcoes: OpcoesViewSpecV2 = { pergunta: op.pergunta.slice(0, 400) };
-      const sim = resultadoEstruturado['simulacao'] as
-        | { hipotese?: { campo?: OpcoesViewSpecV2['campoSimulado']; valor?: string | number } }
-        | undefined;
-      const notif = resultadoEstruturado['notificacao'] as { parte?: OpcoesViewSpecV2['papel'] } | undefined;
-      const desp = resultadoEstruturado['despacho'] as { parte?: OpcoesViewSpecV2['papel'] } | undefined;
-      if (sim) {
-        opcoes.acao = 'simular';
-        if (sim.hipotese?.campo) opcoes.campoSimulado = sim.hipotese.campo;
-        if (sim.hipotese?.valor !== undefined) opcoes.valorSimulado = sim.hipotese.valor;
-      } else if (notif ?? desp) {
-        opcoes.acao = 'notificar';
-        const papel = notif?.parte ?? desp?.parte;
-        if (papel) opcoes.papel = papel;
-      }
-      viewSpec = comporViewSpecV2Deterministico(proj, opcoes);
-      const relevantes = viewSpec.blocos.filter((b) => blocosSugeridos.has(b.tipo));
-      const emitidos = relevantes.length > 0 ? relevantes : viewSpec.blocos.slice(0, 1);
-      for (const bloco of emitidos) emitir({ tipo: 'bloco', bloco });
+      const genui = comporGenUIAgente({
+        proj,
+        pergunta: op.pergunta,
+        sugestoes: [...blocosSugeridos],
+        resultado: resultadoEstruturado,
+      });
+      viewSpec = genui.viewSpec;
+      for (const bloco of genui.blocos) emitir({ tipo: 'bloco', bloco });
     }
   }
 

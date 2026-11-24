@@ -9,6 +9,8 @@ export interface SuperficieMineralIAProps {
   energiaRef?: RefObject<number>;
   pulsoExternoSeq?: number;
   pulsoOrigem?: { x: number; y: number } | null;
+  matrizAtiva?: boolean;
+  forjaSeq?: number;
   className?: string;
 }
 
@@ -40,6 +42,8 @@ uniform vec2  uPointerVel;   // Velocidade amortecida do ponteiro
 uniform vec3  uStates;       // x = ocioso, y = ouvindo, z = processando
 uniform vec4  uAudio;        // x = nível, y = grave, z = médio, w = agudo
 uniform vec4  uPulses[4];    // xy = origem projetada, z = idade (s), w = intensidade
+uniform float uMatrizEnergia;// 0..1 presença da Matriz Mãe (processamento / forja GenUI)
+uniform float uForjaIdade;   // segundos desde a última materialização de bloco GenUI
 
 const float PI = 3.14159265359;
 
@@ -278,6 +282,48 @@ float ggxSpec(vec3 N, vec3 V, vec3 L, float rough) {
   return (D * Gv * Gl) / (4.0 * NdotV * NdotL + 1e-4);
 }
 
+// Malha arquitetônica da Matriz Mãe projetada diretamente sobre o relevo 3D
+// raymarched (pos.xy): curva-se sobre as cristas minerais e ilumina nós e
+// frentes de varredura holográfica durante o processamento e a forja GenUI.
+float evalMotherMatrix(vec2 surfPos, float energia, float forjaAge, float uT, out float nodeGlow) {
+  nodeGlow = 0.0;
+  float forgeEnv = exp(-forjaAge * 1.45) * step(forjaAge, 3.2);
+  float totalPower = clamp(energia * 0.85 + forgeEnv * 1.15, 0.0, 1.35);
+  if (totalPower < 0.005) return 0.0;
+
+  // Grade principal e sub-grade projetadas no terreno 3D
+  vec2 g = surfPos * 2.65;
+  vec2 f = abs(fract(g - 0.5) - 0.5);
+  float lineX = smoothstep(0.022, 0.004, f.x);
+  float lineY = smoothstep(0.022, 0.004, f.y);
+  float majorGrid = max(lineX, lineY);
+
+  // Cruzetas de calibração (+) nos vértices da malha
+  float crossArm = max(
+    smoothstep(0.018, 0.004, f.x) * smoothstep(0.14, 0.02, f.y),
+    smoothstep(0.018, 0.004, f.y) * smoothstep(0.14, 0.02, f.x)
+  );
+
+  // Anel de calibração geométrico lento em torno do núcleo
+  float r = length(surfPos);
+  float ang = atan(surfPos.y, surfPos.x);
+  float compassRing = smoothstep(0.014, 0.003, abs(r - 0.78))
+                    * smoothstep(0.15, 0.65, sin(ang * 8.0 - uT * 0.85));
+
+  // Frente de varredura holográfica disparada a cada bloco GenUI forjado
+  float waveFront = forjaAge * 1.18;
+  float waveBand = exp(-pow((r - waveFront) * 5.2, 2.0)) * forgeEnv;
+  float diagScan = exp(-pow((dot(surfPos, vec2(0.707, -0.707)) - (forjaAge * 1.65 - 1.1)) * 6.5, 2.0)) * forgeEnv;
+
+  // Envelope espacial para manter foco editorial no palco central
+  float spatial = smoothstep(1.95, 0.25, r);
+  float gridSignal = (majorGrid * 0.28 + crossArm * 0.65 + compassRing * 0.42) * energia * spatial;
+  float forgeSignal = (majorGrid * 0.55 + crossArm * 1.25 + 0.35) * (waveBand + diagScan * 0.72);
+
+  nodeGlow = clamp((crossArm * (0.45 * energia + 1.35 * waveBand) + waveBand * 0.55) * spatial, 0.0, 1.0);
+  return clamp(gridSignal + forgeSignal, 0.0, 1.0);
+}
+
 // Microgrão tátil monocromático calibrado (~2.3% escuro / ~2.6% papel claro)
 float tactileGrain(vec2 fragCoord, float theme) {
   float g1 = hash12(fragCoord * 0.92) - 0.5;
@@ -447,6 +493,23 @@ void main() {
 
   vec3 col = mix(colDark, colLight, uTheme);
 
+  // Projeção da Matriz Mãe ancorada no relevo 3D (pos.xy)
+  float matrixNodeGlow = 0.0;
+  float matrixField = evalMotherMatrix(pos.xy, uMatrizEnergia, uForjaIdade, uTime, matrixNodeGlow);
+  if (matrixField > 0.001) {
+    vec3 mDarkLine = toLinear(vec3(0.76, 0.66, 0.96));  // quartzo lavanda
+    vec3 mDarkCore = toLinear(vec3(0.92, 0.96, 0.95));  // platina fria
+    vec3 mLightLine = toLinear(vec3(0.396, 0.255, 0.600)); // ametista cirúrgica
+    vec3 mLightCore = toLinear(vec3(0.086, 0.235, 0.220)); // petróleo profundo
+
+    vec3 mColDark = mix(mDarkLine, mDarkCore, matrixNodeGlow * 0.65);
+    vec3 mColLight = mix(mLightLine, mLightCore, matrixNodeGlow * 0.45);
+    vec3 mAccent = mix(mColDark, mColLight, uTheme);
+    float mStrength = mix(0.42, 0.22, uTheme) * (1.0 - 0.18 * uModoConversa);
+    col = mix(col, mAccent, clamp(matrixField * mStrength, 0.0, 0.55));
+    col += mColDark * matrixNodeGlow * (1.0 - uTheme) * 0.16;
+  }
+
   // Ombro suave de altas luzes preservando a calibração tonal
   col = col / (1.0 + max(col - 0.88, 0.0) * 0.22);
   col = toSRGB(col);
@@ -510,6 +573,8 @@ export function SuperficieMineralIA({
   energiaRef,
   pulsoExternoSeq = 0,
   pulsoOrigem = null,
+  matrizAtiva = false,
+  forjaSeq = 0,
   className,
 }: SuperficieMineralIAProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -519,18 +584,22 @@ export function SuperficieMineralIA({
 
   const estadoRef = useRef<EstadoSuperficieIA>(estado);
   const modoFundoRef = useRef<'santuario' | 'conversa'>(modoFundo);
+  const matrizAtivaRef = useRef<boolean>(matrizAtiva);
   const analyserPropRef = useRef(analyserRef);
   const energiaPropRef = useRef(energiaRef);
   const pulsoOrigemRef = useRef(pulsoOrigem);
   const pulsoExternoAnteriorRef = useRef(pulsoExternoSeq);
+  const forjaAnteriorRef = useRef(forjaSeq);
   const dispararPulsoCentroRef = useRef<((forca?: number) => void) | null>(null);
   const dispararPulsoCoordRef = useRef<((x: number, y: number, forca?: number) => void) | null>(
     null,
   );
+  const dispararForjaRef = useRef<(() => void) | null>(null);
   const atualizarEstaticoRef = useRef<(() => void) | null>(null);
 
   estadoRef.current = estado;
   modoFundoRef.current = modoFundo;
+  matrizAtivaRef.current = matrizAtiva;
   analyserPropRef.current = analyserRef;
   energiaPropRef.current = energiaRef;
   pulsoOrigemRef.current = pulsoOrigem;
@@ -548,8 +617,15 @@ export function SuperficieMineralIA({
   }, [pulsoExternoSeq]);
 
   useEffect(() => {
+    if (forjaSeq > forjaAnteriorRef.current) {
+      dispararForjaRef.current?.();
+    }
+    forjaAnteriorRef.current = forjaSeq;
+  }, [forjaSeq]);
+
+  useEffect(() => {
     atualizarEstaticoRef.current?.();
-  }, [estado, modoFundo]);
+  }, [estado, modoFundo, matrizAtiva]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -615,6 +691,8 @@ export function SuperficieMineralIA({
       states: glCtx.getUniformLocation(prog, 'uStates'),
       audio: glCtx.getUniformLocation(prog, 'uAudio'),
       pulses: glCtx.getUniformLocation(prog, 'uPulses[0]'),
+      matrizEnergia: glCtx.getUniformLocation(prog, 'uMatrizEnergia'),
+      forjaIdade: glCtx.getUniformLocation(prog, 'uForjaIdade'),
     };
 
     const reducedMotionQuery =
@@ -635,6 +713,8 @@ export function SuperficieMineralIA({
     let temaValor = temaAlvo;
 
     let conversaValor = modoFundoRef.current === 'conversa' ? 1.0 : 0.0;
+    let matrizEnergiaValor = matrizAtivaRef.current ? 1.0 : 0.0;
+    let forjaIdadeValor = 9.0;
 
     const pesosEstado = {
       x: estadoRef.current === 'ocioso' ? 1 : 0,
@@ -716,6 +796,12 @@ export function SuperficieMineralIA({
 
     dispararPulsoCentroRef.current = emitirPulsoCentro;
     dispararPulsoCoordRef.current = emitirPulsoCoordenada;
+    dispararForjaRef.current = () => {
+      if (reducedMotion) return;
+      forjaIdadeValor = 0.0;
+      matrizEnergiaValor = Math.max(matrizEnergiaValor, 0.92);
+      emitirPulsoCentro(0.95);
+    };
 
     function amostrarAudio(dt: number) {
       let alvoLevel = 0;
@@ -794,6 +880,13 @@ export function SuperficieMineralIA({
       // Constante 3.4 sincroniza o assentamento do shader com a transição de 620ms do véu CSS
       conversaValor += (conversaAlvo - conversaValor) * (1 - Math.exp(-3.4 * dt));
 
+      const matrizAlvo = matrizAtivaRef.current || estadoRef.current === 'processando' ? 1.0 : 0.0;
+      const taxaMatriz = matrizAlvo > matrizEnergiaValor ? 6.5 : 2.1;
+      matrizEnergiaValor += (matrizAlvo - matrizEnergiaValor) * (1 - Math.exp(-taxaMatriz * dt));
+      if (forjaIdadeValor < 5.0) {
+        forjaIdadeValor += dt;
+      }
+
       const est = estadoRef.current;
       const tIdle = est === 'ocioso' ? 1 : 0;
       const tListen = est === 'ouvindo' ? 1 : 0;
@@ -839,6 +932,8 @@ export function SuperficieMineralIA({
       glCtx.uniform3f(uniforms.states, pesosEstado.x, pesosEstado.y, pesosEstado.z);
       glCtx.uniform4f(uniforms.audio, audio.level, audio.low, audio.mid, audio.high);
       glCtx.uniform4fv(uniforms.pulses, bufferPulsos);
+      glCtx.uniform1f(uniforms.matrizEnergia, matrizEnergiaValor);
+      glCtx.uniform1f(uniforms.forjaIdade, forjaIdadeValor);
       glCtx.drawArrays(glCtx.TRIANGLES, 0, 3);
     }
 
@@ -847,6 +942,8 @@ export function SuperficieMineralIA({
       elapsedTime = 0.0;
       temaValor = temaAlvo;
       conversaValor = modoFundoRef.current === 'conversa' ? 1.0 : 0.0;
+      matrizEnergiaValor = 0.0;
+      forjaIdadeValor = 9.0;
       const est = estadoRef.current;
       pesosEstado.x = est === 'ocioso' ? 1 : 0;
       pesosEstado.y = est === 'ouvindo' ? 1 : 0;
@@ -1000,10 +1097,23 @@ export function SuperficieMineralIA({
         : null;
     obsIntersecao?.observe(container);
 
+    const aoPulsoMatrizEvento = (e: Event) => {
+      const det = (e as CustomEvent<{ x?: number; y?: number; forja?: boolean }>).detail;
+      if (!det || reducedMotion) return;
+      if (typeof det.x === 'number' && typeof det.y === 'number') {
+        emitirPulsoCoordenada(det.x, det.y, 1.08);
+      }
+      if (det.forja) {
+        forjaIdadeValor = 0.0;
+        matrizEnergiaValor = Math.max(matrizEnergiaValor, 0.92);
+      }
+    };
+
     window.addEventListener('resize', redimensionar, { passive: true });
     window.addEventListener('pointermove', aoMoverPonteiro, { passive: true });
     document.addEventListener('pointerleave', aoSairPonteiro, { passive: true });
     window.addEventListener('pointerdown', aoCliqueJanela, { passive: true });
+    window.addEventListener('forseti:matriz-pulso', aoPulsoMatrizEvento);
     document.addEventListener('visibilitychange', aoMudarVisibilidade);
     reducedMotionQuery?.addEventListener('change', aoMudarMovimento);
     canvas.addEventListener('webglcontextlost', aoPerderContexto);
@@ -1020,6 +1130,7 @@ export function SuperficieMineralIA({
     return () => {
       dispararPulsoCentroRef.current = null;
       dispararPulsoCoordRef.current = null;
+      dispararForjaRef.current = null;
       atualizarEstaticoRef.current = null;
       pararLoop();
       obsTema.disconnect();
@@ -1029,6 +1140,7 @@ export function SuperficieMineralIA({
       window.removeEventListener('pointermove', aoMoverPonteiro);
       document.removeEventListener('pointerleave', aoSairPonteiro);
       window.removeEventListener('pointerdown', aoCliqueJanela);
+      window.removeEventListener('forseti:matriz-pulso', aoPulsoMatrizEvento);
       document.removeEventListener('visibilitychange', aoMudarVisibilidade);
       reducedMotionQuery?.removeEventListener('change', aoMudarMovimento);
       canvas.removeEventListener('webglcontextlost', aoPerderContexto);

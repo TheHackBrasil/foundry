@@ -10,8 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { verificarCadeia } from '../shared/chain.js';
 import type { EventoStreamMandato, ResultadoAgente } from '../shared/model.js';
-import { docDataParaPayload } from '../shared/projection.js';
-import { executarTool, resolverPedido, type ContextoTools } from './agente/ferramentas.js';
+import { docDataParaPayload, projetar } from '../shared/projection.js';
+import { comporGenUIAgente } from './agente/compositorGenUI.js';
+import { executarTool, resolverPedido, type ClienteLlmAgente, type ContextoTools } from './agente/ferramentas.js';
 import { executarAgente } from './agente/motor.js';
 import { createLiteDb } from './db.js';
 import { buildServer } from './index.js';
@@ -285,13 +286,29 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     expect((r.dados['divergencias'] as unknown[]).length).toBe(1);
     const porParte = r.dados['tarefasPorParte'] as Record<string, unknown[]>;
     expect(Object.keys(porParte)).toHaveLength(5); // propagar gera uma tarefa por parte
+    // Pedido com divergencia sugere a investigacao completa.
+    expect(r.blocosSugeridos).toEqual([
+      'domino_impacto',
+      'comparador_conflito',
+      'linha_tempo_causal',
+      'resumo_citado',
+    ]);
+  });
+
+  it('consultar_pedido consistente sugere so linha do tempo e resumo', async () => {
+    const r = await executarTool(ctx, 'consultar_pedido', { pedido: CHAVE2 });
+    expect(r.ok).toBe(true);
+    expect((r.dados['divergencias'] as unknown[]).length).toBe(0);
+    expect(r.blocosSugeridos).toEqual(['linha_tempo_causal', 'resumo_citado']);
   });
 
   it('comparar_fontes detalha o campo pedido com versao e divergencia', async () => {
     const r = await executarTool(ctx, 'comparar_fontes', { pedido: CHAVE, campo: 'previsaoEntrega' });
     expect(r.ok).toBe(true);
+    expect(r.dados['campo']).toBe('previsaoEntrega');
     const comp = (r.dados['comparacoes'] as Array<{ campo: string; porFonte: Array<{ fonte: string; valor: unknown }> }>)[0]!;
     expect(comp.porFonte.map((f) => `${f.fonte}:${f.valor}`)).toEqual(['nfe:2026-01-20', 'planilha:2026-01-25']);
+    expect(r.blocosSugeridos).toEqual(['comparador_conflito', 'matriz_focada', 'linha_tempo_causal']);
   });
 
   it('simular_cenario nao grava nada e sinaliza os blocos de simulacao', async () => {
@@ -318,6 +335,22 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     expect(setores[0]?.parte).toBe('cd');
     expect(setores[0]?.tarefas.length).toBe(1);
     expect((setores[0]?.contato as { canal: string } | null)?.canal).toBe('sms');
+    // A primeira parte pedida vira a lente do GenUI (despacho do setor).
+    expect(r.dados['parte']).toBe('cd');
+    expect(r.blocosSugeridos).toEqual(['checklist_papel', 'domino_impacto', 'cartoes_despacho']);
+  });
+
+  it('compositor materializa despacho da parte mesmo em pedido consistente sem tarefas', async () => {
+    const proj = projetar(await sessao.eventosDoPedido(CHAVE2));
+    const genui = comporGenUIAgente({
+      proj,
+      pergunta: 'Mostre a visão e as ações do CD',
+      sugestoes: ['checklist_papel', 'domino_impacto', 'cartoes_despacho'],
+      resultado: { setores: { pedidoId: CHAVE2, parte: 'cd' } },
+    });
+    expect(genui.blocos.map((b) => b.tipo)).toEqual(['checklist_papel', 'domino_impacto', 'cartoes_despacho']);
+    const despacho = genui.blocos.find((b) => b.tipo === 'cartoes_despacho');
+    expect(despacho && 'partes' in despacho ? despacho.partes : []).toEqual(['cd']);
   });
 
   it('consultar_auditoria confirma a cadeia integra com raiz merkle', async () => {
@@ -325,6 +358,7 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     expect(r.ok).toBe(true);
     expect(r.dados['valida']).toBe(true);
     expect(typeof r.dados['raizMerkle']).toBe('string');
+    expect(r.blocosSugeridos).toEqual(['linha_tempo_causal']);
   });
 
   it('preparar_notificacao monta rascunho deterministico com contato e podeEnviar', async () => {
@@ -335,7 +369,7 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     expect(rascunho?.mensagemSugerida).toContain('25/01/2026');
     expect(rascunho?.campo).toBe('previsaoEntrega');
     expect(r.dados['podeEnviar']).toBe(true);
-    expect(r.blocosSugeridos).toEqual(['cartoes_despacho']);
+    expect(r.blocosSugeridos).toEqual(['cartoes_despacho', 'checklist_papel']);
   });
 
   it('enviar_notificacao grava notificacao + mandato na sessao; Nvoip fora vira desligado', async () => {
@@ -346,6 +380,7 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     expect(r.ok).toBe(true);
     expect(r.dados).toMatchObject({ parte: 'cd', status: 'nao_entregue', motivo: 'desligado' });
     expect(f).not.toHaveBeenCalled();
+    expect(r.blocosSugeridos).toEqual(['cartoes_despacho', 'checklist_papel']);
     expect(r.eventos?.map((e) => e.tipo)).toEqual(['notificacao', 'mandato']);
     const depois = await sessao.eventosDoPedido(CHAVE);
     expect(depois).toHaveLength(antes + 2);
@@ -358,6 +393,7 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     expect(r1.ok).toBe(true);
     expect(r1.dados['eventosNovos']).toBe(0);
     expect(r1.eventos?.map((e) => e.tipo)).toEqual(['mandato']);
+    expect(r1.blocosSugeridos).toEqual(['domino_impacto', 'checklist_papel']);
 
     // CHAVE2 nunca propagada e sem divergencia: recomputa, nada a gravar.
     const r2 = await executarTool(ctx, 'propagar_divergencias', { pedido: CHAVE2 });
@@ -367,14 +403,22 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
 
   it('tools de escrita na seed devolvem seed_somente_leitura estruturado', async () => {
     const antes = (await store.eventosDoPedido(CHAVE_SEED)).length;
+    const esperado: Record<string, { parte?: string; blocos: string[] }> = {
+      enviar_notificacao: { parte: 'cd', blocos: ['cartoes_despacho'] },
+      propagar_divergencias: { blocos: ['domino_impacto'] },
+    };
     for (const [nome, args] of [
       ['enviar_notificacao', { pedido: CHAVE_SEED, parte: 'cd' }],
       ['propagar_divergencias', { pedido: CHAVE_SEED }],
     ] as const) {
       const r = await executarTool(ctx, nome, args);
+      const esp = esperado[nome]!;
       expect(r.ok).toBe(false);
       expect(r.dados['erro']).toBe('seed_somente_leitura');
+      expect(r.dados['pedidoId']).toBe(CHAVE_SEED);
+      if (esp.parte) expect(r.dados['parte']).toBe(esp.parte);
       expect(r.pedidoIdResolvido).toBe(CHAVE_SEED);
+      expect(r.blocosSugeridos).toEqual(esp.blocos);
     }
     expect((await store.eventosDoPedido(CHAVE_SEED)).length).toBe(antes);
   });
@@ -562,6 +606,174 @@ describe('motor do agente com LLM sequenciada (T313)', () => {
     expect(saida.textoFinal).toBe('Resumo do que encontrei.');
     const deltas = eventos.filter((e) => e.tipo === 'texto_delta').map((e) => (e as { delta: string }).delta);
     expect(deltas).toEqual(['Resumo do que ', 'encontrei.']);
+  });
+
+  describe('emissao GenUI por tool (RF15)', () => {
+    // Cliente LLM injetado por OpcoesAgente.llm (DIP): mesma sequencia de
+    // respostas do fetch stub, mas sem tocar na rede nem em stubGlobal.
+    type RespostaStub = {
+      texto?: string;
+      toolCalls?: Array<{ nome: string; argumentos?: Record<string, unknown> }>;
+    };
+
+    const llmDeTeste = (...resps: RespostaStub[]): ClienteLlmAgente => {
+      const q = [...resps];
+      return {
+        chatComTools: async () => {
+          const r = q.shift();
+          if (!r) throw new Error('fila de respostas da LLM esgotada');
+          return {
+            texto: r.texto ?? '',
+            toolCalls: (r.toolCalls ?? []).map((t, i) => ({
+              id: `call_${i}`,
+              nome: t.nome,
+              argumentos: t.argumentos ?? {},
+            })),
+            finishReason: (r.toolCalls ?? []).length > 0 ? 'tool_calls' : 'stop',
+          };
+        },
+        chatTextoStream: async (_mensagens, onDelta) => {
+          const r = q.shift();
+          const texto = r?.texto ?? '';
+          if (texto !== '') onDelta(texto);
+          return texto;
+        },
+      };
+    };
+
+    const tiposBloco = (eventos: EventoStreamMandato[]): string[] =>
+      eventos.filter((e) => e.tipo === 'bloco').map((e) => (e as { bloco: { tipo: string } }).bloco.tipo);
+
+    it('consultar_pedido com divergencia emite a investigacao completa na ordem sugerida', async () => {
+      const eventos: EventoStreamMandato[] = [];
+      const saida = await executarAgente({
+        ...base(),
+        pergunta: 'como esta o pedido?',
+        llm: llmDeTeste(
+          { toolCalls: [{ nome: 'consultar_pedido', argumentos: { pedido: CHAVE } }] },
+          { texto: 'O pedido tem 1 divergência de prazo e 5 tarefas abertas.' },
+        ),
+        onEvento: (e) => eventos.push(e),
+      });
+      expect(saida.pedidoIdResolvido).toBe(CHAVE);
+      expect(tiposBloco(eventos)).toEqual([
+        'domino_impacto',
+        'comparador_conflito',
+        'linha_tempo_causal',
+        'resumo_citado',
+      ]);
+      expect(saida.viewSpec?.layout).toBe('investigacao');
+      expect(saida.resultado?.['consulta']).toBeDefined();
+    });
+
+    it('comparar_fontes garante comparador_conflito e matriz_focada com o campo pedido', async () => {
+      const eventos: EventoStreamMandato[] = [];
+      const saida = await executarAgente({
+        ...base(),
+        pergunta: 'compare a previsao de entrega entre as fontes',
+        llm: llmDeTeste(
+          { toolCalls: [{ nome: 'comparar_fontes', argumentos: { pedido: CHAVE, campo: 'previsaoEntrega' } }] },
+          { texto: 'A NF-e diz 20/01 e a planilha 25/01.' },
+        ),
+        onEvento: (e) => eventos.push(e),
+      });
+      expect(tiposBloco(eventos)).toEqual(['comparador_conflito', 'matriz_focada', 'linha_tempo_causal']);
+      const tiposSpec = saida.viewSpec?.blocos.map((b) => b.tipo) ?? [];
+      // A spec final replica a curadoria emitida: o front renderiza spec.blocos
+      // por inteiro, entao bloco fora da sugestao aqui desfaz o foco da tool.
+      expect(tiposSpec).toEqual(['comparador_conflito', 'matriz_focada', 'linha_tempo_causal']);
+      const conflito = saida.viewSpec?.blocos.find((b) => b.tipo === 'comparador_conflito');
+      expect(conflito && 'campo' in conflito ? conflito.campo : undefined).toBe('previsaoEntrega');
+      const matriz = saida.viewSpec?.blocos.find((b) => b.tipo === 'matriz_focada');
+      expect(matriz && 'colunas' in matriz ? matriz.colunas : []).toContain('previsaoEntrega');
+    });
+
+    it('listar_tarefas_setor aplica a lente do setor com checklist, domino e despacho', async () => {
+      const eventos: EventoStreamMandato[] = [];
+      const saida = await executarAgente({
+        ...base(),
+        pergunta: 'o que o CD precisa fazer?',
+        llm: llmDeTeste(
+          { toolCalls: [{ nome: 'listar_tarefas_setor', argumentos: { pedido: CHAVE, partes: ['cd'] } }] },
+          { texto: 'O CD tem 1 tarefa aberta de reagendamento de doca.' },
+        ),
+        onEvento: (e) => eventos.push(e),
+      });
+      expect(saida.viewSpec?.layout).toBe('decisao_papel');
+      expect(saida.viewSpec?.lente).toBe('cd');
+      expect(tiposBloco(eventos)).toEqual(['checklist_papel', 'domino_impacto', 'cartoes_despacho']);
+      const checklist = saida.viewSpec?.blocos.find((b) => b.tipo === 'checklist_papel');
+      expect(checklist && 'parte' in checklist ? checklist.parte : undefined).toBe('cd');
+    });
+
+    it('consultar_auditoria emite so a linha do tempo causal', async () => {
+      const eventos: EventoStreamMandato[] = [];
+      const saida = await executarAgente({
+        ...base(),
+        pergunta: 'a cadeia desse pedido esta integra?',
+        llm: llmDeTeste(
+          { toolCalls: [{ nome: 'consultar_auditoria', argumentos: { pedido: CHAVE } }] },
+          { texto: 'A cadeia está íntegra, com todos os eventos encadeados.' },
+        ),
+        onEvento: (e) => eventos.push(e),
+      });
+      expect(tiposBloco(eventos)).toEqual(['linha_tempo_causal']);
+      expect(saida.viewSpec?.blocos.map((b) => b.tipo)).toEqual(['linha_tempo_causal']);
+      expect(saida.resultado?.['auditoria']).toBeDefined();
+    });
+
+    it('propagar_divergencias emite domino e checklist da visao composta', async () => {
+      const eventos: EventoStreamMandato[] = [];
+      const saida = await executarAgente({
+        ...base(),
+        pergunta: 'propague as divergencias do pedido',
+        pedidoId: CHAVE,
+        llm: llmDeTeste(
+          { toolCalls: [{ nome: 'propagar_divergencias', argumentos: {} }] },
+          { texto: 'Propaguei: nenhum evento novo, a cadeia já estava completa.' },
+        ),
+        onEvento: (e) => eventos.push(e),
+      });
+      expect(tiposBloco(eventos)).toEqual(['domino_impacto', 'checklist_papel']);
+      const checklist = saida.viewSpec?.blocos.find((b) => b.tipo === 'checklist_papel');
+      expect(checklist).toBeDefined();
+      expect(saida.eventos.map((e) => e.tipo)).toEqual(['mandato']);
+    });
+
+    it('enviar_notificacao na sessao emite cartoes e checklist da parte avisada', async () => {
+      const eventos: EventoStreamMandato[] = [];
+      const saida = await executarAgente({
+        ...base(),
+        pergunta: 'avise o CD sobre a divergencia',
+        llm: llmDeTeste(
+          { toolCalls: [{ nome: 'enviar_notificacao', argumentos: { pedido: CHAVE, parte: 'cd' } }] },
+          { texto: 'Registrei o aviso para o CD; a provedora está desligada nesta sessão.' },
+        ),
+        onEvento: (e) => eventos.push(e),
+      });
+      expect(saida.viewSpec?.layout).toBe('despacho');
+      expect(tiposBloco(eventos)).toEqual(['cartoes_despacho', 'checklist_papel']);
+      expect(saida.eventos.map((e) => e.tipo)).toEqual(['notificacao', 'mandato']);
+    });
+
+    it('enviar_notificacao na seed explica o bloqueio e ainda compoe os cartoes do exemplo', async () => {
+      const antes = (await store.eventosDoPedido(CHAVE_SEED)).length;
+      const eventos: EventoStreamMandato[] = [];
+      const saida = await executarAgente({
+        ...base(),
+        pergunta: 'avise o CD do pedido packsul',
+        llm: llmDeTeste(
+          { toolCalls: [{ nome: 'enviar_notificacao', argumentos: { pedido: 'packsul', parte: 'cd' } }] },
+          { texto: 'Este pedido é só leitura: envie os seus arquivos para comandar de verdade.' },
+        ),
+        onEvento: (e) => eventos.push(e),
+      });
+      expect(saida.toolsExecutadas[0]?.status).toBe('erro');
+      expect(saida.pedidoIdResolvido).toBe(CHAVE_SEED);
+      expect(saida.viewSpec?.layout).toBe('despacho');
+      expect(tiposBloco(eventos)).toEqual(['cartoes_despacho']);
+      expect((await store.eventosDoPedido(CHAVE_SEED)).length).toBe(antes);
+    });
   });
 });
 
