@@ -211,7 +211,7 @@ function BlocoResumoCitado({
         : 'Informativo';
 
   return (
-    <article className="palco-bloco" aria-label={bloco.titulo}>
+    <article className="palco-bloco palco-bloco-largo" aria-label={bloco.titulo}>
       <div className="palco-bloco-cab">
         <h3>{bloco.titulo}</h3>
         <div className="palco-cab-linha">
@@ -692,7 +692,7 @@ function BlocoChecklistPapel({
   }, [projecao.tarefas, bloco.parte, bloco.camposPrioritarios]);
 
   return (
-    <article className="palco-bloco" aria-label={bloco.titulo}>
+    <article className="palco-bloco palco-bloco-largo" aria-label={bloco.titulo}>
       <div className="palco-bloco-cab">
         <h3>{bloco.titulo}</h3>
         <button
