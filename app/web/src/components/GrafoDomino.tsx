@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   CAMPOS_VIGIADOS,
   PARTES,
@@ -28,10 +28,26 @@ interface NoDivergencia {
   campo: CampoVigiado;
   principal: Divergencia;
   rotuloCurto: string;
+  regraCausal: string;
   resumoDelta: string | null;
-  subtitulo: string;
+  comparacao: string;
+  fontesTexto: string;
   partesImpactadas: ReadonlySet<Parte>;
   totalPares: number;
+}
+
+interface NoSetor {
+  parte: Parte;
+  totalAcoes: number;
+  primeiraAcao: string | null;
+  camposOrigem: CampoVigiado[];
+}
+
+interface ArestaCausal {
+  chave: string;
+  campo: CampoVigiado;
+  parte: Parte;
+  regra: string;
 }
 
 interface GeometriaSvg {
@@ -42,21 +58,51 @@ interface GeometriaSvg {
 }
 
 const ROTULO_CURTO_CAMPO = new Map<CampoVigiado, string>([
+  ['previsaoEntrega', 'Previsão de entrega'],
+  ['pesoTotal', 'Peso total'],
+  ['volumes', 'Volumes'],
+  ['status', 'Status'],
+]);
+
+const TAG_CURTA_CAMPO = new Map<CampoVigiado, string>([
   ['previsaoEntrega', 'Previsão'],
   ['pesoTotal', 'Peso'],
   ['volumes', 'Volumes'],
   ['status', 'Status'],
 ]);
 
-function deltaCompacto(d: Divergencia): string | null {
+const REGRA_CAUSAL_CAMPO = new Map<CampoVigiado, string>([
+  ['previsaoEntrega', 'Janela de entrega'],
+  ['pesoTotal', 'Conferência de carga'],
+  ['volumes', 'Cubagem e doca'],
+  ['status', 'Status operacional'],
+]);
+
+function deltaVisivel(d: Divergencia): string | null {
   const v = variacao(d.campo, d.valorB, d.valorA);
   if (v) {
-    return d.campo === 'previsaoEntrega' ? v.replace(/\s*dias?$/, 'd') : v;
+    return d.campo === 'volumes' ? `${v} vol` : v;
   }
   if (d.campo === 'status') {
     return formatarValor('status', d.valorB);
   }
   return null;
+}
+
+function comparacaoConcreta(d: Divergencia): string {
+  const a = formatarValor(d.campo, d.valorA);
+  const b = formatarValor(d.campo, d.valorB);
+  if (d.campo === 'previsaoEntrega') {
+    const mA = /^(\d{2}\/\d{2})\/(\d{4})$/.exec(a);
+    const mB = /^(\d{2}\/\d{2})\/(\d{4})$/.exec(b);
+    if (mA && mB && mA[2] === mB[2]) {
+      return `${mA[1]} → ${mB[1]}`;
+    }
+  }
+  if (d.campo === 'volumes') {
+    return `${a} → ${b} vol`;
+  }
+  return `${a} → ${b}`;
 }
 
 export function GrafoDomino({
@@ -73,15 +119,21 @@ export function GrafoDomino({
     garantirEstilosOps();
   }, []);
 
+  const uid = useId().replace(/:/g, '');
+  const markerAtivoId = `domino-seta-ativa-${uid}`;
+  const markerDimId = `domino-seta-dim-${uid}`;
+
   const [campoIsolado, setCampoIsolado] = useState<CampoVigiado | null>(null);
-  const [parteAtiva, setParteAtiva] = useState<Parte | null>(null);
+  const [parteIsolada, setParteIsolada] = useState<Parte | null>(null);
+  const [hoverCampo, setHoverCampo] = useState<CampoVigiado | null>(null);
+  const [hoverParte, setHoverParte] = useState<Parte | null>(null);
 
   const centroRef = useRef<HTMLDivElement>(null);
   const esqRefs = useRef<Map<CampoVigiado, HTMLButtonElement>>(new Map());
   const dirRefs = useRef<Map<Parte, HTMLButtonElement>>(new Map());
   const [geom, setGeom] = useState<GeometriaSvg>({
     largura: 240,
-    altura: 250,
+    altura: 280,
     esquerdaY: {},
     direitaY: {},
   });
@@ -106,7 +158,7 @@ export function GrafoDomino({
         if (t.divergencia.campo === campo) partes.add(t.parte);
       }
 
-      const subtitulo =
+      const fontesTexto =
         lista.length > 1
           ? `${rotuloFonte(principal.fonteA)} × ${rotuloFonte(principal.fonteB)} (+${lista.length - 1})`
           : `${rotuloFonte(principal.fonteA)} × ${rotuloFonte(principal.fonteB)}`;
@@ -115,8 +167,10 @@ export function GrafoDomino({
         campo,
         principal,
         rotuloCurto: ROTULO_CURTO_CAMPO.get(campo) ?? rotuloCampo(campo),
-        resumoDelta: deltaCompacto(principal),
-        subtitulo,
+        regraCausal: REGRA_CAUSAL_CAMPO.get(campo) ?? 'Regra operacional',
+        resumoDelta: deltaVisivel(principal),
+        comparacao: comparacaoConcreta(principal),
+        fontesTexto,
         partesImpactadas: partes,
         totalPares: lista.length,
       });
@@ -124,43 +178,69 @@ export function GrafoDomino({
     return saida;
   }, [divergencias, tarefas]);
 
-  // Se o campo isolado deixou de existir apos atualizacao do pedido, limpa selecao.
   const isolamentoEfetivo =
     campoIsolado && nosDivergencia.some((n) => n.campo === campoIsolado) ? campoIsolado : null;
 
-  const noIsolado = useMemo(
-    () => nosDivergencia.find((n) => n.campo === isolamentoEfetivo) ?? null,
-    [nosDivergencia, isolamentoEfetivo],
-  );
-
-  const tarefasFiltradas = useMemo(
-    () =>
-      isolamentoEfetivo
-        ? tarefas.filter((t) => t.divergencia.campo === isolamentoEfetivo)
-        : tarefas,
-    [tarefas, isolamentoEfetivo],
-  );
-
-  const contagemPorParte = useMemo(() => {
-    const mapa = new Map<Parte, number>();
+  const nosSetor = useMemo<NoSetor[]>(() => {
+    const lista: NoSetor[] = [];
     for (const parte of PARTES) {
-      mapa.set(parte, agruparTarefas(tarefasDaParte(tarefasFiltradas, parte)).length);
-    }
-    return mapa;
-  }, [tarefasFiltradas]);
+      const tarefasParte = tarefasDaParte(tarefas, parte);
+      const agrupadas = agruparTarefas(tarefasParte);
+      const camposSet = new Set<CampoVigiado>();
+      for (const t of tarefasParte) camposSet.add(t.divergencia.campo);
+      const camposOrigem = CAMPOS_VIGIADOS.filter((c) => camposSet.has(c));
 
-  const totalTarefasUnicas = useMemo(
-    () => agruparTarefas(tarefasFiltradas).length,
-    [tarefasFiltradas],
+      lista.push({
+        parte,
+        totalAcoes: agrupadas.length,
+        primeiraAcao: agrupadas[0]?.titulo ?? null,
+        camposOrigem,
+      });
+    }
+    return lista;
+  }, [tarefas]);
+
+  const setoresAtivos = useMemo(
+    () => nosSetor.filter((s) => s.totalAcoes > 0),
+    [nosSetor],
   );
+  const setoresInativos = useMemo(
+    () => nosSetor.filter((s) => s.totalAcoes === 0),
+    [nosSetor],
+  );
+
+  const parteIsoladaEfetiva =
+    parteIsolada && setoresAtivos.some((s) => s.parte === parteIsolada) ? parteIsolada : null;
 
   const camposFocoSet = useMemo(() => new Set<CampoVigiado>(camposFoco ?? []), [camposFoco]);
   const partesFocoSet = useMemo(() => new Set<Parte>(partesFoco ?? []), [partesFoco]);
 
-  const assinaturaNos = nosDivergencia.map((n) => n.campo).join(',');
+  // Prioridade de foco: hover imediato > seleção local no grafo > foco externo (matriz/KPI).
+  const focoCampoAtivo: CampoVigiado | null =
+    hoverCampo ?? isolamentoEfetivo ?? (camposFocoSet.size === 1 ? [...camposFocoSet][0] ?? null : null);
+  const focoParteAtiva: Parte | null =
+    hoverParte ?? parteIsoladaEfetiva ?? (partesFocoSet.size === 1 ? [...partesFocoSet][0] ?? null : null);
 
-  // Mede o centro real de cada botao HTML para que as curvas SVG encostem
-  // exatamente nas bordas dos nos mesmo com quebra de texto ou zoom 200%.
+  const arestas = useMemo<ArestaCausal[]>(() => {
+    const saida: ArestaCausal[] = [];
+    for (const no of nosDivergencia) {
+      for (const setor of setoresAtivos) {
+        if (no.partesImpactadas.has(setor.parte)) {
+          saida.push({
+            chave: `${no.campo}::${setor.parte}`,
+            campo: no.campo,
+            parte: setor.parte,
+            regra: no.regraCausal,
+          });
+        }
+      }
+    }
+    return saida;
+  }, [nosDivergencia, setoresAtivos]);
+
+  const assinaturaNos = `${nosDivergencia.map((n) => n.campo).join(',')}|${setoresAtivos.map((s) => s.parte).join(',')}`;
+
+  // Mede o centro real de cada cartão para que as curvas SVG encostem nas bordas mesmo em zoom 200%.
   useLayoutEffect(() => {
     const centro = centroRef.current;
     if (!centro) return;
@@ -178,11 +258,11 @@ export function GrafoDomino({
       }
 
       const direitaY: Record<string, number> = {};
-      for (const parte of PARTES) {
-        const btn = dirRefs.current.get(parte);
+      for (const setor of setoresAtivos) {
+        const btn = dirRefs.current.get(setor.parte);
         if (!btn) continue;
         const r = btn.getBoundingClientRect();
-        direitaY[parte] = r.top + r.height / 2 - rCentro.top;
+        direitaY[setor.parte] = r.top + r.height / 2 - rCentro.top;
       }
 
       setGeom({
@@ -201,12 +281,12 @@ export function GrafoDomino({
     for (const btn of esqRefs.current.values()) ro.observe(btn);
     for (const btn of dirRefs.current.values()) ro.observe(btn);
     return () => ro.disconnect();
-  }, [assinaturaNos, nosDivergencia]);
+  }, [assinaturaNos, nosDivergencia, setoresAtivos]);
 
   function alternarDivergencia(no: NoDivergencia) {
     const proximo = isolamentoEfetivo === no.campo ? null : no.campo;
     setCampoIsolado(proximo);
-    setParteAtiva(null);
+    setParteIsolada(null);
     if (proximo) {
       aoFocar?.({
         tipo: 'divergencia',
@@ -219,108 +299,181 @@ export function GrafoDomino({
     }
   }
 
-  function clicarPapel(parte: Parte) {
-    setParteAtiva((atual) => (atual === parte ? null : parte));
-    aoSelecionarPapel?.(parte);
+  function clicarSetor(parte: Parte) {
+    const proxima = parteIsoladaEfetiva === parte ? null : parte;
+    setParteIsolada(proxima);
+    setCampoIsolado(null);
+    if (proxima) {
+      aoFocar?.({ tipo: 'parte', parte: proxima });
+      aoSelecionarPapel?.(proxima);
+    } else {
+      aoFocar?.(null);
+    }
+  }
+
+  function limparIsolamento() {
+    setCampoIsolado(null);
+    setParteIsolada(null);
+    setHoverCampo(null);
+    setHoverParte(null);
+    aoFocar?.(null);
   }
 
   const ehSimulacao = modo === 'simulacao';
-  const cx = geom.largura / 2;
-  const cy = geom.altura / 2;
-  const tracejado = ehSimulacao ? '5 4' : undefined;
+  const tracejado = ehSimulacao ? '6 4' : undefined;
+  const temIsolamento = isolamentoEfetivo !== null || parteIsoladaEfetiva !== null;
+
+  if (nosDivergencia.length === 0) {
+    return (
+      <section
+        className="domino-wrap domino-acordo"
+        role="group"
+        aria-label="Mapa de impacto causal"
+      >
+        <div className="domino-acordo-linha">
+          <span className="domino-acordo-icone" aria-hidden="true">
+            <IconeConfere />
+          </span>
+          <div className="domino-acordo-texto">
+            <strong>Fontes em acordo · Cadeia sem desvios</strong>
+            <span className="meta">
+              Todos os campos vigiados coincidem entre os documentos declarados; nenhuma ação corretiva foi disparada entre os setores.
+            </span>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const temFiltroAtivo =
+    focoCampoAtivo !== null ||
+    focoParteAtiva !== null ||
+    camposFocoSet.size > 0 ||
+    partesFocoSet.size > 0;
+
+  const arestaAtiva = (a: ArestaCausal): boolean => {
+    if (focoCampoAtivo !== null) return a.campo === focoCampoAtivo;
+    if (focoParteAtiva !== null) return a.parte === focoParteAtiva;
+    if (camposFocoSet.size > 0 && !camposFocoSet.has(a.campo)) return false;
+    if (partesFocoSet.size > 0 && !partesFocoSet.has(a.parte)) return false;
+    return true;
+  };
+
+  // Regras visíveis na coluna central: mostra apenas as regras ativas quando há foco
+  // ou lista interativa ordenada sem sobreposição quando todas as ligações estão abertas.
+  const regrasVisiveis = nosDivergencia.filter((no) => {
+    if (focoCampoAtivo !== null) return no.campo === focoCampoAtivo;
+    if (focoParteAtiva !== null) return no.partesImpactadas.has(focoParteAtiva);
+    return true;
+  });
+
+  // Calcula posição vertical ancorada apenas quando 1 regra específica está isolada.
+  const regraAncoradaY: number | null = (() => {
+    if (regrasVisiveis.length !== 1) return null;
+    const unica = regrasVisiveis[0];
+    if (!unica) return null;
+    const ativas = arestas.filter((a) => a.campo === unica.campo && arestaAtiva(a));
+    if (ativas.length === 0) return null;
+    const yEsq = geom.esquerdaY[unica.campo] ?? geom.altura / 2;
+    const mediaDir =
+      ativas.reduce((acc, a) => acc + (geom.direitaY[a.parte] ?? geom.altura / 2), 0) /
+      ativas.length;
+    const medio = (yEsq + mediaDir) / 2;
+    return Math.max(24, Math.min(Math.max(24, geom.altura - 24), medio));
+  })();
+
+  const totalAcoes = setoresAtivos.reduce((acc, s) => acc + s.totalAcoes, 0);
 
   return (
     <section
       className="domino-wrap"
       role="group"
-      aria-label="Mapa dominó de impacto nos 5 setores"
+      aria-label="Mapa causal de divergências para ações por setor"
     >
-      <div className="domino-cab">
-        <div className="palco-cab-linha">
-          {titulo && <h3>{titulo}</h3>}
-          {ehSimulacao && (
-            <span className="pilula-warn">
-              <IconeDiverge />
-              Simulação · nenhum dado gravado
-            </span>
-          )}
-          {noIsolado && (
-            <span className="pilula-coord">
-              Isolado: {rotuloCampo(noIsolado.campo)}
-            </span>
+      {(titulo || ehSimulacao || temIsolamento) && (
+        <div className="domino-cab">
+          <div className="palco-cab-linha">
+            {titulo && <h3 className="domino-titulo">{titulo}</h3>}
+            {ehSimulacao && (
+              <span className="pilula-warn">
+                <IconeDiverge />
+                Simulação · nenhum dado gravado
+              </span>
+            )}
+            {isolamentoEfetivo && (
+              <span className="pilula-coord">
+                Isolado: {rotuloCampo(isolamentoEfetivo)}
+              </span>
+            )}
+            {parteIsoladaEfetiva && (
+              <span className="pilula-coord">
+                Setor: {rotuloParte(parteIsoladaEfetiva)}
+              </span>
+            )}
+          </div>
+          {temIsolamento && (
+            <button type="button" className="botao-sutil" onClick={limparIsolamento}>
+              Mostrar todas as conexões
+            </button>
           )}
         </div>
-        {noIsolado && (
-          <button
-            type="button"
-            className="botao-sutil"
-            onClick={() => {
-              setCampoIsolado(null);
-              aoFocar?.(null);
-            }}
-          >
-            Mostrar todas as divergências
-          </button>
-        )}
-      </div>
-
-      {nosDivergencia.length === 0 ? (
-        <p className="dica">
-          Nenhuma divergência ativa — o Motor de Regras não disparou tarefas entre os 5 setores.
-        </p>
-      ) : (
-        <p className="meta">
-          Selecione uma divergência à esquerda para isolar os setores impactados, ou escolha um
-          setor à direita para filtrar as tarefas.
-        </p>
       )}
 
+      <div className="domino-col-titulos" aria-hidden="true">
+        <span>O que divergiu ({nosDivergencia.length})</span>
+        <span className="domino-col-titulo-centro">Regra causal</span>
+        <span>
+          Quem precisa agir ({setoresAtivos.length}{' '}
+          {setoresAtivos.length === 1 ? 'setor' : 'setores'} · {totalAcoes}{' '}
+          {totalAcoes === 1 ? 'ação' : 'ações'})
+        </span>
+      </div>
+
       <div className="domino-palco">
-        <div className="domino-col" role="group" aria-label="Divergências detectadas">
-          {nosDivergencia.length === 0 ? (
-            <div className="domino-no" data-esmaecido="true">
-              <div className="domino-no-topo">
-                <strong>Sem conflitos</strong>
-                <span className="pilula-ok">
-                  <IconeConfere />
-                  Alinhado
+        <div className="domino-col" role="group" aria-label="O que divergiu">
+          {nosDivergencia.map((no) => {
+            const pressionado = isolamentoEfetivo === no.campo;
+            const destacado =
+              focoCampoAtivo === no.campo ||
+              (focoParteAtiva !== null && no.partesImpactadas.has(focoParteAtiva));
+            const esmaecido =
+              temFiltroAtivo &&
+              !destacado &&
+              !(focoCampoAtivo === null && focoParteAtiva === null && camposFocoSet.has(no.campo));
+
+            const textoAria = `${no.rotuloCurto}${no.resumoDelta ? ` (${no.resumoDelta})` : ''}: ${no.comparacao}, ${no.fontesTexto}, regra ${no.regraCausal}, aciona ${no.partesImpactadas.size} ${no.partesImpactadas.size === 1 ? 'setor' : 'setores'}`;
+
+            return (
+              <button
+                key={no.campo}
+                ref={(el) => {
+                  if (el) esqRefs.current.set(no.campo, el);
+                  else esqRefs.current.delete(no.campo);
+                }}
+                type="button"
+                className="domino-no domino-card-div"
+                aria-pressed={pressionado}
+                aria-label={textoAria}
+                data-ativo={destacado ? 'true' : undefined}
+                data-esmaecido={esmaecido ? 'true' : undefined}
+                onMouseEnter={() => setHoverCampo(no.campo)}
+                onMouseLeave={() => setHoverCampo((atual) => (atual === no.campo ? null : atual))}
+                onClick={() => alternarDivergencia(no)}
+              >
+                <span className="domino-no-topo">
+                  <strong className="domino-card-titulo">{no.rotuloCurto}</strong>
+                  {no.resumoDelta && (
+                    <span className="domino-delta-pilula mono num">{no.resumoDelta}</span>
+                  )}
                 </span>
-              </div>
-              <span className="meta">Fontes concordam nos campos vigiados</span>
-            </div>
-          ) : (
-            nosDivergencia.map((no) => {
-              const pressionado = isolamentoEfetivo === no.campo;
-              const esmaecido =
-                isolamentoEfetivo !== null
-                  ? !pressionado
-                  : camposFocoSet.size > 0 && !camposFocoSet.has(no.campo);
-              const textoAria = `${no.rotuloCurto}${no.resumoDelta ? ` ${no.resumoDelta}` : ''}, ${no.subtitulo}, impacta ${no.partesImpactadas.size} ${no.partesImpactadas.size === 1 ? 'setor' : 'setores'}`;
-              return (
-                <button
-                  key={no.campo}
-                  ref={(el) => {
-                    if (el) esqRefs.current.set(no.campo, el);
-                    else esqRefs.current.delete(no.campo);
-                  }}
-                  type="button"
-                  className="domino-no"
-                  aria-pressed={pressionado}
-                  aria-label={textoAria}
-                  data-esmaecido={esmaecido ? 'true' : undefined}
-                  onClick={() => alternarDivergencia(no)}
-                >
-                  <span className="domino-no-topo">
-                    <strong>{no.rotuloCurto}</strong>
-                    {no.resumoDelta && (
-                      <span className="delta-pilula num">{no.resumoDelta}</span>
-                    )}
-                  </span>
-                  <span className="meta">{no.subtitulo}</span>
-                </button>
-              );
-            })
-          )}
+                <span className="domino-comparacao mono num">{no.comparacao}</span>
+                <span className="domino-card-rodape">
+                  <span className="domino-fonte-badge">{no.fontesTexto}</span>
+                  <span className="domino-regra-inline">{no.regraCausal}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="domino-centro" ref={centroRef}>
@@ -330,105 +483,181 @@ export function GrafoDomino({
             aria-hidden="true"
             focusable="false"
           >
-            {nosDivergencia.map((no, i) => {
-              const fallbackY = ((i + 0.5) / Math.max(1, nosDivergencia.length)) * geom.altura;
-              const y = geom.esquerdaY[no.campo] ?? fallbackY;
-              const ativa =
-                isolamentoEfetivo !== null
-                  ? isolamentoEfetivo === no.campo
-                  : camposFocoSet.size === 0 || camposFocoSet.has(no.campo);
-              const d = `M 0 ${y} C ${geom.largura * 0.28} ${y}, ${geom.largura * 0.24} ${cy}, ${cx} ${cy}`;
+            <defs>
+              <marker
+                id={markerAtivoId}
+                viewBox="0 0 8 8"
+                refX="7"
+                refY="4"
+                markerWidth="6.5"
+                markerHeight="6.5"
+                orient="auto"
+              >
+                <path d="M 0 0.75 L 7.5 4 L 0 7.25 z" fill="var(--change)" />
+              </marker>
+              <marker
+                id={markerDimId}
+                viewBox="0 0 8 8"
+                refX="7"
+                refY="4"
+                markerWidth="5.5"
+                markerHeight="5.5"
+                orient="auto"
+              >
+                <path d="M 0 1 L 7 4 L 0 7 z" fill="var(--border-strong)" />
+              </marker>
+            </defs>
+
+            {arestas.map((a) => {
+              const iEsq = nosDivergencia.findIndex((n) => n.campo === a.campo);
+              const iDir = setoresAtivos.findIndex((s) => s.parte === a.parte);
+              const y1 =
+                geom.esquerdaY[a.campo] ??
+                ((iEsq + 0.5) / Math.max(1, nosDivergencia.length)) * geom.altura;
+              const y2 =
+                geom.direitaY[a.parte] ??
+                ((iDir + 0.5) / Math.max(1, setoresAtivos.length)) * geom.altura;
+              const xFim = Math.max(8, geom.largura - 5);
+              const c1x = geom.largura * 0.42;
+              const c2x = geom.largura * 0.58;
+              const d = `M 3 ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${xFim} ${y2}`;
+              const ativa = arestaAtiva(a);
+              const enfase = temFiltroAtivo && ativa;
+
               return (
-                <g key={`esq-${no.campo}`}>
-                  <path
-                    d={d}
-                    fill="none"
-                    stroke={ativa ? 'var(--change)' : 'var(--hairline-strong)'}
-                    strokeWidth={ativa ? 2.2 : 1.25}
-                    strokeDasharray={tracejado}
-                    opacity={ativa ? 0.92 : 0.28}
-                  />
-                  {ativa && <circle cx={2} cy={y} r={3} fill="var(--change)" />}
-                </g>
+                <path
+                  key={a.chave}
+                  d={d}
+                  fill="none"
+                  stroke={ativa ? 'var(--change)' : 'var(--border-strong)'}
+                  strokeWidth={enfase ? 2.4 : ativa ? 1.8 : 1.25}
+                  strokeLinecap="round"
+                  strokeDasharray={tracejado}
+                  opacity={enfase ? 0.96 : ativa ? 0.72 : 0.18}
+                  markerEnd={`url(#${ativa ? markerAtivoId : markerDimId})`}
+                />
               );
             })}
 
-            {PARTES.map((parte, j) => {
-              const fallbackY = ((j + 0.5) / PARTES.length) * geom.altura;
-              const y = geom.direitaY[parte] ?? fallbackY;
-              const n = contagemPorParte.get(parte) ?? 0;
-              const impactada =
-                noIsolado !== null
-                  ? noIsolado.partesImpactadas.has(parte)
-                  : n > 0 && (partesFocoSet.size === 0 || partesFocoSet.has(parte));
-              const d = `M ${cx} ${cy} C ${geom.largura * 0.76} ${cy}, ${geom.largura * 0.72} ${y}, ${geom.largura} ${y}`;
+            {nosDivergencia.map((no, i) => {
+              const y =
+                geom.esquerdaY[no.campo] ??
+                ((i + 0.5) / Math.max(1, nosDivergencia.length)) * geom.altura;
+              const ativo =
+                !temFiltroAtivo ||
+                focoCampoAtivo === no.campo ||
+                (focoParteAtiva !== null && no.partesImpactadas.has(focoParteAtiva)) ||
+                camposFocoSet.has(no.campo);
               return (
-                <g key={`dir-${parte}`}>
-                  <path
-                    d={d}
-                    fill="none"
-                    stroke={impactada ? 'var(--change)' : 'var(--hairline-strong)'}
-                    strokeWidth={impactada ? 2.2 : 1.2}
-                    strokeDasharray={tracejado}
-                    opacity={impactada ? 0.92 : 0.24}
-                  />
-                  {impactada && (
-                    <circle cx={Math.max(2, geom.largura - 2)} cy={y} r={3} fill="var(--change)" />
-                  )}
-                </g>
+                <circle
+                  key={`ponto-${no.campo}`}
+                  cx={3}
+                  cy={y}
+                  r={ativo ? 3.5 : 2.5}
+                  fill={ativo ? 'var(--change)' : 'var(--border-strong)'}
+                  opacity={ativo ? 0.95 : 0.3}
+                />
               );
             })}
           </svg>
 
-          <div className="domino-motor">
-            <strong style={{ fontSize: '0.84375rem' }}>Motor de Regras</strong>
-            <span className="meta num">
-              {nosDivergencia.length}{' '}
-              {nosDivergencia.length === 1 ? 'conflito' : 'conflitos'} → {totalTarefasUnicas}{' '}
-              {totalTarefasUnicas === 1 ? 'tarefa' : 'tarefas'}
-            </span>
-          </div>
+          {regraAncoradaY !== null && regrasVisiveis[0] ? (
+            <div
+              className="domino-regra-ancorada"
+              style={{ top: `${regraAncoradaY}px` }}
+            >
+              <span className="domino-regra-pill domino-regra-pill-ativa">
+                {regrasVisiveis[0].regraCausal}
+              </span>
+            </div>
+          ) : (
+            <div className="domino-regras-pilha" role="group" aria-label="Regras causais ativas">
+              {regrasVisiveis.map((no) => {
+                const selecionada = isolamentoEfetivo === no.campo || hoverCampo === no.campo;
+                return (
+                  <button
+                    key={no.campo}
+                    type="button"
+                    className={
+                      selecionada
+                        ? 'domino-regra-pill domino-regra-pill-ativa'
+                        : 'domino-regra-pill'
+                    }
+                    aria-pressed={isolamentoEfetivo === no.campo}
+                    onMouseEnter={() => setHoverCampo(no.campo)}
+                    onMouseLeave={() =>
+                      setHoverCampo((atual) => (atual === no.campo ? null : atual))
+                    }
+                    onClick={() => alternarDivergencia(no)}
+                  >
+                    {no.regraCausal}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        <div className="domino-col" role="group" aria-label="Setores impactados">
-          {PARTES.map((parte) => {
-            const qtd = contagemPorParte.get(parte) ?? 0;
-            const impactada =
-              noIsolado !== null ? noIsolado.partesImpactadas.has(parte) : qtd > 0;
+        <div className="domino-fluxo-mobile" aria-hidden="true">
+          <span className="domino-fluxo-seta">↓</span>
+          <span className="domino-fluxo-regras">
+            {regrasVisiveis.map((r) => r.regraCausal).join(' · ')}
+          </span>
+        </div>
+
+        <div className="domino-col" role="group" aria-label="Quem precisa agir">
+          {setoresAtivos.map((setor) => {
+            const pressionado = parteIsoladaEfetiva === setor.parte;
+            const destacado =
+              focoParteAtiva === setor.parte ||
+              (focoCampoAtivo !== null && setor.camposOrigem.includes(focoCampoAtivo));
             const esmaecido =
-              !impactada ||
-              (noIsolado === null && partesFocoSet.size > 0 && !partesFocoSet.has(parte));
-            const selecionada = parteAtiva === parte;
+              temFiltroAtivo &&
+              !destacado &&
+              !(focoCampoAtivo === null && focoParteAtiva === null && partesFocoSet.has(setor.parte));
+
             return (
               <button
-                key={parte}
+                key={setor.parte}
                 ref={(el) => {
-                  if (el) dirRefs.current.set(parte, el);
-                  else dirRefs.current.delete(parte);
+                  if (el) dirRefs.current.set(setor.parte, el);
+                  else dirRefs.current.delete(setor.parte);
                 }}
                 type="button"
-                className="domino-no"
-                aria-pressed={selecionada}
-                aria-label={`${rotuloParte(parte)}: ${qtd} ${qtd === 1 ? 'tarefa' : 'tarefas'}`}
+                className="domino-no domino-card-setor"
+                aria-pressed={pressionado}
+                aria-label={`${rotuloParte(setor.parte)}: ${setor.totalAcoes} ${setor.totalAcoes === 1 ? 'ação' : 'ações'}${setor.primeiraAcao ? `. Prioridade: ${setor.primeiraAcao}` : ''}`}
+                data-ativo={destacado ? 'true' : undefined}
                 data-esmaecido={esmaecido ? 'true' : undefined}
-                onClick={() => clicarPapel(parte)}
+                onMouseEnter={() => setHoverParte(setor.parte)}
+                onMouseLeave={() =>
+                  setHoverParte((atual) => (atual === setor.parte ? null : atual))
+                }
+                onClick={() => clicarSetor(setor.parte)}
               >
                 <span className="domino-no-topo">
-                  <strong>{rotuloParte(parte)}</strong>
-                  <span className={qtd > 0 ? 'pilula-coord num' : 'pilula-sutil num'}>
-                    {qtd}
+                  <strong className="domino-card-titulo">{rotuloParte(setor.parte)}</strong>
+                  <span className="domino-cont-acoes mono num">
+                    {setor.totalAcoes} {setor.totalAcoes === 1 ? 'ação' : 'ações'}
                   </span>
                 </span>
-                <span className="meta">
-                  {qtd === 0
-                    ? 'Sem ação disparada'
-                    : qtd === 1
-                      ? '1 tarefa gerada'
-                      : `${qtd} tarefas geradas`}
-                </span>
+                {setor.primeiraAcao && (
+                  <span className="domino-acao-preview">{setor.primeiraAcao}</span>
+                )}
+                {setor.camposOrigem.length > 0 && (
+                  <span className="domino-tags-origem">
+                    {setor.camposOrigem.map((c) => TAG_CURTA_CAMPO.get(c) ?? rotuloCampo(c)).join(' · ')}
+                  </span>
+                )}
               </button>
             );
           })}
+
+          {setoresInativos.length > 0 && (
+            <p className="domino-inativos meta">
+              Sem ação: {setoresInativos.map((s) => rotuloParte(s.parte)).join(', ')}
+            </p>
+          )}
         </div>
       </div>
     </section>

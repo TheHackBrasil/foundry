@@ -11,6 +11,7 @@ import {
   IconeAgenda,
   IconeAssistente,
   IconeFechar,
+  IconeMais,
   IconePausa,
   IconeRetomar,
   IconeTorre,
@@ -32,11 +33,14 @@ export function App() {
     aberto: false,
   });
   const [auditoriaAberto, setAuditoriaAberto] = useState(false);
+  const [envioAberto, setEnvioAberto] = useState(false);
   const [comandoInicialIA, setComandoInicialIA] = useState<string | null>(null);
   const [focoPendenteTorre, setFocoPendenteTorre] = useState<AlvoFocoGenUI | null>(null);
 
   const menuBtnRef = useRef<HTMLButtonElement | null>(null);
   const fecharMenuBtnRef = useRef<HTMLButtonElement | null>(null);
+  const envioBtnRef = useRef<HTMLButtonElement | null>(null);
+  const fecharEnvioBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const trocarTema = (t: Tema) => {
     aplicarTema(t);
@@ -83,24 +87,65 @@ export function App() {
     };
   }, [menuMobileAberto]);
 
+  const fecharEnvioModal = useCallback(() => {
+    setEnvioAberto(false);
+  }, []);
+
+  // Gerencia foco, Escape e bloqueio de rolagem do modal de envio de documentos.
+  useEffect(() => {
+    if (!envioAberto) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const frame = window.requestAnimationFrame(() => {
+      fecharEnvioBtnRef.current?.focus();
+    });
+    const aoTecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setEnvioAberto(false);
+      }
+    };
+    document.addEventListener('keydown', aoTecla);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', aoTecla);
+      document.body.style.overflow = prevOverflow;
+      envioBtnRef.current?.focus({ preventScroll: true });
+    };
+  }, [envioAberto]);
+
   const selecionarAposEnvio = useCallback(
     (pedidoId: string) => {
       torre.selecionar(pedidoId);
       void torre.recarregarLista();
       setMenuMobileAberto(false);
+      setEnvioAberto(false);
     },
     [torre.selecionar, torre.recarregarLista],
   );
 
   const abrirAgenda = useCallback((parte?: Parte) => {
     setMenuMobileAberto(false);
+    setEnvioAberto(false);
     setAgendaEstado(parte ? { aberto: true, parteInicial: parte } : { aberto: true });
   }, []);
 
   const abrirRevisao = useCallback(() => {
     setMenuMobileAberto(false);
+    setEnvioAberto(false);
     setRevisaoAberto(true);
   }, []);
+
+  const encaminharParaRevisao = useCallback(
+    (revisaoId: number, nomeArquivo: string) => {
+      setEnvioAberto(false);
+      setMenuMobileAberto(false);
+      setRevisaoAberto(true);
+      void torre.recarregarAuxiliares();
+      torre.anunciar(`${nomeArquivo} encaminhado para a Fila de Revisão (#${revisaoId}).`);
+    },
+    [torre.anunciar, torre.recarregarAuxiliares],
+  );
 
   const abrirAssistente = useCallback(
     (comando?: string) => {
@@ -181,7 +226,8 @@ export function App() {
     torre.verificarDeNovo,
   ]);
 
-  const drawerModalAberto = revisaoAberto || agendaEstado.aberto || auditoriaAberto;
+  const drawerModalAberto =
+    revisaoAberto || agendaEstado.aberto || auditoriaAberto || envioAberto;
   const hrefTorre = torre.selecionado
     ? `#/pedido/${encodeURIComponent(torre.selecionado)}`
     : '#/';
@@ -213,79 +259,90 @@ export function App() {
           id="painel-lateral"
           className="lateral"
           data-aberta={menuMobileAberto ? 'true' : 'false'}
-          aria-label="Navegação principal, pedidos e ingestão"
+          aria-label="Navegação principal e pedidos ativos"
         >
-          <div className="rail-topo">
-            <div className="rail-marca-grupo">
-              <div className="rail-marca">
-                <Marca tema="dark" />
-                <span className="rail-nome">Forseti</span>
+          <div className="rail-corpo">
+            <div className="rail-topo">
+              <div className="rail-marca-grupo">
+                <div className="rail-marca">
+                  <Marca tema="dark" />
+                  <span className="rail-nome">Forseti</span>
+                </div>
+                <span className="rail-selo">Dados sintéticos</span>
               </div>
-              <span className="rail-selo">Dados sintéticos</span>
+
+              <button
+                ref={fecharMenuBtnRef}
+                type="button"
+                className="rail-fechar-mobile"
+                aria-label="Fechar menu lateral"
+                onClick={fecharMenuMobile}
+              >
+                <IconeFechar />
+              </button>
             </div>
 
-            <button
-              ref={fecharMenuBtnRef}
-              type="button"
-              className="rail-fechar-mobile"
-              aria-label="Fechar menu lateral"
-              onClick={fecharMenuMobile}
-            >
-              <IconeFechar />
-            </button>
+            <nav className="rail-nav" aria-label="Navegação principal">
+              <a
+                href={hrefTorre}
+                className="rail-nav-link"
+                aria-current={torre.rota === 'torre' ? 'page' : undefined}
+                onClick={fecharMenuMobile}
+              >
+                <IconeTorre />
+                <span>Torre operacional</span>
+              </a>
+              <a
+                href={hrefIA}
+                className="rail-nav-link"
+                aria-current={torre.rota === 'ia' ? 'page' : undefined}
+                onClick={fecharMenuMobile}
+              >
+                <IconeAssistente />
+                <span>Assistente IA</span>
+              </a>
+            </nav>
+
+            <PedidoLista
+              pedidos={torre.pedidos}
+              selecionado={torre.selecionado}
+              rota={torre.rota}
+              aoTentarDeNovo={torre.recarregarLista}
+              aoSelecionarMobile={fecharMenuMobile}
+            />
           </div>
 
-          <nav className="rail-nav" aria-label="Navegação principal">
-            <a
-              href={hrefTorre}
-              className="rail-nav-link"
-              aria-current={torre.rota === 'torre' ? 'page' : undefined}
-              onClick={fecharMenuMobile}
-            >
-              <IconeTorre />
-              <span>Torre operacional</span>
-            </a>
-            <a
-              href={hrefIA}
-              className="rail-nav-link"
-              aria-current={torre.rota === 'ia' ? 'page' : undefined}
-              onClick={fecharMenuMobile}
-            >
-              <IconeAssistente />
-              <span>Assistente IA</span>
-            </a>
-          </nav>
-
-          <PedidoLista
-            pedidos={torre.pedidos}
-            selecionado={torre.selecionado}
-            rota={torre.rota}
-            aoTentarDeNovo={torre.recarregarLista}
-            aoSelecionarMobile={fecharMenuMobile}
-          />
-
-          <EnvioArquivos
-            aoEnviar={selecionarAposEnvio}
-            aoAbrirRevisao={abrirRevisao}
-            aoAtualizarRevisao={() => void torre.recarregarAuxiliares()}
-          />
-
-          <div className="rail-mobile-ops">
-            <button type="button" className="rail-op-btn" onClick={() => abrirAgenda()}>
-              <IconeAgenda />
-              <span>Agenda de contatos</span>
-            </button>
+          <div className="rail-rodape">
             <button
+              ref={envioBtnRef}
               type="button"
-              className="rail-op-btn"
+              className="rail-btn-enviar"
               onClick={() => {
-                torre.alternarPausa();
-                fecharMenuMobile();
+                setMenuMobileAberto(false);
+                setEnvioAberto(true);
               }}
             >
-              {torre.pausado ? <IconeRetomar /> : <IconePausa />}
-              <span>{torre.pausado ? 'Retomar ao vivo' : 'Pausar ao vivo'}</span>
+              <IconeMais />
+              <span>Enviar documento</span>
             </button>
+
+            <div className="rail-mobile-ops">
+              <button type="button" className="rail-op-btn" onClick={() => abrirAgenda()}>
+                <IconeAgenda />
+                <span>Agenda de contatos</span>
+              </button>
+              <button
+                type="button"
+                className="rail-op-btn"
+                onClick={() => {
+                  torre.alternarPausa();
+                  fecharMenuMobile();
+                }}
+              >
+                {torre.pausado ? <IconeRetomar /> : <IconePausa />}
+                <span>{torre.pausado ? 'Retomar ao vivo' : 'Pausar ao vivo'}</span>
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -357,14 +414,65 @@ export function App() {
               <section aria-labelledby="vazio-titulo" className="vazio">
                 <h1 id="vazio-titulo">{vazio ? 'Nada para mostrar ainda' : 'Escolha um pedido'}</h1>
                 <p className="dica">
-                  Envie uma NF-e em XML no monólito lateral. O Forseti compara o que cada fonte
+                  Envie uma NF-e, CT-e, planilha ou e-mail. O Forseti compara o que cada fonte
                   declara, aponta divergências e gera tarefas por setor.
                 </p>
+                <button
+                  type="button"
+                  className="botao vazio-acao"
+                  onClick={() => setEnvioAberto(true)}
+                >
+                  <IconeMais />
+                  <span>Enviar documento</span>
+                </button>
               </section>
             )}
           </main>
         </div>
       </div>
+
+      {envioAberto && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) fecharEnvioModal();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-envio-titulo"
+            className="modal-envio"
+          >
+            <header className="modal-envio-cab">
+              <div>
+                <h2 id="modal-envio-titulo">Enviar documento</h2>
+                <p className="meta">
+                  Faça upload ou dispare um exemplo real para comparar fontes e gerar tarefas.
+                </p>
+              </div>
+              <button
+                ref={fecharEnvioBtnRef}
+                type="button"
+                className="botao-fechar"
+                aria-label="Fechar envio de documentos"
+                onClick={fecharEnvioModal}
+              >
+                <IconeFechar />
+              </button>
+            </header>
+            <div className="modal-envio-corpo">
+              <EnvioArquivos
+                emModal
+                aoEnviar={selecionarAposEnvio}
+                aoAbrirRevisao={abrirRevisao}
+                aoEncaminharRevisao={encaminharParaRevisao}
+                aoAtualizarRevisao={() => void torre.recarregarAuxiliares()}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <DrawerRevisao
         aberto={revisaoAberto}

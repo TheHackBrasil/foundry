@@ -437,8 +437,8 @@ function BlocoLinhaTempoCausal({
       )}
 
       {bloco.incluirSinais && projecao.sinais.length > 0 && (
-        <div style={{ display: 'grid', gap: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--hairline)' }}>
-          <span className="meta" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
+        <div className="palco-sinais-sep">
+          <span className="meta palco-sinais-rotulo">
             <IconeSinal />
             Sinais consultivos (texto livre · não alteram campos vigiados)
           </span>
@@ -471,7 +471,7 @@ function BlocoLinhaTempoCausal({
                         <span className="mono num">{formatarConfianca(sinal.confianca)}</span>
                       </span>
                     </div>
-                    <span style={{ fontSize: '0.875rem', lineHeight: 1.45 }}>{sinal.resumo}</span>
+                    <span className="palco-sinal-resumo">{sinal.resumo}</span>
                   </button>
                 </li>
               );
@@ -732,7 +732,7 @@ function BlocoChecklistPapel({
                   }
                 >
                   <div className="domino-no-topo">
-                    <strong style={{ fontSize: '0.875rem' }}>{grupo.titulo}</strong>
+                    <strong className="checklist-titulo">{grupo.titulo}</strong>
                     <span className={prioritario ? 'pilula-coord' : 'pilula-sutil'}>
                       {rotuloCampo(d.campo)}
                     </span>

@@ -48,6 +48,7 @@ import {
 import { SeloMonolitosShader } from '../shaders/index.ts';
 import type { Carga } from '../useTorre.ts';
 import { BarraMandatos } from './BarraMandatos.tsx';
+import { GrafoDomino } from './GrafoDomino.tsx';
 import {
   IconeAssistente,
   IconeConfere,
@@ -98,15 +99,61 @@ function formatarManifestoItens(dados: ProjecaoPedido): string | null {
   return itens.length > 1 ? `${base} (+${itens.length - 1})` : base;
 }
 
-function extrairDeltaCampo(linhas: readonly LinhaMatriz[], campo: CampoVigiado): string | null {
-  const linha = linhas.find((l) => l.campo === campo && l.divergente);
-  if (!linha || !linha.referencia) return null;
-  for (const cel of linha.celulas) {
-    if (!cel.emConflito || cel.referencia || cel.valor === undefined) continue;
-    const d = variacao(campo, cel.valor, linha.referencia.valor);
-    if (d) return campo === 'volumes' ? `${d} vol` : d;
+interface KpiDivergencia {
+  campo: CampoVigiado;
+  rotulo: string;
+  valor: string;
+  contexto: string;
+  alvo: Extract<AlvoFocoGenUI, { tipo: 'divergencia' }>;
+}
+
+function comparacaoCurtaLinha(campo: CampoVigiado, valA: unknown, valB: unknown): string {
+  const a = formatarValor(campo, valA);
+  const b = formatarValor(campo, valB);
+  if (campo === 'previsaoEntrega') {
+    const mA = /^(\d{2}\/\d{2})\/(\d{4})$/.exec(a);
+    const mB = /^(\d{2}\/\d{2})\/(\d{4})$/.exec(b);
+    if (mA && mB && mA[2] === mB[2]) return `${mA[1]} → ${mB[1]}`;
   }
-  return null;
+  if (campo === 'pesoTotal') {
+    const numA = a.replace(/\s*kg$/i, '');
+    return `${numA} → ${b}`;
+  }
+  if (campo === 'volumes') {
+    return `${a} → ${b} vol`;
+  }
+  return `${a} → ${b}`;
+}
+
+function extrairKpisDivergencia(linhas: readonly LinhaMatriz[]): KpiDivergencia[] {
+  const saida: KpiDivergencia[] = [];
+  for (const linha of linhas) {
+    if (!linha.divergente || !linha.referencia) continue;
+    const conflito = linha.celulas.find(
+      (c) => c.emConflito && !c.referencia && c.valor !== undefined,
+    );
+    if (!conflito) continue;
+    const d = variacao(linha.campo, conflito.valor, linha.referencia.valor);
+    const valor = d
+      ? linha.campo === 'volumes'
+        ? `${d} vol`
+        : d
+      : formatarValor(linha.campo, conflito.valor);
+
+    saida.push({
+      campo: linha.campo,
+      rotulo: rotuloCampo(linha.campo),
+      valor,
+      contexto: comparacaoCurtaLinha(linha.campo, linha.referencia.valor, conflito.valor),
+      alvo: {
+        tipo: 'divergencia',
+        campo: linha.campo,
+        fonteA: linha.referencia.fonte,
+        fonteB: conflito.fonte,
+      },
+    });
+  }
+  return saida;
 }
 
 function resumoCurtoSpec(spec: ViewSpecV2): string {
@@ -662,16 +709,38 @@ function Conteudo({
   }
 
   const manifesto = useMemo(() => formatarManifestoItens(dados), [dados]);
-  const linhasDivergentesCount = useMemo(
-    () => matriz.linhas.filter((l) => l.divergente).length,
+  const kpisDivergencia = useMemo(
+    () => extrairKpisDivergencia(matriz.linhas),
     [matriz.linhas],
   );
-  const deltaPrazo = useMemo(
-    () => extrairDeltaCampo(matriz.linhas, 'previsaoEntrega'),
-    [matriz.linhas],
+  const setoresAfetadosCount = useMemo(
+    () => PARTES.filter((p) => tarefasDaParte(dados.tarefas, p).length > 0).length,
+    [dados.tarefas],
   );
-  const deltaPeso = useMemo(() => extrairDeltaCampo(matriz.linhas, 'pesoTotal'), [matriz.linhas]);
-  const deltaVolumes = useMemo(() => extrairDeltaCampo(matriz.linhas, 'volumes'), [matriz.linhas]);
+  const camposFocoDomino = useMemo<CampoVigiado[] | undefined>(() => {
+    if (!focoAtivo) return undefined;
+    if (focoAtivo.tipo === 'divergencia' || focoAtivo.tipo === 'celula') {
+      return [focoAtivo.campo];
+    }
+    return undefined;
+  }, [focoAtivo]);
+  const partesFocoDomino = useMemo<Parte[] | undefined>(() => {
+    if (focoAtivo?.tipo === 'parte') return [focoAtivo.parte];
+    if (!focoAtivo && filtro !== FILTRO_TODAS) return [filtro];
+    return undefined;
+  }, [focoAtivo, filtro]);
+
+  function alternarKpiCampo(kpi: KpiDivergencia) {
+    const jaAtivo =
+      focoAtivo?.tipo === 'divergencia' && focoAtivo.campo === kpi.campo;
+    if (jaAtivo) {
+      lidarFoco(null);
+      aoAnunciar('Destaque removido.');
+      return;
+    }
+    lidarFoco(kpi.alvo, [0.5, 0.35]);
+    aoAnunciar(`Destacando ${kpi.rotulo} na matriz e no mapa causal.`);
+  }
 
   return (
     <>
@@ -679,7 +748,7 @@ function Conteudo({
         <div className="painel-identidade">
           <div className="painel-titulo-linha">
             <h1 id="pedido-titulo" title={id}>
-              Pedido <span className="mono">{chaveCurta(id)}</span>
+              Pedido <span className="mono num">{chaveCurta(id)}</span>
             </h1>
             {daSessao && <span className="pilula-sutil">Sua sessão</span>}
           </div>
@@ -693,89 +762,104 @@ function Conteudo({
             </p>
           )}
 
-          <div className="chave-linha">
-            <p className="chave mono">NF-e {chaveAgrupada(id)}</p>
-            <button
-              type="button"
-              className={chaveCopiada ? 'btn-copiar btn-copiar-ok' : 'btn-copiar'}
-              onClick={() => void copiarChave()}
-              aria-label={chaveCopiada ? 'Chave NF-e copiada' : 'Copiar chave NF-e'}
-              title={chaveCopiada ? 'Chave NF-e copiada' : 'Copiar chave NF-e'}
-            >
-              <span className="icone-slot-sm" aria-hidden="true">
-                <span className={`icone-troca icone-troca-rapida ${chaveCopiada ? '' : 'visivel'}`}>
-                  <IconeCopiar />
+          <div className="painel-meta-linha">
+            <div className="chave-linha">
+              <p className="chave mono">NF-e {chaveAgrupada(id)}</p>
+              <button
+                type="button"
+                className={chaveCopiada ? 'btn-copiar btn-copiar-ok' : 'btn-copiar'}
+                onClick={() => void copiarChave()}
+                aria-label={chaveCopiada ? 'Chave NF-e copiada' : 'Copiar chave NF-e'}
+                title={chaveCopiada ? 'Chave NF-e copiada' : 'Copiar chave NF-e'}
+              >
+                <span className="icone-slot-sm" aria-hidden="true">
+                  <span className={`icone-troca icone-troca-rapida ${chaveCopiada ? '' : 'visivel'}`}>
+                    <IconeCopiar />
+                  </span>
+                  <span className={`icone-troca icone-troca-rapida ${chaveCopiada ? 'visivel' : ''}`}>
+                    <IconeConfere />
+                  </span>
                 </span>
-                <span className={`icone-troca icone-troca-rapida ${chaveCopiada ? 'visivel' : ''}`}>
-                  <IconeConfere />
-                </span>
-              </span>
-            </button>
+              </button>
+            </div>
+
+            <StatusCadeia
+              auditoria={auditoria}
+              pulsoExterno={pulsoEventoSeq}
+              aoVerificar={aoVerificar}
+              aoAbrirAuditoria={aoAbrirAuditoria}
+              aoAncorar={aoAncorar}
+              aoAnunciar={aoAnunciar}
+            />
           </div>
         </div>
-
-        <StatusCadeia
-          auditoria={auditoria}
-          pulsoExterno={pulsoEventoSeq}
-          aoVerificar={aoVerificar}
-          aoAbrirAuditoria={aoAbrirAuditoria}
-          aoAncorar={aoAncorar}
-          aoAnunciar={aoAnunciar}
-        />
       </header>
 
-      <div className="ticker-sinais" role="region" aria-label="Sinais operacionais do pedido">
-        <div className="ticker-itens">
-          <span
-            className={
-              linhasDivergentesCount > 0
-                ? 'ticker-item ticker-item-destaque num'
-                : 'ticker-item ticker-item-ok num'
-            }
-          >
-            {linhasDivergentesCount > 0
-              ? `${linhasDivergentesCount} ${linhasDivergentesCount === 1 ? 'divergência' : 'divergências'}`
-              : 'Sem divergências'}
-          </span>
-
-          {deltaPrazo && (
-            <>
-              <span className="ticker-sep" aria-hidden="true">|</span>
-              <span className="ticker-item mono num">{deltaPrazo}</span>
-            </>
-          )}
-
-          {deltaPeso && (
-            <>
-              <span className="ticker-sep" aria-hidden="true">|</span>
-              <span className="ticker-item mono num">{deltaPeso}</span>
-            </>
-          )}
-
-          {deltaVolumes && (
-            <>
-              <span className="ticker-sep" aria-hidden="true">|</span>
-              <span className="ticker-item mono num">{deltaVolumes}</span>
-            </>
-          )}
-
-          <span className="ticker-sep" aria-hidden="true">|</span>
-          <span className="ticker-item num">
-            {totalTarefasAgrupadas}{' '}
-            {totalTarefasAgrupadas === 1 ? 'tarefa aberta' : 'tarefas abertas'}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          className="ticker-assistente"
-          onClick={() => aoAbrirAssistente()}
-        >
-          <IconeAssistente />
-          <span>Perguntar ao Assistente</span>
-          <IconeExterno />
-        </button>
-      </div>
+      <section className="kpi-hero-faixa" aria-label="Resumo operacional do pedido">
+        {kpisDivergencia.length > 0 ? (
+          <>
+            {kpisDivergencia.map((kpi) => {
+              const ativo =
+                (focoAtivo?.tipo === 'divergencia' || focoAtivo?.tipo === 'celula') &&
+                focoAtivo.campo === kpi.campo;
+              return (
+                <button
+                  key={kpi.campo}
+                  type="button"
+                  className="kpi-hero-item kpi-hero-clicavel"
+                  aria-pressed={ativo}
+                  onClick={() => alternarKpiCampo(kpi)}
+                >
+                  <span className="kpi-hero-label">{kpi.rotulo}</span>
+                  <span className="kpi-hero-valor kpi-hero-valor-dv mono num">{kpi.valor}</span>
+                  <span className="kpi-hero-contexto mono num">{kpi.contexto}</span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className="kpi-hero-item kpi-hero-clicavel"
+              aria-pressed={false}
+              onClick={() => {
+                document.getElementById('bloco-tarefas')?.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'start',
+                });
+              }}
+            >
+              <span className="kpi-hero-label">Tarefas abertas</span>
+              <span className="kpi-hero-valor mono num">
+                {totalTarefasAgrupadas}{' '}
+                {totalTarefasAgrupadas === 1 ? 'tarefa' : 'tarefas'}
+              </span>
+              <span className="kpi-hero-contexto num">
+                {setoresAfetadosCount} {setoresAfetadosCount === 1 ? 'setor' : 'setores'}
+              </span>
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="kpi-hero-item">
+              <span className="kpi-hero-label">Conciliação</span>
+              <span className="kpi-hero-valor kpi-hero-valor-ok mono num">0 divergências</span>
+              <span className="kpi-hero-contexto">Fontes em acordo</span>
+            </div>
+            <div className="kpi-hero-item">
+              <span className="kpi-hero-label">Documentos</span>
+              <span className="kpi-hero-valor mono num">
+                {dados.versoes.length}{' '}
+                {dados.versoes.length === 1 ? 'versão' : 'versões'}
+              </span>
+              <span className="kpi-hero-contexto">Verificados na cadeia</span>
+            </div>
+            <div className="kpi-hero-item">
+              <span className="kpi-hero-label">Tarefas abertas</span>
+              <span className="kpi-hero-valor mono num">{totalTarefasAgrupadas}</span>
+              <span className="kpi-hero-contexto">Nenhuma ação pendente</span>
+            </div>
+          </>
+        )}
+      </section>
 
       <BarraMandatos
         pedidoId={id}
@@ -979,6 +1063,37 @@ function Conteudo({
           />
         </section>
       </div>
+
+      <section aria-labelledby="bloco-domino" className="sec-domino">
+        <div className="sec-cab">
+          <div className="sec-cab-grupo">
+            <h2 id="bloco-domino">Mapa de impacto causal</h2>
+            <p className="meta">
+              {dados.divergencias.length > 0
+                ? 'Da divergência entre documentos à regra acionada e aos setores responsáveis. Passe ou clique para isolar.'
+                : 'Conferência causal entre os documentos declarados e os setores operacionais.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="botao-sutil sec-domino-ia"
+            onClick={() => aoAbrirAssistente()}
+          >
+            <IconeAssistente />
+            <span>Abrir no Assistente IA</span>
+            <IconeExterno />
+          </button>
+        </div>
+        <GrafoDomino
+          divergencias={dados.divergencias}
+          tarefas={dados.tarefas}
+          modo={modoSimulacao ? 'simulacao' : 'atual'}
+          {...(camposFocoDomino ? { camposFoco: camposFocoDomino } : {})}
+          {...(partesFocoDomino ? { partesFoco: partesFocoDomino } : {})}
+          aoFocar={lidarFoco}
+          aoSelecionarPapel={trocarPerspectiva}
+        />
+      </section>
 
       <SinaisEAvisos
         sinais={dados.sinais}

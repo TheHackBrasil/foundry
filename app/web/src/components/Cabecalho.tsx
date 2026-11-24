@@ -4,7 +4,6 @@ import type { EstadoStream } from '../useStream.ts';
 import type { RotaTorre } from '../useTorre.ts';
 import {
   IconeAgenda,
-  IconeAssistente,
   IconeMenu,
   IconePausa,
   IconeRetomar,
@@ -86,9 +85,22 @@ export function Cabecalho({
         </a>
 
         <div className="topo-ops topo-so-desktop">
-          <span className="topo-contexto">
-            {rota === 'ia' ? 'Assistente IA' : 'Torre operacional'}
-          </span>
+          <a
+            href={hrefAlterno}
+            className={rota === 'torre' ? 'topo-pill-ia' : 'topo-btn topo-btn-volta'}
+          >
+            {rota === 'torre' ? (
+              <>
+                <span className="topo-ponto-ia" aria-hidden="true" />
+                <span>Assistente IA · Escuta</span>
+              </>
+            ) : (
+              <>
+                <IconeTorre />
+                <span>Voltar à Torre</span>
+              </>
+            )}
+          </a>
           <span className="topo-divisoria" aria-hidden="true" />
           <button
             type="button"
@@ -132,9 +144,25 @@ export function Cabecalho({
           {revisaoPendentes > 0 && <span className="topo-cont topo-cont-alerta num">{revisaoPendentes}</span>}
         </button>
 
-        <a href={hrefAlterno} className="topo-btn topo-so-mobile topo-atalho-rota">
-          {rota === 'torre' ? <IconeAssistente /> : <IconeTorre />}
-          <span>{rota === 'torre' ? 'IA' : 'Torre'}</span>
+        <a
+          href={hrefAlterno}
+          className={
+            rota === 'torre'
+              ? 'topo-pill-ia topo-so-mobile topo-atalho-rota'
+              : 'topo-btn topo-so-mobile topo-atalho-rota'
+          }
+        >
+          {rota === 'torre' ? (
+            <>
+              <span className="topo-ponto-ia" aria-hidden="true" />
+              <span>IA</span>
+            </>
+          ) : (
+            <>
+              <IconeTorre />
+              <span>Torre</span>
+            </>
+          )}
         </a>
 
         <p className={`vivo topo-so-desktop ${pausado ? 'vivo-pausado' : `vivo-${stream}`}`}>

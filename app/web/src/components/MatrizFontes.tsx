@@ -229,6 +229,34 @@ function alvoCelula(linha: LinhaMatriz, celula: Celula): AlvoFocoGenUI {
   return { tipo: 'celula', campo: linha.campo, fonte: celula.fonte };
 }
 
+function calcularMedidorLinha(linha: LinhaMatriz): { pctBase: number; pctDesvio: number } | null {
+  if (!linha.divergente || !linha.referencia) return null;
+  const conflito = linha.celulas.find((c) => c.emConflito && !c.referencia && c.valor !== undefined);
+  if (!conflito) return null;
+  const valA = linha.referencia.valor;
+  const valB = conflito.valor;
+
+  if (linha.campo === 'pesoTotal' || linha.campo === 'volumes') {
+    const a = Number(valA);
+    const b = Number(valB);
+    if (!Number.isFinite(a) || !Number.isFinite(b) || Math.max(a, b) <= 0) return null;
+    const max = Math.max(a, b);
+    const diff = Math.abs(b - a);
+    const pctDesvio = Math.max(14, Math.min(82, Math.round((diff / max) * 100 * 2.2)));
+    return { pctBase: 100 - pctDesvio, pctDesvio };
+  }
+  if (linha.campo === 'previsaoEntrega') {
+    const ta = Date.parse(`${String(valA).slice(0, 10)}T00:00:00Z`);
+    const tb = Date.parse(`${String(valB).slice(0, 10)}T00:00:00Z`);
+    if (Number.isNaN(ta) || Number.isNaN(tb)) return null;
+    const dias = Math.abs(Math.round((tb - ta) / 86_400_000));
+    if (dias === 0) return null;
+    const pctDesvio = Math.max(18, Math.min(84, Math.round((dias / 14) * 100)));
+    return { pctBase: 100 - pctDesvio, pctDesvio };
+  }
+  return { pctBase: 50, pctDesvio: 50 };
+}
+
 function CelulaItem({
   linha,
   celula,
@@ -270,7 +298,7 @@ function CelulaItem({
   const conteudo = (
     <>
       <div className="cel-topo">
-        <span className="v">{formatarValor(linha.campo, celula.valor)}</span>
+        <span className="v mono">{formatarValor(linha.campo, celula.valor)}</span>
         {delta && (
           <span className={destacar ? 'delta-pilula mono' : 'delta-pilula delta-pilula-neutro mono'}>
             {delta}
@@ -477,10 +505,20 @@ export function MatrizFontes({
               </span>
             );
 
+            const medidor = destacar ? calcularMedidorLinha(linha) : null;
+            const classesLinha = [
+              'mx-row',
+              'mx-b',
+              linha.divergente && destacar ? 'mx-row-dv' : '',
+              focada ? 'mx-row-focada' : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+
             return (
               <div
                 role="row"
-                className={focada ? 'mx-row mx-b mx-row-focada' : 'mx-row mx-b'}
+                className={classesLinha}
                 key={linha.campo}
                 data-flip-id={`row-${linha.campo}`}
               >
@@ -495,11 +533,23 @@ export function MatrizFontes({
                     >
                       <span className="campo">{rotuloCampo(linha.campo)}</span>
                       {rotuloEstado}
+                      {medidor && (
+                        <span className="mx-medidor" aria-hidden="true">
+                          <span className="mx-medidor-base" style={{ width: `${medidor.pctBase}%` }} />
+                          <span className="mx-medidor-desvio" style={{ width: `${medidor.pctDesvio}%` }} />
+                        </span>
+                      )}
                     </button>
                   ) : (
                     <>
                       <span className="campo">{rotuloCampo(linha.campo)}</span>
                       {rotuloEstado}
+                      {medidor && (
+                        <span className="mx-medidor" aria-hidden="true">
+                          <span className="mx-medidor-base" style={{ width: `${medidor.pctBase}%` }} />
+                          <span className="mx-medidor-desvio" style={{ width: `${medidor.pctDesvio}%` }} />
+                        </span>
+                      )}
                     </>
                   )}
                 </div>

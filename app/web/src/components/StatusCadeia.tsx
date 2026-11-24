@@ -155,7 +155,9 @@ export function StatusCadeia({
               <span>Cadeia íntegra</span>
             </span>
             <span className="selo-sep" aria-hidden="true">·</span>
-            <span className="selo-meta num">{dados.total} ev</span>
+            <span className="selo-meta num">
+              {dados.total} {dados.total === 1 ? 'evento' : 'eventos'}
+            </span>
             <span className="selo-sep" aria-hidden="true">·</span>
             <button
               type="button"
@@ -168,7 +170,7 @@ export function StatusCadeia({
               }
               title={copiado ? 'Raiz copiada' : `Copiar raiz ${dados.rootAtual}`}
             >
-              <span className="mono">Raiz {raizCurta}</span>
+              <span className="mono">{raizCurta}</span>
               <span className="icone-slot-sm" aria-hidden="true">
                 <span className={`icone-troca icone-troca-rapida ${copiado ? '' : 'visivel'}`}>
                   <IconeCopiar />

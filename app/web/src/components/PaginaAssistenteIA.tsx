@@ -7,7 +7,6 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
-  type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type {
   AlvoFocoGenUI,
@@ -31,6 +30,7 @@ import {
   chaveCurta,
   formatarDuracao,
   rotuloAcaoMandato,
+  rotuloFonte,
   rotuloMotivoNotificacao,
   rotuloParte,
 } from '../format.ts';
@@ -39,13 +39,7 @@ import {
   resumoParaAnuncio,
   type ResultadoMandatoInterpretado,
 } from '../mandato.ts';
-import {
-  CamadaShader,
-  SeloMonolitosShader,
-  movimentoReduzidoAgora,
-  type PonteiroShader,
-  type ResolucaoShader,
-} from '../shaders/index.ts';
+import { movimentoReduzidoAgora } from '../shaders/index.ts';
 import { useVoz } from '../useVoz.ts';
 import '../assistente.css';
 import { EvidenciaLateralIA } from './EvidenciaLateralIA.tsx';
@@ -64,6 +58,7 @@ import {
   IconeRetorno,
 } from './icones.tsx';
 import { PalcoGenUI, type EtapaStreamGenUI } from './PalcoGenUI.tsx';
+import { SuperficieMineralIA, type EstadoSuperficieIA } from './SuperficieMineralIA.tsx';
 import { VisualizadorVoz } from './VisualizadorVoz.tsx';
 
 interface PartidaSugerida {
@@ -96,7 +91,7 @@ const PARTIDAS_DIVERGENTE: readonly PartidaSugerida[] = [
   {
     categoria: 'Simulação',
     comando: 'Simule a entrega para 28/01/2026',
-    apoio: 'Abre simulador vivo e testa impacto sem gravar no registro',
+    apoio: 'Testa impacto de prazo sem gravar no registro',
   },
   {
     categoria: 'Visão por setor',
@@ -106,7 +101,7 @@ const PARTIDAS_DIVERGENTE: readonly PartidaSugerida[] = [
   {
     categoria: 'Despacho',
     comando: 'Avise a transportadora sobre a divergência',
-    apoio: 'Rascunho revisável e envio pelo canal real da agenda',
+    apoio: 'Rascunho revisável e envio pelo canal da agenda',
   },
 ];
 
@@ -134,7 +129,6 @@ const PARTIDAS_CONSISTENTE: readonly PartidaSugerida[] = [
 ];
 
 const DIA_MS = 86_400_000;
-const ORIGEM_CENTRO: readonly [number, number] = [0.5, 0.5];
 
 function codigoCurtoPedido(id: string): string {
   return /^\d{44}$/.test(id) ? id.slice(-6) : chaveCurta(id);
@@ -182,6 +176,14 @@ function formatarDeltaDiasCurto(dias: number): string {
   return `${sinal}${Math.abs(dias)}d`;
 }
 
+function formatarListaFontes(dados: ProjecaoPedido | null): string {
+  if (!dados || dados.versoes.length === 0) return 'as fontes';
+  const unicas = Array.from(new Set(dados.versoes.map((v) => rotuloFonte(v.fonte))));
+  if (unicas.length === 1) return unicas[0] ?? 'as fontes';
+  if (unicas.length === 2) return `${unicas[0]} e ${unicas[1]}`;
+  return `${unicas.slice(0, -1).join(', ')} e ${unicas[unicas.length - 1]}`;
+}
+
 function adicionarOuAtualizarEtapa(
   atuais: readonly EtapaStreamGenUI[],
   nova: { id: string; rotulo: string; detalhe?: string },
@@ -217,12 +219,8 @@ function desktopSplitInicial(): boolean {
   );
 }
 
-// Em repouso exibe a geometria estática dos 3 monólitos (zero loop desnecessário);
-// quando há atividade real (streaming ou voz) ativa o micro-shader SDF WebGL.
-function SeloEstudio({ ativo, tamanho = 36 }: { ativo: boolean; tamanho?: number }) {
-  if (ativo) {
-    return <SeloMonolitosShader ativo={true} tamanho={tamanho} className="ia-selo-monolitos" />;
-  }
+// Emblema geométrico estático dos 3 monólitos (evita criar um segundo contexto WebGL na rota #/ia).
+function EmblemaMonolitos({ tamanho = 20 }: { tamanho?: number }) {
   return (
     <svg
       className="ia-selo-monolitos"
@@ -231,6 +229,7 @@ function SeloEstudio({ ativo, tamanho = 36 }: { ativo: boolean; tamanho?: number
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden="true"
+      focusable="false"
     >
       <path
         d="M3.2 10.6L7.4 8.4V18.8L3.2 21V10.6ZM9.8 6.4L14.2 4.1V17.9L9.8 20.2V6.4ZM16.6 5.2L20.8 3V13.4L16.6 15.6V5.2Z"
@@ -310,18 +309,16 @@ export function PaginaAssistenteIA({
   const erroInputId = useId();
   const evidenciaId = useId();
 
-  const fundoPalcoRef = useRef<HTMLDivElement | null>(null);
-  const ponteiroRef = useRef<PonteiroShader | null>({ x: 0.5, y: 0.5, ativo: false });
+  const palcoPrincipalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const enviarBtnRef = useRef<HTMLButtonElement>(null);
   const vozBtnRef = useRef<HTMLButtonElement>(null);
   const pararBtnRef = useRef<HTMLButtonElement>(null);
+  const evidenciaBtnRef = useRef<HTMLButtonElement>(null);
   const ultimoTurnoRef = useRef<HTMLElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const turnoSeqRef = useRef(0);
   const comandoInicialConsumidoRef = useRef<string | null>(null);
-  const resolucaoTimerRef = useRef<number | null>(null);
-  const clicouBotaoRef = useRef(false);
 
   // Refs de gestão de foco WCAG 2.2 AA para voz.
   const textoPreVozRef = useRef('');
@@ -330,14 +327,14 @@ export function PaginaAssistenteIA({
   const concluiuComFocoRef = useRef(false);
 
   const [turnos, setTurnos] = useState<TurnoIA[]>([]);
+  const [modoEscutaAtivo, setModoEscutaAtivo] = useState(false);
+  const [pulsoSeq, setPulsoSeq] = useState(0);
   const [texto, setTexto] = useState('');
   const [provisorio, setProvisorio] = useState(false);
   const [erroInput, setErroInput] = useState<string | null>(null);
   const [focoAtivo, setFocoAtivo] = useState<AlvoFocoGenUI | null>(null);
   const [desktopLargo, setDesktopLargo] = useState<boolean>(desktopSplitInicial);
   const [preferenciaEvidencia, setPreferenciaEvidencia] = useState<boolean | null>(null);
-  const [origemClique, setOrigemClique] = useState<readonly [number, number]>(ORIGEM_CENTRO);
-  const [resolucaoBotao, setResolucaoBotao] = useState<ResolucaoShader>(null);
 
   const pedidoAtual = useMemo(
     () => (pedidoId ? (pedidos.find((p) => p.pedidoId === pedidoId) ?? null) : null),
@@ -346,8 +343,8 @@ export function PaginaAssistenteIA({
 
   const dadosProjecao = projecao.estado === 'ok' ? projecao.dados : null;
   const algumTurnoStreaming = turnos.some((t) => t.carregando);
+  const emSantuario = turnos.length === 0 || modoEscutaAtivo;
 
-  // Acompanha largura da viewport para abrir evidências por padrão no desktop >= 1180px.
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const mq = window.matchMedia('(min-width: 1180px)');
@@ -357,17 +354,47 @@ export function PaginaAssistenteIA({
     return () => mq.removeEventListener('change', aoMudar);
   }, []);
 
+  // No Santuário o painel de evidências começa oculto para manter o palco limpo;
+  // na conversa abre ancorado à direita no desktop >= 1180px salvo escolha explícita.
   const painelEvidenciaAberto =
     preferenciaEvidencia !== null
       ? preferenciaEvidencia
-      : desktopLargo && dadosProjecao !== null;
+      : !emSantuario && desktopLargo && dadosProjecao !== null;
+
+  const evidenciaComoGaveta = painelEvidenciaAberto && (!desktopLargo || emSantuario);
+
+  // Marca o palco principal como inert enquanto a gaveta sobreposta de evidências está aberta.
+  useEffect(() => {
+    const el = palcoPrincipalRef.current as (HTMLDivElement & { inert: boolean }) | null;
+    if (!el) return;
+    el.inert = evidenciaComoGaveta;
+    return () => {
+      el.inert = false;
+    };
+  }, [evidenciaComoGaveta]);
+
+  const fecharGavetaEvidencia = useCallback(() => {
+    setPreferenciaEvidencia(false);
+    window.requestAnimationFrame(() => {
+      evidenciaBtnRef.current?.focus();
+    });
+  }, []);
+
+  // Fecha gaveta sobreposta com Escape (sem competir com Escape de cancelamento da voz).
+  useEffect(() => {
+    if (!evidenciaComoGaveta) return;
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      fecharGavetaEvidencia();
+    };
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, [evidenciaComoGaveta, fecharGavetaEvidencia]);
 
   useEffect(
     () => () => {
       abortRef.current?.abort();
-      if (resolucaoTimerRef.current !== null) {
-        window.clearTimeout(resolucaoTimerRef.current);
-      }
     },
     [],
   );
@@ -439,43 +466,25 @@ export function PaginaAssistenteIA({
   useEffect(() => {
     const aoTeclarGlobal = (e: KeyboardEvent) => {
       if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (elementoEditavel(document.activeElement)) return;
+      if (evidenciaComoGaveta || elementoEditavel(document.activeElement)) return;
       e.preventDefault();
       inputRef.current?.focus();
     };
     window.addEventListener('keydown', aoTeclarGlobal);
     return () => window.removeEventListener('keydown', aoTeclarGlobal);
-  }, []);
+  }, [evidenciaComoGaveta]);
 
-  // Rola suavemente para o início do turno recém-adicionado.
+  // Rola suavemente para o início do turno recém-adicionado quando visível na conversa.
   const totalTurnos = turnos.length;
   useEffect(() => {
-    if (totalTurnos === 0) return;
+    if (totalTurnos === 0 || modoEscutaAtivo) return;
     const alvo = ultimoTurnoRef.current;
     if (!alvo || typeof alvo.scrollIntoView !== 'function') return;
     alvo.scrollIntoView({
       behavior: movimentoReduzidoAgora() ? 'auto' : 'smooth',
       block: 'start',
     });
-  }, [totalTurnos]);
-
-  const aoMoverPonteiro = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-    // Evita rastro preso após tap em telas sensíveis ao toque.
-    if (e.pointerType === 'touch') return;
-    const palco = fundoPalcoRef.current ?? e.currentTarget;
-    const rect = palco.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-    ponteiroRef.current = { x, y, ativo: true };
-  }, []);
-
-  const aoSairPonteiro = useCallback(() => {
-    const atual = ponteiroRef.current;
-    ponteiroRef.current = atual
-      ? { x: atual.x, y: atual.y, ativo: false }
-      : { x: 0.5, y: 0.5, ativo: false };
-  }, []);
+  }, [totalTurnos, modoEscutaAtivo]);
 
   const atualizarTurno = useCallback(
     (turnoId: string, fn: (atual: TurnoIA) => TurnoIA) => {
@@ -484,14 +493,8 @@ export function PaginaAssistenteIA({
     [],
   );
 
-  const agendarLimpezaResolucao = useCallback(() => {
-    if (resolucaoTimerRef.current !== null) {
-      window.clearTimeout(resolucaoTimerRef.current);
-    }
-    resolucaoTimerRef.current = window.setTimeout(() => {
-      setResolucaoBotao(null);
-      resolucaoTimerRef.current = null;
-    }, 600);
+  const emitirPulsoSuperficie = useCallback(() => {
+    setPulsoSeq((s) => s + 1);
   }, []);
 
   const executarComando = useCallback(
@@ -513,13 +516,10 @@ export function PaginaAssistenteIA({
       voz.limparErro();
       setErroInput(null);
       setProvisorio(false);
+      setModoEscutaAtivo(false);
       if (limparCampo) setTexto('');
 
-      if (resolucaoTimerRef.current !== null) {
-        window.clearTimeout(resolucaoTimerRef.current);
-        resolucaoTimerRef.current = null;
-      }
-      setResolucaoBotao(null);
+      emitirPulsoSuperficie();
 
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -551,6 +551,7 @@ export function PaginaAssistenteIA({
             etapas: adicionarOuAtualizarEtapa(t.etapas, ev),
           }));
         } else if (ev.tipo === 'bloco') {
+          emitirPulsoSuperficie();
           atualizarTurno(turnoId, (t) => ({
             ...t,
             blocosStream: acumularBlocoUnico(t.blocosStream, ev.bloco),
@@ -629,8 +630,7 @@ export function PaginaAssistenteIA({
           erro: null,
         }));
 
-        setResolucaoBotao('ok');
-        agendarLimpezaResolucao();
+        emitirPulsoSuperficie();
         aoAnunciar(resumoParaAnuncio(interpretado));
 
         if (resposta.acao === 'propagar' || resposta.acao === 'notificar') {
@@ -654,8 +654,6 @@ export function PaginaAssistenteIA({
           erro: { mensagem, status, ...(motivo ? { motivo } : {}) },
         }));
 
-        setResolucaoBotao('erro');
-        agendarLimpezaResolucao();
         aoAnunciar(`Erro ao executar comando: ${mensagem}`);
       } finally {
         if (abortRef.current === controller) {
@@ -669,9 +667,9 @@ export function PaginaAssistenteIA({
       pedidoId,
       dadosProjecao,
       atualizarTurno,
+      emitirPulsoSuperficie,
       aoGarantirSessao,
       aoSelecionarPedido,
-      agendarLimpezaResolucao,
       aoAnunciar,
       aoRecarregarPedido,
     ],
@@ -689,7 +687,6 @@ export function PaginaAssistenteIA({
     if (comandoInicialConsumidoRef.current === chave) return;
     comandoInicialConsumidoRef.current = chave;
     aoConsumirComandoInicial?.();
-    setOrigemClique(ORIGEM_CENTRO);
     void executarComando(limpo, false);
   }, [
     comandoInicial,
@@ -710,12 +707,24 @@ export function PaginaAssistenteIA({
     abortRef.current?.abort();
     abortRef.current = null;
     setTurnos([]);
+    setModoEscutaAtivo(false);
     setFocoAtivo(null);
     setErroInput(null);
-    setResolucaoBotao(null);
     voz.limparErro();
+    emitirPulsoSuperficie();
     aoAnunciar('Nova conversa iniciada.');
     inputRef.current?.focus();
+  }
+
+  function alternarModoEscuta() {
+    setModoEscutaAtivo((atual) => {
+      const proximo = !atual;
+      if (proximo) {
+        setPreferenciaEvidencia(null);
+        emitirPulsoSuperficie();
+      }
+      return proximo;
+    });
   }
 
   function alternarVoz() {
@@ -723,29 +732,14 @@ export function PaginaAssistenteIA({
     if (!voz.ouvindo) {
       textoPreVozRef.current = texto.trim();
       setErroInput(null);
+      emitirPulsoSuperficie();
     }
     voz.alternar();
-  }
-
-  function capturarOrigemBotao(e: ReactPointerEvent<HTMLButtonElement>) {
-    clicouBotaoRef.current = true;
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      setOrigemClique(ORIGEM_CENTRO);
-      return;
-    }
-    const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-    setOrigemClique([x, y]);
   }
 
   function aoSubmeter(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (algumTurnoStreaming) return;
-    if (!clicouBotaoRef.current) {
-      setOrigemClique(ORIGEM_CENTRO);
-    }
-    clicouBotaoRef.current = false;
     void executarComando(texto, true);
   }
 
@@ -780,8 +774,7 @@ export function PaginaAssistenteIA({
     [aoGarantirSessao, aoRecarregarPedido],
   );
 
-  // Telemetria real do pedido ativo para o cabeçalho da sala (mesma contagem da Torre:
-  // campos divergentes distintos + tarefas agrupadas por parte/título).
+  // Telemetria real do pedido ativo (campos divergentes distintos + tarefas agrupadas).
   const qtdDivergencias = dadosProjecao
     ? new Set(dadosProjecao.divergencias.map((d) => d.campo)).size
     : (pedidoAtual?.divergencias ?? 0);
@@ -791,7 +784,11 @@ export function PaginaAssistenteIA({
   const atrasoDias = pedidoAtual?.atrasoDias ?? calcularAtrasoProjecao(dadosProjecao);
   const partidasAtivas = qtdDivergencias > 0 ? PARTIDAS_DIVERGENTE : PARTIDAS_CONSISTENTE;
 
-  const modoCampo = voz.ouvindo ? 2 : algumTurnoStreaming ? 1 : 0;
+  const estadoSuperficie: EstadoSuperficieIA = voz.ouvindo
+    ? 'ouvindo'
+    : algumTurnoStreaming
+      ? 'processando'
+      : 'ocioso';
 
   const textoTempoVoz =
     voz.fase === 'iniciando'
@@ -807,494 +804,548 @@ export function PaginaAssistenteIA({
         ? 'Finalizando ditado por voz'
         : 'Ouvindo comando por voz';
 
+  const codigoPedido = pedidoId ? codigoCurtoPedido(pedidoId) : null;
+
+  const etiquetaSantuario = voz.ouvindo
+    ? voz.fase === 'iniciando'
+      ? 'ATIVANDO MICROFONE · AGUARDANDO VOZ'
+      : 'ESCUTANDO · FALE SEU MANDATO'
+    : algumTurnoStreaming
+      ? 'PROCESSANDO · CONSULTANDO REGISTRO'
+      : codigoPedido
+        ? `ASSISTENTE OPERACIONAL · PEDIDO ${codigoPedido}`
+        : 'ASSISTENTE OPERACIONAL';
+
+  const tituloSantuario = voz.ouvindo
+    ? texto.trim() || 'Fale o que deseja investigar ou simular.'
+    : 'O que deseja investigar ou simular neste pedido?';
+
+  const subtituloSantuario = useMemo(() => {
+    if (!pedidoId) {
+      return 'Selecione um pedido no cabeçalho para investigar divergências ou simular prazos.';
+    }
+    if (projecao.estado === 'carregando' && !dadosProjecao) {
+      return `Carregando registro do pedido ${codigoCurtoPedido(pedidoId)}…`;
+    }
+    if (qtdDivergencias > 0) {
+      const fontes = formatarListaFontes(dadosProjecao);
+      const campoTxt = qtdDivergencias === 1 ? 'campo diverge' : 'campos divergem';
+      const tarefaTxt = qtdTarefas === 1 ? 'tarefa aberta' : 'tarefas abertas';
+      return `${qtdDivergencias} ${campoTxt} entre ${fontes} · ${qtdTarefas} ${tarefaTxt}`;
+    }
+    if (dadosProjecao?.pedido) {
+      return `Fontes em acordo · ${dadosProjecao.pedido.emitente.nome} → ${dadosProjecao.pedido.destinatario.nome}`;
+    }
+    return 'Fontes em acordo · sem divergências abertas';
+  }, [pedidoId, projecao.estado, dadosProjecao, qtdDivergencias, qtdTarefas]);
+
   return (
     <div
       className="ia-estudio"
-      data-evidencia={painelEvidenciaAberto ? 'aberta' : 'oculta'}
-      onPointerMove={aoMoverPonteiro}
-      onPointerLeave={aoSairPonteiro}
+      data-modo={emSantuario ? 'santuario' : 'conversa'}
+      data-evidencia={painelEvidenciaAberto && !evidenciaComoGaveta ? 'ancorada' : 'oculta'}
     >
       <div className="ia-fundo-glsl" aria-hidden="true">
-        <div ref={fundoPalcoRef} className="ia-fundo-sticky">
-          <CamadaShader
-            shader="campoMineral"
-            ativo={true}
-            modo={modoCampo}
-            ponteiroRef={ponteiroRef}
-            rmsRef={voz.energiaRef}
+        <div className="ia-fundo-sticky">
+          <SuperficieMineralIA
+            estado={estadoSuperficie}
+            modoFundo={emSantuario ? 'santuario' : 'conversa'}
+            analyserRef={voz.analyserRef}
+            energiaRef={voz.energiaRef}
+            pulsoExternoSeq={pulsoSeq}
           />
-          <div className="ia-fundo-scrim" />
+          {!emSantuario && <div className="ia-veu-conversa" />}
         </div>
       </div>
 
-      <header className="ia-topo">
-        <div className="ia-topo-identidade">
-          <h1 className="ia-titulo">Assistente operacional</h1>
-
-          <div className="ia-contexto-pedido">
-            <label htmlFor={seletorId} className="so-leitor">
-              Pedido ativo para consulta
-            </label>
-            <select
-              id={seletorId}
-              className="ia-select"
-              value={pedidoId ?? ''}
-              disabled={pedidos.length === 0}
-              onChange={aoTrocarPedido}
-            >
-              {pedidos.length === 0 ? (
-                <option value="">Nenhum pedido disponível</option>
-              ) : (
-                pedidos.map((p) => (
-                  <option key={p.pedidoId} value={p.pedidoId}>
-                    {rotuloOpcaoPedido(p)}
-                  </option>
-                ))
-              )}
-            </select>
-
-            {pedidoId && (
-              <div className="ia-telemetria" aria-label="Resumo operacional do pedido ativo">
-                {qtdDivergencias > 0 ? (
-                  <span className="ia-telemetria-divergente mono num">
-                    <IconeDiverge />
-                    <span>
-                      {qtdDivergencias} {qtdDivergencias === 1 ? 'conflito' : 'conflitos'}
-                      {atrasoDias !== null && atrasoDias !== 0
-                        ? ` · ${formatarDeltaDiasCurto(atrasoDias)}`
-                        : ''}
-                      {` · ${qtdTarefas} ${qtdTarefas === 1 ? 'tarefa' : 'tarefas'}`}
-                    </span>
-                  </span>
+      <div ref={palcoPrincipalRef} className="ia-palco-principal">
+        <header className="ia-topo">
+          <div className="ia-topo-identidade">
+            <div className="ia-contexto-pedido">
+              <label htmlFor={seletorId} className="so-leitor">
+                Pedido ativo para consulta
+              </label>
+              <select
+                id={seletorId}
+                className="ia-select"
+                value={pedidoId ?? ''}
+                disabled={pedidos.length === 0}
+                onChange={aoTrocarPedido}
+              >
+                {pedidos.length === 0 ? (
+                  <option value="">Nenhum pedido disponível</option>
                 ) : (
-                  <span className="pilula-ok">
-                    <IconeConfere />
-                    <span>Consistente</span>
-                  </span>
+                  pedidos.map((p) => (
+                    <option key={p.pedidoId} value={p.pedidoId}>
+                      {rotuloOpcaoPedido(p)}
+                    </option>
+                  ))
+                )}
+              </select>
+
+              {pedidoId && (
+                <div className="ia-telemetria" aria-label="Resumo operacional do pedido ativo">
+                  {qtdDivergencias > 0 ? (
+                    <span className="ia-telemetria-divergente mono num">
+                      <IconeDiverge />
+                      <span>
+                        {qtdDivergencias} {qtdDivergencias === 1 ? 'conflito' : 'conflitos'}
+                        {atrasoDias !== null && atrasoDias !== 0
+                          ? ` · ${formatarDeltaDiasCurto(atrasoDias)}`
+                          : ''}
+                        {` · ${qtdTarefas} ${qtdTarefas === 1 ? 'tarefa' : 'tarefas'}`}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="pilula-ok">
+                      <IconeConfere />
+                      <span>Consistente</span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="ia-topo-acoes">
+            {turnos.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  className="botao-sutil ia-btn-topo"
+                  aria-pressed={modoEscutaAtivo}
+                  onClick={alternarModoEscuta}
+                >
+                  <span>{modoEscutaAtivo ? 'Ver conversa' : 'Modo escuta'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="botao-sutil ia-btn-topo"
+                  onClick={iniciarNovaConversa}
+                >
+                  <IconeMais />
+                  <span>Nova conversa</span>
+                </button>
+              </>
+            )}
+
+            <button
+              ref={evidenciaBtnRef}
+              type="button"
+              className="botao-sutil ia-btn-topo"
+              aria-pressed={painelEvidenciaAberto}
+              aria-controls={evidenciaId}
+              data-tem-foco={!painelEvidenciaAberto && focoAtivo !== null ? 'true' : undefined}
+              onClick={() => setPreferenciaEvidencia(!painelEvidenciaAberto)}
+            >
+              <IconePainelLateral />
+              <span>
+                {!painelEvidenciaAberto && focoAtivo !== null
+                  ? 'Evidências · 1 destaque'
+                  : 'Evidências'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="botao ia-btn-topo"
+              disabled={!pedidoId}
+              onClick={() => {
+                if (pedidoId) aoAbrirNaTorre(pedidoId, focoAtivo);
+              }}
+            >
+              <IconeExterno />
+              <span>Ver na Torre</span>
+            </button>
+          </div>
+        </header>
+
+        <div className="ia-corpo">
+          <section className="ia-conversa" aria-label="Estúdio de consulta operacional">
+            {emSantuario ? (
+              <div className="ia-santuario">
+                <div className="ia-santuario-cab">
+                  <p className="ia-santuario-eyebrow mono" aria-live="polite">
+                    {etiquetaSantuario}
+                  </p>
+                  <h1 className="ia-santuario-titulo">{tituloSantuario}</h1>
+                  <p className="ia-santuario-subtitulo">{subtituloSantuario}</p>
+                </div>
+
+                {projecao.estado === 'erro' && (
+                  <div className="ia-estado-erro" role="alert">
+                    <div className="ia-estado-erro-msg">
+                      <IconeErro />
+                      <span>{projecao.mensagem}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="botao-sutil"
+                      onClick={() => void aoRecarregarPedido()}
+                    >
+                      Tentar novamente
+                    </button>
+                  </div>
+                )}
+
+                <div className="ia-partidas-grid" role="group" aria-label="Sugestões para começar">
+                  {partidasAtivas.map((item) => (
+                    <button
+                      key={item.comando}
+                      type="button"
+                      className="ia-partida-pilula"
+                      disabled={algumTurnoStreaming || !pedidoId}
+                      onClick={() => {
+                        void executarComando(item.comando, false);
+                      }}
+                    >
+                      <span className="ia-partida-cat mono">{item.categoria}</span>
+                      <span className="ia-partida-cmd">{item.comando}</span>
+                      <span className="ia-partida-apoio">{item.apoio}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <p className="ia-santuario-dica mono">
+                  Clique no fundo para pulsar · Fale ou digite abaixo
+                </p>
+              </div>
+            ) : (
+              <div className="ia-thread-wrap">
+                <h1 className="so-leitor">
+                  Conversa operacional{codigoPedido ? ` do pedido ${codigoPedido}` : ''}
+                </h1>
+
+                <ol className="ia-thread" aria-label="Turnos da consulta">
+                  {turnos.map((turno, idx) => {
+                    const ehUltimo = idx === turnos.length - 1;
+                    const projecaoTurno =
+                      turno.pedidoId === pedidoId && dadosProjecao
+                        ? dadosProjecao
+                        : turno.projecaoSnapshot;
+                    const turnoDaSessao =
+                      turno.autoForkAplicado ||
+                      Boolean(pedidos.find((p) => p.pedidoId === turno.pedidoId)?.daSessao);
+
+                    return (
+                      <li key={turno.id}>
+                        <article
+                          ref={ehUltimo ? ultimoTurnoRef : undefined}
+                          className="ia-turno"
+                          aria-busy={turno.carregando || undefined}
+                        >
+                          <header className="ia-turno-entrada">
+                            <div className="ia-turno-meta">
+                              <span className="ia-turno-papel mono">OPERADOR</span>
+                              {turno.pedidoId && (
+                                <span className="pilula-neutra mono num">
+                                  {codigoCurtoPedido(turno.pedidoId)}
+                                </span>
+                              )}
+                              <time className="meta mono num">{turno.criadoEm}</time>
+                              {turno.autoForkAplicado && (
+                                <span className="ia-turno-nota-sessao">
+                                  Cópia criada na sua sessão para gravar
+                                </span>
+                              )}
+                            </div>
+                            <h2 className="ia-turno-comando">{turno.comando}</h2>
+                          </header>
+
+                          <div className="ia-turno-resposta">
+                            {turno.erro ? (
+                              <div className="ia-turno-erro" role="alert">
+                                <div className="ia-turno-erro-cab">
+                                  <span className="pilula-erro">
+                                    <IconeErro />
+                                    Não foi possível concluir
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="botao-sutil"
+                                    disabled={algumTurnoStreaming}
+                                    onClick={() => {
+                                      void executarComando(turno.comando, false);
+                                    }}
+                                  >
+                                    Tentar novamente
+                                  </button>
+                                </div>
+                                <p className="ia-turno-erro-msg">{turno.erro.mensagem}</p>
+                              </div>
+                            ) : projecaoTurno &&
+                              (turno.carregando ||
+                                turno.viewSpec !== null ||
+                                turno.blocosStream.length > 0) ? (
+                              <PalcoGenUI
+                                spec={turno.viewSpec}
+                                etapas={turno.etapas}
+                                blocosStream={turno.blocosStream}
+                                carregando={turno.carregando}
+                                projecao={projecaoTurno}
+                                pedidoId={turno.pedidoId || (pedidoId ?? '')}
+                                daSessao={turnoDaSessao}
+                                contatos={contatos}
+                                focoAtivo={turno.pedidoId === pedidoId ? focoAtivo : null}
+                                aoFocar={lidarFocarDoPalco}
+                                aoExecutarComando={(cmd) => {
+                                  void executarComando(cmd, false);
+                                }}
+                                aoSelecionarPapel={lidarSelecionarPapel}
+                                aoNotificar={(parte, campo) =>
+                                  lidarNotificarDoPalco(
+                                    turno.pedidoId || (pedidoId ?? ''),
+                                    parte,
+                                    campo,
+                                  )
+                                }
+                                aoAbrirAgenda={aoAbrirAgenda}
+                                aoAplicarHipotese={(hipotese) =>
+                                  lidarAplicarHipotese(turno.pedidoId || (pedidoId ?? ''), hipotese)
+                                }
+                                aoAnunciar={aoAnunciar}
+                                slotLoader={<EmblemaMonolitos tamanho={20} />}
+                              />
+                            ) : turno.carregando ? (
+                              <div className="ia-turno-carregando" role="status" aria-live="polite">
+                                <EmblemaMonolitos tamanho={20} />
+                                <span>
+                                  {turno.etapas.at(-1)?.rotulo ?? 'Consultando estado do pedido…'}
+                                </span>
+                              </div>
+                            ) : turno.interpretado ? (
+                              <RespostaFallbackTurno dados={turno.interpretado} />
+                            ) : null}
+                          </div>
+                        </article>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            )}
+          </section>
+
+          {painelEvidenciaAberto && !evidenciaComoGaveta && (
+            <div className="ia-evidencia-col">
+              <EvidenciaLateralIA
+                id={evidenciaId}
+                pedidoId={pedidoId}
+                projecao={projecao}
+                daSessao={Boolean(pedidoAtual?.daSessao)}
+                focoAtivo={focoAtivo}
+                aoFocar={setFocoAtivo}
+                aoAbrirNaTorre={aoAbrirNaTorre}
+              />
+            </div>
+          )}
+        </div>
+
+        <footer
+          className="ia-composer-dock"
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape' || voz.ouvindo) return;
+            if (erroInput || voz.erro) {
+              e.preventDefault();
+              setErroInput(null);
+              voz.limparErro();
+              inputRef.current?.focus();
+            }
+          }}
+        >
+          <div className="ia-composer-shell">
+            {(voz.erro || erroInput) && (
+              <div className="ia-composer-alertas">
+                {voz.erro && (
+                  <div className="ia-composer-alerta" role="alert">
+                    <span className="ia-composer-alerta-texto">
+                      <IconeErro />
+                      <span>{voz.erro}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="botao-fechar"
+                      aria-label="Fechar aviso de microfone"
+                      onClick={() => {
+                        voz.limparErro();
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      <IconeFechar />
+                    </button>
+                  </div>
+                )}
+                {erroInput && (
+                  <div id={erroInputId} className="ia-composer-alerta" role="alert">
+                    <span className="ia-composer-alerta-texto">
+                      <IconeErro />
+                      <span>{erroInput}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="botao-fechar"
+                      aria-label="Fechar aviso de validação"
+                      onClick={() => {
+                        setErroInput(null);
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      <IconeFechar />
+                    </button>
+                  </div>
                 )}
               </div>
             )}
-          </div>
-        </div>
 
-        <div className="ia-topo-acoes">
-          {turnos.length > 0 && (
-            <button
-              type="button"
-              className="botao-sutil ia-btn-topo"
-              onClick={iniciarNovaConversa}
+            <div
+              className="ia-composer"
+              data-enviando={algumTurnoStreaming ? 'true' : undefined}
+              data-ouvindo={voz.ouvindo ? 'true' : undefined}
+              data-erro={erroInput || voz.erro ? 'true' : undefined}
             >
-              <IconeMais />
-              <span>Nova conversa</span>
-            </button>
-          )}
+              <span className="ia-composer-linha-progresso" aria-hidden="true" />
 
-          <button
-            type="button"
-            className="botao-sutil ia-btn-topo"
-            aria-pressed={painelEvidenciaAberto}
-            aria-controls={evidenciaId}
-            data-tem-foco={!painelEvidenciaAberto && focoAtivo !== null ? 'true' : undefined}
-            onClick={() => setPreferenciaEvidencia(!painelEvidenciaAberto)}
-          >
-            <IconePainelLateral />
-            <span>
-              {!painelEvidenciaAberto && focoAtivo !== null
-                ? 'Evidências · 1 destaque'
-                : 'Evidências'}
-            </span>
-          </button>
+              <form className="ia-composer-form" onSubmit={aoSubmeter} noValidate>
+                <label htmlFor={inputId} className="so-leitor">
+                  Pergunte ou comande em português sobre o pedido ativo
+                </label>
 
-          <button
-            type="button"
-            className="botao ia-btn-topo"
-            disabled={!pedidoId}
-            onClick={() => {
-              if (pedidoId) aoAbrirNaTorre(pedidoId, focoAtivo);
-            }}
-          >
-            <IconeExterno />
-            <span>Abrir na Torre</span>
-          </button>
-        </div>
-      </header>
-
-      <div className="ia-corpo">
-        <section className="ia-conversa" aria-label="Conversa operacional">
-          {turnos.length === 0 ? (
-            <div className="ia-vazio">
-              <div className="ia-vazio-cab">
-                <SeloEstudio ativo={algumTurnoStreaming || voz.ouvindo} tamanho={36} />
-                <h2 className="ia-vazio-titulo">
-                  Investigue divergências, simule prazos ou acione áreas pelo registro real.
-                </h2>
-                {pedidoId && dadosProjecao?.pedido ? (
-                  <p className="ia-vazio-contexto">
-                    <span className="mono num">{codigoCurtoPedido(pedidoId)}</span>
-                    {' · '}
-                    {dadosProjecao.pedido.emitente.nome} → {dadosProjecao.pedido.destinatario.nome}
-                  </p>
-                ) : pedidoId && projecao.estado === 'carregando' ? (
-                  <p className="ia-vazio-contexto" role="status">
-                    Carregando estado do pedido {codigoCurtoPedido(pedidoId)}…
-                  </p>
-                ) : !pedidoId ? (
-                  <p className="ia-vazio-contexto">
-                    Nenhum pedido carregado ainda. Selecione um pedido acima ou abra a Torre para enviar documentos.
-                  </p>
-                ) : null}
-              </div>
-
-              {projecao.estado === 'erro' && (
-                <div className="ia-estado-erro" role="alert">
-                  <div className="ia-estado-erro-msg">
-                    <IconeErro />
-                    <span>{projecao.mensagem}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="botao-sutil"
-                    onClick={() => void aoRecarregarPedido()}
+                <span className="cmd-prefixo" aria-hidden="true">
+                  <span
+                    className={`icone-troca ${!algumTurnoStreaming && !voz.ouvindo ? 'visivel' : ''}`}
                   >
-                    Tentar novamente
+                    <IconeComando />
+                  </span>
+                  <span className={`icone-troca ${voz.ouvindo ? 'visivel' : ''}`}>
+                    <span className="cmd-pulso" />
+                  </span>
+                  <span className={`icone-troca ${algumTurnoStreaming ? 'visivel' : ''}`}>
+                    <span className="cmd-spinner" />
+                  </span>
+                </span>
+
+                <input
+                  ref={inputRef}
+                  id={inputId}
+                  name="comando-assistente"
+                  type="text"
+                  autoComplete="off"
+                  value={texto}
+                  onChange={(e) => {
+                    setTexto(e.target.value);
+                    setProvisorio(false);
+                    if (erroInput) setErroInput(null);
+                  }}
+                  placeholder={
+                    voz.fase === 'iniciando'
+                      ? 'Ativando microfone…'
+                      : voz.fase === 'finalizando'
+                        ? 'Finalizando transcrição…'
+                        : voz.ouvindo
+                          ? 'Ouvindo em português… fale seu comando'
+                          : 'Pergunte sobre divergências, simule outra data ou acione um setor…'
+                  }
+                  disabled={algumTurnoStreaming}
+                  aria-invalid={erroInput ? 'true' : undefined}
+                  aria-describedby={erroInput ? erroInputId : undefined}
+                  className={
+                    provisorio ? 'ia-composer-input ia-composer-provisorio' : 'ia-composer-input'
+                  }
+                />
+
+                <div className="ia-composer-acoes">
+                  {voz.ouvindo ? (
+                    <div className="voz-ativo">
+                      <span className="so-leitor">{textoLeitorVoz}</span>
+                      <VisualizadorVoz
+                        analyserRef={voz.analyserRef}
+                        energiaRef={voz.energiaRef}
+                        ativo={voz.ouvindo}
+                        fase={voz.fase}
+                        movimentoReduzido={voz.movimentoReduzido}
+                      />
+                      <span className="voz-tempo mono num">{textoTempoVoz}</span>
+                      <button
+                        ref={pararBtnRef}
+                        type="button"
+                        className="voz-ativo-parar"
+                        aria-pressed="true"
+                        aria-label="Parar ditado por voz"
+                        aria-disabled={voz.fase === 'finalizando' || undefined}
+                        onClick={alternarVoz}
+                        disabled={algumTurnoStreaming}
+                      >
+                        <IconeParar />
+                        <span>Parar</span>
+                      </button>
+                    </div>
+                  ) : (
+                    voz.suportado && (
+                      <button
+                        ref={vozBtnRef}
+                        type="button"
+                        className="cmd-btn-voz ia-btn-voz"
+                        aria-pressed="false"
+                        aria-label="Ditar comando por voz"
+                        onClick={alternarVoz}
+                        disabled={algumTurnoStreaming}
+                      >
+                        <IconeMic />
+                        <span>Voz</span>
+                      </button>
+                    )
+                  )}
+
+                  <button
+                    ref={enviarBtnRef}
+                    type="submit"
+                    className="ia-btn-executar"
+                    disabled={algumTurnoStreaming}
+                  >
+                    <span className="ia-btn-conteudo">
+                      <span>{algumTurnoStreaming ? 'Compondo…' : 'Executar'}</span>
+                      {!algumTurnoStreaming && <IconeRetorno />}
+                    </span>
                   </button>
                 </div>
-              )}
-
-              <div className="ia-partidas-grid" role="group" aria-label="Sugestões para começar">
-                {partidasAtivas.map((item) => (
-                  <button
-                    key={item.comando}
-                    type="button"
-                    className="ia-partida-card"
-                    disabled={algumTurnoStreaming || !pedidoId}
-                    onClick={() => {
-                      setOrigemClique(ORIGEM_CENTRO);
-                      void executarComando(item.comando, false);
-                    }}
-                  >
-                    <span className="ia-partida-cat">{item.categoria}</span>
-                    <span className="ia-partida-cmd">{item.comando}</span>
-                    <span className="ia-partida-apoio">{item.apoio}</span>
-                  </button>
-                ))}
-              </div>
+              </form>
             </div>
-          ) : (
-            <ol className="ia-thread" aria-label="Turnos da consulta">
-              {turnos.map((turno, idx) => {
-                const ehUltimo = idx === turnos.length - 1;
-                const projecaoTurno =
-                  turno.pedidoId === pedidoId && dadosProjecao
-                    ? dadosProjecao
-                    : turno.projecaoSnapshot;
-                const turnoDaSessao =
-                  turno.autoForkAplicado ||
-                  Boolean(pedidos.find((p) => p.pedidoId === turno.pedidoId)?.daSessao);
 
-                return (
-                  <li key={turno.id}>
-                    <article
-                      ref={ehUltimo ? ultimoTurnoRef : undefined}
-                      className="ia-turno"
-                      aria-busy={turno.carregando || undefined}
-                    >
-                      <header className="ia-turno-entrada">
-                        <div className="ia-turno-meta">
-                          <span className="ia-turno-papel">Operador</span>
-                          {turno.pedidoId && (
-                            <span className="pilula-neutra mono num">
-                              {codigoCurtoPedido(turno.pedidoId)}
-                            </span>
-                          )}
-                          <time className="meta mono num">{turno.criadoEm}</time>
-                          {turno.autoForkAplicado && (
-                            <span className="ia-turno-nota-sessao">
-                              Cópia criada na sua sessão para gravar
-                            </span>
-                          )}
-                        </div>
-                        <p className="ia-turno-comando">{turno.comando}</p>
-                      </header>
-
-                      <div className="ia-turno-resposta">
-                        {turno.erro ? (
-                          <div className="ia-turno-erro" role="alert">
-                            <div className="ia-turno-erro-cab">
-                              <span className="pilula-erro">
-                                <IconeErro />
-                                Não foi possível concluir
-                              </span>
-                              <button
-                                type="button"
-                                className="botao-sutil"
-                                disabled={algumTurnoStreaming}
-                                onClick={() => {
-                                  setOrigemClique(ORIGEM_CENTRO);
-                                  void executarComando(turno.comando, false);
-                                }}
-                              >
-                                Tentar novamente
-                              </button>
-                            </div>
-                            <p className="ia-turno-erro-msg">{turno.erro.mensagem}</p>
-                          </div>
-                        ) : projecaoTurno &&
-                          (turno.carregando ||
-                            turno.viewSpec !== null ||
-                            turno.blocosStream.length > 0) ? (
-                          <PalcoGenUI
-                            spec={turno.viewSpec}
-                            etapas={turno.etapas}
-                            blocosStream={turno.blocosStream}
-                            carregando={turno.carregando}
-                            projecao={projecaoTurno}
-                            pedidoId={turno.pedidoId || (pedidoId ?? '')}
-                            daSessao={turnoDaSessao}
-                            contatos={contatos}
-                            focoAtivo={turno.pedidoId === pedidoId ? focoAtivo : null}
-                            aoFocar={lidarFocarDoPalco}
-                            aoExecutarComando={(cmd) => {
-                              setOrigemClique(ORIGEM_CENTRO);
-                              void executarComando(cmd, false);
-                            }}
-                            aoSelecionarPapel={lidarSelecionarPapel}
-                            aoNotificar={(parte, campo) =>
-                              lidarNotificarDoPalco(turno.pedidoId || (pedidoId ?? ''), parte, campo)
-                            }
-                            aoAbrirAgenda={aoAbrirAgenda}
-                            aoAplicarHipotese={(hipotese) =>
-                              lidarAplicarHipotese(turno.pedidoId || (pedidoId ?? ''), hipotese)
-                            }
-                            aoAnunciar={aoAnunciar}
-                            slotLoader={<SeloMonolitosShader ativo={true} tamanho={24} />}
-                          />
-                        ) : turno.carregando ? (
-                          <div className="ia-turno-carregando" role="status" aria-live="polite">
-                            <SeloMonolitosShader ativo={true} tamanho={24} />
-                            <span>
-                              {turno.etapas.at(-1)?.rotulo ?? 'Consultando estado do pedido…'}
-                            </span>
-                          </div>
-                        ) : turno.interpretado ? (
-                          <RespostaFallbackTurno dados={turno.interpretado} />
-                        ) : null}
-                      </div>
-                    </article>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </section>
-
-        {painelEvidenciaAberto && (
-          <div className="ia-evidencia-col">
-            <EvidenciaLateralIA
-              id={evidenciaId}
-              pedidoId={pedidoId}
-              projecao={projecao}
-              daSessao={Boolean(pedidoAtual?.daSessao)}
-              focoAtivo={focoAtivo}
-              aoFocar={setFocoAtivo}
-              aoAbrirNaTorre={aoAbrirNaTorre}
-              aoFechar={desktopLargo ? undefined : () => setPreferenciaEvidencia(false)}
-            />
+            <div className="ia-composer-dica">
+              <span className="meta">
+                Respostas ancoradas no registro do pedido
+                {codigoPedido ? ` · ${codigoPedido}` : ''}
+              </span>
+              <span className="ia-atalho-hint meta">
+                Atalho <kbd className="tecla mono">/</kbd> · <kbd className="tecla mono">Enter</kbd>{' '}
+                para enviar
+              </span>
+            </div>
           </div>
-        )}
+        </footer>
       </div>
 
-      <footer
-        className="ia-composer-dock"
-        onKeyDown={(e) => {
-          if (e.key !== 'Escape' || voz.ouvindo) return;
-          if (erroInput || voz.erro) {
-            e.preventDefault();
-            setErroInput(null);
-            voz.limparErro();
-            inputRef.current?.focus();
-          }
-        }}
-      >
-        <div className="ia-composer-shell">
-          {(voz.erro || erroInput) && (
-            <div className="ia-composer-alertas">
-              {voz.erro && (
-                <div className="ia-composer-alerta" role="alert">
-                  <span className="ia-composer-alerta-texto">
-                    <IconeErro />
-                    <span>{voz.erro}</span>
-                  </span>
-                  <button
-                    type="button"
-                    className="botao-fechar"
-                    aria-label="Fechar aviso de microfone"
-                    onClick={() => {
-                      voz.limparErro();
-                      inputRef.current?.focus();
-                    }}
-                  >
-                    <IconeFechar />
-                  </button>
-                </div>
-              )}
-              {erroInput && (
-                <div id={erroInputId} className="ia-composer-alerta" role="alert">
-                  <span className="ia-composer-alerta-texto">
-                    <IconeErro />
-                    <span>{erroInput}</span>
-                  </span>
-                  <button
-                    type="button"
-                    className="botao-fechar"
-                    aria-label="Fechar aviso de validação"
-                    onClick={() => {
-                      setErroInput(null);
-                      inputRef.current?.focus();
-                    }}
-                  >
-                    <IconeFechar />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
+      {evidenciaComoGaveta && (
+        <div className="ia-gaveta-camada">
           <div
-            className="ia-composer"
-            data-enviando={algumTurnoStreaming ? 'true' : undefined}
-            data-ouvindo={voz.ouvindo ? 'true' : undefined}
-            data-erro={erroInput || voz.erro ? 'true' : undefined}
-          >
-            <div className="ia-composer-feixe" aria-hidden="true">
-              <CamadaShader shader="liraVoz" ativo={algumTurnoStreaming} modo={1} />
-            </div>
-
-            <form className="ia-composer-form" onSubmit={aoSubmeter} noValidate>
-              <label htmlFor={inputId} className="so-leitor">
-                Pergunte ou comande em português sobre o pedido ativo
-              </label>
-
-              <span className="cmd-prefixo" aria-hidden="true">
-                <span
-                  className={`icone-troca ${!algumTurnoStreaming && !voz.ouvindo ? 'visivel' : ''}`}
-                >
-                  <IconeComando />
-                </span>
-                <span className={`icone-troca ${voz.ouvindo ? 'visivel' : ''}`}>
-                  <span className="cmd-pulso" />
-                </span>
-                <span className={`icone-troca ${algumTurnoStreaming ? 'visivel' : ''}`}>
-                  <span className="cmd-spinner" />
-                </span>
-              </span>
-
-              <input
-                ref={inputRef}
-                id={inputId}
-                name="comando-assistente"
-                type="text"
-                autoComplete="off"
-                value={texto}
-                onChange={(e) => {
-                  setTexto(e.target.value);
-                  setProvisorio(false);
-                  if (erroInput) setErroInput(null);
-                }}
-                placeholder={
-                  voz.fase === 'iniciando'
-                    ? 'Ativando microfone…'
-                    : voz.fase === 'finalizando'
-                      ? 'Finalizando transcrição…'
-                      : voz.ouvindo
-                        ? 'Ouvindo em português… fale seu comando'
-                        : 'Pergunte sobre divergências, simule outra data ou acione um setor…'
-                }
-                disabled={algumTurnoStreaming}
-                aria-invalid={erroInput ? 'true' : undefined}
-                aria-describedby={erroInput ? erroInputId : undefined}
-                className={provisorio ? 'ia-composer-input ia-composer-provisorio' : 'ia-composer-input'}
-              />
-
-              <div className="ia-composer-acoes">
-                {voz.ouvindo ? (
-                  <div className="voz-ativo">
-                    <span className="so-leitor">{textoLeitorVoz}</span>
-                    <VisualizadorVoz
-                      analyserRef={voz.analyserRef}
-                      energiaRef={voz.energiaRef}
-                      ativo={voz.ouvindo}
-                      fase={voz.fase}
-                      movimentoReduzido={voz.movimentoReduzido}
-                    />
-                    <span className="voz-tempo mono num">{textoTempoVoz}</span>
-                    <button
-                      ref={pararBtnRef}
-                      type="button"
-                      className="voz-ativo-parar"
-                      aria-pressed="true"
-                      aria-label="Parar ditado por voz"
-                      aria-disabled={voz.fase === 'finalizando' || undefined}
-                      onClick={alternarVoz}
-                      disabled={algumTurnoStreaming}
-                    >
-                      <IconeParar />
-                      <span>Parar</span>
-                    </button>
-                  </div>
-                ) : (
-                  voz.suportado && (
-                    <button
-                      ref={vozBtnRef}
-                      type="button"
-                      className="cmd-btn-voz ia-btn-voz"
-                      aria-pressed="false"
-                      aria-label="Ditar comando por voz"
-                      onClick={alternarVoz}
-                      disabled={algumTurnoStreaming}
-                    >
-                      <IconeMic />
-                      <span>Voz</span>
-                    </button>
-                  )
-                )}
-
-                <button
-                  ref={enviarBtnRef}
-                  type="submit"
-                  className="ia-btn-executar"
-                  disabled={algumTurnoStreaming}
-                  onPointerDown={capturarOrigemBotao}
-                >
-                  <CamadaShader
-                    shader="ignicaoBotao"
-                    ativo={algumTurnoStreaming}
-                    origem={origemClique}
-                    resolverEm={resolucaoBotao}
-                    raioPx={4}
-                    className="ia-btn-shader"
-                  />
-                  <span className="ia-btn-conteudo">
-                    <span>{algumTurnoStreaming ? 'Compondo…' : 'Executar'}</span>
-                    {!algumTurnoStreaming && <IconeRetorno />}
-                  </span>
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="ia-composer-dica">
-            <span className="meta">
-              Respostas ancoradas no registro do pedido
-              {pedidoId ? ` · ${codigoCurtoPedido(pedidoId)}` : ''}
-            </span>
-            <span className="ia-atalho-hint meta">
-              Atalho <kbd className="tecla mono">/</kbd> · <kbd className="tecla mono">Enter</kbd>{' '}
-              para enviar
-            </span>
-          </div>
+            className="ia-gaveta-fundo"
+            aria-hidden="true"
+            onClick={fecharGavetaEvidencia}
+          />
+          <EvidenciaLateralIA
+            id={evidenciaId}
+            pedidoId={pedidoId}
+            projecao={projecao}
+            daSessao={Boolean(pedidoAtual?.daSessao)}
+            focoAtivo={focoAtivo}
+            aoFocar={setFocoAtivo}
+            aoAbrirNaTorre={aoAbrirNaTorre}
+            aoFechar={fecharGavetaEvidencia}
+            ehGaveta={true}
+          />
         </div>
-      </footer>
+      )}
     </div>
   );
 }

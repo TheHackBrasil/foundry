@@ -43,6 +43,7 @@ export interface EvidenciaLateralIAProps {
   aoFocar: (alvo: AlvoFocoGenUI | null) => void;
   aoAbrirNaTorre: (pedidoId: string, foco?: AlvoFocoGenUI | null) => void;
   aoFechar?: () => void;
+  ehGaveta?: boolean;
 }
 
 function codigoCurtoPedido(id: string): string {
@@ -153,9 +154,17 @@ export function EvidenciaLateralIA({
   aoFocar,
   aoAbrirNaTorre,
   aoFechar,
+  ehGaveta = false,
 }: EvidenciaLateralIAProps) {
   const painelRef = useRef<HTMLElement>(null);
+  const fecharBtnRef = useRef<HTMLButtonElement>(null);
   const assinaturaFoco = chaveFoco(focoAtivo);
+
+  // Move foco para o botão fechar ao abrir como gaveta sobreposta em viewports estreitas.
+  useEffect(() => {
+    if (!ehGaveta) return;
+    fecharBtnRef.current?.focus();
+  }, [ehGaveta]);
 
   // Rola o item destacado dentro da coluna lateral ao receber foco de uma citação ou grafo.
   useEffect(() => {
@@ -212,7 +221,9 @@ export function EvidenciaLateralIA({
     <aside
       ref={painelRef}
       id={id}
-      className="ia-evidencia"
+      className={ehGaveta ? 'ia-evidencia ia-evidencia-gaveta' : 'ia-evidencia'}
+      role={ehGaveta ? 'dialog' : undefined}
+      aria-modal={ehGaveta ? 'true' : undefined}
       aria-label="Evidências ao vivo do pedido"
     >
       <div className="ia-evidencia-cab">
@@ -220,6 +231,7 @@ export function EvidenciaLateralIA({
           <h2 className="ia-evidencia-titulo">Evidências do registro</h2>
           {aoFechar && (
             <button
+              ref={fecharBtnRef}
               type="button"
               className="botao-fechar"
               aria-label="Recolher painel de evidências"
@@ -231,11 +243,13 @@ export function EvidenciaLateralIA({
         </div>
 
         {!pedidoId && (
-          <p className="meta">Selecione um pedido no cabeçalho para inspecionar os campos vigiados.</p>
+          <p className="ia-evidencia-nota">
+            Selecione um pedido no cabeçalho para inspecionar os campos vigiados.
+          </p>
         )}
 
         {pedidoId && projecao.estado === 'carregando' && (
-          <p className="meta" role="status">
+          <p className="ia-evidencia-nota" role="status">
             Carregando registro do pedido {codigoCurtoPedido(pedidoId)}…
           </p>
         )}
@@ -323,7 +337,7 @@ export function EvidenciaLateralIA({
               {formatarConfianca(sinalFocado.confianca)}
             </span>
           </div>
-          <p className="meta">
+          <p className="ia-evidencia-nota">
             {rotuloTipoSinal(sinalFocado.tipo)} · {rotuloFonte(sinalFocado.fonte)}
           </p>
           <p className="ia-evidencia-sinal-texto">{sinalFocado.resumo}</p>
@@ -334,13 +348,13 @@ export function EvidenciaLateralIA({
         <section className="ia-evidencia-bloco" aria-label="Mini-matriz de campos vigiados">
           <div className="ia-evidencia-sec-cab">
             <h3>Campos vigiados</h3>
-            <span className="meta num">
+            <span className="ia-evidencia-contador mono num">
               {matriz.fontes.length} {matriz.fontes.length === 1 ? 'fonte' : 'fontes'}
             </span>
           </div>
 
           {matriz.fontes.length === 0 ? (
-            <p className="meta">Nenhum documento com campos declarados ainda.</p>
+            <p className="ia-evidencia-nota">Nenhum documento com campos declarados ainda.</p>
           ) : (
             <ul className="ia-mini-matriz">
               {matriz.linhas.map((linha) => {
@@ -409,7 +423,13 @@ export function EvidenciaLateralIA({
                               <span className="ia-mini-fonte">{rotuloFonte(cel.fonte)}</span>
                               {delta && <span className="ia-mini-delta mono num">{delta}</span>}
                             </span>
-                            <span className={cel.valor !== undefined ? 'ia-mini-valor num' : 'ia-mini-nd'}>
+                            <span
+                              className={
+                                cel.valor !== undefined
+                                  ? 'ia-mini-valor mono num'
+                                  : 'ia-mini-nd'
+                              }
+                            >
                               {valorFmt}
                             </span>
                           </button>
@@ -428,14 +448,14 @@ export function EvidenciaLateralIA({
         <section className="ia-evidencia-bloco" aria-label="Partes afetadas">
           <div className="ia-evidencia-sec-cab">
             <h3>Partes afetadas</h3>
-            <span className="meta num">
+            <span className="ia-evidencia-contador mono num">
               {agruparTarefas(dados.tarefas).length}{' '}
               {agruparTarefas(dados.tarefas).length === 1 ? 'tarefa' : 'tarefas'}
             </span>
           </div>
 
           {partesComTarefas.length === 0 ? (
-            <p className="meta">Nenhuma ação aberta entre os 5 setores neste pedido.</p>
+            <p className="ia-evidencia-nota">Nenhuma ação aberta entre os 5 setores neste pedido.</p>
           ) : (
             <ul className="ia-partes-lista">
               {partesComTarefas.map((item) => {

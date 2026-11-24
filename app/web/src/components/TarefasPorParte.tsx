@@ -107,59 +107,19 @@ type EstadoEnvio =
 
 function ItemTarefa({
   grupo,
-  contato,
   novas,
   focoAtivo,
   aoFocar,
-  aoNotificar,
-  aoAbrirAgenda,
 }: {
   grupo: GrupoTarefa;
-  contato: Contato | undefined;
   novas: ReadonlySet<string>;
   focoAtivo: AlvoFocoGenUI | null;
   aoFocar?: (alvo: AlvoFocoGenUI | null) => void;
-  aoNotificar: (parte: Parte, campo?: CampoVigiado) => Promise<void>;
-  aoAbrirAgenda: (parte?: Parte) => void;
 }) {
-  const [envio, setEnvio] = useState<EstadoEnvio>({ tipo: 'ocioso' });
-  const resetTimerRef = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (resetTimerRef.current !== null) window.clearTimeout(resetTimerRef.current);
-    },
-    [],
-  );
-
   const unica = grupo.ocorrencias.length === 1;
   const nova = grupo.ocorrencias.some((t) => novas.has(chaveTarefa(t)));
   const focada = grupoCorrespondeFoco(grupo, focoAtivo);
   const origens = useMemo(() => extrairOrigens(grupo.ocorrencias), [grupo.ocorrencias]);
-  const primeiroCampo = grupo.ocorrencias[0]?.divergencia.campo;
-  const canalIncompativel = contato?.canal === 'email';
-  const semCanalDireto = !contato || canalIncompativel;
-
-  async function dispararAviso() {
-    if (envio.tipo === 'enviando') return;
-    if (resetTimerRef.current !== null) {
-      window.clearTimeout(resetTimerRef.current);
-      resetTimerRef.current = null;
-    }
-    setEnvio({ tipo: 'enviando' });
-    try {
-      await aoNotificar(grupo.parte, primeiroCampo);
-      setEnvio({ tipo: 'enviado' });
-      resetTimerRef.current = window.setTimeout(() => {
-        setEnvio({ tipo: 'ocioso' });
-        resetTimerRef.current = null;
-      }, 4500);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Falha ao enviar aviso.';
-      const envolveContato = /contato|canal/i.test(msg);
-      setEnvio({ tipo: 'erro', mensagem: msg, abrirAgenda: envolveContato });
-    }
-  }
 
   function alternarOrigem(origem: OrigemAgrupada) {
     if (!aoFocar) return;
@@ -216,27 +176,96 @@ function ItemTarefa({
           );
         })}
       </div>
+    </li>
+  );
+}
 
-      <div className="tarefa-acao-faixa">
-        <div className="tarefa-contato">
-          {contato ? (
-            <span className="meta">
-              {rotuloCanalContato(contato.canal)} ·{' '}
-              <span className="mono">{contato.destino}</span>
-            </span>
-          ) : (
-            <span className="meta">Sem contato</span>
-          )}
+function SetorTarefas({
+  parte,
+  itens,
+  contato,
+  novas,
+  focoAtivo,
+  aoFocar,
+  aoNotificar,
+  aoAbrirAgenda,
+}: {
+  parte: Parte;
+  itens: readonly GrupoTarefa[];
+  contato: Contato | undefined;
+  novas: ReadonlySet<string>;
+  focoAtivo: AlvoFocoGenUI | null;
+  aoFocar?: (alvo: AlvoFocoGenUI | null) => void;
+  aoNotificar: (parte: Parte, campo?: CampoVigiado) => Promise<void>;
+  aoAbrirAgenda: (parte?: Parte) => void;
+}) {
+  const [envio, setEnvio] = useState<EstadoEnvio>({ tipo: 'ocioso' });
+  const resetTimerRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (resetTimerRef.current !== null) window.clearTimeout(resetTimerRef.current);
+    },
+    [],
+  );
+
+  const primeiroCampo = itens[0]?.ocorrencias[0]?.divergencia.campo;
+  const canalIncompativel = contato?.canal === 'email';
+  const semCanalDireto = !contato || canalIncompativel;
+  const setorFocado = focoAtivo?.tipo === 'parte' && focoAtivo.parte === parte;
+
+  async function dispararAviso() {
+    if (envio.tipo === 'enviando') return;
+    if (resetTimerRef.current !== null) {
+      window.clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
+    setEnvio({ tipo: 'enviando' });
+    try {
+      await aoNotificar(parte, primeiroCampo);
+      setEnvio({ tipo: 'enviado' });
+      resetTimerRef.current = window.setTimeout(() => {
+        setEnvio({ tipo: 'ocioso' });
+        resetTimerRef.current = null;
+      }, 4500);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Falha ao enviar aviso.';
+      const envolveContato = /contato|canal/i.test(msg);
+      setEnvio({ tipo: 'erro', mensagem: msg, abrirAgenda: envolveContato });
+    }
+  }
+
+  return (
+    <section
+      aria-label={rotuloParte(parte)}
+      className={setorFocado ? 'tarefas-grupo tarefas-grupo-focado' : 'tarefas-grupo'}
+    >
+      <div className="tarefas-grupo-cab">
+        <div className="tarefas-grupo-info">
+          <div className="tarefas-grupo-titulo-linha">
+            <h3 className="tarefas-grupo-titulo">{rotuloParte(parte)}</h3>
+            <span className="tarefas-grupo-cont mono num">{itens.length}</span>
+          </div>
+          <span className="tarefas-grupo-contato">
+            {contato ? (
+              <>
+                {rotuloCanalContato(contato.canal)} ·{' '}
+                <span className="mono">{contato.destino}</span>
+              </>
+            ) : (
+              'Sem contato cadastrado'
+            )}
+          </span>
         </div>
 
-        <div className="tarefa-acao-ctrl">
+        <div className="tarefas-grupo-acao">
           {semCanalDireto ? (
             <button
               type="button"
               className="botao-sutil tarefa-btn-acao"
-              onClick={() => aoAbrirAgenda(grupo.parte)}
+              onClick={() => aoAbrirAgenda(parte)}
             >
-              {contato ? 'Canal manual · Configurar' : 'Sem contato · Configurar'}
+              {contato ? 'Configurar canal' : 'Configurar'}
             </button>
           ) : (
             <button
@@ -259,7 +288,7 @@ function ItemTarefa({
               ) : (
                 <>
                   <IconeAviso />
-                  <span>Avisar {rotuloParte(grupo.parte)}</span>
+                  <span>Avisar</span>
                 </>
               )}
             </button>
@@ -277,14 +306,26 @@ function ItemTarefa({
             <button
               type="button"
               className="tarefa-link-config"
-              onClick={() => aoAbrirAgenda(grupo.parte)}
+              onClick={() => aoAbrirAgenda(parte)}
             >
               Configurar
             </button>
           )}
         </div>
       )}
-    </li>
+
+      <ul>
+        {itens.map((g) => (
+          <ItemTarefa
+            key={g.titulo}
+            grupo={g}
+            novas={novas}
+            focoAtivo={focoAtivo}
+            {...(aoFocar ? { aoFocar } : {})}
+          />
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -338,28 +379,17 @@ export function TarefasPorParte({
           <div className="tarefas-superficie">
             {grupos.map(({ parte, itens }) =>
               itens.length === 0 ? null : (
-                <section key={parte} aria-label={rotuloParte(parte)} className="tarefas-grupo">
-                  {filtro === FILTRO_TODAS && (
-                    <h3 className="tarefas-grupo-cab">
-                      <span>{rotuloParte(parte)}</span>
-                      <span className="meta num">{itens.length}</span>
-                    </h3>
-                  )}
-                  <ul>
-                    {itens.map((g) => (
-                      <ItemTarefa
-                        key={g.titulo}
-                        grupo={g}
-                        contato={contatoPorParte.get(g.parte)}
-                        novas={novas}
-                        focoAtivo={focoAtivo}
-                        {...(aoFocar ? { aoFocar } : {})}
-                        aoNotificar={aoNotificar}
-                        aoAbrirAgenda={aoAbrirAgenda}
-                      />
-                    ))}
-                  </ul>
-                </section>
+                <SetorTarefas
+                  key={parte}
+                  parte={parte}
+                  itens={itens}
+                  contato={contatoPorParte.get(parte)}
+                  novas={novas}
+                  focoAtivo={focoAtivo}
+                  {...(aoFocar ? { aoFocar } : {})}
+                  aoNotificar={aoNotificar}
+                  aoAbrirAgenda={aoAbrirAgenda}
+                />
               ),
             )}
           </div>

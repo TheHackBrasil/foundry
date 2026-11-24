@@ -15,18 +15,19 @@ function temConflito(p: PedidoResumo): boolean {
   return (p.divergencias ?? 0) > 0 || (p.atrasoDias ?? 0) > 0 || p.status === 'cancelada';
 }
 
-function seloOperacional(p: PedidoResumo): { texto: string; classe: string } {
+function seloOperacional(p: PedidoResumo): { texto: string; classe: string; mono?: boolean } {
   if (p.status === 'cancelada') {
     return { texto: 'Cancelada', classe: 'rail-badge-erro' };
   }
   if (typeof p.atrasoDias === 'number' && p.atrasoDias > 0) {
-    return { texto: `+${p.atrasoDias}d atraso`, classe: 'rail-badge-warn' };
+    return { texto: `+${p.atrasoDias}d`, classe: 'rail-badge-coord', mono: true };
   }
   const divs = p.divergencias ?? 0;
   if (divs > 0) {
     return {
-      texto: `${divs} ${divs === 1 ? 'conflito' : 'conflitos'}`,
+      texto: `${divs} ${divs === 1 ? 'desvio' : 'desvios'}`,
       classe: 'rail-badge-coord',
+      mono: true,
     };
   }
   return { texto: 'Confere', classe: 'rail-badge-ok' };
@@ -58,7 +59,7 @@ export function PedidoLista({
   return (
     <section className="lista" aria-labelledby="lista-titulo">
       <div className="lista-cab">
-        <h2 id="lista-titulo">Pedidos</h2>
+        <h2 id="lista-titulo">Pedidos ativos</h2>
         {pedidos.estado === 'ok' && listaCompleta.length > 0 && (
           <div className="rail-filtro" role="group" aria-label="Filtrar pedidos">
             <button
@@ -73,7 +74,7 @@ export function PedidoLista({
               aria-pressed={soConflito}
               onClick={() => setSoConflito(true)}
             >
-              Com conflito{totalConflitos > 0 ? ` (${totalConflitos})` : ''}
+              Conflitos{totalConflitos > 0 ? ` (${totalConflitos})` : ''}
             </button>
           </div>
         )}
@@ -136,7 +137,11 @@ export function PedidoLista({
                       <span className={emitente ? 'lista-emitente' : 'lista-emitente mono'}>
                         {emitente ?? chaveCurta(p.pedidoId)}
                       </span>
-                      <span className={`rail-badge num ${selo.classe}`}>{selo.texto}</span>
+                      <span
+                        className={`rail-badge num ${selo.mono ? 'mono ' : ''}${selo.classe}`}
+                      >
+                        {selo.texto}
+                      </span>
                     </div>
 
                     <div className="lista-sub">

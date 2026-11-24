@@ -16,23 +16,25 @@ interface Props {
   aoEnviar: (pedidoId: string) => void;
   aoAbrirRevisao: () => void;
   aoAtualizarRevisao?: () => void;
+  aoEncaminharRevisao?: (revisaoId: number, nomeArquivo: string) => void;
+  emModal?: boolean;
 }
 
 const KIT_INGESTAO = [
   {
     arquivo: 'email-corpo.eml',
-    rotulo: 'E-mail atraso (.eml)',
-    detalhe: 'Extrai sinal consultivo',
+    rotulo: 'E-mail .eml',
+    detalhe: 'Extrai sinal consultivo de atraso',
   },
   {
     arquivo: 'planilha-desconhecida.xlsx',
-    rotulo: 'Planilha fora do padrão (.xlsx → IA)',
-    detalhe: 'Envia para Fila de Revisão',
+    rotulo: 'Planilha .xlsx → IA',
+    detalhe: 'Classifica e envia para a Fila de Revisão',
   },
   {
     arquivo: 'cce-reagendamento.xml',
-    rotulo: 'CC-e reagendamento (.xml)',
-    detalhe: 'Evento fiscal XML',
+    rotulo: 'CC-e .xml',
+    detalhe: 'Evento fiscal de reagendamento',
   },
 ] as const;
 
@@ -75,7 +77,13 @@ function descrever(r: Awaited<ReturnType<typeof enviarArquivo>>): {
   };
 }
 
-export function EnvioArquivos({ aoEnviar, aoAbrirRevisao, aoAtualizarRevisao }: Props) {
+export function EnvioArquivos({
+  aoEnviar,
+  aoAbrirRevisao,
+  aoAtualizarRevisao,
+  aoEncaminharRevisao,
+  emModal = false,
+}: Props) {
   const entrada = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
   const [exemploAtivo, setExemploAtivo] = useState<string | null>(null);
@@ -91,13 +99,19 @@ export function EnvioArquivos({ aoEnviar, aoAbrirRevisao, aoAtualizarRevisao }: 
     setEnviando(true);
     setResultados([]);
     let tocouRevisao = false;
+    let primeiroPedidoId: string | null = null;
+    let primeiraRevisao: { id: number; nome: string } | null = null;
+
     for (const arquivo of arquivos) {
       try {
         const r = await enviarArquivo(arquivo);
         const info = descrever(r);
         setResultados((lista) => [...lista, { nome: arquivo.name, ...info }]);
-        if (r.pedidoId) aoEnviar(r.pedidoId);
+        if (r.pedidoId && !primeiroPedidoId) primeiroPedidoId = r.pedidoId;
         if (r.revisaoId !== null || r.pedidoId === null) tocouRevisao = true;
+        if (r.pedidoId === null && r.revisaoId !== null && !primeiraRevisao) {
+          primeiraRevisao = { id: r.revisaoId, nome: arquivo.name };
+        }
       } catch (e) {
         const texto =
           e instanceof ErroApi && e.status === 422
@@ -111,6 +125,12 @@ export function EnvioArquivos({ aoEnviar, aoAbrirRevisao, aoAtualizarRevisao }: 
     if (tocouRevisao) aoAtualizarRevisao?.();
     setEnviando(false);
     if (entrada.current) entrada.current.value = '';
+
+    if (primeiroPedidoId) {
+      aoEnviar(primeiroPedidoId);
+    } else if (primeiraRevisao && aoEncaminharRevisao) {
+      aoEncaminharRevisao(primeiraRevisao.id, primeiraRevisao.nome);
+    }
   }
 
   async function testarIngestaoReal(arquivo: string) {
@@ -121,8 +141,12 @@ export function EnvioArquivos({ aoEnviar, aoAbrirRevisao, aoAtualizarRevisao }: 
       const r = await enviarExemploPorNome(arquivo);
       const info = descrever(r);
       setResultados([{ nome: arquivo, ...info }]);
-      if (r.pedidoId) aoEnviar(r.pedidoId);
       aoAtualizarRevisao?.();
+      if (r.pedidoId) {
+        aoEnviar(r.pedidoId);
+      } else if (r.revisaoId !== null && aoEncaminharRevisao) {
+        aoEncaminharRevisao(r.revisaoId, arquivo);
+      }
     } catch (e) {
       const texto = e instanceof Error ? e.message : 'falhou.';
       setResultados([{ nome: arquivo, ok: false, texto, revisaoId: null }]);
@@ -154,8 +178,11 @@ export function EnvioArquivos({ aoEnviar, aoAbrirRevisao, aoAtualizarRevisao }: 
   };
 
   return (
-    <section className="envio" aria-labelledby="envio-titulo">
-      <h2 id="envio-titulo">Ingestão de documentos</h2>
+    <section
+      className={emModal ? 'envio envio-modal' : 'envio'}
+      aria-labelledby={emModal ? undefined : 'envio-titulo'}
+    >
+      {!emModal && <h2 id="envio-titulo">Ingestão de documentos</h2>}
 
       <label
         className={`envio-zona${sobre ? ' envio-sobre' : ''}`}
@@ -182,16 +209,17 @@ export function EnvioArquivos({ aoEnviar, aoAbrirRevisao, aoAtualizarRevisao }: 
         />
         <span className="envio-zona-conteudo">
           <IconeEnvio />
-          <span>{enviando ? 'Enviando…' : 'Solte arquivos ou escolha no computador'}</span>
+          <span className="envio-zona-texto">
+            <strong>{enviando ? 'Enviando documentos…' : 'Solte arquivos ou escolha no computador'}</strong>
+            <span id={ajuda} className="envio-zona-sub">
+              NF-e, CT-e, CC-e, CSV, XLSX, PDF ou .eml
+            </span>
+          </span>
         </span>
       </label>
 
-      <p id={ajuda} className="dica">
-        NF-e, CT-e, CC-e, CSV, XLSX, PDF ou .eml.
-      </p>
-
-      <div className="envio-kit" role="group" aria-label="Testar ingestão real">
-        <p className="envio-kit-titulo">Testar ingestão real</p>
+      <div className="envio-kit" role="group" aria-label="Exemplos prontos em 1 clique">
+        <p className="envio-kit-titulo">Testar ingestão real em 1 clique</p>
         <div className="envio-kit-lista">
           {KIT_INGESTAO.map((item) => {
             const ativo = exemploAtivo === item.arquivo;
@@ -214,7 +242,7 @@ export function EnvioArquivos({ aoEnviar, aoAbrirRevisao, aoAtualizarRevisao }: 
       </div>
 
       <details className="envio-detalhes">
-        <summary className="envio-detalhes-sumario">Baixar exemplos manuais</summary>
+        <summary className="envio-detalhes-sumario">Baixar arquivos de exemplo</summary>
         <div className="envio-exemplos">
           {EXEMPLOS_DOWNLOAD.map((x) => (
             <a key={x.arquivo} href={`/exemplos/${x.arquivo}`} download>
@@ -238,7 +266,7 @@ export function EnvioArquivos({ aoEnviar, aoAbrirRevisao, aoAtualizarRevisao }: 
                   {r.revisaoId !== null && (
                     <button
                       type="button"
-                      className="rail-btn-revisao"
+                      className={emModal ? 'botao-sutil' : 'rail-btn-revisao'}
                       onClick={aoAbrirRevisao}
                     >
                       Abrir na Revisão
