@@ -152,6 +152,13 @@ export function GrafoDomino({
       setRevelado(true);
       return;
     }
+    const verificarAgora = () => {
+      const r = el.getBoundingClientRect();
+      if (r.height > 0 && r.top < window.innerHeight + 60 && r.bottom > -60) {
+        setVisivel(true);
+        setRevelado(true);
+      }
+    };
     const io = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
@@ -160,10 +167,15 @@ export function GrafoDomino({
         setVisivel(emTela);
         if (emTela) setRevelado(true);
       },
-      { threshold: 0.08 },
+      { threshold: 0, rootMargin: '60px 0px' },
     );
     io.observe(el);
-    return () => io.disconnect();
+    verificarAgora();
+    const raf = window.requestAnimationFrame(verificarAgora);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      io.disconnect();
+    };
   }, [divergencias.length]);
 
   // Pulso causal único na chegada do grafo para tornar visível a direção

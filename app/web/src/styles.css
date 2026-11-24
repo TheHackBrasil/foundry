@@ -3091,7 +3091,7 @@ main[data-rota='ia'] {
   pointer-events: none;
 }
 .palco-curtain-inner {
-  overflow: hidden;
+  overflow: clip;
   display: grid;
   gap: 1.25rem;
   min-height: 0;
@@ -3099,38 +3099,39 @@ main[data-rota='ia'] {
 .palco-grid { gap: 1.25rem 1.5rem; }
 .palco-bloco {
   position: relative;
-  overflow: hidden;
   padding: 1.125rem 0 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   border-top: 1px solid var(--border);
   gap: 0.875rem;
-  animation: genui-laje-forjar 540ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--bloco-i, 0) * 115ms) backwards;
+  animation: genui-laje-forjar 460ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--bloco-i, 0) * 85ms) backwards;
 }
-/* Feixe mineral de chegada única ao materializar o bloco GenUI. */
+/* Feixe mineral de chegada única na régua superior ao materializar o bloco GenUI. */
 .palco-bloco::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset-inline: 0;
+  top: -1px;
+  height: 2px;
   pointer-events: none;
+  transform-origin: left center;
   background: linear-gradient(
-    108deg,
-    transparent 24%,
-    color-mix(in srgb, var(--change) 11%, transparent) 48%,
-    color-mix(in srgb, var(--surface) 38%, transparent) 52%,
-    transparent 74%
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--change) 75%, transparent) 42%,
+    color-mix(in srgb, var(--change) 24%, transparent) 78%,
+    transparent 100%
   );
-  transform: translate3d(-125%, 0, 0);
-  animation: genui-brilho-forja 780ms cubic-bezier(0.22, 1, 0.36, 1) calc(80ms + var(--bloco-i, 0) * 115ms) 1 forwards;
+  animation: genui-brilho-forja 720ms cubic-bezier(0.22, 1, 0.36, 1) calc(60ms + var(--bloco-i, 0) * 85ms) 1 both;
 }
 :root[data-tema='dark'] .palco-bloco::after {
   background: linear-gradient(
-    108deg,
-    transparent 24%,
-    color-mix(in srgb, var(--change) 16%, transparent) 49%,
-    rgba(255, 255, 255, 0.08) 53%,
-    transparent 74%
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--cord) 88%, transparent) 44%,
+    color-mix(in srgb, var(--change) 36%, transparent) 78%,
+    transparent 100%
   );
 }
 .palco-bloco-cab h3 { font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.015em; }
@@ -3198,28 +3199,28 @@ main[data-rota='ia'] {
 @keyframes genui-laje-forjar {
   from {
     opacity: 0;
-    transform: translate3d(0, 22px, 0) scale(0.984);
-    filter: blur(4px);
+    transform: translate3d(0, 18px, 0) scale(0.988);
   }
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
-    filter: blur(0);
   }
 }
 @keyframes genui-brilho-forja {
   0% {
-    transform: translate3d(-125%, 0, 0);
+    transform: scaleX(0);
     opacity: 0;
   }
-  20% {
+  28% {
+    transform: scaleX(0.65);
     opacity: 1;
   }
-  80% {
-    opacity: 0.85;
+  72% {
+    transform: scaleX(1);
+    opacity: 0.78;
   }
   100% {
-    transform: translate3d(135%, 0, 0);
+    transform: scaleX(1);
     opacity: 0;
   }
 }

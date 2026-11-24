@@ -984,7 +984,7 @@ main[data-rota='ia'] {
 }
 
 .ia-trilha-gaveta-inner {
-  overflow: hidden;
+  overflow: clip;
   min-height: 0;
 }
 
