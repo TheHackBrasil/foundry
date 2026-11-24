@@ -129,7 +129,7 @@ export async function interpretarMandato(texto: string): Promise<MandatoParseado
 
 // O campo 'alvo' da LLM e texto livre: quando e parte, chave ou nome de
 // fornecedor ele completa o filtro vazio correspondente.
-function normalizarFiltros(m: MandatoParseado): FiltrosMandato {
+export function normalizarFiltros(m: MandatoParseado): FiltrosMandato {
   const f: FiltrosMandato = { ...m.filtros };
   const alvo = m.alvo?.trim();
   if (alvo) {
@@ -191,23 +191,29 @@ async function filtrarCandidatos(
 
 // Resolve os pedidos alvo do filtro. Escritas (propagar, notificar) exigem
 // pedidos proprios da sessao; leituras/simulacoes podem consultar a seed em
-// modo somente leitura quando a sessao ainda esta vazia.
+// modo somente leitura quando a sessao ainda esta vazia ou seleciona a seed.
 async function resolverAlvos(
   sessao: LedgerStore,
   mandato: MandatoParseado,
   maxAlvos: number,
+  texto: string,
+  pedidoIdPadrao?: string,
 ): Promise<{ alvos: string[]; somenteLeitura: boolean }> {
   const f = normalizarFiltros(mandato);
-  if (f.pedidoId) {
-    const dono = await sessao.wsDoPedido(f.pedidoId);
+  const pedeTodos = /\btodos\s+os\s+pedidos\b|\btodos\s+pedidos\b|\bcada\s+pedido\b/i.test(texto);
+  const padrao = !f.pedidoId && !f.fornecedor && !pedeTodos ? pedidoIdPadrao?.trim() : undefined;
+  const pedidoDireto = f.pedidoId ?? (padrao || undefined);
+
+  if (pedidoDireto) {
+    const dono = await sessao.wsDoPedido(pedidoDireto);
     if (dono === null) throw new ErroMandato('sem_alvo', 'O comando não resolveu nenhum pedido da sua sessão.');
     if (dono !== sessao.workspace) {
       if (ehSomenteLeitura(mandato.acao)) {
-        return { alvos: [f.pedidoId], somenteLeitura: true };
+        return { alvos: [pedidoDireto], somenteLeitura: true };
       }
       throw new ErroRequisicao(403, mensagens.seedSomenteLeitura('agir sobre um pedido de exemplo'));
     }
-    return { alvos: [f.pedidoId], somenteLeitura: false };
+    return { alvos: [pedidoDireto], somenteLeitura: false };
   }
   const todos = await sessao.listarPedidos();
   const proprios = todos.filter((p) => p.workspaceId === sessao.workspace).map((p) => p.pedidoId);
@@ -215,7 +221,7 @@ async function resolverAlvos(
   let alvos = await filtrarCandidatos(sessao, proprios, mandato, f);
   let somenteLeitura = false;
 
-  if (alvos.length === 0 && proprios.length === 0 && ehSomenteLeitura(mandato.acao)) {
+  if (alvos.length === 0 && (proprios.length === 0 || Boolean(f.fornecedor)) && ehSomenteLeitura(mandato.acao)) {
     const daSeed = todos.filter((p) => p.workspaceId !== sessao.workspace);
     const seedWs = daSeed[0]?.workspaceId;
     if (seedWs) {
@@ -285,7 +291,7 @@ async function propagarPedido(tx: LedgerStore, pedidoId: string, campo: FiltrosM
   };
 }
 
-function normalizarValorHipotese(campo: FiltrosMandato['campo'], valor: string | number): string | number {
+export function normalizarValorHipotese(campo: FiltrosMandato['campo'], valor: string | number): string | number {
   if (campo === 'previsaoEntrega' && typeof valor === 'string') {
     const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(valor.trim());
     if (br) return `${br[3]}-${br[2]}-${br[1]}`;
@@ -440,7 +446,7 @@ export async function executarMandato(
   sessao: LedgerStore,
   texto: string,
   mandato: MandatoParseado,
-  opcoes: { maxAlvos: number },
+  opcoes: { maxAlvos: number; pedidoIdPadrao?: string },
 ): Promise<ResultadoExecucao> {
   const f = normalizarFiltros(mandato);
   if (mandato.acao === 'notificar' && !f.parte) {
@@ -449,7 +455,13 @@ export async function executarMandato(
   if (mandato.acao === 'simular' && (!f.campo || f.valor === undefined)) {
     throw new ErroMandato('acao_ambigua', 'Simular precisa de campo e valor (ex.: "simule a entrega para 2026-02-01").');
   }
-  const { alvos, somenteLeitura } = await resolverAlvos(sessao, mandato, opcoes.maxAlvos);
+  const { alvos, somenteLeitura } = await resolverAlvos(
+    sessao,
+    mandato,
+    opcoes.maxAlvos,
+    texto,
+    opcoes.pedidoIdPadrao,
+  );
   const porPedido: Array<Record<string, unknown>> = [];
   const eventos: Evento[] = [];
   for (const pedidoId of alvos) {

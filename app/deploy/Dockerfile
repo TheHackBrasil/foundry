@@ -35,6 +35,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json tsconfig.json ./
 COPY server/ ./server/
 COPY shared/ ./shared/
+COPY seed/ ./seed/
 COPY contracts/abi/ ./contracts/abi/
 COPY deploy/limpar-workspaces.mjs ./deploy/
 COPY --from=web /app/web/dist ./web/dist

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35260244555666000192550010000073101000007310" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <natOp>VENDA DE PRODUCAO DO ESTABELECIMENTO</natOp>
+        <serie>1</serie>
+        <nNF>7310</nNF>
+        <dhEmi>2026-01-24T08:15:00-03:00</dhEmi>
+        <tpNF>1</tpNF>
+      </ide>
+      <emit>
+        <CNPJ>44555666000192</CNPJ>
+        <xNome>PackSul Embalagens Ltda</xNome>
+        <enderEmit>
+          <xLgr>Rua das Industrias</xLgr>
+          <nro>890</nro>
+          <xMun>Joinville</xMun>
+          <UF>SC</UF>
+        </enderEmit>
+      </emit>
+      <dest>
+        <CNPJ>22333444000177</CNPJ>
+        <xNome>CD Anhanguera Logística SA</xNome>
+        <enderDest>
+          <xLgr>Rod. Anhanguera km 32</xLgr>
+          <nro>500</nro>
+          <xMun>Cajamar</xMun>
+          <UF>SP</UF>
+        </enderDest>
+      </dest>
+      <det nItem="1">
+        <prod>
+          <cProd>CX-TERMO-40L</cProd>
+          <xProd>Caixa Termoformada 40L</xProd>
+          <qCom>18</qCom>
+          <uCom>CX</uCom>
+          <vProd>6480.00</vProd>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vNF>6480.00</vNF>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>0</modFrete>
+        <vol>
+          <qVol>18</qVol>
+          <pesoL>332.000</pesoL>
+          <pesoB>340.000</pesoB>
+        </vol>
+      </transp>
+    </infNFe>
+  </NFe>
+</nfeProc>

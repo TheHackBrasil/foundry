@@ -1,0 +1,32 @@
+From: transportadora@exemplo.com.br
+To: foundry@exemplo.com.br
+Subject: Aviso de reagendamento da entrega
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary=BOUNDARY43
+
+--BOUNDARY43
+Content-Type: text/plain; charset=utf-8
+
+Prezados, avisamos que a entrega do pedido foi reagendada para sexta-feira por causa da chuva. Segue a carta de correcao.
+
+--BOUNDARY43
+Content-Type: application/xml; name=cce-reagendamento.xml
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename=cce-reagendamento.xml
+
+PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHByb2NFdmVudG9ORmUgeG1s
+bnM9Imh0dHA6Ly93d3cucG9ydGFsZmlzY2FsLmluZi5ici9uZmUiIHZlcnNhbz0iMS4wMCI+CiAg
+PGV2ZW50byB2ZXJzYW89IjEuMDAiPgogICAgPGluZkV2ZW50byBJZD0iSUQxMTAxMTAzNTI2MDEy
+MzQ1Njc4OTAwMDEyMzU1MDAxMDAwMDAwMDAxMTAwMDAwMDAxOTAyIj4KICAgICAgPGNPcmdhbz4z
+NTwvY09yZ2FvPgogICAgICA8dHBBbWI+MjwvdHBBbWI+CiAgICAgIDxDTlBKPjEyMzQ1Njc4MDAw
+MTIzPC9DTlBKPgogICAgICA8Y2hORmU+MzUyNjAxMjM0NTY3ODkwMDAxMjM1NTAwMTAwMDAwMDAw
+MTEwMDAwMDAwMTk8L2NoTkZlPgogICAgICA8ZGhFdmVudG8+MjAyNi0wMS0yMlQxNDozMDowMC0w
+MzowMDwvZGhFdmVudG8+CiAgICAgIDx0cEV2ZW50bz4xMTAxMTA8L3RwRXZlbnRvPgogICAgICA8
+blNlcUV2ZW50bz4yPC9uU2VxRXZlbnRvPgogICAgICA8dmVyRXZlbnRvPjEuMDA8L3ZlckV2ZW50
+bz4KICAgICAgPGRldEV2ZW50byB2ZXJzYW89IjEuMDAiPgogICAgICAgIDxkZXNjRXZlbnRvPkNh
+cnRhIGRlIENvcnJlY2FvPC9kZXNjRXZlbnRvPgogICAgICAgIDx4Q29ycmVjYW8+SW5mb3JtYW1v
+cyBxdWUgYSBlbnRyZWdhIGZvaSByZWFnZW5kYWRhIHBhcmEgc2V4dGEtZmVpcmEsIDMwLzAxLzIw
+MjYsIHBvciBjYXVzYSBkYSBjaHV2YSBuYSBzZXJyYTwveENvcnJlY2FvPgogICAgICA8L2RldEV2
+ZW50bz4KICAgIDwvaW5mRXZlbnRvPgogIDwvZXZlbnRvPgo8L3Byb2NFdmVudG9ORmU+Cg==
+
+--BOUNDARY43--

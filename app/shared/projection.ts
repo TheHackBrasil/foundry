@@ -39,6 +39,21 @@ function comoDoc(ev: Evento): PayloadDoc | null {
   };
 }
 
+// Mescla campos declarados por fonte sem apagar campos anteriores quando um
+// evento posterior da mesma fonte chega vazio (ex.: cancelamento seguido de CC-e).
+function mesclarFonte(
+  porFonte: Map<FonteDocumento, CamposObservados>,
+  fonte: FonteDocumento,
+  campos: CamposObservados,
+): void {
+  const anterior = porFonte.get(fonte) ?? {};
+  const mesclado: CamposObservados = { ...anterior };
+  for (const [k, v] of Object.entries(campos)) {
+    if (v !== undefined) (mesclado as Record<string, unknown>)[k] = v;
+  }
+  porFonte.set(fonte, mesclado);
+}
+
 // Estado consolidado: ultima declaracao de cada campo vence, por fonte.
 export function consolidarCampos(
   porFonte: Map<FonteDocumento, CamposObservados>,
@@ -64,7 +79,7 @@ export function projetar(eventos: Evento[]): ProjecaoPedido {
   for (const ev of eventos) {
     const doc = comoDoc(ev);
     if (doc) {
-      porFonte.set(doc.fonte, doc.campos);
+      mesclarFonte(porFonte, doc.fonte, doc.campos);
       versoes.push({
         pedidoId: ev.pedidoId,
         versao: versoes.length + 1,
@@ -124,7 +139,7 @@ export function camposPorFonte(eventos: Evento[]): Map<FonteDocumento, CamposObs
   const map = new Map<FonteDocumento, CamposObservados>();
   for (const ev of eventos) {
     const doc = comoDoc(ev);
-    if (doc) map.set(doc.fonte, doc.campos);
+    if (doc) mesclarFonte(map, doc.fonte, doc.campos);
   }
   return map;
 }

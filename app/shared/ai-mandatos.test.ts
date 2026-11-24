@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { verificarCadeia } from './chain.js';
 import { simularHipotese } from './divergence.js';
-import type { Contato, Evento, Tarefa } from './model.js';
-import { docDataParaPayload, projetar } from './projection.js';
+import type { BlocoGenUI, Contato, Evento, EventoStreamMandato, ResumoPedidoLista, Tarefa, ViewSpecV2 } from './model.js';
+import { camposPorFonte, docDataParaPayload, projetar } from './projection.js';
 import { bootstrapContatos, listarAgenda, validarContato } from '../server/contatos.js';
 import { createLiteDb } from '../server/db.js';
 import { buildServer } from '../server/index.js';
@@ -19,8 +19,16 @@ import { ErroLlm, chatJson } from '../server/llm.js';
 import { executarMandato, validarMandato } from '../server/mandatos.js';
 import { aplicarMapeamento, aplicarTemplate, proporMapeamento } from '../server/mapeamento.js';
 import { notificarTarefa } from '../server/nvoip.js';
+import { carregarSeed } from '../server/seed.js';
 import { extrairSinais } from '../server/sinal.js';
-import { gerarViewSpec, validarViewSpec, viewSpecPadrao } from '../server/viewspec.js';
+import { CanalSSE } from '../server/sse.js';
+import {
+  comporViewSpecV2,
+  comporViewSpecV2Deterministico,
+  gerarViewSpec,
+  validarViewSpec,
+  viewSpecPadrao,
+} from '../server/viewspec.js';
 import type { LedgerStore } from '../server/store.js';
 
 const CHAVE = '35260123456789000123550010000000011000000019';
@@ -726,6 +734,429 @@ describe('camada ai com PGlite', () => {
       expect(segunda.statusCode).toBe(429);
     } finally {
       await app2.close();
+    }
+  });
+});
+
+describe('merge de campos na projecao (cancelamento + CC-e)', () => {
+  it('CC-e sem campos nao apaga status cancelada declarado pelo cancelamento na mesma fonte', () => {
+    // Arrange
+    const eventos: Evento[] = [
+      evFake('nfe', {
+        fonte: 'nfe',
+        campos: { previsaoEntrega: '2026-01-20', pesoTotal: 510, volumes: 10, status: 'emitida' },
+        dados: { emitente: { nome: 'Krona Eletrônicos Ind. Ltda' }, destinatario: { nome: 'CD Anhanguera' } },
+      }),
+      evFake('cancelamento', {
+        fonte: 'cce',
+        campos: { status: 'cancelada' },
+        dados: { justificativa: 'Cancelado antes da coleta' },
+      }),
+      evFake('cce', {
+        fonte: 'cce',
+        campos: {},
+        dados: { correcao: 'Correcao textual de endereco' },
+      }),
+    ];
+
+    // Act
+    const proj = projetar(eventos);
+    const porFonte = camposPorFonte(eventos);
+
+    // Assert
+    expect(proj.pedido?.campos.status).toBe('cancelada');
+    expect(porFonte.get('cce')).toEqual({ status: 'cancelada' });
+    expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cce', 'cce']);
+  });
+});
+
+describe('GenUI v2, mandatos/stream, notificar e lista enriquecida', () => {
+  let app: Awaited<ReturnType<typeof buildServer>>['app'];
+  let store: LedgerStore;
+  let sessao: LedgerStore;
+  const CHAVE_SEED_TEST = '35260123456789000123550010000000011000008888';
+
+  const parseSse = (body: string): EventoStreamMandato[] =>
+    body
+      .split('\n\n')
+      .map((bloco) => bloco.trim())
+      .filter((bloco) => bloco.startsWith('data:'))
+      .map((bloco) => JSON.parse(bloco.slice(5).trim()) as EventoStreamMandato);
+
+  beforeAll(async () => {
+    const r = await buildServer(await createLiteDb(), { workspacePadrao: WS });
+    app = r.app;
+    store = r.store;
+    await app.ready();
+    sessao = store.paraWorkspace(WS);
+
+    // Pedido na sessao: NF-e + CT-e + CC-e vazia (sem cancelamento) + planilha atrasada.
+    const nfe = parseNFe(ler('nfe-ok.xml'));
+    await sessao.append(CHAVE, 'nfe', docDataParaPayload(nfe));
+    await sessao.append(CHAVE, 'cte', {
+      fonte: 'cte',
+      campos: { pesoTotal: 520, volumes: 12, status: 'em_transito' },
+      dados: { transportadora: { nome: 'Transportadora Teste' } },
+    });
+    await sessao.append(CHAVE, 'cce', {
+      fonte: 'cce',
+      campos: {},
+      dados: { correcao: 'Endereco complementar' },
+    });
+    await sessao.append(CHAVE, 'planilha', {
+      fonte: 'planilha',
+      campos: { previsaoEntrega: '2026-01-25', pesoTotal: 520, volumes: 12, status: 'atrasada' },
+      dados: { linha: 2 },
+    });
+    await executarMandato(sessao, 'propague divergencias', { acao: 'propagar', filtros: { pedidoId: CHAVE } }, { maxAlvos: 5 });
+
+    // Pedido na seed para validar protecao 403 e leitura somente leitura.
+    await store.append(CHAVE_SEED_TEST, 'nfe', {
+      fonte: 'nfe',
+      campos: { previsaoEntrega: '2026-01-24', pesoTotal: 340, volumes: 18, status: 'emitida' },
+      dados: { emitente: { nome: 'PackSul Seed' }, destinatario: { nome: 'CD Anhanguera' } },
+    });
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('comporViewSpecV2Deterministico poda fonte vazia, valida citacoes e mantem coerencia narrativa-matriz', async () => {
+    // Arrange
+    const proj = projetar(await sessao.eventosDoPedido(CHAVE));
+
+    // Act
+    const specFiscal = comporViewSpecV2Deterministico(proj, { papel: 'fiscal' });
+    const specSim = comporViewSpecV2Deterministico(proj, {
+      acao: 'simular',
+      campoSimulado: 'previsaoEntrega',
+      valorSimulado: '2026-01-28',
+    });
+    const specGeral = comporViewSpecV2Deterministico(proj);
+
+    // Assert: lente fiscal poda 'cce' vazia (0 campos declarados), inclui citacoes validas e notaRegra
+    expect(specFiscal.versao).toBe(2);
+    expect(specFiscal.lente).toBe('fiscal');
+    expect(specFiscal.layout).toBe('decisao_papel');
+    expect(specFiscal.blocos.length).toBeGreaterThanOrEqual(2);
+    expect(specFiscal.blocos.length).toBeLessThanOrEqual(4);
+    expect(specFiscal.filtroMatriz.fontesVisiveis).not.toContain('cce');
+    expect(specFiscal.filtroMatriz.fontesVisiveis).toContain('nfe');
+    expect(specFiscal.filtroMatriz.fontesVisiveis).toContain('cte');
+    expect(specFiscal.followUps.length).toBeGreaterThanOrEqual(3);
+    expect(specFiscal.followUps.length).toBeLessThanOrEqual(4);
+
+    const resumo = specFiscal.blocos.find((b): b is Extract<BlocoGenUI, { tipo: 'resumo_citado' }> => b.tipo === 'resumo_citado')!;
+    expect(resumo.citacoes.length).toBeGreaterThan(0);
+    for (const c of resumo.citacoes) {
+      if (c.alvo.tipo === 'divergencia') {
+        expect(specFiscal.filtroMatriz.fontesVisiveis).toContain(c.alvo.fonteA);
+        expect(specFiscal.filtroMatriz.fontesVisiveis).toContain(c.alvo.fonteB);
+      } else if (c.alvo.tipo === 'celula') {
+        expect(specFiscal.filtroMatriz.fontesVisiveis).toContain(c.alvo.fonte);
+      }
+    }
+
+    const conflito = specFiscal.blocos.find(
+      (b): b is Extract<BlocoGenUI, { tipo: 'comparador_conflito' }> => b.tipo === 'comparador_conflito',
+    )!;
+    expect(conflito).toBeDefined();
+    expect(conflito.notaRegra).toBeTruthy();
+
+    // Assert: simulacao tem simulador_interativo + domino_impacto(simulacao) + resumo_citado
+    expect(specSim.layout).toBe('simulacao');
+    expect(specSim.blocos.map((b) => b.tipo)).toEqual(['simulador_interativo', 'domino_impacto', 'resumo_citado']);
+    const simBloco = specSim.blocos[0] as Extract<BlocoGenUI, { tipo: 'simulador_interativo' }>;
+    expect(simBloco.campoInicial).toBe('previsaoEntrega');
+    expect(simBloco.valorInicial).toBe('2026-01-28');
+    const domSim = specSim.blocos[1] as Extract<BlocoGenUI, { tipo: 'domino_impacto' }>;
+    expect(domSim.modo).toBe('simulacao');
+    expect(domSim.partesFoco).toHaveLength(5);
+
+    // Assert: investigacao geral
+    expect(specGeral.lente).toBe('operacao');
+    expect(specGeral.layout).toBe('investigacao');
+    expect(specGeral.blocos.map((b) => b.tipo)).toContain('linha_tempo_causal');
+    expect(specGeral.blocos.map((b) => b.tipo)).toContain('domino_impacto');
+  });
+
+  it('comporViewSpecV2 refina via LLM com validacao rigorosa e cai no deterministico se alucinar citacao', async () => {
+    // Arrange
+    const proj = projetar(await sessao.eventosDoPedido(CHAVE));
+    envLlm();
+
+    // Act 1: LLM valida tentando incluir 'cce' vazia — servidor poda 'cce' e aceita texto
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        respostaChat({
+          tituloVisao: 'Fiscal · Divergência de peso e prazo',
+          justificativa: 'Prioriza conflito NF-e × CT-e e regra R-006.',
+          resumoCorpo: 'Há conflito de peso [[c1]] que exige validação fiscal.',
+          filtroMatriz: { fontesVisiveis: ['nfe', 'cte', 'cce'], colunas: ['pesoTotal'], destacarDivergencias: true },
+        }),
+      ),
+    );
+    const refinado = await comporViewSpecV2(proj, { papel: 'fiscal' });
+
+    // Assert 1
+    expect(refinado.origem).toBe('llm');
+    expect(refinado.tituloVisao).toBe('Fiscal · Divergência de peso e prazo');
+    expect(refinado.filtroMatriz.fontesVisiveis).not.toContain('cce');
+    expect(refinado.filtroMatriz.fontesVisiveis).toContain('planilha');
+
+    // Act 2: LLM inventa marcador [[c99]] -> recusa e cai no deterministico
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        respostaChat({
+          tituloVisao: 'Alucinado',
+          justificativa: 'Inventado',
+          resumoCorpo: 'Referência inventada [[c99]].',
+        }),
+      ),
+    );
+    const fallback = await comporViewSpecV2(proj, { papel: 'fiscal' });
+
+    // Assert 2
+    expect(fallback.origem).toBe('deterministico');
+  });
+
+  it('GET /api/pedidos/:id/view-spec?papel=fiscal&v=2 devolve ViewSpecV2 e sem v=2 mantem v1', async () => {
+    // Act
+    const resV2 = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/view-spec?papel=fiscal&v=2` });
+    const resV1 = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/view-spec?papel=fiscal` });
+
+    // Assert
+    expect(resV2.statusCode).toBe(200);
+    const spec2 = resV2.json() as ViewSpecV2;
+    expect(spec2.versao).toBe(2);
+    expect(spec2.lente).toBe('fiscal');
+    expect(spec2.filtroMatriz.fontesVisiveis).not.toContain('cce');
+    expect(spec2.blocos.length).toBeGreaterThanOrEqual(2);
+
+    expect(resV1.statusCode).toBe(200);
+    expect((resV1.json() as { versao: number }).versao).toBe(1);
+  });
+
+  it('POST /api/mandatos aceita pedidoId opcional e inclui viewSpec v2 sem chamada LLM extra', async () => {
+    // Arrange
+    envLlm();
+    const fetchMock = vi.fn(async () =>
+      respostaChat({ acao: 'simular', filtros: { campo: 'previsaoEntrega', valor: '28/01/2026' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    // Act: seleciona pedido da seed por pedidoId opcional em acao somente leitura
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/mandatos',
+      payload: { texto: 'simule a entrega para 28/01/2026', pedidoId: CHAVE_SEED_TEST },
+    });
+
+    // Assert
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // apenas interpretarMandato, zero chamada LLM extra para ViewSpec
+    const body = res.json() as { acao: string; alvos: string[]; viewSpec?: ViewSpecV2; resultado: Record<string, unknown> };
+    expect(body.acao).toBe('simular');
+    expect(body.alvos).toEqual([CHAVE_SEED_TEST]);
+    expect(body.resultado['leituraExemplo']).toBe(true);
+    expect(body.viewSpec?.versao).toBe(2);
+    expect(body.viewSpec?.layout).toBe('simulacao');
+  });
+
+  it('POST /api/mandatos/stream emite etapas ledger, intencao, motor, bloco e concluido com viewSpec', async () => {
+    // Arrange
+    envLlm();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        respostaChat({ acao: 'simular', filtros: { campo: 'previsaoEntrega', valor: '28/01/2026' } }),
+      ),
+    );
+
+    // Act
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/mandatos/stream',
+      payload: { texto: 'simule entrega para 28/01/2026', pedidoId: CHAVE },
+    });
+
+    // Assert
+    expect(res.statusCode).toBe(200);
+    expect(String(res.headers['content-type'])).toContain('text/event-stream');
+    const eventos = parseSse(res.body);
+    const etapas = eventos.filter((e): e is Extract<EventoStreamMandato, { tipo: 'etapa' }> => e.tipo === 'etapa');
+    const blocos = eventos.filter((e): e is Extract<EventoStreamMandato, { tipo: 'bloco' }> => e.tipo === 'bloco');
+    const concluido = eventos.find(
+      (e): e is Extract<EventoStreamMandato, { tipo: 'concluido' }> => e.tipo === 'concluido',
+    );
+
+    expect(etapas.map((e) => e.id)).toEqual(['ledger', 'intencao', 'motor', 'composicao']);
+    expect(etapas[0]!.rotulo).toMatch(/^Lendo \d+ eventos? da cadeia…$/);
+    expect(etapas[1]!.rotulo).toBe('Intenção: Simular · Previsão 28/01/2026');
+    expect(blocos.length).toBeGreaterThanOrEqual(1);
+    expect(blocos.map((b) => b.bloco.tipo)).toContain('simulador_interativo');
+    expect(concluido?.resposta.acao).toBe('simular');
+    expect(concluido?.resposta.alvos).toEqual([CHAVE]);
+    expect(concluido?.resposta.viewSpec?.versao).toBe(2);
+  });
+
+  it('POST /api/mandatos/stream emite evento erro limpo em 403 na seed ou acao ambigua', async () => {
+    // Arrange
+    envLlm();
+    vi.stubGlobal('fetch', vi.fn(async () => respostaChat({ acao: 'propagar', filtros: {} })));
+
+    // Act: tentar propagar em pedido da seed via pedidoId
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/mandatos/stream',
+      payload: { texto: 'propague o atraso', pedidoId: CHAVE_SEED_TEST },
+    });
+
+    // Assert
+    expect(res.statusCode).toBe(200);
+    const eventos = parseSse(res.body);
+    const erro = eventos.find((e): e is Extract<EventoStreamMandato, { tipo: 'erro' }> => e.tipo === 'erro');
+    expect(erro).toBeDefined();
+    expect(erro?.status).toBe(403);
+    expect(erro?.mensagem).toContain('só podem ser lidos');
+  });
+
+  it('POST /api/notificar funciona sem LLM na sessao e recusa 403 na seed', async () => {
+    // Arrange: sem LLM configurada e com Nvoip ligada para validar entrega deterministica
+    envNvoip();
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    // Act 1: notificar pedido da sessao
+    const resOk = await app.inject({
+      method: 'POST',
+      url: '/api/notificar',
+      payload: { pedidoId: CHAVE, parte: 'cd', campo: 'previsaoEntrega' },
+    });
+
+    // Assert 1
+    expect(resOk.statusCode).toBe(200);
+    const recibo = resOk.json() as {
+      pedidoId: string;
+      parte: string;
+      status: string;
+      canal?: string;
+      destino?: string;
+      mensagem?: string;
+    };
+    expect(recibo).toMatchObject({
+      pedidoId: CHAVE,
+      parte: 'cd',
+      status: 'entregue',
+      canal: 'sms',
+      destino: '+55 11 90000-0003',
+    });
+    expect(recibo.mensagem).toContain('Reagendar janela de recebimento');
+    expect(fetchMock).toHaveBeenCalledTimes(1); // apenas Nvoip, zero LLM
+
+    // Act 2: notificar pedido da seed -> 403
+    const resSeed = await app.inject({
+      method: 'POST',
+      url: '/api/notificar',
+      payload: { pedidoId: CHAVE_SEED_TEST, parte: 'cd' },
+    });
+
+    // Assert 2
+    expect(resSeed.statusCode).toBe(403);
+    expect((resSeed.json() as { erro: string }).erro).toContain('só podem ser lidos');
+
+    // Act 3: pedido inexistente -> 404 e parte invalida -> 400
+    expect(
+      (await app.inject({ method: 'POST', url: '/api/notificar', payload: { pedidoId: 'nao-existe', parte: 'cd' } })).statusCode,
+    ).toBe(404);
+    expect(
+      (await app.inject({ method: 'POST', url: '/api/notificar', payload: { pedidoId: CHAVE, parte: 'diretor' } })).statusCode,
+    ).toBe(400);
+  });
+
+  it('GET /api/pedidos retorna campos enriquecidos mantendo os campos existentes intactos', async () => {
+    // Act
+    const res = await app.inject({ method: 'GET', url: '/api/pedidos' });
+
+    // Assert
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { pedidos: Array<ResumoPedidoLista & { workspaceId: string }> };
+    const proprio = body.pedidos.find((p) => p.pedidoId === CHAVE);
+    const daSeed = body.pedidos.find((p) => p.pedidoId === CHAVE_SEED_TEST);
+
+    expect(proprio).toMatchObject({
+      pedidoId: CHAVE,
+      workspaceId: WS,
+      daSessao: true,
+      emitente: 'Fornecedor Ficticio Ltda',
+      destinatario: 'CD Ficticio SA',
+      status: 'atrasada',
+      previsaoEntrega: '2026-01-25',
+      atrasoDias: 5,
+      ancorado: false,
+    });
+    expect(proprio?.divergencias).toBeGreaterThan(0);
+    expect(proprio?.tarefas).toBeGreaterThan(0);
+
+    expect(daSeed).toMatchObject({
+      pedidoId: CHAVE_SEED_TEST,
+      daSessao: false,
+      emitente: 'PackSul Seed',
+      destinatario: 'CD Anhanguera',
+      status: 'emitida',
+      previsaoEntrega: '2026-01-24',
+      atrasoDias: null,
+      divergencias: 0,
+      tarefas: 0,
+      ancorado: false,
+    });
+
+    // Apos evento ancora, ancorado passa para true
+    await sessao.append(CHAVE, 'ancora', { root: 'a'.repeat(64) });
+    const depois = (await app.inject({ method: 'GET', url: '/api/pedidos' })).json() as {
+      pedidos: ResumoPedidoLista[];
+    };
+    expect(depois.pedidos.find((p) => p.pedidoId === CHAVE)?.ancorado).toBe(true);
+  });
+
+  it('carregarSeed ingere os 3 pedidos sinteticos (Krona, PackSul e base) com cadeias integras', async () => {
+    // Arrange
+    const db = await createLiteDb();
+    const seedStore = new (store.constructor as typeof LedgerStore)(db, 'seed', 'seed');
+    await seedStore.init();
+    const canal = new CanalSSE('seed');
+
+    try {
+      // Act
+      const r = await carregarSeed(seedStore, canal, () => {});
+      const lista = await seedStore.listarPedidos();
+      const ids = lista.map((p) => p.pedidoId);
+
+      // Assert
+      expect(r.ingeridos).toBeGreaterThanOrEqual(5);
+      expect(ids).toContain('35260211222333000181550010000048211000004821'); // Krona
+      expect(ids).toContain('35260244555666000192550010000073101000007310'); // PackSul
+      expect(ids).toContain(CHAVE); // Base fixtures
+
+      const projKrona = projetar(await seedStore.eventosDoPedido('35260211222333000181550010000048211000004821'));
+      expect(projKrona.pedido?.emitente.nome).toBe('Krona Eletrônicos Ind. Ltda');
+      expect(projKrona.pedido?.destinatario.nome).toBe('CD Anhanguera Logística SA');
+      expect(projKrona.divergencias.some((d) => d.campo === 'previsaoEntrega')).toBe(true);
+      expect(projKrona.divergencias.some((d) => d.campo === 'pesoTotal')).toBe(true);
+      expect(projKrona.divergencias.some((d) => d.campo === 'volumes')).toBe(true);
+
+      const projPackSul = projetar(await seedStore.eventosDoPedido('35260244555666000192550010000073101000007310'));
+      expect(projPackSul.pedido?.emitente.nome).toBe('PackSul Embalagens Ltda');
+      expect(projPackSul.divergencias.filter((d) => d.campo === 'pesoTotal' || d.campo === 'volumes')).toEqual([]);
+
+      for (const id of ids) {
+        expect((await seedStore.auditar(id)).valida).toBe(true);
+      }
+    } finally {
+      await db.close();
     }
   });
 });

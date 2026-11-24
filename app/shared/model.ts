@@ -180,6 +180,7 @@ export interface RespostaMandato {
   filtros?: FiltrosMandato;
   alvo?: string;
   resultado: Record<string, unknown>;
+  viewSpec?: ViewSpecV2;
 }
 
 // Payload do evento 'notificacao' (RF8): o que saiu de verdade ou a falha
@@ -202,6 +203,146 @@ export interface ViewSpec {
   colunas: CampoVigiado[];
   lente: Parte;
   destacarDivergencias: boolean;
+}
+
+export const TIPOS_BLOCO_GENUI = [
+  'resumo_citado',
+  'domino_impacto',
+  'comparador_conflito',
+  'linha_tempo_causal',
+  'simulador_interativo',
+  'cartoes_despacho',
+  'matriz_focada',
+  'checklist_papel',
+] as const;
+
+export type TipoBlocoGenUI = (typeof TIPOS_BLOCO_GENUI)[number];
+
+export type AlvoFocoGenUI =
+  | { tipo: 'celula'; campo: CampoVigiado; fonte: FonteDocumento }
+  | { tipo: 'divergencia'; campo: CampoVigiado; fonteA: FonteDocumento; fonteB: FonteDocumento }
+  | { tipo: 'parte'; parte: Parte }
+  | { tipo: 'versao'; versao: number }
+  | { tipo: 'sinal'; indice: number };
+
+export interface CitacaoFactual {
+  id: string;
+  rotulo: string;
+  alvo: AlvoFocoGenUI;
+}
+
+export type BlocoGenUI =
+  | {
+      id: string;
+      tipo: 'resumo_citado';
+      titulo: string;
+      corpo: string;
+      citacoes: CitacaoFactual[];
+      severidade: 'info' | 'atencao' | 'critico';
+      via: 'llm' | 'deterministico';
+    }
+  | {
+      id: string;
+      tipo: 'domino_impacto';
+      titulo: string;
+      camposFoco: CampoVigiado[];
+      partesFoco: Parte[];
+      modo: 'atual' | 'simulacao';
+    }
+  | {
+      id: string;
+      tipo: 'comparador_conflito';
+      titulo: string;
+      campo: CampoVigiado;
+      fonteA: FonteDocumento;
+      fonteB: FonteDocumento;
+      notaRegra?: string;
+    }
+  | {
+      id: string;
+      tipo: 'linha_tempo_causal';
+      titulo: string;
+      campoFoco?: CampoVigiado;
+      incluirSinais: boolean;
+    }
+  | {
+      id: string;
+      tipo: 'simulador_interativo';
+      titulo: string;
+      campoInicial: CampoVigiado;
+      valorInicial?: string | number;
+    }
+  | {
+      id: string;
+      tipo: 'cartoes_despacho';
+      titulo: string;
+      partes: Parte[];
+      rascunhos: Array<{
+        parte: Parte;
+        campo: CampoVigiado;
+        mensagemSugerida: string;
+        via: 'llm' | 'deterministico';
+      }>;
+    }
+  | {
+      id: string;
+      tipo: 'matriz_focada';
+      titulo: string;
+      fontesVisiveis: FonteDocumento[];
+      colunas: CampoVigiado[];
+      celulasDestacadas: Array<{ campo: CampoVigiado; fonte: FonteDocumento }>;
+      destacarDivergencias: boolean;
+    }
+  | {
+      id: string;
+      tipo: 'checklist_papel';
+      titulo: string;
+      parte: Parte;
+      camposPrioritarios: CampoVigiado[];
+    };
+
+export interface FollowUpContextual {
+  rotulo: string;
+  comando: string;
+  intencao: 'investigar' | 'simular' | 'agir' | 'mudar_lente';
+}
+
+export interface ViewSpecV2 {
+  versao: 2;
+  origem: 'llm' | 'deterministico';
+  lente: Parte | 'operacao';
+  layout: 'investigacao' | 'decisao_papel' | 'simulacao' | 'despacho';
+  tituloVisao: string;
+  justificativa: string;
+  blocos: BlocoGenUI[];
+  followUps: FollowUpContextual[];
+  filtroMatriz: {
+    fontesVisiveis: FonteDocumento[];
+    colunas: CampoVigiado[];
+    destacarDivergencias: boolean;
+  };
+}
+
+export type EventoStreamMandato =
+  | { tipo: 'etapa'; id: 'ledger' | 'intencao' | 'motor' | 'composicao'; rotulo: string; detalhe?: string }
+  | { tipo: 'bloco'; bloco: BlocoGenUI }
+  | { tipo: 'concluido'; resposta: RespostaMandato }
+  | { tipo: 'erro'; status: number; motivo?: string; mensagem: string };
+
+export interface ResumoPedidoLista {
+  pedidoId: string;
+  totalEventos: number;
+  criadoEm: string;
+  ultimoEm: string;
+  daSessao?: boolean;
+  emitente?: string;
+  destinatario?: string;
+  status?: string;
+  previsaoEntrega?: string;
+  atrasoDias?: number | null;
+  divergencias?: number;
+  tarefas?: number;
+  ancorado?: boolean;
 }
 
 // Proposta de mapeamento coluna -> campo canonico (RF11): a LLM propoe, a

@@ -5,6 +5,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import type { OutgoingHttpHeaders } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyError, type FastifyRequest } from 'fastify';
@@ -12,9 +13,22 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { simularHipotese } from '../shared/divergence.js';
+import { formatarValor } from '../shared/formato.js';
 import { raizMerkle } from '../shared/merkle.js';
 import { propagarTodas } from '../shared/rules.js';
-import { PARTES, type CamposObservados, type MandatoParseado, type Parte } from '../shared/model.js';
+import {
+  CAMPOS_VIGIADOS,
+  PARTES,
+  type CamposObservados,
+  type CampoVigiado,
+  type EventoStreamMandato,
+  type MandatoParseado,
+  type Notificacao,
+  type Parte,
+  type ProjecaoPedido,
+  type RespostaMandato,
+  type ViewSpecV2,
+} from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
 import { ancorar, configAncoraDoEnv } from './anchor.js';
 import { configDoEnv, inteiroDoEnv, type ConfigServidor } from './config.js';
@@ -22,14 +36,22 @@ import { listarAgenda, validarContato } from './contatos.js';
 import { createDb, type Db } from './db.js';
 import { imapConfigDoEnv, iniciarPolling } from './ingest/imap.js';
 import { ErroLlm, llmConfigDoEnv } from './llm.js';
-import { ErroMandato, executarMandato, interpretarMandato } from './mandatos.js';
+import {
+  ErroMandato,
+  executarMandato,
+  interpretarMandato,
+  normalizarFiltros,
+  normalizarValorHipotese,
+  type ResultadoExecucao,
+} from './mandatos.js';
+import { notificarTarefa } from './nvoip.js';
 import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
 import { ehProcessoPrincipal } from './processo.js';
 import { ErroRequisicao, GuardaEspaco, JanelaFixa, mensagens } from './protecao.js';
 import { carregarSeed } from './seed.js';
 import { CanalSSE } from './sse.js';
 import { LedgerStore } from './store.js';
-import { gerarViewSpec, viewSpecPadrao } from './viewspec.js';
+import { comporViewSpecV2, comporViewSpecV2Deterministico, gerarViewSpec, viewSpecPadrao } from './viewspec.js';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
@@ -47,6 +69,81 @@ export interface BuildOpts {
   workspacePadrao?: string;
   // Padrao: configDoEnv(process.env). Testes injetam limites pequenos.
   config?: ConfigServidor;
+}
+
+const ROTULO_CAMPO_STREAM: Record<CampoVigiado, string> = {
+  previsaoEntrega: 'Previsão',
+  pesoTotal: 'Peso',
+  volumes: 'Volumes',
+  status: 'Status',
+};
+
+const ROTULO_PARTE_STREAM: Record<Parte, string> = {
+  fornecedor: 'Fornecedor',
+  transportadora: 'Transportadora',
+  cd: 'CD',
+  fiscal: 'Fiscal',
+  financeiro: 'Financeiro',
+};
+
+function dataIsoParaUtcMs(valor: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
+  if (!m) return null;
+  const ano = Number(m[1]);
+  const mes = Number(m[2]);
+  const dia = Number(m[3]);
+  const ms = Date.UTC(ano, mes - 1, dia);
+  const d = new Date(ms);
+  if (d.getUTCFullYear() !== ano || d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia) return null;
+  return ms;
+}
+
+function calcularAtrasoDias(proj: ProjecaoPedido): number | null {
+  const porFonte = new Map<string, number>();
+  for (const v of proj.versoes) {
+    const prev = v.campos.previsaoEntrega;
+    if (!prev) continue;
+    const ms = dataIsoParaUtcMs(prev);
+    if (ms !== null) porFonte.set(v.fonte, ms);
+  }
+  const datas = [...porFonte.values()];
+  if (datas.length < 2) return null;
+  return Math.round((Math.max(...datas) - Math.min(...datas)) / 86_400_000);
+}
+
+function rotuloIntencaoMandato(mandato: MandatoParseado): string {
+  const f = normalizarFiltros(mandato);
+  switch (mandato.acao) {
+    case 'simular': {
+      if (f.campo && f.valor !== undefined) {
+        const val = normalizarValorHipotese(f.campo, f.valor);
+        const fmt = formatarValor(f.campo, val) + (f.campo === 'pesoTotal' ? ' kg' : '');
+        return `Intenção: Simular · ${ROTULO_CAMPO_STREAM[f.campo]} ${fmt}`;
+      }
+      return 'Intenção: Simular';
+    }
+    case 'resumir':
+      return f.parte ? `Intenção: Resumir · ${ROTULO_PARTE_STREAM[f.parte]}` : 'Intenção: Resumir';
+    case 'propagar':
+      return f.campo ? `Intenção: Propagar · ${ROTULO_CAMPO_STREAM[f.campo]}` : 'Intenção: Propagar';
+    case 'notificar':
+      return f.parte ? `Intenção: Notificar · ${ROTULO_PARTE_STREAM[f.parte]}` : 'Intenção: Notificar';
+  }
+}
+
+function validarCorpoMandato(body: { texto?: unknown; pedidoId?: unknown } | undefined): { texto: string; pedidoId?: string } {
+  const bruto = body?.texto;
+  if (typeof bruto !== 'string' || !bruto.trim()) {
+    throw new ErroRequisicao(400, 'texto é obrigatório');
+  }
+  const texto = bruto.trim();
+  if (texto.length > 1_000) throw new ErroRequisicao(400, 'texto é longo demais');
+  const pidBruto = body?.pedidoId;
+  if (pidBruto !== undefined && pidBruto !== null && typeof pidBruto !== 'string') {
+    throw new ErroRequisicao(400, 'pedidoId inválido');
+  }
+  const pedidoId = typeof pidBruto === 'string' && pidBruto.trim() ? pidBruto.trim() : undefined;
+  return pedidoId ? { texto, pedidoId } : { texto };
 }
 
 // Erro 4xx do Fastify ou dos plugins vira mensagem em portugues; o texto
@@ -167,6 +264,44 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     return dono === null ? null : store.paraWorkspace(dono);
   }
 
+  // Compoe ViewSpecV2 deterministico enriquecido com o resumo ja produzido
+  // por executarMandato (zero chamada LLM extra).
+  async function montarViewSpecDoMandato(
+    sessao: LedgerStore,
+    texto: string,
+    mandato: MandatoParseado,
+    exec: ResultadoExecucao,
+  ): Promise<ViewSpecV2 | undefined> {
+    const alvoPrincipal = exec.alvos[0];
+    if (!alvoPrincipal) return undefined;
+    const s = await storeDoPedido(sessao, alvoPrincipal);
+    if (!s) return undefined;
+    const proj = projetar(await s.eventosDoPedido(alvoPrincipal));
+    const porPedido = Array.isArray(exec.resultado['porPedido'])
+      ? (exec.resultado['porPedido'] as Array<Record<string, unknown>>)
+      : [];
+    const primeiro = porPedido[0];
+    const resumoTexto = typeof primeiro?.['resumo'] === 'string' ? primeiro['resumo'] : undefined;
+    const viaBruta = primeiro?.['via'];
+    const resumoVia = viaBruta === 'llm' || viaBruta === 'deterministico' ? viaBruta : undefined;
+    const f = normalizarFiltros(mandato);
+    const campoSimulado = exec.acao === 'simular' ? f.campo : undefined;
+    const valorSimulado =
+      exec.acao === 'simular' && f.campo && f.valor !== undefined
+        ? normalizarValorHipotese(f.campo, f.valor)
+        : undefined;
+
+    return comporViewSpecV2Deterministico(proj, {
+      ...(f.parte ? { papel: f.parte } : {}),
+      pergunta: texto,
+      acao: exec.acao,
+      ...(resumoTexto ? { resumoTexto } : {}),
+      ...(resumoVia ? { resumoVia } : {}),
+      ...(campoSimulado ? { campoSimulado } : {}),
+      ...(valorSimulado !== undefined ? { valorSimulado } : {}),
+    });
+  }
+
   // Healthcheck do deploy: 200 so com o banco respondendo.
   app.get('/api/health', async (req, reply) => {
     try {
@@ -236,10 +371,30 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     return { ok: true, ...r, eventos: r.eventos.length };
   });
 
-  app.get('/api/pedidos', async (req) => ({
-    pedidos: await store.paraWorkspace(req.workspace).listarPedidos(),
-    workspace: req.workspace,
-  }));
+  app.get('/api/pedidos', async (req) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const lista = await sessao.listarPedidos();
+    const pedidos = [];
+    for (const item of lista) {
+      const dono = store.paraWorkspace(item.workspaceId);
+      const proj = projetar(await dono.eventosDoPedido(item.pedidoId));
+      const ancora = await dono.ultimoAncora(item.pedidoId);
+      pedidos.push({
+        ...item,
+        daSessao: item.workspaceId === req.workspace,
+        ...(proj.pedido ? { emitente: proj.pedido.emitente.nome, destinatario: proj.pedido.destinatario.nome } : {}),
+        ...(proj.pedido?.campos.status !== undefined ? { status: proj.pedido.campos.status } : {}),
+        ...(proj.pedido?.campos.previsaoEntrega !== undefined
+          ? { previsaoEntrega: proj.pedido.campos.previsaoEntrega }
+          : {}),
+        atrasoDias: calcularAtrasoDias(proj),
+        divergencias: proj.divergencias.length,
+        tarefas: proj.tarefas.length,
+        ancorado: ancora !== null,
+      });
+    }
+    return { pedidos, workspace: req.workspace };
+  });
 
   app.get<{ Params: { id: string } }>('/api/pedidos/:id', async (req, reply) => {
     const s = await storeDoPedido(store.paraWorkspace(req.workspace), req.params.id);
@@ -311,16 +466,11 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   // Mandato (spec 0007, RF4): texto em pt-BR vira acao tipada; a LLM so
   // traduz e a execucao e so do motor deterministico. Sem LLM configurada a
   // resposta e 503 declarativo; recusas do mandato sao 422 com motivo.
-  app.post<{ Body: { texto?: string } }>(
+  app.post<{ Body: { texto?: unknown; pedidoId?: unknown } }>(
     '/api/mandatos',
     { config: limiteEscrita },
     async (req, reply) => {
-      const bruto = req.body?.texto;
-      if (typeof bruto !== 'string' || !bruto.trim()) {
-        return reply.code(400).send({ erro: 'texto é obrigatório' });
-      }
-      const texto = bruto.trim();
-      if (texto.length > 1_000) return reply.code(400).send({ erro: 'texto é longo demais' });
+      const { texto, pedidoId } = validarCorpoMandato(req.body);
       if (!llmConfigDoEnv()) {
         return reply.code(503).send({ erro: 'indisponivel', mensagem: mensagens.llmIndisponivel() });
       }
@@ -333,14 +483,19 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       const sessao = store.paraWorkspace(req.workspace);
       try {
         const mandato = await interpretarMandato(texto);
-        const exec = await executarMandato(sessao, texto, mandato, { maxAlvos: cfg.mandatos.maxAlvos });
+        const exec = await executarMandato(sessao, texto, mandato, {
+          maxAlvos: cfg.mandatos.maxAlvos,
+          ...(pedidoId ? { pedidoIdPadrao: pedidoId } : {}),
+        });
         for (const e of exec.eventos) canal.evento(e, sessao.workspace);
-        const resposta = {
+        const viewSpec = await montarViewSpecDoMandato(sessao, texto, mandato, exec);
+        const resposta: RespostaMandato = {
           acao: exec.acao,
           alvos: exec.alvos,
-          filtros: (mandato as MandatoParseado).filtros,
+          filtros: mandato.filtros,
           ...(mandato.alvo !== undefined ? { alvo: mandato.alvo } : {}),
           resultado: exec.resultado,
+          ...(viewSpec ? { viewSpec } : {}),
         };
         return reply.send(resposta);
       } catch (err) {
@@ -355,6 +510,183 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
         }
         throw err;
       }
+    },
+  );
+
+  // Stream SSE de mandato: emite etapas de raciocinio operacional, blocos
+  // deterministicos antecipados e o RespostaMandato completo com ViewSpecV2.
+  app.post<{ Body: { texto?: unknown; pedidoId?: unknown } }>(
+    '/api/mandatos/stream',
+    { config: limiteEscrita },
+    async (req, reply) => {
+      const { texto, pedidoId } = validarCorpoMandato(req.body);
+      if (!llmConfigDoEnv()) {
+        return reply.code(503).send({ erro: 'indisponivel', mensagem: mensagens.llmIndisponivel() });
+      }
+      if (!mandatosJanela.consumir(ipDoCliente(req))) {
+        throw new ErroRequisicao(429, mensagens.muitosMandatos());
+      }
+      exigirGravavel(req.workspace, 'executar comandos');
+      await guarda.exigirEspaco();
+
+      const sessao = store.paraWorkspace(req.workspace);
+      const cabecalhos: OutgoingHttpHeaders = {};
+      for (const [nome, valor] of Object.entries(reply.getHeaders())) {
+        if (valor !== undefined) cabecalhos[nome] = valor;
+      }
+      reply.hijack();
+      reply.raw.writeHead(200, {
+        ...cabecalhos,
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache, no-transform',
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no',
+      });
+
+      const emitir = (evento: EventoStreamMandato): void => {
+        if (reply.raw.writableEnded || reply.raw.destroyed) return;
+        try {
+          reply.raw.write(`data: ${JSON.stringify(evento)}\n\n`);
+        } catch {
+          // cliente encerrou a conexao antes do fim do stream
+        }
+      };
+
+      try {
+        // 1. Leitura imediata do pedido selecionado ou primeiro pedido visivel.
+        let totalEventos = 0;
+        let alvoInicial = pedidoId;
+        if (alvoInicial) {
+          const s = await storeDoPedido(sessao, alvoInicial);
+          if (s) totalEventos = (await s.eventosDoPedido(alvoInicial)).length;
+        } else {
+          const visiveis = await sessao.listarPedidos();
+          if (visiveis[0]) {
+            alvoInicial = visiveis[0].pedidoId;
+            totalEventos = visiveis[0].totalEventos;
+          }
+        }
+        emitir({
+          tipo: 'etapa',
+          id: 'ledger',
+          rotulo: `Lendo ${totalEventos} ${totalEventos === 1 ? 'evento' : 'eventos'} da cadeia…`,
+          ...(alvoInicial ? { detalhe: alvoInicial } : {}),
+        });
+
+        // 2. Interpretacao da intencao pela LLM.
+        const mandato = await interpretarMandato(texto);
+        emitir({ tipo: 'etapa', id: 'intencao', rotulo: rotuloIntencaoMandato(mandato) });
+
+        // 3. Execucao deterministica + antecipacao de blocos estruturais.
+        const exec = await executarMandato(sessao, texto, mandato, {
+          maxAlvos: cfg.mandatos.maxAlvos,
+          ...(pedidoId ? { pedidoIdPadrao: pedidoId } : {}),
+        });
+        for (const e of exec.eventos) canal.evento(e, sessao.workspace);
+        emitir({
+          tipo: 'etapa',
+          id: 'motor',
+          rotulo: `Motor determinístico concluído · ${exec.alvos.length} ${exec.alvos.length === 1 ? 'pedido' : 'pedidos'}`,
+        });
+
+        const viewSpec = await montarViewSpecDoMandato(sessao, texto, mandato, exec);
+        if (viewSpec) {
+          const prioritarios = viewSpec.blocos.filter(
+            (b) => b.tipo === 'simulador_interativo' || b.tipo === 'domino_impacto' || b.tipo === 'comparador_conflito',
+          );
+          const antecipados =
+            prioritarios.length > 0
+              ? prioritarios
+              : viewSpec.blocos.filter((b) => b.tipo !== 'resumo_citado').slice(0, 1);
+          for (const bloco of antecipados) emitir({ tipo: 'bloco', bloco });
+        }
+
+        // 4. Composicao final e entrega da resposta completa.
+        emitir({
+          tipo: 'etapa',
+          id: 'composicao',
+          rotulo: 'Compondo visão contextual…',
+          ...(viewSpec ? { detalhe: viewSpec.tituloVisao } : {}),
+        });
+        const resposta: RespostaMandato = {
+          acao: exec.acao,
+          alvos: exec.alvos,
+          filtros: mandato.filtros,
+          ...(mandato.alvo !== undefined ? { alvo: mandato.alvo } : {}),
+          resultado: exec.resultado,
+          ...(viewSpec ? { viewSpec } : {}),
+        };
+        emitir({ tipo: 'concluido', resposta });
+      } catch (err) {
+        if (err instanceof ErroLlm) {
+          const indisponivel = err.tipo === 'indisponivel';
+          emitir({
+            tipo: 'erro',
+            status: indisponivel ? 503 : 422,
+            motivo: indisponivel ? 'indisponivel' : 'parse_falhou',
+            mensagem: indisponivel ? mensagens.llmIndisponivel() : mensagens.llmInvalida(),
+          });
+        } else if (err instanceof ErroMandato) {
+          emitir({ tipo: 'erro', status: 422, motivo: err.motivo, mensagem: err.message });
+        } else if (err instanceof ErroRequisicao) {
+          emitir({ tipo: 'erro', status: err.status, mensagem: err.message });
+        } else {
+          req.log.error({ err }, 'erro interno no stream de mandato');
+          emitir({ tipo: 'erro', status: 500, mensagem: 'Erro interno do servidor. Tente de novo em instantes.' });
+        }
+      } finally {
+        if (!reply.raw.writableEnded) reply.raw.end();
+      }
+      return reply;
+    },
+  );
+
+  // Notificacao deterministica direta (sem consumo de cota LLM): localiza a
+  // tarefa mais recente da parte e dispara/registra pela Nvoip na sessao.
+  app.post<{ Body: { pedidoId?: unknown; parte?: unknown; campo?: unknown } }>(
+    '/api/notificar',
+    { config: limiteEscrita },
+    async (req, reply) => {
+      const pedidoIdBruto = req.body?.pedidoId;
+      const parteBruta = req.body?.parte;
+      const campoBruto = req.body?.campo;
+      if (typeof pedidoIdBruto !== 'string' || !pedidoIdBruto.trim()) {
+        return reply.code(400).send({ erro: 'pedidoId obrigatório' });
+      }
+      if (typeof parteBruta !== 'string' || !(PARTES as readonly string[]).includes(parteBruta)) {
+        return reply.code(400).send({ erro: `parte inválida; use uma das partes: ${PARTES.join(', ')}` });
+      }
+      if (campoBruto !== undefined && (typeof campoBruto !== 'string' || !(CAMPOS_VIGIADOS as readonly string[]).includes(campoBruto))) {
+        return reply.code(400).send({ erro: `campo inválido; use um dos campos: ${CAMPOS_VIGIADOS.join(', ')}` });
+      }
+      const pedidoId = pedidoIdBruto.trim();
+      const parte = parteBruta as Parte;
+      const campo = campoBruto as CampoVigiado | undefined;
+
+      exigirGravavel(req.workspace, 'enviar notificações');
+      const s = await storeDoPedido(store.paraWorkspace(req.workspace), pedidoId);
+      if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
+      exigirGravavel(s.workspace, 'notificar sobre um pedido de exemplo');
+      await guarda.exigirEspaco();
+
+      const ev = await s.transaction(async (tx) => {
+        await tx.travarPedido(pedidoId);
+        const proj = projetar(await tx.eventosDoPedido(pedidoId));
+        const tarefa =
+          [...proj.tarefas].reverse().find((t) => t.parte === parte && (!campo || t.divergencia.campo === campo)) ?? null;
+        return notificarTarefa(tx, pedidoId, tarefa, { registrarSempre: true, parte });
+      });
+      if (ev) canal.evento(ev, s.workspace);
+      const n = ev?.payload as unknown as Notificacao | undefined;
+      return reply.send({
+        pedidoId,
+        parte,
+        status: n?.status ?? 'nao_entregue',
+        ...(n?.motivo !== undefined ? { motivo: n.motivo } : {}),
+        ...(n?.canal !== undefined && n.canal !== null ? { canal: n.canal } : {}),
+        ...(n?.destino !== undefined && n.destino !== null ? { destino: n.destino } : {}),
+        ...(n?.mensagem ? { mensagem: n.mensagem } : {}),
+      });
     },
   );
 
@@ -375,24 +707,42 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     },
   );
 
-  // View-spec por papel (RF9): LLM gera, servidor valida, padrao
-  // deterministico cobre qualquer falha. Leitura, nunca grava.
-  app.get<{ Params: { id: string }; Querystring: { papel?: string } }>(
+  // View-spec por papel (RF9): v1 (padrao) ou v2 (?v=2, compositor GenUI).
+  // LLM gera/refina, servidor valida, padrao deterministico cobre qualquer falha.
+  app.get<{ Params: { id: string }; Querystring: { papel?: string; v?: string; pergunta?: string } }>(
     '/api/pedidos/:id/view-spec',
     async (req, reply) => {
+      const versao2 = req.query.v === '2';
       const papel = req.query.papel;
-      if (!papel || !(PARTES as readonly string[]).includes(papel)) {
+      if (versao2) {
+        if (papel !== undefined && papel !== '' && papel !== 'operacao' && !(PARTES as readonly string[]).includes(papel)) {
+          return reply.code(400).send({ erro: `papel inválido; use uma das partes: ${PARTES.join(', ')}` });
+        }
+      } else if (!papel || !(PARTES as readonly string[]).includes(papel)) {
         return reply.code(400).send({ erro: `papel inválido; use uma das partes: ${PARTES.join(', ')}` });
       }
       const s = await storeDoPedido(store.paraWorkspace(req.workspace), req.params.id);
       if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
       const proj = projetar(await s.eventosDoPedido(req.params.id));
-      if (!proj.pedido) return reply.send(viewSpecPadrao(papel as Parte));
+      const parteValida = papel && papel !== 'operacao' ? (papel as Parte) : undefined;
+      const pergunta = typeof req.query.pergunta === 'string' && req.query.pergunta.trim() ? req.query.pergunta.trim() : undefined;
+      if (!proj.pedido) {
+        return reply.send(
+          versao2
+            ? comporViewSpecV2Deterministico(proj, { ...(parteValida ? { papel: parteValida } : {}), ...(pergunta ? { pergunta } : {}) })
+            : viewSpecPadrao(papel as Parte),
+        );
+      }
       // Cada GET com LLM ligada e uma chamada paga: cota por IP como no
       // mandato. Sem LLM (ou no padrao acima) a rota nao tem custo e nao
       // conta a janela.
       if (llmConfigDoEnv() && !viewSpecJanela.consumir(ipDoCliente(req))) {
         throw new ErroRequisicao(429, mensagens.muitasVisoes());
+      }
+      if (versao2) {
+        return reply.send(
+          await comporViewSpecV2(proj, { ...(parteValida ? { papel: parteValida } : {}), ...(pergunta ? { pergunta } : {}) }),
+        );
       }
       return reply.send(await gerarViewSpec(proj, papel as Parte));
     },
