@@ -391,6 +391,8 @@ describe('camada ai com PGlite', () => {
     expect(res.alvos).toEqual([chaveSeed]);
     expect(res.resultado['leituraExemplo']).toBe(true);
     expect(res.eventos).toEqual([]);
+    const itemResSeed = (res.resultado['porPedido'] as Array<{ resumo: string }>)[0]!;
+    expect(itemResSeed.resumo).toContain('Fornecedor Seed');
     expect((await seedStore.eventosDoPedido(chaveSeed)).length).toBe(antesSeed);
 
     const sim = await executarMandato(
@@ -402,6 +404,9 @@ describe('camada ai com PGlite', () => {
     expect(sim.alvos).toEqual([chaveSeed]);
     expect(sim.resultado['leituraExemplo']).toBe(true);
     expect(sim.eventos).toEqual([]);
+    const itemSimSeed = (sim.resultado['porPedido'] as Array<{ divergencias: Array<{ valorA: string; valorB: string }> }>)[0]!;
+    expect(itemSimSeed.divergencias).toHaveLength(1);
+    expect(itemSimSeed.divergencias[0]).toMatchObject({ valorA: '2026-01-20', valorB: '2026-01-28' });
     expect((await seedStore.eventosDoPedido(chaveSeed)).length).toBe(antesSeed);
 
     await expect(

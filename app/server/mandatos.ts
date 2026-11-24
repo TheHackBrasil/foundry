@@ -216,11 +216,20 @@ async function resolverAlvos(
   let somenteLeitura = false;
 
   if (alvos.length === 0 && proprios.length === 0 && ehSomenteLeitura(mandato.acao)) {
-    const daSeed = todos.filter((p) => p.workspaceId !== sessao.workspace).map((p) => p.pedidoId);
-    const achadosSeed = await filtrarCandidatos(sessao, daSeed, mandato, f);
-    if (achadosSeed.length > 0) {
-      alvos = achadosSeed;
-      somenteLeitura = true;
+    const daSeed = todos.filter((p) => p.workspaceId !== sessao.workspace);
+    const seedWs = daSeed[0]?.workspaceId;
+    if (seedWs) {
+      const leitorSeed = sessao.paraWorkspace(seedWs);
+      const achadosSeed = await filtrarCandidatos(
+        leitorSeed,
+        daSeed.map((p) => p.pedidoId),
+        mandato,
+        f,
+      );
+      if (achadosSeed.length > 0) {
+        alvos = achadosSeed;
+        somenteLeitura = true;
+      }
     }
   }
 
@@ -445,7 +454,10 @@ export async function executarMandato(
   const eventos: Evento[] = [];
   for (const pedidoId of alvos) {
     if (somenteLeitura) {
-      const parcial = await executarAcao(sessao, pedidoId, mandato, texto);
+      // Le o pedido no workspace dono (seed) sem abrir escrita nem gravar evento.
+      const dono = (await sessao.wsDoPedido(pedidoId)) ?? sessao.workspace;
+      const leitor = dono === sessao.workspace ? sessao : sessao.paraWorkspace(dono);
+      const parcial = await executarAcao(leitor, pedidoId, mandato, texto);
       porPedido.push({ pedidoId, ...parcial.resultado });
       continue;
     }
