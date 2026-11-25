@@ -1,0 +1,241 @@
+/* painel-v2 — especifico do painel de evidencia (spec 0014, THE-16/17).
+   Sobrescreve so o necessario: os blocos que viraram alvo clicavel e o card
+   de leitura detalhada ao vivo. Tokens vem do brandbook (--surface, --text,
+   --change, --ia-r-*) e do escopo .ia-estudio. */
+
+/* Itens que viraram botao sem mudar de cara (campo na linha da matriz e a
+   pilula "Diverge"): o afordance e o sublinhado pontilhado, que vira solido
+   com a leitura aberta. */
+.ia-mini-campo.ev2-alvo,
+.estado.ev2-alvo {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.22em;
+}
+
+.ia-mini-campo.ev2-alvo[aria-pressed='true'],
+.estado.ev2-alvo[aria-pressed='true'],
+.ia-mini-linha[data-foco-linha='true'] .ia-mini-campo.ev2-alvo {
+  text-decoration-style: solid;
+}
+
+/* Secao de foco: o banner ja traz cor e a leitura detalhada fica colada
+   embaixo; a borda inferior do bloco segue separando das demais secoes. */
+.ia-evidencia-bloco[data-alvo] {
+  padding: 0;
+  gap: 0;
+}
+
+.ev2-descricao {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.875rem 1.125rem 1rem;
+}
+
+/* Evidencia concreta do registro: linhas finas com a fonte e a prova. */
+.ev2-provas {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ev2-prova {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.ev2-prova:first-child {
+  padding-top: 0;
+}
+
+.ev2-prova:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.ev2-prova-rotulo {
+  font-size: 0.78125rem;
+  font-weight: 650;
+  color: var(--text2);
+}
+
+.ev2-prova-detalhe {
+  font-size: 0.84375rem;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+/* Botao pequeno do card (detalhar, tentar novamente). */
+.ev2-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  width: fit-content;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--ia-r-pill);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.78125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.ev2-btn svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  flex: none;
+}
+
+.ev2-btn-detalhar {
+  color: var(--change);
+  border-color: color-mix(in srgb, var(--change) 42%, var(--border));
+}
+
+/* Estados honestos da leitura: progresso, vazio e erro. */
+.ev2-progresso {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.84375rem;
+  color: var(--text2);
+}
+
+.ev2-vazio {
+  font-size: 0.84375rem;
+  line-height: 1.5;
+  color: var(--text2);
+}
+
+.ev2-erro {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--error) 35%, var(--border));
+  border-radius: var(--ia-r-sm);
+  background: var(--error-bg);
+}
+
+.ev2-erro-msg {
+  font-size: 0.84375rem;
+  line-height: 1.45;
+  color: var(--error);
+}
+
+/* Blocos GenUI embutidos da ultima resposta: espacamento na coluna. */
+.ev2-agente-blocos {
+  display: grid;
+  gap: 0.875rem;
+}
+
+/* Sinais consultivos: mesma anatomia das partes afetadas. */
+.ev2-sinais {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ev2-sinal-item {
+  position: relative;
+  border-radius: var(--ia-r-sm);
+  transition: background-color 160ms ease;
+}
+
+.ev2-sinal-item[data-foco-ativo='true'] {
+  background: var(--change-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--change) 38%, transparent);
+}
+
+.ev2-sinal {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.625rem 0.6875rem;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ev2-sinal-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ev2-sinal-tipo {
+  font-size: 0.84375rem;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.ev2-sinal-meta {
+  font-size: 0.78125rem;
+  color: var(--text2);
+}
+
+.ev2-sinal-resumo {
+  font-size: 0.84375rem;
+  line-height: 1.45;
+  color: var(--text2);
+}
+
+@media (hover: hover) {
+  .ia-mini-campo.ev2-alvo:hover,
+  .estado.ev2-alvo:hover {
+    color: var(--change);
+  }
+
+  .ev2-btn:hover {
+    background: var(--tint-hover, var(--surface2));
+    border-color: var(--border-strong, var(--border));
+  }
+
+  .ev2-sinal-item:hover {
+    background: var(--surface2);
+  }
+
+  .ev2-sinal-item[data-foco-ativo='true']:hover {
+    background: var(--change-bg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ev2-btn,
+  .ev2-sinal-item {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .ia-mini-campo.ev2-alvo,
+  .estado.ev2-alvo {
+    text-decoration-style: solid;
+  }
+
+  .ev2-btn {
+    border: 1px solid ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+  }
+
+  .ev2-sinal-item[data-foco-ativo='true'] {
+    box-shadow: inset 0 0 0 1px ButtonText;
+  }
+}
