@@ -1,129 +1,130 @@
 {
-  "_leia": "Paths que cada frente pode escrever (D-019 e D-021, specs/0005). Lido por scripts/frente-check.mjs no pre-commit. Path terminado em / vale para a pasta inteira; um * vale dentro de um nome de arquivo e não atravessa a barra. Tudo que não está aqui é da integração, na main.",
-  "frentes": {
-    "app-core": {
-      "brief": "specs/0004-mvp-atraso-propagado/brief-core.md",
-      "paths": [
-        "app/shared/",
-        "app/server/ingest/",
-        "specs/0004-mvp-atraso-propagado/brief-core.md"
-      ]
-    },
-    "app-infra": {
-      "brief": "specs/0004-mvp-atraso-propagado/brief-infra.md",
-      "paths": [
-        "app/server/*.ts",
-        "app/server/db/",
-        "app/contracts/",
-        "app/package.json",
-        "app/package-lock.json",
-        "app/tsconfig*.json",
-        "app/docker-compose.yml",
-        "app/Procfile",
-        "app/app.json",
-        "app/.env.example",
-        "app/deploy/",
-        "specs/0004-mvp-atraso-propagado/brief-infra.md"
-      ]
-    },
-    "site-forseti": {
-      "brief": "specs/0006-identidade-forseti-v4/brief-site-forseti.md",
-      "paths": [
-        "site/",
-        "lp/",
-        "specs/0006-identidade-forseti-v4/brief-site-forseti.md"
-      ]
-    },
-    "app-brand": {
-      "brief": "specs/0006-identidade-forseti-v4/brief-app-brand.md",
-      "paths": [
-        "app/web/",
-        "specs/0006-identidade-forseti-v4/brief-app-brand.md"
-      ]
-    },
-    "escopo-produto": {
-      "brief": "specs/0004-mvp-atraso-propagado/brief-produto.md",
-      "paths": [
-        "app/seed/",
-        "app/README.md",
-        "docs/",
-        "DECISIONS.md",
-        "BACKLOG.md",
-        "RULES.md",
-        "README.md",
-        "specs/0004-mvp-atraso-propagado/roteiro*.md",
-        "specs/0004-mvp-atraso-propagado/brief-produto.md"
-      ]
-    },
-    "hardening": {
-      "brief": "specs/0008-blindagem-publica/brief-hardening.md",
-      "paths": [
-        "app/server/",
-        "app/shared/",
-        "app/web/",
-        "app/contracts/",
-        "app/package.json",
-        "app/package-lock.json",
-        "app/tsconfig.json",
-        "app/vitest.config.ts",
-        "site/src/components/domino/",
-        "site/src/components/stickers/",
-        "site/public/assets/",
-        "specs/0008-blindagem-publica/brief-hardening.md"
-      ]
-    },
-    "ai-ingest": {
-      "brief": "specs/0007-camada-ai-operacional/brief-ai-ingest.md",
-      "paths": [
-        "app/server/ingest/",
-        "app/server/pipeline.ts",
-        "app/server/seed.ts",
-        "app/server/fixtures/",
-        "app/package.json",
-        "app/package-lock.json",
-        "specs/0007-camada-ai-operacional/brief-ai-ingest.md"
-      ]
-    },
-    "ai-mandatos": {
-      "brief": "specs/0007-camada-ai-operacional/brief-ai-mandatos.md",
-      "paths": [
-        "app/server/llm.ts",
-        "app/server/mandatos.ts",
-        "app/server/contatos.ts",
-        "app/server/nvoip.ts",
-        "app/server/sinal.ts",
-        "app/server/viewspec.ts",
-        "app/server/mapeamento.ts",
-        "app/server/index.ts",
-        "app/server/store.ts",
-        "app/server/config.ts",
-        "app/server/protecao.ts",
-        "app/shared/",
-        "app/.env.example",
-        "specs/0007-camada-ai-operacional/brief-ai-mandatos.md"
-      ]
-    },
-    "ai-web": {
-      "brief": "specs/0007-camada-ai-operacional/brief-ai-web.md",
-      "paths": [
-        "app/web/",
-        "specs/0007-camada-ai-operacional/brief-ai-web.md"
-      ]
-    },
-    "app-operacao": {
-      "brief": "specs/0011-modelo-excecao/brief-operacao.md",
-      "paths": [
-        "app/shared/",
-        "app/server/",
-        "app/contracts/",
-        "app/web/src/operacao/",
-        "app/web/src/format.ts",
-        "app/web/src/App.tsx",
-        "app/package.json",
-        "app/package-lock.json",
-        "app/.env.example",
-        "specs/0011-modelo-excecao/"
-      ]
-    }
+ "_leia": "Paths que cada frente pode escrever (D-019 e D-021, specs/0005). Lido por scripts/frente-check.mjs no pre-commit. Path terminado em / vale para a pasta inteira; um * vale dentro de um nome de arquivo e não atravessa a barra. Tudo que não está aqui é da integração, na main.",
+ "frentes": {
+  "app-core": {
+   "brief": "specs/0004-mvp-atraso-propagado/brief-core.md",
+   "paths": [
+    "app/shared/",
+    "app/server/ingest/",
+    "specs/0004-mvp-atraso-propagado/brief-core.md"
+   ]
+  },
+  "app-infra": {
+   "brief": "specs/0004-mvp-atraso-propagado/brief-infra.md",
+   "paths": [
+    "app/server/*.ts",
+    "app/server/db/",
+    "app/contracts/",
+    "app/package.json",
+    "app/package-lock.json",
+    "app/tsconfig*.json",
+    "app/docker-compose.yml",
+    "app/Procfile",
+    "app/app.json",
+    "app/.env.example",
+    "app/deploy/",
+    "specs/0004-mvp-atraso-propagado/brief-infra.md"
+   ]
+  },
+  "site-forseti": {
+   "brief": "specs/0006-identidade-forseti-v4/brief-site-forseti.md",
+   "paths": [
+    "site/",
+    "lp/",
+    "specs/0006-identidade-forseti-v4/brief-site-forseti.md"
+   ]
+  },
+  "app-brand": {
+   "brief": "specs/0006-identidade-forseti-v4/brief-app-brand.md",
+   "paths": [
+    "app/web/",
+    "specs/0006-identidade-forseti-v4/brief-app-brand.md"
+   ]
+  },
+  "escopo-produto": {
+   "brief": "specs/0004-mvp-atraso-propagado/brief-produto.md",
+   "paths": [
+    "app/seed/",
+    "app/README.md",
+    "docs/",
+    "DECISIONS.md",
+    "BACKLOG.md",
+    "RULES.md",
+    "README.md",
+    "specs/0004-mvp-atraso-propagado/roteiro*.md",
+    "specs/0004-mvp-atraso-propagado/brief-produto.md"
+   ]
+  },
+  "hardening": {
+   "brief": "specs/0008-blindagem-publica/brief-hardening.md",
+   "paths": [
+    "app/server/",
+    "app/shared/",
+    "app/web/",
+    "app/contracts/",
+    "app/package.json",
+    "app/package-lock.json",
+    "app/tsconfig.json",
+    "app/vitest.config.ts",
+    "site/src/components/domino/",
+    "site/src/components/stickers/",
+    "site/public/assets/",
+    "specs/0008-blindagem-publica/brief-hardening.md"
+   ]
+  },
+  "ai-ingest": {
+   "brief": "specs/0007-camada-ai-operacional/brief-ai-ingest.md",
+   "paths": [
+    "app/server/ingest/",
+    "app/server/pipeline.ts",
+    "app/server/seed.ts",
+    "app/server/fixtures/",
+    "app/package.json",
+    "app/package-lock.json",
+    "specs/0007-camada-ai-operacional/brief-ai-ingest.md"
+   ]
+  },
+  "ai-mandatos": {
+   "brief": "specs/0007-camada-ai-operacional/brief-ai-mandatos.md",
+   "paths": [
+    "app/server/llm.ts",
+    "app/server/mandatos.ts",
+    "app/server/contatos.ts",
+    "app/server/nvoip.ts",
+    "app/server/sinal.ts",
+    "app/server/viewspec.ts",
+    "app/server/mapeamento.ts",
+    "app/server/index.ts",
+    "app/server/store.ts",
+    "app/server/config.ts",
+    "app/server/protecao.ts",
+    "app/shared/",
+    "app/.env.example",
+    "specs/0007-camada-ai-operacional/brief-ai-mandatos.md"
+   ]
+  },
+  "ai-web": {
+   "brief": "specs/0007-camada-ai-operacional/brief-ai-web.md",
+   "paths": [
+    "app/web/",
+    "specs/0007-camada-ai-operacional/brief-ai-web.md"
+   ]
+  },
+  "app-operacao": {
+   "brief": "specs/0011-modelo-excecao/brief-operacao.md",
+   "paths": [
+    "app/shared/",
+    "app/server/",
+    "app/contracts/",
+    "app/web/src/operacao/",
+    "app/web/src/format.ts",
+    "app/web/src/App.tsx",
+    "app/web/src/useTorre.ts",
+    "app/package.json",
+    "app/package-lock.json",
+    "app/.env.example",
+    "specs/0011-modelo-excecao/"
+   ]
   }
+ }
 }
