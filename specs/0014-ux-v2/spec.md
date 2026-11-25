@@ -1,6 +1,6 @@
 # Spec 0014: UX v2 (torre em tiling, painel de evidencia, menu wiki, grafo limpo)
 
-Status: rascunho (frentes em execucao)
+Status: implementada
 Data: 2026-11-24
 Issues: THE-15 a THE-20 (projeto Linear "Forseti v2")
 Precede o video do produto (THE-8, prazo 30/11): a UI precisa estar pronta primeiro.
