@@ -210,6 +210,16 @@ describe('templates custom', () => {
     const lidas = lerTemplatesCustom(storage);
     expect(lidas.map((t) => t.nome)).toEqual(['Boa']);
   });
+
+  it('ordem parcial lida do storage preserva os ocultos ao reaplicar', () => {
+    const { storage } = storageFake();
+    guardarTemplatesCustom([{ id: 'vp', nome: 'Parcial', ordem: ['matriz', 'sinais'], custom: true }], storage);
+    const lida = lerTemplatesCustom(storage)[0]!;
+    // A ordem do template é a lista de visíveis: reaplicar deve esconder o
+    // resto (antes, normalizarOrdem anexava tudo e a vista não ocultava nada).
+    expect(lida.ordem).toEqual(['matriz', 'sinais']);
+    expect(aplicarTemplate(lida).ocultos).toHaveLength(CARD_IDS.length - 2);
+  });
 });
 
 // ---------- V1: chip ativo ignora spans do usuário (spec 0015, bug D-T5) ----------

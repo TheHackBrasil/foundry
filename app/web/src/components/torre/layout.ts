@@ -255,7 +255,10 @@ export function lerTemplatesCustom(
         continue;
       }
       const spans = normalizarSpans(t.spans);
-      saida.push({ id: t.id, nome: t.nome, ordem: normalizarOrdem(t.ordem), custom: true, ...(spans ? { spans } : {}) });
+      // filtrarValidos, não normalizarOrdem: a ordem do template é a lista de
+      // visíveis; anexar os faltantes aqui apagaria os ocultos da vista salva
+      // (reaplicar depois do reload mostrava todos os cards).
+      saida.push({ id: t.id, nome: t.nome, ordem: filtrarValidos(t.ordem), custom: true, ...(spans ? { spans } : {}) });
     }
     return saida;
   } catch {
