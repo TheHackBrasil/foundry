@@ -117,6 +117,7 @@
         "app/server/",
         "app/contracts/",
         "app/web/src/operacao/",
+        "app/web/src/format.ts",
         "app/web/src/App.tsx",
         "app/package.json",
         "app/package-lock.json",
