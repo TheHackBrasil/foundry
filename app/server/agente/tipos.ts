@@ -20,6 +20,14 @@ export interface ContextoTools {
   // Pergunta original do usuario: alimenta o evento 'mandato' das escritas,
   // a mesma intencao que o fluxo classico registra (A10).
   texto?: string;
+  // Abort do cliente na rota SSE: tools que ainda nao iniciaram recusam
+  // com 'abortado'; uma escrita ja em voo conclui (nao ha como desfazer
+  // um envio real), mas nenhuma chamada nova sai depois do ponto de
+  // nao-retorno.
+  signal?: AbortSignal;
+  // pedidoId -> workspaceId de cada resolucao bem sucedida: evita o
+  // roundtrip wsDoPedido no compositor GenUI do fim do turno.
+  wsDePedidos?: Map<string, string>;
 }
 
 export interface ResultadoTool {

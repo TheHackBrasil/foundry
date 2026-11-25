@@ -83,3 +83,14 @@ export const PROP_PEDIDO = {
 
 export const ENUM_CAMPO = { type: 'string', enum: [...CAMPOS_VIGIADOS] } as const;
 export const ENUM_PARTE = { type: 'string', enum: [...PARTES] } as const;
+
+// O destino real do contato (telefone, e-mail) nao sai no contexto da
+// LLM nem no payload 'fim' do navegador: a agenda e confirmacao interna
+// e qualquer visitante pediria os telefones da demo de graca. O rabo
+// identifica a linha sem expor o numero.
+export function destinoParcial(destino: string): string {
+  const arroba = destino.indexOf('@');
+  if (arroba > 0) return `…@${destino.slice(arroba + 1)}`;
+  const digitos = destino.replace(/\D/g, '');
+  return digitos.length >= 4 ? `…${digitos.slice(-4)}` : '…';
+}

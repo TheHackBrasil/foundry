@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "MVP da camada de coordenacao (spec 0004): ledger append-only + divergencia + propagacao por parte",
+  "engines": {
+    "node": ">=20.3.0"
+  },
   "scripts": {
     "dev": "tsx watch server/index.ts",
     "dev:all": "npm run dev & npm --prefix web run dev",

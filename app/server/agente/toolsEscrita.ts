@@ -6,7 +6,7 @@
 
 import { divergenciasDaNovaFonte } from '../../shared/divergence.js';
 import { type CampoVigiado, type Divergencia, type Evento, type Notificacao, type Parte } from '../../shared/model.js';
-import { camposPorFonte, projetar } from '../../shared/projection.js';
+import { camposPorFonte } from '../../shared/projection.js';
 import { propagarTodas } from '../../shared/rules.js';
 import { canalCompativel, notificarTarefa } from '../nvoip.js';
 import { pedidoDaTool, recusaSeedSomenteLeitura } from './resolvedor.js';
@@ -18,6 +18,7 @@ import {
   ROTULO_PARTE,
   campoOpcional,
   definirTool,
+  destinoParcial,
   exigirObjeto,
   exigirParte,
   textoOpcional,
@@ -59,7 +60,7 @@ export const TOOLS_ESCRITA: ToolAgente[] = [
                 via: 'deterministico',
               }
             : null,
-          contato: contato ? { nome: contato.nome, canal: contato.canal, destino: contato.destino } : null,
+          contato: contato ? { nome: contato.nome, canal: contato.canal, destino: destinoParcial(contato.destino) } : null,
           podeEnviar,
           ...(motivoBloqueio ? { motivoBloqueio } : {}),
         },
@@ -96,10 +97,13 @@ export const TOOLS_ESCRITA: ToolAgente[] = [
       if (workspaceId === ctx.seedWs) {
         return recusaSeedSomenteLeitura({ pedidoId, parte: args.parte, blocos: ['cartoes_despacho'] });
       }
+      // Tarefa projetada fora do lock: textoParaTarefa (LLM) e o POST da
+      // provedora ja ocupam a transacao tempo demais para carregar tambem
+      // a leitura+projecao do pedido (a projecao resolvida ja veio da
+      // tool). A tx segura o lock so para a sequencia enviar->registrar.
+      const tarefa = [...r.resolvido.projecao.tarefas].reverse().find((t) => t.parte === args.parte) ?? null;
       const exec = await ctx.sessao.transaction(async (tx) => {
         await tx.travarPedido(pedidoId);
-        const proj = projetar(await tx.eventosDoPedido(pedidoId));
-        const tarefa = [...proj.tarefas].reverse().find((t) => t.parte === args.parte) ?? null;
         const ev = await notificarTarefa(tx, pedidoId, tarefa, { registrarSempre: true, parte: args.parte });
         const n = ev?.payload as unknown as Notificacao | undefined;
         const gravados: Evento[] = ev ? [ev] : [];

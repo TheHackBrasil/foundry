@@ -96,6 +96,7 @@ export async function pedidoDaTool(ctx: ContextoTools, ref: string | undefined):
       ),
     };
   }
+  ctx.wsDePedidos?.set(t.pedido.pedidoId, t.pedido.workspaceId);
   return { resolvido: t.pedido };
 }
 

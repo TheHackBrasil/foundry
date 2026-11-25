@@ -31,6 +31,10 @@ const MAX_ITERACOES = 6;
 const MAX_TURNOS_HISTORICO = 10;
 const MAX_TEXTO_TURNO = 1_200;
 const MAX_PERGUNTA = 4_000;
+// Teto da saida de tool serializada que entra no contexto a cada
+// iteracao do loop: um pedido com muitos eventos produziria dezenas
+// de KB por role:tool, custo de token e degradacao de contexto.
+const MAX_SAIDA_TOOL = 8_000;
 
 // System prompt do copiloto (RF13): direto, sem jargao de contrato; a regra
 // de ouro e consultar as ferramentas antes de afirmar fato de pedido, e a
@@ -148,6 +152,8 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
     store: op.store,
     seedWs: op.seedWs,
     texto: op.pergunta.slice(0, MAX_PERGUNTA),
+    wsDePedidos: new Map<string, string>(),
+    ...(op.signal ? { signal: op.signal } : {}),
     ...(op.pedidoId ? { pedidoIdPadrao: op.pedidoId } : {}),
   };
   const schemas: DefinicaoToolLlm[] = TOOLS_AGENTE.map((t) => ({
@@ -197,8 +203,25 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
       })),
     });
 
+    const vistas = new Set<string>();
     const resultados = await Promise.all(
       resposta.toolCalls.map(async (tc: ChamadaToolLlm) => {
+        // O modelo pode emitir duas chamadas identicas no mesmo turno; a
+        // segunda seria efeito duplo no mundo (dois avisos, dois eventos
+        // de propagacao). Dedup por nome+argumentos: a copia devolve erro
+        // estruturado em vez de executar de novo.
+        const chaveDup = `${tc.nome}:${JSON.stringify(tc.argumentos)}`;
+        if (vistas.has(chaveDup)) {
+          return {
+            tc,
+            r: {
+              ok: false,
+              dados: { erro: 'chamada_duplicada', mensagem: 'Chamada idêntica já executada neste turno; o resultado anterior vale.' },
+              resumo: `Chamada duplicada ignorada: ${tc.nome}`,
+            } as ResultadoTool,
+          };
+        }
+        vistas.add(chaveDup);
         emitir({ tipo: 'tool', nome: tc.nome, resumo: 'Executando…', status: 'executando' });
         let r: ResultadoTool;
         try {
@@ -222,11 +245,12 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
       // e-mail, emitente, resumo de sinal): vai ao contexto dentro da
       // chave "evidencia" para a LLM tratar como dado citado, nao como
       // instrucao (revisao da onda 2: injecao via conteudo externo).
+      const conteudo = JSON.stringify({ evidencia: r.dados });
       mensagens.push({
         role: 'tool',
         tool_call_id: tc.id,
         name: tc.nome,
-        content: JSON.stringify({ evidencia: r.dados }),
+        content: conteudo.length <= MAX_SAIDA_TOOL ? conteudo : `${conteudo.slice(0, MAX_SAIDA_TOOL)} [SAIDA TRUNCADA]`,
       });
       toolsExecutadas.push({ nome: tc.nome, resumo: r.resumo, status: r.ok ? 'concluida' : 'erro' });
       if (r.pedidoIdResolvido) {
@@ -269,7 +293,9 @@ export async function executarAgente(op: OpcoesAgente): Promise<SaidaAgente> {
   // blocos saem por evento.
   let viewSpec: ViewSpecV2 | undefined;
   if (pedidoIdResolvido && blocosSugeridos.size > 0) {
-    const dono = await op.sessao.wsDoPedido(pedidoIdResolvido);
+    // O resolvedor anotou o workspace do pedido no mapa do contexto;
+    // wsDoPedido fica como recuo para resolucao fora do caminho comum.
+    const dono = ctx.wsDePedidos?.get(pedidoIdResolvido) ?? (await op.sessao.wsDoPedido(pedidoIdResolvido));
     const leitor = dono === null ? null : dono === op.sessao.workspace ? op.sessao : op.sessao.paraWorkspace(dono);
     if (leitor) {
       const proj = projetar(await leitor.eventosDoPedido(pedidoIdResolvido));

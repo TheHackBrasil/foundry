@@ -59,7 +59,9 @@ export const mensagens = {
 };
 
 // Contador de janela fixa por chave (IP). Serve para o que o @fastify/rate-limit
-// nao enxerga por rota, como o PDF dentro de um .eml.
+// nao enxerga por rota, como o PDF dentro de um .eml. Estado em memoria: a
+// contagem vale por processo, nao por deploy; com mais de uma replica o
+// limite efetivo multiplica.
 export class JanelaFixa {
   private contagens = new Map<string, { inicio: number; n: number }>();
 

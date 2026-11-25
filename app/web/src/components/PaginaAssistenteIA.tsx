@@ -426,7 +426,16 @@ export function PaginaAssistenteIA({
         erro: null,
       };
       const historicoConversa = montarHistoricoConversa(turnosRef.current);
-      setTurnos((prev) => [...prev, novoTurno]);
+      // O snapshot de projecao por turno fica so nos mais recentes: a
+      // copia pesa e o diff "antes/depois" so faz sentido no contexto
+      // fresco da conversa.
+      setTurnos((prev) => [
+        ...prev.map((t, i) =>
+          t.projecaoSnapshot !== null && i < prev.length - 3
+            ? { ...t, projecaoSnapshot: null }
+            : t),
+        novoTurno,
+      ]);
 
       const lidarEvento = (ev: EventoStreamMandato) => {
         if (controller.signal.aborted) return;

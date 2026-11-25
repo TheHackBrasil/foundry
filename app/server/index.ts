@@ -109,6 +109,9 @@ function validarCorpoMandato(body: { texto?: unknown; pedidoId?: unknown } | und
   if (pidBruto !== undefined && pidBruto !== null && typeof pidBruto !== 'string') {
     throw new ErroRequisicao(400, 'pedidoId inválido');
   }
+  if (typeof pidBruto === 'string' && pidBruto.length > 120) {
+    throw new ErroRequisicao(400, 'pedidoId é longo demais');
+  }
   const pedidoId = typeof pidBruto === 'string' && pidBruto.trim() ? pidBruto.trim() : undefined;
   return pedidoId ? { texto, pedidoId } : { texto };
 }
@@ -129,6 +132,9 @@ function validarCorpoConversa(
   const pidBruto = body?.pedidoId;
   if (pidBruto !== undefined && pidBruto !== null && typeof pidBruto !== 'string') {
     throw new ErroRequisicao(400, 'pedidoId inválido');
+  }
+  if (typeof pidBruto === 'string' && pidBruto.length > 120) {
+    throw new ErroRequisicao(400, 'pedidoId é longo demais');
   }
   const pedidoId = typeof pidBruto === 'string' && pidBruto.trim() ? pidBruto.trim() : undefined;
   const histBruto = body?.historico;

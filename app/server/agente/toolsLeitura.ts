@@ -23,6 +23,7 @@ import {
   ROTULO_PARTE,
   campoOpcional,
   definirTool,
+  destinoParcial,
   exigirObjeto,
   exigirPartes,
   textoOpcional,
@@ -245,7 +246,7 @@ export const TOOLS_LEITURA: ToolAgente[] = [
           tarefas: proj.tarefas
             .filter((t) => t.parte === parte)
             .map((t) => ({ titulo: t.titulo, detalhe: t.detalhe, campo: t.divergencia.campo })),
-          contato: contato ? { nome: contato.nome, canal: contato.canal, destino: contato.destino } : null,
+          contato: contato ? { nome: contato.nome, canal: contato.canal, destino: destinoParcial(contato.destino) } : null,
         });
       }
       const parteFoco = args.partes[0];

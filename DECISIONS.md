@@ -68,6 +68,10 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-042 | 23/11 | Novas frentes `hardening` (spec 0008, dona de `app/` e três paths de `site/`), `ai-ingest`, `ai-mandatos` e `ai-web` (reservada, só contrato `view-spec`) em `speckit/frentes.json`. Ordem dura: a 0008 integra inteira antes das frentes da 0007 | decidido | A blindagem corrige a base que a camada AI vai usar (lock de idempotência, helper doc->tarefas, `ItemRevisao`); `ai-web` fica sem código porque a renderização do `view-spec` é do usuário com outro agente |
 | D-043 | 23/11 | `wt/hardening` integrada na `main` após revisão independente ("aprova com ressalva", nada bloqueando). Na integração: `smoke.mjs` corrigido para a fila sem `workspace_id` (D-H7 do brief); `propagar` ganhou guarda `Object.hasOwn` porque `REGRAS_PROPAGACAO[d.campo]` resolvia membros de `Object.prototype` vindos do body de `/api/simulate` (mesma classe de bug do RF3, lado do servidor); `aprovarRevisao` passou a checar `eventoExiste` na mesma transação (dois itens irmãos aprovados não gravam o documento duas vezes). Restantes achados do reviewer viraram itens 20 a 23 do `BACKLOG.md` | decidido | O guard e a dedupe são a mesma classe de correção que a própria spec pediu; fazer fora deixaria o padrão conhecido vivo numa rota pública |
 | D-044 | 23/11 | `wt/ai-mandatos` e `wt/ai-ingest` integradas na `main`, as duas após revisão independente com rodada de correção. O reviewer de mandatos achou um bloqueio real: `executarMandato` lia `eventoExiste` antes do advisory lock (a mesma corrida que a spec 0008 corrigiu no pipeline); `travarPedido` agora abre a transação por pedido. Também corrigidos na rodada: guard de tipo/`Object.hasOwn` em `aplicarMapeamento`, `JanelaFixa` por IP na rota `view-spec`, testes dos três motivos restantes de `nao_entregue`, `{"texto":123}` como 400 e `notificarTarefa` que nunca lança. Na ingest: `exigirCabe` na revisão do xlsx e o teste do diretório central mentiroso (a defesa real é o `resourceLimits` do worker). Decisões das frentes em D-043 a D-058 do `brief-ai-mandatos.md` e D-G1 a D-G4 do `brief-ai-ingest.md`; follow-ups conscientes nos itens 25 do `BACKLOG.md` | decidido | Revisão independente pegou o padrão de corrida no código novo antes do juiz; a frente `ai-web` segue reservada (T150), renderização do `view-spec` é do usuário |
+| D-045 | 24/11 | GenUI v2 (retroativo, sessão 17): `ViewSpecV2` com blocos tipados renderizados por `PalcoGenUI`, stream SSE `/api/mandatos/stream` com eventos `etapa`/`tool`/`texto_delta`/`bloco`/`fim`, `/api/notificar` determinístico e motor de shaders WebGL/GLSL próprio em `web/src/shaders/` | decidido por Thiago | Onda 2 implementada por Thiago com outro agente; registro entrou depois porque a sessão não passou pelo fluxo de frentes |
+| D-046 | 24/11 | Spec 0009 implementada (retroativo, sessão 17): agente conversacional ReAct em `app/server/agente/` com 9 tools internas (leitura e escrita), multi-turn com histórico por sessão, streaming token a token, recuperação de erro de tool e seed somente leitura | decidido por Thiago | A conversa é o formato que o juiz espera de "AI"; as tools leem e escrevem pelo motor determinístico, mantendo o ledger como única verdade |
+| D-047 | 24/11 | Correção dos dois P1 da revisão da onda 2: saída de tool viaja dentro da chave `evidencia` e o system prompt a trata como dado citado (injeção cross-visitante); match aproximado de pedido exige 4+ caracteres e `endsWith`, com `pedido_ambiguo` listando candidatos (escrita no pedido errado) | decidido | Achados bloqueantes do reviewer independente; corrigidos e deployados na sessão 17 |
+| D-048 | 24/11 | P2/P3 da revisão da onda 2 corrigidos: saída de tool no contexto limitada a 8k caracteres; tools novas recusadas quando o cliente aborta (escrita em voo conclui, decisão documentada); `destino` de contato mascarado em contexto e no payload `fim`; chamada de tool idêntica no mesmo turno devolve `chamada_duplicada`; `max_completion_tokens` nas chamadas do agente; `parseEventoStream` valida shape de `ev.bloco`; helpers `codigoCurtoPedido`/`alvoIgual` deduplicados; lock de `enviar_notificacao` encurtado (projeção fora da tx); `JanelaFixa` documentado como por processo; `engines.node >=20.3` (AbortSignal.any) | decidido | Rodada de fechamento da revisão; cada item saiu do relatório do reviewer, não de iniciativa nova |
 
 ## Pendências
 
@@ -446,3 +450,40 @@ foi verificado ao vivo em produção em 24/11.
   BACKLOG reconciliado: itens 19, 26 e 35 entregues pela onda 2
   (GrafoDomino+SimuladorVivo, `useVoz`+`VisualizadorVoz` na barra,
   reforma craft) e movidos para Feito.
+
+### Sessão 18: rodada de fechamento da revisão da onda 2 (24/11)
+
+- Implementados os P2/P3 que a sessão 17 mandou para o BACKLOG item
+  36 (D-048), todos saídos do relatório do reviewer:
+- `motor.ts`: saída serializada de tool limitada a 8.000 caracteres
+  com sufixo `[SAIDA TRUNCADA]`; a segunda chamada idêntica no mesmo
+  turno devolve erro estruturado `chamada_duplicada` em vez de
+  executar duas vezes (duas `enviar_notificacao` iguais disparavam
+  dois envios); o contexto das tools agora carrega `signal` do
+  cliente e o mapa `pedidoId -> workspaceId` resolvido no turno.
+- `ferramentas.ts`: `executarTool` recusa com `abortado` quando
+  `ctx.signal.aborted`, então nenhuma tool nova começa depois da
+  desconexão do cliente; escrita já em voo conclui, decisão
+  documentada no código.
+- `toolsLeitura.ts`/`toolsEscrita.ts`: `destino` de contato sai
+  mascarado por `destinoParcial` tanto no contexto da LLM quanto no
+  payload `fim`; `enviar_notificacao` projeta a tarefa fora do lock
+  (a tx segura o advisory só para enviar->registrar).
+- `llm.ts`: `OpcoesChatAgente.maxTokens` com `MAX_TOKENS_PADRAO` de
+  1.500 como `max_completion_tokens` nas chamadas do agente.
+- `apiOps.ts`: `parseEventoStream` passa a validar shape de
+  `ev.bloco` (objeto com `tipo` string e `partes` em lista) antes de
+  devolver; evento malformado não derruba a trilha.
+- `index.ts`: `pedidoId` no corpo limitado a 120 caracteres nas
+  duas rotas que aceitam o campo.
+- `EvidenciaLateralIA.tsx`: `codigoCurtoPedido` e `alvoIgual` locais
+  removidos, agora importados de `assistente/conversaUtils.ts` e
+  `genui/helpers.ts`; `PaginaAssistenteIA.tsx` mantém snapshot de
+  projeção só nos três turnos mais recentes.
+- `protecao.ts`: `JanelaFixa` documentado como contagem por
+  processo (com réplicas, o limite efetivo multiplica);
+  `package.json` declara `engines.node >=20.3` por causa de
+  `AbortSignal.any` em `llm.ts`.
+- Gates: `tsc --noEmit` limpo; 87 testes de servidor e 74 de web
+  verdes; `repo-guard` e `prose-evals` ok. BACKLOG item 36 movido
+  para Feito.

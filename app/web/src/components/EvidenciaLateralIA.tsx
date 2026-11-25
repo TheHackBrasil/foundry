@@ -6,7 +6,6 @@ import {
   type ProjecaoPedido,
 } from '../../../shared/model.ts';
 import {
-  chaveCurta,
   formatarConfianca,
   formatarMomento,
   formatarValor,
@@ -26,6 +25,8 @@ import {
 import { movimentoReduzidoAgora } from '../shaders/index.ts';
 import type { FasePresenca } from '../usePresencaAnimada.ts';
 import type { Carga } from '../useTorre.ts';
+import { codigoCurtoPedido } from './assistente/conversaUtils.ts';
+import { alvoIgual } from './genui/helpers.ts';
 import {
   IconeConfere,
   IconeDiverge,
@@ -46,31 +47,6 @@ export interface EvidenciaLateralIAProps {
   aoFechar?: () => void;
   ehGaveta?: boolean;
   faseGaveta?: FasePresenca;
-}
-
-function codigoCurtoPedido(id: string): string {
-  return /^\d{44}$/.test(id) ? id.slice(-6) : chaveCurta(id);
-}
-
-function alvoIgual(a: AlvoFocoGenUI | null, b: AlvoFocoGenUI | null): boolean {
-  if (!a || !b || a.tipo !== b.tipo) return false;
-  switch (a.tipo) {
-    case 'celula':
-      return b.tipo === 'celula' && a.campo === b.campo && a.fonte === b.fonte;
-    case 'divergencia':
-      return (
-        b.tipo === 'divergencia' &&
-        a.campo === b.campo &&
-        a.fonteA === b.fonteA &&
-        a.fonteB === b.fonteB
-      );
-    case 'parte':
-      return b.tipo === 'parte' && a.parte === b.parte;
-    case 'versao':
-      return b.tipo === 'versao' && a.versao === b.versao;
-    case 'sinal':
-      return b.tipo === 'sinal' && a.indice === b.indice;
-  }
 }
 
 function celulaNoFoco(campo: CampoVigiado, celula: Celula, foco: AlvoFocoGenUI | null): boolean {

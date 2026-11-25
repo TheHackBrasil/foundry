@@ -102,7 +102,15 @@ function parseEventoStream(bruto: string): EventoStreamMandato | null {
   }
   if (!ehObjeto(parsed) || typeof parsed['tipo'] !== 'string') return null;
   const tipo = parsed['tipo'];
-  if (tipo === 'etapa' || tipo === 'bloco' || tipo === 'concluido' || tipo === 'erro') {
+  if (tipo === 'bloco') {
+    // O bloco vai direto para o render do Palco: shape minimo exigido
+    // (tipo conhecido + partes em lista) para um evento malformado nao
+    // derrubar a trilha inteira.
+    const bloco = parsed['bloco'];
+    if (!ehObjeto(bloco) || typeof bloco['tipo'] !== 'string' || !Array.isArray(bloco['partes'])) return null;
+    return parsed as unknown as EventoStreamMandato;
+  }
+  if (tipo === 'etapa' || tipo === 'concluido' || tipo === 'erro') {
     return parsed as unknown as EventoStreamMandato;
   }
   if (tipo === 'tool') {

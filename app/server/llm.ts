@@ -26,6 +26,10 @@ export class ErroLlm extends Error {
   }
 }
 
+// Teto de tokens da resposta nas chamadas do agente: texto final sem
+// limite ia inteiro para resumo/respostaCompat e para a thread.
+const MAX_TOKENS_PADRAO = 1_500;
+
 type Ambiente = Record<string, string | undefined>;
 
 function inteiroOuPadrao(env: string | undefined, padrao: number): number {
@@ -159,6 +163,7 @@ export interface OpcoesChatAgente {
   cfg?: LlmConfig | null; // default: llmConfigDoEnv()
   modelo?: string; // sobrescreve cfg.modelo quando presente
   temperatura?: number;
+  maxTokens?: number; // teto de saida; sem ele, MAX_TOKENS_PADRAO
   signal?: AbortSignal;
   onDelta?: (delta: string) => void;
 }
@@ -305,6 +310,9 @@ export async function chatComTools(
       : {}),
     ...(opcoes.modelo ? { model: opcoes.modelo } : {}),
     ...(opcoes.temperatura !== undefined ? { temperature: opcoes.temperatura } : {}),
+    // Resposta final sem teto ia inteira para resumo/respostaCompat e
+    // para o render da thread: capa custo e tela com um default.
+    max_completion_tokens: opcoes.maxTokens ?? MAX_TOKENS_PADRAO,
   };
 
   let resp: Response;

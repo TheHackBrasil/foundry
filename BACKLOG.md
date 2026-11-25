@@ -30,7 +30,6 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 | 32 | Pesquisa extensa: mapear as maiores e mais usadas transportadoras por setor logístico do Brasil (rodoviário carga fracionada/lotacao, last-mile, courier, aéreo, químico/granel, frio) e produzir a lista-alvo com cobertura real do mercado antes de qualquer scraping | todo | pedido do usuário 24/11; alimenta o item 33 |
 | 33 | Fonte externa de rastreio: scraping das páginas públicas de status das transportadoras da lista (item 32) via regex/parser e, onde a página for dinâmica ou mudar muito, Firecrawl; polling de tempos em tempos consultando o status da entrega e exibindo no painel como fonte consultiva (página pública = a versão da transportadora, entra na tese de reconciliação) | todo | pedido do usuário 24/11; exige spec própria: rastreabilidade da extração, fallback quando o layout muda, intervalo de polling, custo Firecrawl |
 | 34 | Cadastrar Resend (conta, domínio de envio, API key) para destravar o item 27; ação externa do usuário | todo | pedido do usuário 24/11; bloqueia 27 |
-| 36 | P2/P3 da revisão da onda 2: teto de tamanho na saída de tool que entra no contexto; abort do cliente não alcança tools em voo (decisão explícita: propagar signal ou documentar que escrita em voo conclui); telefones da agenda expostos no contexto LLM e no payload `fim`; duas `enviar_notificacao` idênticas no mesmo turno disparam dois envios; `chatComTools` sem `max_completion_tokens`; `parseEventoStream` aceita `ev.bloco` sem validar shape; dedup `codigoCurtoPedido`/`alvoIgual` | todo | achados do reviewer de 24/11; P1s corrigidos na sessão 17 |
 
 | 4 | Publicar `slides/` do deck de descoberta Enviagora | todo | arquivos já portados; subir no mesmo deploy |
 | 6 | Capítulo pós-call Enviagora no diário | blocked | call remarcada sem data: escrever só com resultado real |
@@ -48,6 +47,7 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 | 13 | Responder 413 (não 422) em upload acima do limite | 2026-11-23 |
 | 24 | Blindagem pública (spec 0008): auditorias corrigidas, review aprovado, redeploy com smoke 11/11 | 2026-11-23 |
 | 19 | "Cadeia viva": GrafoDomino + SimuladorVivo entregues como blocos GenUI na onda 2 (D-045); twin 3D segue fora (plano-mvp) | 2026-11-24 |
+| 36 | P2/P3 da revisão da onda 2 corrigidos (D-048): teto de 8k na saída de tool no contexto, tools novas recusadas após abort, `destino` mascarado em contexto e payload `fim`, dedup de chamada idêntica no turno, `max_completion_tokens`, shape de `ev.bloco`, helpers deduplicados | 2026-11-24 |
 | 26 | Voz -> mandato: `useVoz` (Web Speech, pt-BR) + `VisualizadorVoz` ligados na `BarraMandatos`; limitação conhecida: SpeechRecognition depende do serviço de nuvem do Chrome | 2026-11-24 |
 | 35 | Retrabalho visual do front `ai-web`: absorvido pela reforma craft da onda 2 (materialidade mineral/papel, tipografia editorial, motion 60fps, anti-slop) | 2026-11-24 |
 | 7 | Escopo do MVP fechado: atraso propagado (`specs/0004`, D-015 a D-018) | 2026-11-20 |

@@ -18,6 +18,11 @@ export { resolverPedido, type PedidoResolvido } from './resolvedor.js';
 export const TOOLS_AGENTE: ToolAgente[] = [...TOOLS_LEITURA, ...TOOLS_ESCRITA];
 
 export async function executarTool(ctx: ContextoTools, nome: string, argsBrutos: unknown): Promise<ResultadoTool> {
+  // Cliente desconectou ou o turno foi abortado: a fila nao inicia novas
+  // tools (em especial as de escrita, cujo efeito nao volta atras).
+  if (ctx.signal?.aborted) {
+    return erro('abortado', 'O pedido foi cancelado.', 'Cancelado');
+  }
   const tool = TOOLS_AGENTE.find((t) => t.nome === nome);
   if (!tool) {
     return erro(
