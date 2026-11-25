@@ -516,3 +516,14 @@ foi verificado ao vivo em produção em 24/11.
   THE-21 estende o motor ReAct da 0009, nao e agente novo).
 - Spec 0014 + frentes v2-torre/v2-painel/v2-menu registradas; tres
   implementadores em worktrees disjuntas, integracao fia `App.tsx`.
+
+- Integracao das frentes v2 na main (merge limpo, arquivos disjuntos):
+  v2-torre (THE-15 arestas sob demanda, THE-18 tiling FLIP com drag por
+  pointer e teclado, THE-19 vistas por template), v2-menu (THE-20 rail
+  mini-Wikipedia com agenda e revisao fiadas aos drawers reais) e
+  v2-painel (THE-16 painel que deriva secoes do contexto + micro-blocos
+  GenUI, THE-17 mini-descricao ao vivo via SSE do agente com cache por
+  alvo). Icones novos fundidos em components/icones.tsx; classes orfas
+  do split antigo removidas de styles.css; decisoes das frentes em D-T1
+  a D-T6, D-M1 a D-M7 e D-P1 a D-P8 dos briefs da spec 0014. Gates na
+  main integrada: tsc limpo, 143/143 testes web, vite build, guard 11/11.
