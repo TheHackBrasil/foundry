@@ -14,6 +14,7 @@ Documentos vivos da investigação do time. Ordem sugerida de leitura:
 | `escopo-mvp.html` + `escopo-mvp.pdf` | Recorte do MVP proposto em 20/11: o que entra, o que fica fora, prioridade (P0/P1/P2), esforço e justificativa por camada. Proposta anterior à spec 0004 e ao `plano-mvp`; fica como registro. |
 | `plano-mvp.html` + `plano-mvp.pdf` | Plano do MVP consolidado em 20/11: plano v2 do time e revisão de escopo conferidos contra o regulamento oficial, escopo em duas fases (classificação até 30/11, final em 12/12), correção fiscal, errata e afirmações sem fonte. A seção 10 lista as diferenças com a spec 0004 (P-006). |
 | `regression-map.md` | Matriz invariante ↔ proteção (o que não pode regredir e o que o impede). |
+| `transportadoras-rastreio.md` | Mapa de transportadoras BR por setor com URL pública de rastreio de cada uma (backlog 32): 20 URLs testadas ao vivo em 24/11, top 5 por cobertura, endpoints GET puros e captchas. Alimenta o scraping do backlog 33. |
 | `transcricao-call-2026-11-16.txt` | Transcrição integral da call (versão compartilhável, ~1h43). Fonte primária de tudo acima. |
 | `resumo-call-2026-11-16.docx` | Documento original do resumo. |
 | `readme/header.svg`, `readme/fluxo.svg`, `readme/linha-do-tempo.svg` | Ilustrações SVG animadas do README da raiz (banner, diagrama do fluxo, linha do tempo). |
