@@ -55,6 +55,7 @@ const plural = (n: number, um: string, varios: string): string => `${n} ${n === 
 export function useTorre() {
   const inicial = lerRotaHash();
   const [rota, setRota] = useState<RotaTorre>(inicial.rota);
+  const [hashAtual, setHashAtual] = useState(() => window.location.hash);
   const [pedidos, setPedidos] = useState<Carga<PedidoResumo[]>>({ estado: 'carregando' });
   const [selecionado, setSelecionado] = useState<string | null>(inicial.pedidoId);
   const [projecao, setProjecao] = useState<Carga<ProjecaoPedido>>({ estado: 'carregando' });
@@ -179,6 +180,7 @@ export function useTorre() {
 
   useEffect(() => {
     const aoMudarHash = () => {
+      setHashAtual(window.location.hash);
       const parsed = lerRotaHash();
       setRota(parsed.rota);
       if (parsed.pedidoId) {
@@ -197,11 +199,11 @@ export function useTorre() {
       const primeiroId = pedidos.dados[0].pedidoId;
       if (rota === 'ia') {
         setSelecionado(primeiroId);
-      } else if (!window.location.hash.startsWith('#/operacao')) {
+      } else if (!hashAtual.startsWith('#/operacao')) {
         window.location.replace(`#/pedido/${encodeURIComponent(primeiroId)}`);
       }
     }
-  }, [pedidos, selecionado, rota]);
+  }, [pedidos, selecionado, rota, hashAtual]);
 
   useEffect(() => {
     conhecidas.current = null;
