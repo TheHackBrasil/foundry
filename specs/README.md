@@ -17,7 +17,9 @@ imutável (A9).
 | [0008](0008-blindagem-publica/spec.md) | Blindagem da demo pública (achados de auditoria) | rascunho | 2026-11-23 |
 | [0009](0009-agente-conversacional-tools/spec.md) | Agente conversacional com tool calling interno | rascunho | 2026-11-24 |
 
-**Próximo número livre:** `0010`
+| [0010](0010-agente-cobranca-status/spec.md) | Agente de cobrança de status com claim verificável | rascunho | 2026-11-24 |
+
+**Próximo número livre:** `0011`
 
 ## Lacunas conhecidas
 

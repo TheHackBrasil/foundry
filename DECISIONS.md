@@ -496,3 +496,12 @@ foi verificado ao vivo em produção em 24/11.
   `boot.test.ts` com testes de caminho POSIX sob `runIf(!win32)`.
   Lockfile sincroniza `engines.node >=20.3` (D-048). Suíte no Windows:
   20 falhas para 0.
+
+## Sessão 20
+
+- Spec 0010 rascunhada a partir do áudio transcrito do contato da
+  TOTVS (24/11): agente de cobrança de status por e-mail, com
+  pendência por tempo, claim `status_declarado` e evidência DKIM
+  ancorada. Status `rascunho`: aguarda aceite do time antes de
+  implementação. O áudio fecha a pendência P-002 e deve entrar
+  formalmente pela frente escopo-produto.
