@@ -55,7 +55,6 @@ const plural = (n: number, um: string, varios: string): string => `${n} ${n === 
 export function useTorre() {
   const inicial = lerRotaHash();
   const [rota, setRota] = useState<RotaTorre>(inicial.rota);
-  const [hashAtual, setHashAtual] = useState(() => window.location.hash);
   const [pedidos, setPedidos] = useState<Carga<PedidoResumo[]>>({ estado: 'carregando' });
   const [selecionado, setSelecionado] = useState<string | null>(inicial.pedidoId);
   const [projecao, setProjecao] = useState<Carga<ProjecaoPedido>>({ estado: 'carregando' });
@@ -180,7 +179,6 @@ export function useTorre() {
 
   useEffect(() => {
     const aoMudarHash = () => {
-      setHashAtual(window.location.hash);
       const parsed = lerRotaHash();
       setRota(parsed.rota);
       if (parsed.pedidoId) {
@@ -195,15 +193,10 @@ export function useTorre() {
   }, [recarregarLista]);
 
   useEffect(() => {
-    if (pedidos.estado === 'ok' && !selecionado && pedidos.dados[0]) {
-      const primeiroId = pedidos.dados[0].pedidoId;
-      if (rota === 'ia') {
-        setSelecionado(primeiroId);
-      } else if (!hashAtual.startsWith('#/operacao')) {
-        window.location.replace(`#/pedido/${encodeURIComponent(primeiroId)}`);
-      }
+    if (rota === 'ia' && pedidos.estado === 'ok' && !selecionado && pedidos.dados[0]) {
+      setSelecionado(pedidos.dados[0].pedidoId);
     }
-  }, [pedidos, selecionado, rota, hashAtual]);
+  }, [pedidos, selecionado, rota]);
 
   useEffect(() => {
     conhecidas.current = null;

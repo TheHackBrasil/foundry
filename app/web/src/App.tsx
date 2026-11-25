@@ -247,9 +247,7 @@ export function App() {
 
   const drawerModalAberto =
     revisaoAberto || agendaEstado.aberto || auditoriaAberto || envioAberto;
-  const hrefTorre = torre.selecionado
-    ? `#/pedido/${encodeURIComponent(torre.selecionado)}`
-    : '#/';
+  const hrefTorre = '#/';
   const hrefIA = torre.selecionado ? `#/ia/${encodeURIComponent(torre.selecionado)}` : '#/ia';
 
   return (
