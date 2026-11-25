@@ -23,12 +23,11 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 | 25 | Follow-ups da spec 0007 (F-01 a F-05 do `brief-ai-mandatos.md` + D-G3 do `brief-ai-ingest.md`): fetch LLM/Nvoip dentro da tx segurando conexão do pool; teto de `eventosPorWorkspace` para derivados; `simular` sem validação de tipo do `valor`; `alvo` no payload do mandato; `bateFornecedor` lê só a primeira NF-e; `remetente` do template é o nome do arquivo (trocar a derivação da chave quando existir envelope/remetente real) | todo | registrados como decisões conscientes em 23/11 |
 
 | 27 | Notificação por e-mail transacional (Resend/Postmark free tier): canal `email` da agenda hoje devolve `canal_incompativel`; juiz cadastra o próprio e-mail e recebe a tarefa ao vivo, sem a fricção de template da Nvoip | todo | sugestão aceita 23/11; tapa o buraco da Nvoip no wow de entrega |
-| 28 | Webhook de saída na criação de tarefa (POST para endpoint configurado): resposta universal para "integra com o quê?"; demoável com webhook.site | todo | sugestão aceita 23/11; os eventos já existem, falta o subscriber |
 | 29 | Ingest por imagem (foto de DANFE/screenshot -> versão): `gpt-6.2-sol` aceita `image_url` no mesmo endpoint; falta `llm.ts` aceitar conteúdo de imagem e o front aceitar `image/*` | todo | sugestão aceita 23/11; estende "manda qualquer documento" até o papel |
 | 30 | QR de onboarding de contato na agenda ("convidar parte" -> form que PUT o contato no papel): dramatiza a história de onboarding real | todo | sugestão aceita 23/11 |
 | 31 | Descartados para demo: passkeys (sessão anônima é a wedge; roadmap de auth), verificação facial (fora da tese), mapas/rastreio (território de tracker, não da camada de verdade) | todo | registrado 23/11 para não reabrir |
-| 32 | Pesquisa extensa: mapear as maiores e mais usadas transportadoras por setor logístico do Brasil (rodoviário carga fracionada/lotacao, last-mile, courier, aéreo, químico/granel, frio) e produzir a lista-alvo com cobertura real do mercado antes de qualquer scraping | todo | pedido do usuário 24/11; alimenta o item 33 |
-| 33 | Fonte externa de rastreio: scraping das páginas públicas de status das transportadoras da lista (item 32) via regex/parser e, onde a página for dinâmica ou mudar muito, Firecrawl; polling de tempos em tempos consultando o status da entrega e exibindo no painel como fonte consultiva (página pública = a versão da transportadora, entra na tese de reconciliação) | todo | pedido do usuário 24/11; exige spec própria: rastreabilidade da extração, fallback quando o layout muda, intervalo de polling, custo Firecrawl |
+
+| 33 | Fonte externa de rastreio: polling de páginas públicas das transportadoras da lista (item 32) como fonte consultiva no painel; spec 0013 escrita em 24/11 (registro data-driven, evento `rastreio` com dedup, vocab normalizado, guard SSRF, Firecrawl só para SPA) | spec pronta | THE-30; implementação aguarda frente `app-operacao` (dona de `app/server/`) ou coordenação de paths |
 | 34 | Cadastrar Resend (conta, domínio de envio, API key) para destravar o item 27; ação externa do usuário | todo | pedido do usuário 24/11; bloqueia 27 |
 
 | 4 | Publicar `slides/` do deck de descoberta Enviagora | todo | arquivos já portados; subir no mesmo deploy |
@@ -47,6 +46,8 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 | 13 | Responder 413 (não 422) em upload acima do limite | 2026-11-23 |
 | 24 | Blindagem pública (spec 0008): auditorias corrigidas, review aprovado, redeploy com smoke 11/11 | 2026-11-23 |
 | 19 | "Cadeia viva": GrafoDomino + SimuladorVivo entregues como blocos GenUI na onda 2 (D-045); twin 3D segue fora (plano-mvp) | 2026-11-24 |
+| 32 | Pesquisa de transportadoras por setor: `docs/transportadoras-rastreio.md` com ~28 mapeadas, top 5 por cobertura e 17/20 URLs vivas (D-049) | 2026-11-24 |
+| 28 | Webhook de saída: canal `webhook` na agenda entrega tarefa por POST JSON sem Nvoip (spec 0012, D-049; smoke 18/18) | 2026-11-24 |
 | 36 | P2/P3 da revisão da onda 2 corrigidos (D-048): teto de 8k na saída de tool no contexto, tools novas recusadas após abort, `destino` mascarado em contexto e payload `fim`, dedup de chamada idêntica no turno, `max_completion_tokens`, shape de `ev.bloco`, helpers deduplicados | 2026-11-24 |
 | 26 | Voz -> mandato: `useVoz` (Web Speech, pt-BR) + `VisualizadorVoz` ligados na `BarraMandatos`; limitação conhecida: SpeechRecognition depende do serviço de nuvem do Chrome | 2026-11-24 |
 | 35 | Retrabalho visual do front `ai-web`: absorvido pela reforma craft da onda 2 (materialidade mineral/papel, tipografia editorial, motion 60fps, anti-slop) | 2026-11-24 |

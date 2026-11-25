@@ -19,8 +19,9 @@ imutável (A9).
 | [0010](0010-agente-cobranca-status/spec.md) | Agente de cobrança de status com claim verificável | rascunho | 2026-11-24 |
 | [0011](0011-modelo-excecao/spec.md) | Modelo de exceção completo (second brain -> código) | rascunho | 2026-11-24 |
 | [0012](0012-webhook-saida/spec.md) | Webhook de saída: canal webhook na agenda entrega tarefa por POST JSON | implementada | 2026-11-24 |
+| [0013](0013-rastreio-externo/spec.md) | Rastreio externo: polling de páginas públicas das transportadoras como fonte consultiva | rascunho | 2026-11-24 |
 
-**Próximo número livre:** `0013`
+**Próximo número livre:** `0014`
 
 ## Lacunas conhecidas
 
