@@ -9,7 +9,26 @@
 
 import { isMainThread, parentPort, workerData } from 'node:worker_threads';
 import ExcelJS from 'exceljs';
-import { cabecalhoTemChave } from './csv.js';
+
+// Espelha normalizarHeader + ALIASES.pedidoId de csv.js (fonte de verdade):
+// o worker roda com grafo minimo de imports (input hostil fica contido) e
+// './csv.js' nao resolve no worker tsx em Windows.
+const ALIASES_PEDIDO = ['chave_nf', 'chave', 'nfe', 'chave_nfe', 'chave_nf_e', 'pedido', 'nf'];
+
+function normalizarHeader(h: string): string {
+  return h
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function cabecalhoTemChave(cabecalho: string[]): boolean {
+  const norm = new Set(cabecalho.map(normalizarHeader));
+  return ALIASES_PEDIDO.some((a) => norm.has(a));
+}
 
 export type ResultadoWorker =
   | { ok: true; csv: string; planilha: string; cabecalho: string[] }
