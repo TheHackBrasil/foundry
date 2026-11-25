@@ -132,4 +132,50 @@ tipografica menor). Sem perda de informacao; title/tooltip com o completo.
 
 ## Decisoes da frente
 
-(preencher aqui; a integracao copia para DECISIONS.md)
+D-0015-F1: o compartilhamento de rede ficou em modulo (`components/menuwiki/rede.ts`),
+nao em props. A fiacao ideal seria useTorre buscar e MenuWiki consumir por contexto,
+mas quem monta MenuWiki esta fora dos paths desta frente (App.tsx e territorio de
+outra frente). O modulo resolve o mesmo problema: dedupe in-flight por chave de
+endpoint, janela de reuso de 1.5s para GETs idempotentes (lista de pedidos,
+contatos, revisao), cache de projecao por pedidoId+totalEventos para a secao
+Documentos, e assinaturas baratas que pulam setState quando o payload nao muda.
+A auditoria (POST de verificacao) divide a chamada em voo mas nunca reusa cache.
+Se uma frente futura mover a montagem de MenuWiki para dentro de Conteudo, trocar
+o modulo por contexto e trivial.
+
+D-0015-F2: disclosure de TarefasPorParte abre ate 2 setores; com 3 ou mais, so o
+primeiro abre. Medido no brief: 3106px de conteudo numa janela de 880px; abrir
+tudo repete o problema original. O cabecalho fechado preserva densidade: icone,
+nome do setor, contagem de tarefas, canal e destino completos do contato e a acao
+principal. Foco externo (domino, lente) abre o setor sozinho para o destaque nao
+ficar invisivel. Telefone e qualquer destino nunca truncam: white-space normal
+mais overflow-wrap anywhere, e o botao de copiar cobre o caso de uso real
+(colar no mensageiro).
+
+D-0015-F3: MatrizFontes passou de role="table" para role="grid". O padrao APG de
+grid e o que descreve celulas navegaveis por setas com roving tabindex; table
+assume leitura linear e nao tem contrato de navegacao interna. O mesmo roving
+foi aplicado as origens de cada tarefa (um stop por tarefa), as colunas do
+GrafoDomino (um stop por coluna, setas verticais dentro, horizontais cruzam),
+ao cabecalho de cada setor de tarefas (toggle, copiar e acao dividem um stop)
+e a faixa de KPIs (um stop para os cartoes de divergencia e o de tarefas).
+
+D-0015-F4: a meta de menos de 40 tab stops dentro da torre nao fecha dentro dos
+paths desta frente. Medido depois do trabalho: 76 stops no main (baseline do
+brief: 118). Dos 76, cerca de 57 estao em arquivos proibidos ou fora do escopo:
+TorreCard (21 de chrome por card: arraste, span, toggle), SimuladorVivo (18:
+chips de atalho e inputs), TorreVistas (14: chips de vista, aba, densidade) e
+PalcoGenUI/BarraMandatos (4). Nos arquivos desta frente os stops cairam de
+aproximadamente 61 para 19. Fechar a meta exige roving no chrome do TorreCard
+e nas listas de chips de TorreVistas e SimuladorVivo; fica como follow-up para
+a frente dona desses arquivos.
+
+D-0015-F5: o selo de pulso da StatusCadeia inclui o hash curto da raiz so depois
+da primeira raiz conhecida; sem isso a primeira carga ja disparava pulso visual
+num componente que acabou de montar. A ancora manual incrementa pulso local para
+dar retorno imediato ao gesto.
+
+Medicao final (dev, StrictMode ativo, dobra os numeros de render): reload com
+7 GETs /api mais 1 EventSource (baseline 32). Pulso do domino por clique:
+so Matriz, Tarefas e Domino re-renderizam; Cadeia, Simulador, Versoes e Sinais
+ficam em zero. Tab stops: 76 no main contra 118 do baseline.
