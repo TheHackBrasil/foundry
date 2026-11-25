@@ -135,4 +135,70 @@ Manter os anuncios aria-live existentes funcionando.
 
 ## Decisoes da frente
 
-(preencher aqui; a integracao copia para DECISIONS.md)
+1. **V1, lente por template.** `templateCorrespondente` compara ordem+ocultos
+   sempre; os spans do proprio template sao a lente da comparacao de
+   larguras. Presets nao declaram spans, entao ignoram os do usuario (volta a
+   valer D-T5 da spec 0014). Vista custom que declara spans confere so os
+   cards que ela controla; span em card nao declarado e ajuste livre e nao
+   quebra a correspondencia. Recolhidos e densidade nao fazem parte da
+   identidade da vista (sao estado restaurado na aplicacao, nao assinatura).
+2. **`spans: {}` declarado limpa larguras.** `aplicarTemplate` passou a
+   devolver os campos extras que o template declara (recolhidos, densidade,
+   spans): o merge `{...prev, ...aplicado}` que o Grid ja fazia restaura tudo
+   sem editar TorreGrid. `spans: {}` no template significa "voltar as
+   larguras padrao", usado pelo template de reset e por snapshots de estado
+   sem larguras proprias. Templates que nao declaram o campo continuam
+   preservando o estado atual.
+3. **Bug correlato corrigido: ocultos de vista custom.** `lerTemplatesCustom`
+   usava `normalizarOrdem`, que anexa todos os cards a ordem lida; como a
+   ordem do template e a lista de visiveis, a vista reaplicada apos reload
+   nao ocultava nada. Trocado por `filtrarValidos`; teste cobre.
+4. **Sidecar `forseti:torre:v2:vistas-meta`.** O salvar do TorreGrid atual
+   cria a vista so com ordem+spans e nao ha como a barra completar o objeto
+   sem editar o arquivo. Solucao: diff de `customizados` apos salvar grava
+   recolhidos+densidade (lidos do layout persistido do pedido) e a marca
+   global num sidecar por id; `mesclarMetaTemplate` enriquece o template no
+   clique e `lerTemplatesCustom` mescla na leitura, entao aplicar restaura
+   tudo hoje e o campo migra para o template quando o Grid o gravar. O
+   sidecar vira redundante e removivel apos a integracao do item 7.
+5. **V4 via `lerLayoutPedido`.** A auto-aplicacao da vista global acontece na
+   leitura: pedido sem layout proprio recebe `templateParaLayout` da vista
+   marcada; layout do pedido sempre vence. Como o Grid recarrega por
+   `pedidoId`, abrir outro pedido ja herda a global. A marcacao e exclusiva
+   (`definirVistaGlobal` grava `global:false` nas outras, vencendo ate flag
+   antiga no template).
+6. **Undo sem props novas quando possivel.** Desfazer de aplicar-vista e de
+   restaurar-padrao usa `templateDeLayout(layoutPersistido)` reaplicado via
+   `aoAplicar`. O layout e lido do storage pelo `pedidoId` (prop opcional;
+   fallback: parse da rota `#/pedido/:id`, mesma leitura de useTorre). Toast
+   com acao nao expira sozinho (regra a11y); informativo some em 4,5s.
+   Desfazer de salvar-vista exclui a recem-criada via `aoExcluirCustom` com o
+   id descoberto no diff da lista.
+7. **Fiacao de integracao (TorreGrid, 4 linhas sugeridas).** Props opcionais
+   ja consumidas com fallback:
+   - `aoDefinirDensidade(d)`: contrato combinado com polish-motor; sem ela o
+     segmented chama `aoAlternarDensidade` `(d - atual + 3) % 3` vezes.
+   - `pedidoId={pedidoId}`: snapshots de undo sem depender do hash da URL.
+   - `aoRestaurarVista(t)`: habilita Desfazer de excluir vista
+     (`setTemplatesCustom(prev => [...prev, t])`); sem ela o toast de
+     exclusao informa sem reversao.
+   - `aoAnunciar={aoAnunciar}`: ecoa os textos do toast na regiao aria-live
+     global; sem ela o proprio toast vira `role="status"`.
+   - `aoSalvarCustom(nome, layout?)`: o segundo argumento (layout vigente)
+     ja e enviado; quando o Grid o usar para montar a vista, o sidecar do
+     item 4 pode morrer.
+8. **V7 sem renomear presets.** Os nomes Operacao/Atrasos/Fiscal/Financeiro/
+   Despacho sao conhecidos e documentados; a colisao e de contexto, nao de
+   palavra. A zona ganha rotulo visivel "Layouts" (aria-labelledby do grupo)
+   e os chips recebem nomes acessiveis unicos ("Aplicar layout Fiscal",
+   "Aplicar vista X"), que nao colidem com a aba "Fiscal" das lentes nem
+   visualmente nem na arvore de acessibilidade.
+9. **Radiogroup no segmented (V2).** Preferido a grupo de botoes com
+   aria-pressed: um unico tab stop com roving tabindex (alinhado a reducao
+   de tab stops que polish-fluxo faz em PainelPedido) e setas que movem foco
+   e selecao juntos, padrao APG radio.
+10. **Estado visivel de "presets nao mexem".** Presets built-in nao declaram
+    recolhidos/densidade de proposito: aplicar Operacao nao expande cards
+    recolhidos nem muda a densidade: a vista so decide ordem e
+    visibilidade. Recolhidos/densidade so viajam em vistas salvas, snapshots
+    e no template de reset.

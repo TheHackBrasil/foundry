@@ -1,0 +1,156 @@
+/* Barra de vistas da Torre (spec 0015, frente polish-vistas): rótulo da zona
+   de layouts (V7), segmented control de densidade (V2), toggle de vista
+   global (V4), badge de cards ocultos (V8) e toast autocontido (V3/V9).
+   O que já existia (.torre-vistas-*, .chip, .botao-sutil) fica em torre-v2.css
+   e styles.css — aqui só entra o que a barra ganhou de novo. */
+
+/* ---------- zona de layouts: rótulo visível contra a colisão com as abas
+   de lente (V7) — dois sistemas com chips lado a lado não compartilham nome. */
+.vistas-zona {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.75rem;
+  min-width: 0;
+}
+.vistas-rotulo {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+
+/* ---------- densidade: segmented control nomeado (V2) ---------- */
+/* radiogroup APG: um tab stop, setas movem foco e seleção; estado ativo
+   visível sem hover por fundo + contorno (não depende só de cor). */
+.vistas-densidade {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.125rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+}
+.vistas-densidade > button {
+  min-height: 1.6875rem;
+  padding: 0 0.625rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text2);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-micro) ease,
+    color var(--dur-micro) ease,
+    box-shadow var(--dur-micro) ease;
+}
+.vistas-densidade > button[aria-checked='true'] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .vistas-densidade > button:not([aria-checked='true']):hover {
+    background: var(--tint-hover);
+    color: var(--text);
+  }
+}
+
+/* ---------- vista global: toggle "usar em todos os pedidos" (V4) ---------- */
+.vista-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  transition: background-color var(--dur-micro) ease, color var(--dur-micro) ease;
+}
+.vista-pin[data-ativa='true'] { color: var(--change); }
+@media (hover: hover) and (pointer: fine) {
+  .vista-pin:hover { background: var(--tint-hover); color: var(--text); }
+}
+
+/* ---------- badge de cards ocultos no menu Cards (V8) ---------- */
+.vistas-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.3125rem;
+  border-radius: var(--r-pill);
+  background: var(--change-bg);
+  color: var(--change);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- toast autocontido com Desfazer (V3/V9) ---------- */
+/* role="status" anuncia sozinho; toast com ação não expira (regra a11y) —
+   quem some sozinho é só o informativo (4,5s, no componente). */
+.vistas-toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  max-width: min(26rem, calc(100vw - 2rem));
+  padding: 0.625rem 0.75rem 0.625rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8125rem;
+  box-shadow: var(--shadow-slab);
+}
+.vistas-toast-texto { min-width: 0; }
+.vistas-toast-acao {
+  flex: none;
+  min-height: 1.75rem;
+  padding: 0 0.625rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--primary);
+  color: var(--on-primary);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vistas-toast-fechar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text2);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .vistas-toast-fechar:hover { background: var(--tint-hover); color: var(--text); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .vistas-toast { animation: vistas-toast-entra 180ms var(--ease-out); }
+  @keyframes vistas-toast-entra {
+    from { opacity: 0; transform: translate3d(0, 8px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+}
