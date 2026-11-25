@@ -426,9 +426,21 @@ foi verificado ao vivo em produção em 24/11.
 - Smoke público estendido nesta sessão: `view-spec` (contrato da
   lente), `/api/notificar` (declarado sem Nvoip) e
   `/api/mandatos/stream` (SSE declarado, 503 sem LLM).
-- Revisão independente da onda 2 aberta nesta sessão: a onda não
-  passou pelo fluxo frente+reviewer das specs 0007/0008; achados e
-  correções entram na próxima sessão (D-047).
+- Revisão independente da onda 2 fechada nesta sessão: a onda não
+  tinha passado pelo fluxo frente+reviewer das specs 0007/0008.
+  Veredito REQUEST_CHANGES com dois P1, corrigidos na hora (D-047):
+  (a) conteúdo de documentos ingeridos entrava verbatim no contexto
+  do agente, abrindo injeção cross-visitante; a saída de tool agora
+  viaja dentro da chave `evidencia` e o system prompt ensina a
+  tratá-la como dado citado, nunca instrução (`motor.ts`). (b)
+  `resolvedor.ts` aceitava alvo de 1 a 3 caracteres e `includes` no
+  sufixo: match aproximado agora exige 4+ caracteres e `endsWith`,
+  e referência que casa mais de um pedido devolve `pedido_ambiguo`
+  com os candidatos em vez de chutar. P2/P3 restantes foram para o
+  BACKLOG item 36. Pontos confirmados pela revisão: zero XSS,
+  escritas só pelo motor com advisory lock, seed somente leitura em
+  dois níveis, cleanup de recursos (WebGL/AudioContext/listeners)
+  impecável.
 - Processo: specs 0007, 0008 e 0009 tinham `Status: rascunho` apesar
   de implementadas e deployadas; status corrigidos nesta sessão.
   BACKLOG reconciliado: itens 19, 26 e 35 entregues pela onda 2

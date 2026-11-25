@@ -267,6 +267,36 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     expect(await resolverPedido(sessao, 'empresa inexistente')).toBeNull();
   });
 
+  it('resolverPedido recusa alvo curto e substring que nao e sufixo da chave', async () => {
+    // Abaixo de 4 caracteres a referencia e palpite: nao resolve nada.
+    expect(await resolverPedido(sessao, '1')).toBeNull();
+    expect(await resolverPedido(sessao, '019')).toBeNull();
+    // "355001" aparece no meio da chave mas nao e o final dela.
+    expect(await resolverPedido(sessao, '355001')).toBeNull();
+  });
+
+  it('sufixo que casa mais de um pedido devolve pedido_ambiguo com candidatos', async () => {
+    const CHAVE3 = '35260111111111000123550010000000033000009999';
+    const CHAVE4 = '35260122222222000123550010000000044000009999';
+    for (const [id, nome] of [
+      [CHAVE3, 'Terceira Via Ltda'],
+      [CHAVE4, 'Quarta Via Ltda'],
+    ] as const) {
+      await sessao.append(id, 'nfe', {
+        fonte: 'nfe',
+        campos: { previsaoEntrega: '2026-03-01', status: 'emitida' },
+        dados: { emitente: { nome }, destinatario: { nome: 'CD Sul' } },
+      });
+    }
+    const r = await executarTool(ctx, 'consultar_pedido', { pedido: '9999' });
+    expect(r.ok).toBe(false);
+    expect(r.dados['erro']).toBe('pedido_ambiguo');
+    // Referencia curta demais nem tenta match: nao_encontrado honesto.
+    const curto = await executarTool(ctx, 'consultar_pedido', { pedido: '19' });
+    expect(curto.ok).toBe(false);
+    expect(curto.dados['erro']).toBe('pedido_nao_encontrado');
+  });
+
   it('listar_pedidos traz os visiveis com contagens da projecao', async () => {
     const r = await executarTool(ctx, 'listar_pedidos', {});
     expect(r.ok).toBe(true);
@@ -572,6 +602,26 @@ describe('motor do agente com LLM sequenciada (T313)', () => {
       .messages;
     const roleTool = msgs2.find((m) => m.role === 'tool')!;
     expect(roleTool.content).toContain('argumentos_invalidos');
+  });
+
+  it('saida de tool chega ao contexto marcada como evidencia externa, nao como instrucao', async () => {
+    envLlm();
+    const f = filaLlm(
+      respTools([{ nome: 'consultar_pedido', argumentos: { pedido: CHAVE } }]),
+      respTexto('O pedido está atrasado na planilha.'),
+    );
+    await executarAgente({ ...base(), pergunta: 'como esta o pedido?', onEvento: () => {} });
+    const msgs = (JSON.parse(chamada(f, 1)[1].body) as { messages: Array<{ role: string; content?: string }> })
+      .messages;
+    const tools = msgs.filter((m) => m.role === 'tool');
+    expect(tools.length).toBeGreaterThan(0);
+    for (const t of tools) {
+      const conteudo = JSON.parse(t.content ?? '{}') as Record<string, unknown>;
+      expect(conteudo).toHaveProperty('evidencia');
+    }
+    // O system prompt ensina a tratar a chave como dado citado.
+    const system = msgs.find((m) => m.role === 'system')!;
+    expect(system.content).toContain('evidencia');
   });
 
   it('escrita na seed devolve erro na trilha e o modelo explica ao usuario', async () => {

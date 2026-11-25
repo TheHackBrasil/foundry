@@ -15,43 +15,79 @@ async function carregarPedido(sessao: LedgerStore, pedidoId: string, workspaceId
   return { pedidoId, workspaceId, projecao: projetar(await leitor.eventosDoPedido(pedidoId)) };
 }
 
+// Referencia aproximada (sufixo de chave ou nome de emitente) so vale com
+// texto suficiente: abaixo disso e palpite, e uma ferramenta de escrita
+// nao pode mirar um pedido por palpite (revisao da onda 2, D-047).
+const MIN_ALVO_APROXIMADO = 4;
+
+type Tentativa =
+  | { tipo: 'resolvido'; pedido: PedidoResolvido }
+  | { tipo: 'ambigua'; candidatos: string[] }
+  | { tipo: 'sem_match' };
+
+async function tentarResolver(sessao: LedgerStore, ref: string | undefined, padrao: string | undefined): Promise<Tentativa> {
+  const alvo = (ref?.trim() || padrao?.trim()) ?? '';
+  if (alvo === '') return { tipo: 'sem_match' };
+
+  const dono = await sessao.wsDoPedido(alvo);
+  if (dono !== null) return { tipo: 'resolvido', pedido: await carregarPedido(sessao, alvo, dono) };
+
+  if (alvo.length < MIN_ALVO_APROXIMADO) return { tipo: 'sem_match' };
+
+  const lista = await sessao.listarPedidos();
+  // Sufixo estrito da chave: o operador cita os ultimos digitos; substring
+  // solta casaria no meio do id e erraria o pedido em silencio.
+  const porSufixo = lista.filter((p) => p.pedidoId.endsWith(alvo));
+  if (porSufixo.length > 1) return { tipo: 'ambigua', candidatos: porSufixo.map((p) => p.pedidoId) };
+  const unicoSufixo = porSufixo[0];
+  if (unicoSufixo) {
+    return { tipo: 'resolvido', pedido: await carregarPedido(sessao, unicoSufixo.pedidoId, unicoSufixo.workspaceId) };
+  }
+
+  const norm = (s: string): string => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  const alvoNorm = norm(alvo);
+  const porEmitente: PedidoResolvido[] = [];
+  for (const p of lista) {
+    const r = await carregarPedido(sessao, p.pedidoId, p.workspaceId);
+    const emitente = r.projecao.pedido?.emitente.nome ?? '';
+    if (emitente !== '' && emitente !== '?' && emitente !== 'a confirmar' && norm(emitente).includes(alvoNorm)) {
+      porEmitente.push(r);
+    }
+  }
+  if (porEmitente.length > 1) return { tipo: 'ambigua', candidatos: porEmitente.map((r) => r.pedidoId) };
+  const unicoEmitente = porEmitente[0];
+  if (unicoEmitente) return { tipo: 'resolvido', pedido: unicoEmitente };
+  return { tipo: 'sem_match' };
+}
+
 // Resolve a referencia do usuario a um pedido visivel: id exato, sufixo da
 // chave (o operador cita os ultimos digitos) ou trecho do nome do emitente
 // sem acento e sem caixa. Sem ref, cai no pedido em foco da conversa.
+// Ambiguidade retorna null: melhor pedir de novo do que chutar o pedido.
 export async function resolverPedido(
   sessao: LedgerStore,
   ref?: string,
   padrao?: string,
 ): Promise<PedidoResolvido | null> {
-  const alvo = (ref?.trim() || padrao?.trim()) ?? '';
-  if (alvo === '') return null;
-
-  const dono = await sessao.wsDoPedido(alvo);
-  if (dono !== null) return carregarPedido(sessao, alvo, dono);
-
-  const lista = await sessao.listarPedidos();
-  const cauda = Math.max(alvo.length, 6);
-  const porSufixo = lista.filter((p) => p.pedidoId.slice(-cauda).includes(alvo));
-  const primeiro = porSufixo[0];
-  if (primeiro) return carregarPedido(sessao, primeiro.pedidoId, primeiro.workspaceId);
-
-  const norm = (s: string): string => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
-  const alvoNorm = norm(alvo);
-  for (const p of lista) {
-    const r = await carregarPedido(sessao, p.pedidoId, p.workspaceId);
-    const emitente = r.projecao.pedido?.emitente.nome ?? '';
-    if (emitente !== '' && emitente !== '?' && emitente !== 'a confirmar' && norm(emitente).includes(alvoNorm)) {
-      return r;
-    }
-  }
-  return null;
+  const t = await tentarResolver(sessao, ref, padrao);
+  return t.tipo === 'resolvido' ? t.pedido : null;
 }
 
 export type ResultadoResolucao = { resolvido: PedidoResolvido } | { falha: ResultadoTool };
 
 export async function pedidoDaTool(ctx: ContextoTools, ref: string | undefined): Promise<ResultadoResolucao> {
-  const r = await resolverPedido(ctx.sessao, ref, ctx.pedidoIdPadrao);
-  if (!r) {
+  const t = await tentarResolver(ctx.sessao, ref, ctx.pedidoIdPadrao);
+  if (t.tipo === 'ambigua') {
+    const caudas = t.candidatos.map((c) => c.slice(-6)).join(', ');
+    return {
+      falha: erro(
+        'pedido_ambiguo',
+        `Essa referencia casa com mais de um pedido (terminados em ${caudas}). Me passe a chave completa ou mais digitos.`,
+        'Referência ambígua',
+      ),
+    };
+  }
+  if (t.tipo !== 'resolvido') {
     return {
       falha: erro(
         'pedido_nao_encontrado',
@@ -60,7 +96,7 @@ export async function pedidoDaTool(ctx: ContextoTools, ref: string | undefined):
       ),
     };
   }
-  return { resolvido: r };
+  return { resolvido: t.pedido };
 }
 
 const MENSAGEM_SEED =
