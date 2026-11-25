@@ -487,3 +487,12 @@ foi verificado ao vivo em produção em 24/11.
 - Gates: `tsc --noEmit` limpo; 87 testes de servidor e 74 de web
   verdes; `repo-guard` e `prose-evals` ok. BACKLOG item 36 movido
   para Feito.
+
+## Sessão 19
+
+- Integração dos fixes de Windows do Gui: `xlsx.worker.ts` autocontido
+  (import `./csv.js` não resolvia no worker tsx em Windows; worker com
+  grafo mínimo de imports é também mais seguro para input hostil) e
+  `boot.test.ts` com testes de caminho POSIX sob `runIf(!win32)`.
+  Lockfile sincroniza `engines.node >=20.3` (D-048). Suíte no Windows:
+  20 falhas para 0.
