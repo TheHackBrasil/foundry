@@ -9,8 +9,9 @@ export interface EventoAncoraStream {
   url?: string;
 }
 
-// O servidor manda "hello" a cada (re)conexão. É nesse ponto que a tela
-// rebusca o estado, porque eventos enviados durante a queda não são reenviados.
+// O servidor manda "hello" a cada (re)conexão. Só a reconexão rebusca o
+// estado, porque eventos enviados durante a queda não são reenviados; o hello
+// de abertura chega logo após a primeira carga e reidratar ali duplicava GETs.
 // `pronto` só vira verdadeiro depois da primeira resposta da API: é ela que entrega o
 // cookie da sessão. Abrir o stream antes pode dar à lista e ao stream workspaces diferentes.
 export function useStream(
@@ -32,10 +33,16 @@ export function useStream(
 
   useEffect(() => {
     if (!pronto) return;
+    // Só vira verdadeiro depois de um erro: o hello seguinte é reconexão e
+    // reidrata; o primeiro hello confirma o stream e não dispara GET.
+    let houveQueda = false;
     const fonte = new EventSource('/api/stream');
     fonte.addEventListener('hello', () => {
       setEstado('ao_vivo');
-      conectar.current();
+      if (houveQueda) {
+        houveQueda = false;
+        conectar.current();
+      }
     });
     fonte.addEventListener('evento', (mensagem) => {
       try {
@@ -51,7 +58,10 @@ export function useStream(
         // quadro malformado: ignora
       }
     });
-    fonte.onerror = () => setEstado('reconectando');
+    fonte.onerror = () => {
+      houveQueda = true;
+      setEstado('reconectando');
+    };
     return () => fonte.close();
   }, [pronto]);
 
