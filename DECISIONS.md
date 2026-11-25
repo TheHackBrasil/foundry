@@ -384,3 +384,53 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
   produção: `.xlsx` legítimo entra (26 eventos), falso recusa 422,
   `/api/contatos` responde com a seed, `/api/mandatos` devolve 503
   declarado sem LLM configurada.
+
+### Sessão 17: onda 2 da camada AI, agente conversacional e revisão retroativa (24/11)
+
+Registro retroativo: a "onda 2" foi implementada pelo usuário com
+outro agente entre 23/11 e 24/11 sem sessão contemporânea no arquivo.
+Esta sessão documenta o que está no git (`577fe36`..`66d4e25`) e o que
+foi verificado ao vivo em produção em 24/11.
+
+- Conversa natural sobre a operação: o front responde perguntas
+  abertas, lê a seed e aplica lentes `view-spec` por papel; UX com
+  perguntas em 1 clique e barra única de visão GenUI (`577fe36`,
+  `b27d851`); correção de leitura: mandatos somente leitura leem
+  eventos do workspace dono da seed (`888adde`).
+- GenUI v2 (D-045): `ViewSpecV2` e stream SSE no
+  `GET /api/pedidos/:id/view-spec?v=2`; `/api/notificar` como rota
+  determinística de notificação (sem consumo de cota LLM, registra
+  `notificacao` sempre); seed realista (`e9f8550`).
+- Front v2 da Torre: motor WebGL/GLSL compartilhado com 7 shaders
+  minerais da marca (`e12ce81`); blocos GenUI nível 2+ (Palco,
+  GrafoDomino, SimuladorVivo) e drawers operacionais (`79638b3`);
+  página dedicada `#/ia` com fundo fluido GLSL (`3265f46`,
+  `1cd1b85`); redesign híbrido da Torre com trilhos dobráveis
+  (`a596e7f`); reforma craft: materialidade mineral/papel, motion
+  60fps, tipografia editorial (`c4399b5`, `202c1a1`, `9eabc59`,
+  `30a57b2`).
+- Spec 0009 implementada (D-046): o agente conversacional ReAct
+  (`app/server/agente/`) roda um loop LLM com 9 tools internas
+  tipadas sobre o motor determinístico; `POST /api/mandatos/stream`
+  devolve SSE multi-turn com eventos `etapa`/`tool`/`texto_delta`/
+  `bloco`/`fim`; histórico viaja no corpo da requisição (servidor não
+  guarda conversa); tools de escrita exigem pedido explícito do
+  usuário; o `POST /api/mandatos` da spec 0007 segue congelado.
+- Fixes de compatibilidade LLM: `reasoning_effort: none` no
+  `chatComTools` para `gpt-6-luna` (`2eb1a1b`); schemas JSON
+  universais e log de diagnóstico HTTP da LLM (`78a167f`); streaming
+  token a token real (`c4e8a62`).
+- Verificado ao vivo em 24/11: `POST /api/mandatos/stream` em
+  produção devolve SSE com `etapa`/`tool` executando
+  (`listar_pedidos` -> "3 pedidos visíveis").
+- Smoke público estendido nesta sessão: `view-spec` (contrato da
+  lente), `/api/notificar` (declarado sem Nvoip) e
+  `/api/mandatos/stream` (SSE declarado, 503 sem LLM).
+- Revisão independente da onda 2 aberta nesta sessão: a onda não
+  passou pelo fluxo frente+reviewer das specs 0007/0008; achados e
+  correções entram na próxima sessão (D-047).
+- Processo: specs 0007, 0008 e 0009 tinham `Status: rascunho` apesar
+  de implementadas e deployadas; status corrigidos nesta sessão.
+  BACKLOG reconciliado: itens 19, 26 e 35 entregues pela onda 2
+  (GrafoDomino+SimuladorVivo, `useVoz`+`VisualizadorVoz` na barra,
+  reforma craft) e movidos para Feito.

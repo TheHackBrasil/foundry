@@ -2,6 +2,7 @@
 
 <p align="center">
   <a href="https://the-foundry-alpha.vercel.app"><b>Site</b></a> ·
+  <a href="https://forseti-production-fcb91f35.up.railway.app"><b>Demo</b></a> ·
   <a href="https://github.com/TheHackBrasil/foundry/releases/tag/pitch-v10"><b>Pitch em vídeo (v10)</b></a> ·
   <a href="./docs/escopo.md">Escopo</a> ·
   <a href="./DECISIONS.md">Decisões</a> ·
@@ -12,9 +13,12 @@
 sistemas que fornecedor, transportadora, centro de distribuição, fiscal e
 financeiro já usam e avisa todos quando um pedido muda.
 
-> **Estado:** hipótese em construção, MVP em build (`specs/0004`). Time da trilha
-> Logística & Automação do HackBrasil 2026, com submissão em 30/11. Este repo
-> registra o processo inteiro, da pesquisa de campo à entrega.
+> **Estado:** demo pública no ar com a camada AI operacional: um agente
+> conversacional em pt-BR responde perguntas e executa ações sobre o motor
+> determinístico, com trilha auditável por pedido (`specs/0007` a `0009`).
+> Time da trilha Logística & Automação do HackBrasil 2026, com submissão em
+> 30/11. Este repo registra o processo inteiro, da pesquisa de campo à
+> entrega.
 
 ## O problema
 
@@ -28,7 +32,7 @@ documentação na entrada. A TOTVS trouxe o aprendizado que orienta o desenho:
 o setor não é letrado digitalmente, e solução que exige mudança de rotina
 morre na gaveta.
 
-## Como funciona (hipótese)
+## Como funciona
 
 ![Diagrama: o fornecedor registra um atraso, a camada compara as versões do pedido e avisa transportadora, CD, fiscal e financeiro](docs/readme/fluxo.svg)
 
@@ -39,8 +43,8 @@ morre na gaveta.
 3. **Avisa quando as versões divergem.** Atrasos, divergências e pendências
    aparecem para todos antes de virar efeito dominó.
 
-Isto é a hipótese de produto da call de 16/11, não um sistema em operação.
-Ainda não medimos o retorno de uma solução.
+O fluxo acima é a hipótese da call de 16/11, hoje demonstrável na demo
+pública. Ainda não medimos o retorno de uma solução em operação real.
 
 ## Escopo
 
@@ -103,16 +107,25 @@ da call em [`docs/`](docs/).
 
 ## Estado atual
 
-- **Em execução:** build do MVP da camada de coordenação
-  ([`specs/0004`](specs/0004-mvp-atraso-propagado/spec.md)) em três frentes
-  paralelas; meta de demo funcional em 23/11 e entrega em 30/11.
-  Escopo fechado em 20/11 (D-015, refinado em D-018).
+- **Demo pública no ar:** [app + Postgres na
+  Railway](https://forseti-production-fcb91f35.up.railway.app) (D-037,
+  D-038). Torre de pedidos que lê NF-e, CT-e, planilha, `.eml`/CC-e e
+  `.xlsx`, reconcilia as versões num ledger auditável e propaga tarefas
+  por papel.
+- **Camada AI operacional** (specs 0007 a 0009): mandatos e perguntas em
+  pt-BR viram ações tipadas executadas pelo motor; um agente ReAct
+  conversa em multi-turn com tools internas e responde com blocos GenUI
+  sobre o estado real; agenda de contatos com bootstrap por `fone`
+  fiscal; `.xlsx` entra por worker blindado com mapeamento de layout
+  proposto pela LLM e aprovado em revisão. O modelo propõe, o ledger
+  decide e registra.
 - **Pitch:** v10 publicado na
   [release `pitch-v10`](https://github.com/TheHackBrasil/foundry/releases/tag/pitch-v10)
-  (D-014).
+  (D-014); o vídeo do produto (regulamento 7.3) segue na fila para 30/11.
 - **Site:** no ar na identidade da marca
   ([the-foundry-alpha.vercel.app](https://the-foundry-alpha.vercel.app),
-  specs 0002 e 0003).
+  specs 0002 e 0003; LP do produto em
+  [forseti-br.vercel.app](https://forseti-br.vercel.app), D-036).
 - Decisões, achados e pendências datados em [`DECISIONS.md`](DECISIONS.md);
   specs em [`specs/`](specs/).
 

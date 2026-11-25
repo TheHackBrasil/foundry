@@ -1,6 +1,6 @@
 # Spec 0008: blindagem da demo pública (achados de auditoria)
 
-**Status:** rascunho (aguarda aprovação do usuário)
+**Status:** entregue
 **Origem:** cinco auditorias independentes de código, executadas em 23/11
 sobre a `main` (SOLID, segurança, TypeScript, cobertura de testes e
 conformidade com o Brandbook v4) · falha do smoke público de 23/11

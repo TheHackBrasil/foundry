@@ -360,6 +360,48 @@ async function smoke() {
     return `status ${res.status}`;
   });
 
+  await checar('view-spec responde o contrato da lente por papel', async () => {
+    const { res, corpo } = await a.json(`/api/pedidos/${CHAVE}/view-spec?papel=fornecedor`);
+    exigir(
+      res.status === 200 && corpo?.versao === 1 && corpo?.lente === 'fornecedor' && Array.isArray(corpo?.colunas),
+      `status ${res.status} ${JSON.stringify(corpo).slice(0, 120)}`,
+    );
+    return `lente ${corpo.lente}, ${corpo.colunas.length} colunas`;
+  });
+
+  await checar('notificar registra declarado mesmo sem Nvoip', async () => {
+    const { res, corpo } = await a.json('/api/notificar', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pedidoId: CHAVE, parte: 'transportadora' }),
+    });
+    exigir(res.status === 200 && typeof corpo?.status === 'string', `status ${res.status} ${JSON.stringify(corpo).slice(0, 120)}`);
+    return `${corpo.status}${corpo.motivo ? ` (${corpo.motivo})` : ''}`;
+  });
+
+  await checar('stream do agente responde SSE declarado (200 ou 503 sem LLM)', async () => {
+    const res = await a.req('/api/mandatos/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ texto: 'oi' }),
+    });
+    if (res.status === 503) return 'status 503 (LLM não configurada)';
+    exigir(res.status === 200, `status ${res.status}`);
+    exigir(
+      (res.headers.get('content-type') ?? '').includes('text/event-stream'),
+      `content-type ${res.headers.get('content-type')}`,
+    );
+    const leitor = res.body.getReader();
+    try {
+      const { value } = await leitor.read();
+      const quadro = new TextDecoder().decode(value ?? new Uint8Array());
+      exigir(quadro.includes('data:'), `primeiro quadro sem data: ${quadro.slice(0, 100)}`);
+      return `SSE aberto, primeiro evento recebido`;
+    } finally {
+      await leitor.cancel().catch(() => {});
+    }
+  });
+
   await checar('arquivo acima do limite responde 413 em português', async () => {
     const { res, corpo } = await a.enviar('grande.csv', Buffer.alloc(opts.maxUploadBytes + 1024, 'x'));
     exigir(res.status === 413, `status ${res.status}`);

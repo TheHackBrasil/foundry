@@ -1,6 +1,6 @@
 # Spec 0009: agente conversacional com tool calling interno
 
-**Status:** rascunho (aguarda aprovação do usuário)
+**Status:** implementada
 **Origem:** decisão do usuário de 24/11 de evoluir a camada AI do
 classificador fechado de 4 ações (spec 0007, `POST /api/mandatos`)
 para um agente conversacional real: histórico multi-turn, tool

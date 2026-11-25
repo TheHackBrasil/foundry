@@ -1,6 +1,6 @@
 # Spec 0007: camada AI operacional: ingest universal, mandatos e notificação
 
-**Status:** rascunho (aguarda aprovação do usuário)
+**Status:** entregue
 **Origem:** decisão do usuário de 23/11 sobre a arquitetura da camada
 AI (LLM como camada de acesso e universalidade, nunca de verdade; três
 empregos fechados: traduzir intenção para ação tipada, extrair campos
