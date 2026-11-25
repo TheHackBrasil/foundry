@@ -350,6 +350,22 @@ async function smoke() {
     return `${(corpo?.itens ?? corpo?.contatos ?? corpo).length} contatos`;
   });
 
+  await checar('contato webhook: URL pública aceita, host privado recusado', async () => {
+    const ok = await a.json('/api/contatos', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ parte: 'fiscal', nome: 'Hook teste', canal: 'webhook', destino: 'https://webhook.site/smoke-test' }),
+    });
+    exigir(ok.res.status === 200, `aceita: status ${ok.res.status}`);
+    const priv = await a.json('/api/contatos', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ parte: 'fiscal', nome: 'Hook teste', canal: 'webhook', destino: 'http://169.254.169.254/x' }),
+    });
+    exigir(priv.res.status === 400, `privado: status ${priv.res.status}`);
+    return 'pública 200, privada 400';
+  });
+
   await checar('mandatos responde declarado (200 ou 503 sem LLM)', async () => {
     const { res, corpo } = await a.json('/api/mandatos', {
       method: 'POST',

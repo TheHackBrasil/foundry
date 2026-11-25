@@ -13,15 +13,16 @@ imutável (A9).
 | [0004](0004-mvp-atraso-propagado/spec.md) | MVP da camada de coordenação (atraso propagado) | aprovada | 2026-11-20 |
 | [0005](0005-mvp-frentes/spec.md) | Frentes paralelas do MVP: worktrees, dono por pasta, hook | implementada | 2026-11-20 |
 | [0006](0006-identidade-forseti-v4/spec.md) | Identidade Brandbook v4 no site e nas telas do produto | aprovada | 2026-11-22 |
-| [0007](0007-camada-ai-operacional/spec.md) | Camada AI operacional: ingest universal, mandatos e notificação | rascunho | 2026-11-23 |
-| [0008](0008-blindagem-publica/spec.md) | Blindagem da demo pública (achados de auditoria) | rascunho | 2026-11-23 |
-| [0009](0009-agente-conversacional-tools/spec.md) | Agente conversacional com tool calling interno | rascunho | 2026-11-24 |
-
+| [0007](0007-camada-ai-operacional/spec.md) | Camada AI operacional: ingest universal, mandatos e notificação | entregue | 2026-11-23 |
+| [0008](0008-blindagem-publica/spec.md) | Blindagem da demo pública (achados de auditoria) | entregue | 2026-11-23 |
+| [0009](0009-agente-conversacional-tools/spec.md) | Agente conversacional com tool calling interno | implementada | 2026-11-24 |
 | [0010](0010-agente-cobranca-status/spec.md) | Agente de cobrança de status com claim verificável | rascunho | 2026-11-24 |
-
 | [0011](0011-modelo-excecao/spec.md) | Modelo de exceção completo (second brain -> código) | rascunho | 2026-11-24 |
+| [0012](0012-webhook-saida/spec.md) | Webhook de saída: canal webhook na agenda entrega tarefa por POST JSON | implementada | 2026-11-24 |
+| [0013](0013-rastreio-externo/spec.md) | Rastreio externo: polling de páginas públicas das transportadoras como fonte consultiva | rascunho | 2026-11-24 |
+| [0014](0014-ux-v2/spec.md) | UX v2: torre em tiling arrastavel, painel de evidencia autonomo, menu wiki e grafo limpo (THE-15 a THE-20) | implementada | 2026-11-24 |
 
-**Próximo número livre:** `0012`
+**Próximo número livre:** `0014`
 
 ## Lacunas conhecidas
 

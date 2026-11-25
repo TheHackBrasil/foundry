@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react';
 import {
   PARTES,
@@ -26,7 +27,6 @@ import { copiarTexto } from '../copiar.ts';
 import {
   chaveAgrupada,
   chaveCurta,
-  formatarMomento,
   formatarValor,
   rotuloCampo,
   rotuloFonte,
@@ -46,17 +46,16 @@ import {
   type ResultadoLente,
 } from '../matriz.ts';
 import { SeloMonolitosShader } from '../shaders/index.ts';
+import '../torre-v2.css';
 import { useIndicadorDeslizante } from '../useIndicadorDeslizante.ts';
 import type { Carga } from '../useTorre.ts';
 import { BarraMandatos } from './BarraMandatos.tsx';
-import { GrafoDomino } from './GrafoDomino.tsx';
 import {
   IconeCaixa,
   IconeCalendario,
   IconeCaminhao,
   IconeConfere,
   IconeCopiar,
-  IconeDiverge,
   IconeFabrica,
   IconeFiscal,
   IconeGalpao,
@@ -64,11 +63,18 @@ import {
   IconePlanilha,
   IconeRota,
 } from './icones.tsx';
-import { MatrizFontes, type TrilhoFonte } from './MatrizFontes.tsx';
+import type { TrilhoFonte } from './MatrizFontes.tsx';
 import { PalcoGenUI } from './PalcoGenUI.tsx';
-import { SinaisEAvisos, chaveNotificacao, chaveSinal } from './SinaisEAvisos.tsx';
-import { StatusCadeia } from './StatusCadeia.tsx';
-import { TarefasPorParte } from './TarefasPorParte.tsx';
+import { chaveNotificacao, chaveSinal } from './SinaisEAvisos.tsx';
+import { CardCadeia } from './torre/CardCadeia.tsx';
+import { CardDomino } from './torre/CardDomino.tsx';
+import { CardMatriz } from './torre/CardMatriz.tsx';
+import { CardSinais } from './torre/CardSinais.tsx';
+import { CardSimulador } from './torre/CardSimulador.tsx';
+import { CardTarefas } from './torre/CardTarefas.tsx';
+import { CardVersoes } from './torre/CardVersoes.tsx';
+import type { CardId } from './torre/layout.ts';
+import { TorreGrid } from './torre/TorreGrid.tsx';
 
 interface Props {
   id: string;
@@ -178,86 +184,6 @@ function resumoCurtoSpec(spec: ViewSpecV2): string {
   return spec.justificativa;
 }
 
-function Resumo({ linhas }: { linhas: readonly LinhaMatriz[] }) {
-  const divergentes = linhas.filter((l) => l.divergente);
-  if (divergentes.length === 0) {
-    return (
-      <p className="resumo-mx sem-diverge">
-        <IconeConfere />
-        <span>Nenhum campo diverge entre as fontes declaradas.</span>
-      </p>
-    );
-  }
-  return (
-    <p className="resumo-mx">
-      <IconeDiverge />
-      <span>
-        <strong>
-          {divergentes.length} {divergentes.length === 1 ? 'campo diverge' : 'campos divergem'}.
-        </strong>{' '}
-        {divergentes.map((l) => {
-          const ref = l.referencia;
-          const outras = l.celulas.filter((c) => c.emConflito && !c.referencia);
-          return (
-            <span key={l.campo}>
-              {rotuloCampo(l.campo)}:{' '}
-              {outras.length === 0 ? (
-                <span>diverge em fonte recolhida</span>
-              ) : (
-                outras.map((c, i) => {
-                  const delta = variacao(l.campo, c.valor, ref?.valor);
-                  return (
-                    <span key={c.fonte}>
-                      {i > 0 && '; '}
-                      {rotuloFonte(c.fonte)} indica {formatarValor(l.campo, c.valor)}
-                      {ref && ` e ${rotuloFonte(ref.fonte)}, ${formatarValor(l.campo, ref.valor)}`}
-                      {delta && ` (${delta})`}
-                    </span>
-                  );
-                })
-              )}
-              .{' '}
-            </span>
-          );
-        })}
-      </span>
-    </p>
-  );
-}
-
-function Versoes({ versoes }: { versoes: ProjecaoPedido['versoes'] }) {
-  if (versoes.length === 0) return null;
-  const recentes = [...versoes].sort(
-    (a, b) => b.geradaEm.localeCompare(a.geradaEm) || b.versao - a.versao,
-  );
-  return (
-    <section aria-labelledby="bloco-versoes">
-      <details className="versoes-detalhes slab-mineral">
-        <summary className="versoes-sumario">
-          <span id="bloco-versoes" className="versoes-sumario-titulo">
-            Histórico de versões recebidas
-          </span>
-          <span className="meta num">
-            {versoes.length} {versoes.length === 1 ? 'documento' : 'documentos'}
-          </span>
-        </summary>
-        <ul className="versoes">
-          {recentes.map((v) => (
-            <li key={`${v.fonte}-${v.versao}`}>
-              <span className="versao-ponto" aria-hidden="true" />
-              <time dateTime={v.geradaEm}>{formatarMomento(v.geradaEm)}</time>
-              <span>
-                <strong>{rotuloFonte(v.fonte)}</strong> v{v.versao}{' '}
-                {v.versao === 1 ? 'registrada' : 'recebida'}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </details>
-    </section>
-  );
-}
-
 function Conteudo({
   id,
   daSessao,
@@ -307,7 +233,6 @@ function Conteudo({
   const ultimoTotalRef = useRef(dados.totalEventos);
   const ultimoPulsoEventoRef = useRef(pulsoEventoSeq);
   const copiaTimerRef = useRef<number | null>(null);
-  const matrizCabRef = useRef<HTMLHeadingElement>(null);
   const montouLenteRef = useRef(false);
   const ultimaLenteAnunciadaRef = useRef<string | null>(null);
 
@@ -537,7 +462,8 @@ function Conteudo({
 
   function voltarVisaoCompleta() {
     const primeiraAba = abasListaRef.current?.querySelector<HTMLButtonElement>('[role="tab"]');
-    (primeiraAba ?? matrizCabRef.current)?.focus({ preventScroll: true });
+    const tituloMatriz = document.getElementById('torre-titulo-matriz');
+    (primeiraAba ?? tituloMatriz)?.focus({ preventScroll: true });
     trocarPerspectiva(FILTRO_TODAS);
     aoAnunciar('Exibindo visão completa do pedido.');
   }
@@ -823,6 +749,119 @@ function Conteudo({
     return ultima?.valor ? formatarValor('status', ultima.valor) : 'Emitida';
   }, [matriz.linhas]);
 
+  // Cada seção vira um card do tiling (THE-18): conteúdo montado aqui, ordem e
+  // visibilidade decididas pelo TorreGrid com o layout persistido do pedido.
+  const cardsTorre = useMemo<Partial<Record<CardId, ReactNode>>>(
+    () => ({
+      matriz: (
+        <CardMatriz
+          matriz={matrizExibida}
+          trilhos={trilhosDobraveis}
+          aoAlternarTrilho={alternarTrilhoFonte}
+          destacar={resultadoLente.destacarDivergencias}
+          carregandoLente={carregandoLente}
+          assinaturaLente={assinaturaLente}
+          direcaoLente={direcaoLente}
+          pulsoDomino={pulsoDomino}
+          origemDomino={origemDomino}
+          pulsoRefracao={pulsoRefracao}
+          modoSimulacao={modoSimulacao}
+          focoAtivo={focoAtivo}
+          aoFocar={lidarFoco}
+        />
+      ),
+      tarefas: (
+        <CardTarefas
+          tarefas={dados.tarefas}
+          contatos={contatos}
+          filtro={filtro}
+          novas={novas}
+          direcao={direcaoLente}
+          painelId={`${visaoId}-painel`}
+          rotuloAbaId={`${visaoId}-${filtro}`}
+          focoAtivo={focoAtivo}
+          aoFocar={lidarFoco}
+          aoNotificar={aoNotificar}
+          aoAbrirAgenda={aoAbrirAgenda}
+        />
+      ),
+      domino: (
+        <CardDomino
+          divergencias={dados.divergencias}
+          tarefas={dados.tarefas}
+          modoSimulacao={modoSimulacao}
+          camposFoco={camposFocoDomino}
+          partesFoco={partesFocoDomino}
+          aoFocar={lidarFoco}
+          aoSelecionarPapel={trocarPerspectiva}
+        />
+      ),
+      sinais: (
+        <CardSinais
+          sinais={dados.sinais}
+          notificacoes={dados.notificacoes}
+          sinaisNovos={sinaisNovos}
+          avisosNovos={avisosNovos}
+        />
+      ),
+      cadeia: (
+        <CardCadeia
+          auditoria={auditoria}
+          pulsoExterno={pulsoEventoSeq}
+          aoVerificar={aoVerificar}
+          aoAbrirAuditoria={aoAbrirAuditoria}
+          aoAncorar={aoAncorar}
+          aoAnunciar={aoAnunciar}
+        />
+      ),
+      simulador: (
+        <CardSimulador
+          pedidoId={id}
+          versoes={dados.versoes}
+          daSessao={daSessao}
+          aoResultadoSimulacao={(res) => setModoSimulacao(res !== null)}
+          aoAplicarNaSessao={aplicarHipotesePapel}
+          aoAnunciar={aoAnunciar}
+        />
+      ),
+      versoes: <CardVersoes versoes={dados.versoes} />,
+    }),
+    [
+      id,
+      daSessao,
+      dados,
+      auditoria,
+      contatos,
+      novas,
+      pulsoEventoSeq,
+      filtro,
+      visaoId,
+      matrizExibida,
+      trilhosDobraveis,
+      alternarTrilhoFonte,
+      resultadoLente.destacarDivergencias,
+      carregandoLente,
+      assinaturaLente,
+      direcaoLente,
+      pulsoDomino,
+      origemDomino,
+      pulsoRefracao,
+      modoSimulacao,
+      focoAtivo,
+      lidarFoco,
+      trocarPerspectiva,
+      aoNotificar,
+      aoAbrirAgenda,
+      aoVerificar,
+      aoAbrirAuditoria,
+      aoAncorar,
+      aoAnunciar,
+      sinaisNovos,
+      avisosNovos,
+      aplicarHipotesePapel,
+    ],
+  );
+
   return (
     <>
       <header className="painel-cab">
@@ -929,15 +968,6 @@ function Conteudo({
                 </span>
               </button>
             </div>
-
-            <StatusCadeia
-              auditoria={auditoria}
-              pulsoExterno={pulsoEventoSeq}
-              aoVerificar={aoVerificar}
-              aoAbrirAuditoria={aoAbrirAuditoria}
-              aoAncorar={aoAncorar}
-              aoAnunciar={aoAnunciar}
-            />
           </div>
         </div>
       </header>
@@ -974,8 +1004,12 @@ function Conteudo({
               style={{ '--stagger': Math.min(kpisDivergencia.length, 4) } as CSSProperties}
               aria-pressed={false}
               onClick={() => {
-                document.getElementById('bloco-tarefas')?.scrollIntoView({
-                  behavior: 'smooth',
+                const reduzido =
+                  typeof window !== 'undefined' &&
+                  typeof window.matchMedia === 'function' &&
+                  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                document.getElementById('torre-titulo-tarefas')?.scrollIntoView({
+                  behavior: reduzido ? 'auto' : 'smooth',
                   block: 'start',
                 });
               }}
@@ -1170,83 +1204,17 @@ function Conteudo({
         />
       )}
 
-      <div className="cols" data-fontes={matrizExibida.fontes.length}>
-        <section aria-labelledby="bloco-matriz" className="col-matriz">
-          <div className="sec-cab">
-            <div className="sec-cab-grupo">
-              <h2 id="bloco-matriz" ref={matrizCabRef} tabIndex={-1}>
-                Fontes e campos
-              </h2>
-            </div>
-          </div>
-
-          <MatrizFontes
-            matriz={matrizExibida}
-            trilhos={trilhosDobraveis}
-            aoAlternarTrilho={alternarTrilhoFonte}
-            destacar={resultadoLente.destacarDivergencias}
-            carregandoLente={carregandoLente}
-            assinaturaLente={assinaturaLente}
-            direcaoLente={direcaoLente}
-            pulsoDomino={pulsoDomino}
-            origemDomino={origemDomino}
-            pulsoRefracao={pulsoRefracao}
-            modoSimulacao={modoSimulacao}
-            focoAtivo={focoAtivo}
-            aoFocar={lidarFoco}
-          />
-          {matrizExibida.fontes.length > 0 && <Resumo linhas={matrizExibida.linhas} />}
-        </section>
-
-        <section aria-labelledby="bloco-tarefas" className="col-tarefas">
-          <div className="sec-cab">
-            <div className="sec-cab-grupo">
-              <h2 id="bloco-tarefas">
-                {filtro === FILTRO_TODAS ? 'Tarefas abertas' : `Tarefas · ${rotuloParte(filtro)}`}
-              </h2>
-            </div>
-          </div>
-          <TarefasPorParte
-            tarefas={dados.tarefas}
-            contatos={contatos}
-            filtro={filtro}
-            novas={novas}
-            direcao={direcaoLente}
-            painelId={`${visaoId}-painel`}
-            rotuloAbaId={`${visaoId}-${filtro}`}
-            focoAtivo={focoAtivo}
-            aoFocar={lidarFoco}
-            aoNotificar={aoNotificar}
-            aoAbrirAgenda={aoAbrirAgenda}
-          />
-        </section>
-      </div>
-
-      <section aria-labelledby="bloco-domino" className="sec-domino">
-        <div className="sec-cab">
-          <div className="sec-cab-grupo">
-            <h2 id="bloco-domino">Mapa de impacto causal</h2>
-          </div>
-        </div>
-        <GrafoDomino
-          divergencias={dados.divergencias}
-          tarefas={dados.tarefas}
-          modo={modoSimulacao ? 'simulacao' : 'atual'}
-          {...(camposFocoDomino ? { camposFoco: camposFocoDomino } : {})}
-          {...(partesFocoDomino ? { partesFoco: partesFocoDomino } : {})}
-          aoFocar={lidarFoco}
-          aoSelecionarPapel={trocarPerspectiva}
-        />
-      </section>
-
-      <SinaisEAvisos
-        sinais={dados.sinais}
-        notificacoes={dados.notificacoes}
-        sinaisNovos={sinaisNovos}
-        avisosNovos={avisosNovos}
+      <TorreGrid
+        pedidoId={id}
+        cards={cardsTorre}
+        titulosCard={{
+          tarefas:
+            filtro === FILTRO_TODAS
+              ? 'Tarefas abertas'
+              : `Tarefas · ${rotuloParte(filtro)}`,
+        }}
+        aoAnunciar={aoAnunciar}
       />
-
-      <Versoes versoes={dados.versoes} />
     </>
   );
 }

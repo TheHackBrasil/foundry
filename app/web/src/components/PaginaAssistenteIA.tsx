@@ -65,6 +65,7 @@ import {
 } from './assistente/tipos.ts';
 import { EmblemaMonolitos, TrilhaMatrizAgente } from './assistente/TrilhaMatrizAgente.tsx';
 import { EvidenciaLateralIA } from './EvidenciaLateralIA.tsx';
+import type { ContextoAgente } from './evidencia/contexto.ts';
 import {
   IconeCaixa,
   IconeCalendario,
@@ -209,6 +210,23 @@ export function PaginaAssistenteIA({
   const algumTurnoStreaming = turnos.some((t) => t.carregando);
   const temConversa = turnos.length > 0;
   const emSantuario = !temConversa || saindoSantuario;
+
+  // THE-16: a ultima resposta completa do agente vira contexto do painel de
+  // evidencia, que decide se ela aparece (o pedido tem de bater). Turno em
+  // voo nao entra: o painel espelha resposta fechada, nao composicao.
+  const contextoAgente = useMemo<ContextoAgente | null>(() => {
+    for (let i = turnos.length - 1; i >= 0; i--) {
+      const t = turnos[i];
+      if (!t || t.erro || t.carregando) continue;
+      const texto =
+        t.agente && t.agente.textoFinal.trim() ? t.agente.textoFinal : t.textoAgente;
+      const blocos =
+        t.viewSpec && t.viewSpec.blocos.length > 0 ? t.viewSpec.blocos : t.blocosStream;
+      if (!texto.trim() && blocos.length === 0) continue;
+      return { pedidoId: t.pedidoId || (pedidoId ?? ''), texto, blocos };
+    }
+    return null;
+  }, [turnos, pedidoId]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
@@ -1046,6 +1064,8 @@ export function PaginaAssistenteIA({
                 focoAtivo={focoAtivo}
                 aoFocar={setFocoAtivo}
                 aoAbrirNaTorre={aoAbrirNaTorre}
+                contextoAgente={contextoAgente}
+                aoAnunciar={aoAnunciar}
               />
             </div>
           )}
@@ -1259,6 +1279,8 @@ export function PaginaAssistenteIA({
             aoFechar={fecharGavetaEvidencia}
             ehGaveta={true}
             faseGaveta={presencaGaveta.fase}
+            contextoAgente={contextoAgente}
+            aoAnunciar={aoAnunciar}
           />
         </div>
       )}

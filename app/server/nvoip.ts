@@ -4,6 +4,7 @@
 // ou o motivo da falha (A7). Nunca lanca: falha registrada, fluxo intacto.
 
 import type { CanalContato, Contato, Evento, Notificacao, Parte, Tarefa } from '../shared/model.js';
+import { enviarWebhook, payloadWebhook } from './webhook.js';
 import { llmConfigDoEnv, chatJson } from './llm.js';
 import type { LedgerStore } from './store.js';
 
@@ -45,6 +46,12 @@ export function nvoipConfigDoEnv(env: Ambiente = process.env): NvoipConfig | nul
 
 export function canalCompativel(canal: CanalContato): boolean {
   return (CANAIS_NVOIP as readonly string[]).includes(canal);
+}
+
+// Canal com rota de entrega real: os que a Nvoip cobre ou o POST
+// direto do webhook (spec 0012), que independe de provedora.
+export function canalEntrega(canal: CanalContato): boolean {
+  return canal === 'webhook' || canalCompativel(canal);
 }
 
 // Disparo automatico na propagacao de tarefa: so com NVOIP_NOTIFY_ON_TASK
@@ -132,6 +139,24 @@ export async function notificarTarefa(
     return registrar({ parte: null, canal: null, destino: null, mensagem: '', status: 'nao_entregue', motivo: 'sem_parte' });
   }
 
+  const contato: Contato | null = await store.contatoDaParte(parte);
+  // Webhook sai por POST direto na URL do contato e independe da Nvoip
+  // (spec 0012): quem cadastrou a URL escolheu receber a tarefa ali.
+  if (contato?.canal === 'webhook') {
+    if (!tarefa) {
+      return registrar({ parte, canal: 'webhook', destino: contato.destino, mensagem: '', status: 'nao_entregue', motivo: 'sem_tarefa' });
+    }
+    const payload = payloadWebhook(pedidoId, tarefa);
+    const ok = await enviarWebhook(contato.destino, payload);
+    return registrar({
+      parte,
+      canal: 'webhook',
+      destino: contato.destino,
+      mensagem: JSON.stringify(payload).slice(0, 2_000),
+      status: ok ? 'entregue' : 'nao_entregue',
+      ...(ok ? {} : { motivo: 'falha_envio' }),
+    });
+  }
   const cfg = nvoipConfigDoEnv();
   if (!cfg) {
     if (!opcoes.registrarSempre) return null;
@@ -140,7 +165,6 @@ export async function notificarTarefa(
   if (!tarefa) {
     return registrar({ parte, canal: null, destino: null, mensagem: '', status: 'nao_entregue', motivo: 'sem_tarefa' });
   }
-  const contato: Contato | null = await store.contatoDaParte(parte);
   if (!contato) {
     return registrar({ parte, canal: null, destino: null, mensagem: '', status: 'nao_entregue', motivo: 'sem_contato' });
   }

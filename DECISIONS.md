@@ -72,6 +72,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-046 | 24/11 | Spec 0009 implementada (retroativo, sessão 17): agente conversacional ReAct em `app/server/agente/` com 9 tools internas (leitura e escrita), multi-turn com histórico por sessão, streaming token a token, recuperação de erro de tool e seed somente leitura | decidido por Thiago | A conversa é o formato que o juiz espera de "AI"; as tools leem e escrevem pelo motor determinístico, mantendo o ledger como única verdade |
 | D-047 | 24/11 | Correção dos dois P1 da revisão da onda 2: saída de tool viaja dentro da chave `evidencia` e o system prompt a trata como dado citado (injeção cross-visitante); match aproximado de pedido exige 4+ caracteres e `endsWith`, com `pedido_ambiguo` listando candidatos (escrita no pedido errado) | decidido | Achados bloqueantes do reviewer independente; corrigidos e deployados na sessão 17 |
 | D-048 | 24/11 | P2/P3 da revisão da onda 2 corrigidos: saída de tool no contexto limitada a 8k caracteres; tools novas recusadas quando o cliente aborta (escrita em voo conclui, decisão documentada); `destino` de contato mascarado em contexto e no payload `fim`; chamada de tool idêntica no mesmo turno devolve `chamada_duplicada`; `max_completion_tokens` nas chamadas do agente; `parseEventoStream` valida shape de `ev.bloco`; helpers `codigoCurtoPedido`/`alvoIgual` deduplicados; lock de `enviar_notificacao` encurtado (projeção fora da tx); `JanelaFixa` documentado como por processo; `engines.node >=20.3` (AbortSignal.any) | decidido | Rodada de fechamento da revisão; cada item saiu do relatório do reviewer, não de iniciativa nova |
+| D-049 | 24/11 | Webhook como canal da agenda (spec 0012): contato com `canal: 'webhook'` tem `destino` = URL http(s) validada e a tarefa sai por POST JSON direto, sem Nvoip; `NVOIP_NOTIFY_ON_TASK` governa só a provedora, a URL cadastrada pela sessão dispara sempre na propagação. Guard SSRF recusa loopback/privado/link-local na escrita e no envio (sem resolução de DNS, limitação assumida). Pesquisa de transportadoras entregue em `docs/transportadoras-rastreio.md` (backlog 32): 20 URLs testadas ao vivo, top 5 = Correios, Braspress, Jamef, Jadlog e SSW multi-carrier | decidido | Webhook responde a pergunta universal de integração sem depender de provedora nem credencial; agenda já modelava canal+destino, o canal novo reaproveita tabela, API e despacho existentes |
 
 ## Pendências
 
@@ -499,9 +500,55 @@ foi verificado ao vivo em produção em 24/11.
 
 ## Sessão 20
 
-- Spec 0010 rascunhada a partir do áudio transcrito do contato da
+- Spec 0012 rascunhada a partir do áudio transcrito do contato da
   TOTVS (24/11): agente de cobrança de status por e-mail, com
   pendência por tempo, claim `status_declarado` e evidência DKIM
   ancorada. Status `rascunho`: aguarda aceite do time antes de
   implementação. O áudio fecha a pendência P-002 e deve entrar
   formalmente pela frente escopo-produto.
+| D-050 | 24/11 | UX v2 em tres frentes disjuntas (spec 0014): v2-torre (tiling FLIP, templates, grafo limpo: THE-15/18/19), v2-painel (evidencia autonoma com GenUI + mini-descricao via SSE do agente: THE-16/17), v2-menu (rail estilo mini-Wikipedia: THE-20). `App.tsx`, `styles.css`, `genui/` e `shaders/` ficam com a integracao; cada frente cria seu proprio `.css`; server/shared fora do escopo (territorio app-operacao), mini-descricoes reusam `/api/mandatos/stream` | decidido | Video do produto (THE-8, 30/11) precisa da UI pronta; o feedback do usuario quebrou a onda 2 em quatro frentes executaveis |
+
+## Sessao 21
+
+- Orquestracao do plano v2 do Linear: board reconciliado (issues novas
+  THE-11 a THE-28 estavam todas Backlog/sem assignee), sobreposicoes
+  mapeadas (THE-23 = spec 0013/THE-30; THE-22 = spec 0010 da frente parceira;
+  THE-21 estende o motor ReAct da 0009, nao e agente novo).
+- Spec 0014 + frentes v2-torre/v2-painel/v2-menu registradas; tres
+  implementadores em worktrees disjuntas, integracao fia `App.tsx`.
+
+- Integracao das frentes v2 na main (merge limpo, arquivos disjuntos):
+  v2-torre (THE-15 arestas sob demanda, THE-18 tiling FLIP com drag por
+  pointer e teclado, THE-19 vistas por template), v2-menu (THE-20 rail
+  mini-Wikipedia com agenda e revisao fiadas aos drawers reais) e
+  v2-painel (THE-16 painel que deriva secoes do contexto + micro-blocos
+  GenUI, THE-17 mini-descricao ao vivo via SSE do agente com cache por
+  alvo). Icones novos fundidos em components/icones.tsx; classes orfas
+  do split antigo removidas de styles.css; decisoes das frentes em D-T1
+  a D-T6, D-M1 a D-M7 e D-P1 a D-P8 dos briefs da spec 0014. Gates na
+  main integrada: tsc limpo, 143/143 testes web, vite build, guard 11/11.
+
+## Sessao 22
+
+- Rodada 1 de polimento de motion do tiling (feedback "muito cru" do
+  usuario): a section do card vira o slot comprometido (contorno
+  tracejado enquanto a peca voa); peca interna recebe o transform do
+  pointer, lift via propriedade `scale` CSS que compoe com o transform;
+  FLIP reescrito como visual-vs-commit com cancel da animacao em voo
+  (fim dos saltos em reordenacao rapida); destino com histerese (slot so
+  troca dentro da caixa do vizinho ou claramente mais perto que o slot
+  atual); assentamento com curva de overshoot suave (320ms); entrada com
+  stagger por posicao; collapse ganha fade interno.
+
+- Correcao de desempenho da rodada 1 (feedback "desempenho horrivel"):
+  o useLayoutEffect do FLIP media e re-disparava animacoes a CADA render
+  (SSE pulsa constante -> respawn perpétuo de WAAPIs de 300ms); agora o
+  efeito so mede em mudanca real de layout (ordem/ocultos), pointermove e
+  coalescido por requestAnimationFrame e animacoes/frames tem cleanup no
+  unmount.
+
+- Tiling vira grid de verdade (pedido do usuario): largura variavel por
+  card: `layout.spans` persistido por pedido, alca de resize no canto
+  (pointer + setas/Home/End, role=separator com aria-valuenow), span min
+  por card em CARD_META; `grid-auto-flow: dense` retile automatico
+  preenchendo vaos; vista custom salva spans; FLIP cobre o reflow.

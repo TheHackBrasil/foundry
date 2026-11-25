@@ -1,0 +1,357 @@
+/* Torre v2 (spec 0014): tiling de cards arrastáveis e expansíveis (THE-18),
+   vistas por template (THE-19) e arestas do grafo sob demanda (THE-15).
+   Packing masonry calculado em JS (posições + alturas medidas); o retile
+   anima por transições CSS de transform/width/height — sem FLIP. O conteúdo
+   reage à largura real do card via container queries (tiers). */
+
+/* ---------- barra de vistas ---------- */
+.torre-vistas { margin-bottom: 1rem; }
+.torre-vistas-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+.torre-vistas-grupo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
+.torre-vistas-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.torre-vista-salva { display: inline-flex; align-items: center; gap: 0.125rem; }
+.torre-vista-remover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text2);
+  font-size: 0.9375rem;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .torre-vista-remover:hover { background: var(--tint-hover); color: var(--error); }
+}
+.torre-vista-form { display: inline-flex; align-items: center; gap: 0.375rem; }
+.torre-vista-input {
+  min-height: 1.9375rem;
+  width: 11rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.torre-cards-toggle { position: relative; }
+.torre-cards-toggle > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  min-height: 1.9375rem;
+  padding: 0 0.75rem;
+  border-radius: var(--r-pill);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  transition: background-color var(--dur-micro) ease, color var(--dur-micro) ease;
+}
+.torre-cards-toggle > summary::-webkit-details-marker { display: none; }
+.torre-cards-toggle > summary svg { transition: transform var(--dur-micro) var(--ease-out); }
+.torre-cards-toggle[open] > summary svg { transform: rotate(180deg); }
+@media (hover: hover) and (pointer: fine) {
+  .torre-cards-toggle > summary:hover { background: var(--tint-hover); color: var(--text); }
+}
+.torre-cards-toggle-lista {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  min-width: 15rem;
+  max-width: 22rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-slab);
+}
+
+/* ---------- grade de cards (masonry) ---------- */
+/* Posições vêm do packing em JS; transform/width/height transicionam aqui —
+   qualquer retile (drag, span, densidade, conteúdo novo) anima sozinho. */
+.torre-grid {
+  position: relative;
+  transition: height 300ms var(--ease-out);
+}
+/* Antes da primeira medição o grid não tem altura calculada: coluna estática. */
+.torre-grid[data-sem-posicao='true'] .torre-card {
+  position: relative;
+  width: 100%;
+  margin-bottom: 1.25rem;
+}
+
+/* Especificidade (0,2,0) para vencer .slab-mineral { position: relative } de
+   styles.css independente da ordem de injeção das folhas (HMR reordena). */
+.torre-grid > .torre-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 0;
+  /* background-color (não shorthand) para não anular o background-image dos
+     veios que .slab-mineral injeta na mesma section. */
+  background-color: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-slab);
+  outline: 1.5px dashed transparent;
+  outline-offset: -1.5px;
+  /* inline-size vira o container das queries de tier do conteúdo. */
+  container: tcard / inline-size;
+  transition:
+    transform 300ms var(--ease-out),
+    width 300ms var(--ease-out),
+    height 300ms var(--ease-out),
+    background-color var(--dur-micro) ease,
+    box-shadow var(--dur-micro) ease,
+    outline-color var(--dur-micro) ease;
+}
+/* Slot comprometido: enquanto a peça voa, a célula mostra onde ela cai. */
+.torre-card[data-arrastando='true'] {
+  z-index: 20;
+  background-color: transparent;
+  box-shadow: none;
+  outline-color: var(--hairline-strong, var(--border));
+}
+.torre-card[data-arrastando='true'].slab-mineral::before { opacity: 0; }
+
+/* A peça é o que se move no arraste: ganha a cara do card, sobe de camada e
+   cresce 1.8% via propriedade `scale` (compõe com o `transform` do pointer).
+   overflow hidden para o conteúdo acompanhar a borda animada de altura. */
+.torre-card-peca {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  transition:
+    transform 320ms cubic-bezier(0.2, 1.15, 0.3, 1),
+    scale 160ms var(--ease-out),
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+/* Em voo o transform segue o pointer direto — sem a transição de assentar. */
+.torre-card-peca[data-lifted='true'] {
+  background: var(--surface);
+  box-shadow: var(--shadow-slab);
+  scale: 1.018;
+  z-index: 20;
+  will-change: transform;
+  transition:
+    scale 160ms var(--ease-out),
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+/* Sombra de "levantado" pré-renderizada: o arraste só anima opacity. */
+.torre-card-peca::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 18px 42px -18px color-mix(in srgb, var(--text) 45%, transparent);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+}
+.torre-card-peca[data-lifted='true']::after { opacity: 1; }
+
+.torre-card-cab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6875rem 1rem;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--dur-micro) ease;
+}
+.torre-card:not([data-recolhido='true']) .torre-card-cab { border-bottom-color: var(--hairline); }
+
+.torre-card-titulo {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.torre-arraste,
+.torre-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  flex: none;
+  transition: background-color var(--dur-micro) ease, color var(--dur-micro) ease;
+}
+.torre-arraste { cursor: grab; touch-action: none; }
+.torre-card[data-arrastando='true'] .torre-arraste { cursor: grabbing; color: var(--text); }
+
+/* Pill de largura no header: cicla o span do card pelas colunas do grid. */
+.torre-span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.625rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex: none;
+  transition: background-color var(--dur-micro) ease, color var(--dur-micro) ease;
+}
+.torre-span[data-largo='true'] { background: var(--tint-hover); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+  .torre-span:hover { background: var(--tint-hover); color: var(--text); }
+}
+.torre-span-n { font-variant-numeric: tabular-nums; }
+
+.torre-toggle svg { transition: transform var(--dur-ui) var(--ease-out); }
+.torre-card[data-recolhido='true'] .torre-toggle svg { transform: rotate(-90deg); }
+@media (hover: hover) and (pointer: fine) {
+  .torre-arraste:hover,
+  .torre-toggle:hover { background: var(--tint-hover); color: var(--text); }
+}
+
+/* Recolhido esconde o corpo na hora — a borda do card desce animada pela
+   transição de height da <section> (métrica do packing = altura medida).
+   O corpo também tem teto: conteúdo excedente rola dentro do card em vez de
+   esticar o packing — a altura medida já reflete o clamp, sem lógica extra. */
+.torre-card-corpo {
+  min-height: 0;
+  max-height: min(880px, calc(100vh - 120px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.torre-card-corpo-inner { padding: 1rem 1.25rem 1.25rem; }
+.torre-card[data-recolhido='true'] .torre-card-corpo { display: none; }
+
+/* Entrada de card: fade com leve subida na peça (transform nela, não na
+   section — a section já usa transform para se posicionar no packing). */
+.torre-card-peca {
+  animation: torre-card-entra 260ms var(--ease-out) backwards;
+  animation-delay: calc(var(--ordem-i, 0) * 28ms);
+}
+@keyframes torre-card-entra {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.torre-card-peca[data-lifted='true'] { animation: none; }
+
+/* Controle de densidade na barra de vistas. */
+.torre-densidade {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.9375rem;
+  min-height: 1.9375rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  transition: background-color var(--dur-micro) ease, color var(--dur-micro) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .torre-densidade:hover { background: var(--tint-hover); color: var(--text); }
+}
+
+/* ---------- arestas do GrafoDominó sob demanda (THE-15) ---------- */
+.domino-aresta-oculta { opacity: 0; }
+
+/* ---------- conteúdo dentro dos cards ---------- */
+/* Card de meia largura: sinais e avisos empilham em coluna única. */
+.tc-sinais .sinais-avisos[data-ambos='true'] { grid-template-columns: minmax(0, 1fr); }
+/* O detalhe de versões já nasce slab; dentro do card ele vira conteúdo plano
+   para não aninhar superfície dentro de superfície. */
+.tc-versoes .versoes-detalhes {
+  max-width: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+.tc-versoes .versoes-sumario { padding-inline: 0; }
+.tc-versoes .versoes { padding-inline: 0; }
+
+/* ---------- tiers do conteúdo (container query por largura real do card) ---------- */
+/* Matriz em card estreito: as colunas de fonte têm um mínimo legível e a
+   tabela rola na horizontal em vez de clipar a última coluna. */
+@container tcard (max-width: 700px) {
+  .tc-matriz .mx [role='table'] { overflow-x: auto; scrollbar-width: thin; }
+  .tc-matriz .mx-row { min-width: calc(9.5rem + var(--n) * 7.5rem); }
+}
+/* O card estreito reorganiza o que mostra — mesma ideia do tier do widget:
+   abaixo de ~430px a info secundária cede lugar ao essencial. */
+@container tcard (max-width: 430px) {
+  .torre-card-cab { padding: 0.5625rem 0.75rem; gap: 0.375rem; }
+  .torre-card-titulo { font-size: 0.9375rem; }
+  .torre-card-corpo-inner { padding: 0.75rem 0.875rem 0.9375rem; }
+  .resumo-mx { font-size: 0.8125rem; }
+  .mx-trilhos-label { display: none; }
+  .domino-tags-origem,
+  .domino-comparacao { display: none; }
+  .selo-meta,
+  .selo-cadeia-info { display: none; }
+  .versoes-sumario,
+  .versoes { padding-inline: 0; }
+  .origens-lista { gap: 0.125rem 0.625rem; }
+}
+/* Tier micro: só o essencial — medidores e colunas auxiliares somem. */
+@container tcard (max-width: 340px) {
+  .mx-medidor { display: none; }
+  .domino-col-titulos { display: none; }
+  .aviso-msg {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .torre-span { padding: 0 0.375rem; }
+}
+
+/* ---------- responsividade ---------- */
+@media (max-width: 760px) {
+  .torre-vistas-linha { align-items: stretch; flex-direction: column; }
+  .torre-vistas-acoes { justify-content: space-between; }
+  .torre-cards-toggle-lista { right: auto; left: 0; }
+}
+
+/* ---------- reduced-motion (A6): sem retile animado, sem deslize ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .torre-grid { transition: none; }
+  .torre-grid > .torre-card { transition: outline-color var(--dur-micro) ease; }
+  .torre-card-peca,
+  .torre-card-peca[data-lifted='true'] { transition: none; animation: none; }
+  .torre-card-peca::after { transition: none; }
+  .torre-toggle svg,
+  .torre-cards-toggle > summary svg { transition: none; }
+  /* THE-15: as arestas aparecem sem transição quando o nó é ativado. */
+  .domino-aresta,
+  .domino-aresta-solida { transition: none; }
+}

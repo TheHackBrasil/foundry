@@ -6,6 +6,7 @@ import { CANAIS_CONTATO, PARTES, type CanalContato, type Contato, type DocData, 
 import { canalPadraoDoEnv } from './nvoip.js';
 import { ErroRequisicao } from './protecao.js';
 import type { LedgerStore } from './store.js';
+import { destinoWebhookValido } from './webhook.js';
 
 // Os 4 contatos ficticios da seed (rotulados): inseridos idempotentemente por
 // store.init(), compartilhados em leitura com todas as sessoes.
@@ -49,13 +50,17 @@ export function validarContato(body: unknown): Contato {
     throw new ErroRequisicao(400, 'parte deve ser uma das partes conhecidas (fornecedor, transportadora, cd, fiscal, financeiro)');
   }
   if (typeof canal !== 'string' || !(CANAIS_CONTATO as readonly string[]).includes(canal)) {
-    throw new ErroRequisicao(400, 'canal deve ser whatsapp, sms, ligacao ou email');
+    throw new ErroRequisicao(400, 'canal deve ser whatsapp, sms, ligacao, email ou webhook');
+  }
+  const destino = textoCurto(b['destino'], 'destino');
+  if (canal === 'webhook' && !destinoWebhookValido(destino)) {
+    throw new ErroRequisicao(400, 'destino webhook deve ser uma URL http(s) de host público');
   }
   return {
     parte: parte as Parte,
     nome: textoCurto(b['nome'], 'nome'),
     canal: canal as CanalContato,
-    destino: textoCurto(b['destino'], 'destino'),
+    destino,
     fonte: 'manual',
   };
 }

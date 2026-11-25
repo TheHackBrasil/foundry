@@ -135,9 +135,11 @@ export function GrafoDomino({
   const [parteIsolada, setParteIsolada] = useState<Parte | null>(null);
   const [hoverCampo, setHoverCampo] = useState<CampoVigiado | null>(null);
   const [hoverParte, setHoverParte] = useState<Parte | null>(null);
+  // Foco de teclado revela as arestas do nó sem exigir clique (THE-15).
+  const [focoCampo, setFocoCampo] = useState<CampoVigiado | null>(null);
+  const [focoParte, setFocoParte] = useState<Parte | null>(null);
   const [visivel, setVisivel] = useState(true);
   const [revelado, setRevelado] = useState(() => typeof IntersectionObserver === 'undefined');
-  const [ondaInicial, setOndaInicial] = useState(false);
 
   const wrapRef = useRef<HTMLElement>(null);
   const centroRef = useRef<HTMLDivElement>(null);
@@ -178,14 +180,8 @@ export function GrafoDomino({
     };
   }, [divergencias.length]);
 
-  // Pulso causal único na chegada do grafo para tornar visível a direção
-  // divergência -> setor antes de assentar em repouso.
-  useEffect(() => {
-    if (!revelado) return;
-    setOndaInicial(true);
-    const t = window.setTimeout(() => setOndaInicial(false), 1750);
-    return () => window.clearTimeout(t);
-  }, [revelado, modo]);
+  // Arestas ocultas por padrão (THE-15): nenhum pulso automático na chegada;
+  // o fluxo só aparece quando a pessoa ativa um nó de origem.
   const [geom, setGeom] = useState<GeometriaSvg>({
     largura: 240,
     altura: 280,
@@ -270,11 +266,12 @@ export function GrafoDomino({
   const camposFocoSet = useMemo(() => new Set<CampoVigiado>(camposFoco ?? []), [camposFoco]);
   const partesFocoSet = useMemo(() => new Set<Parte>(partesFoco ?? []), [partesFoco]);
 
-  // Prioridade de foco: hover imediato > seleção local no grafo > foco externo (matriz/KPI).
+  // Prioridade de foco: hover imediato > foco de teclado > seleção local no
+  // grafo > foco externo (matriz/KPI).
   const focoCampoAtivo: CampoVigiado | null =
-    hoverCampo ?? isolamentoEfetivo ?? (camposFocoSet.size === 1 ? [...camposFocoSet][0] ?? null : null);
+    hoverCampo ?? focoCampo ?? isolamentoEfetivo ?? (camposFocoSet.size === 1 ? [...camposFocoSet][0] ?? null : null);
   const focoParteAtiva: Parte | null =
-    hoverParte ?? parteIsoladaEfetiva ?? (partesFocoSet.size === 1 ? [...partesFocoSet][0] ?? null : null);
+    hoverParte ?? focoParte ?? parteIsoladaEfetiva ?? (partesFocoSet.size === 1 ? [...partesFocoSet][0] ?? null : null);
 
   const arestas = useMemo<ArestaCausal[]>(() => {
     const saida: ArestaCausal[] = [];
@@ -371,6 +368,8 @@ export function GrafoDomino({
     setParteIsolada(null);
     setHoverCampo(null);
     setHoverParte(null);
+    setFocoCampo(null);
+    setFocoParte(null);
     aoFocar?.(null);
   }
 
@@ -407,12 +406,20 @@ export function GrafoDomino({
     camposFocoSet.size > 0 ||
     partesFocoSet.size > 0;
 
-  const arestaAtiva = (a: ArestaCausal): boolean => {
-    if (focoCampoAtivo !== null) return a.campo === focoCampoAtivo;
-    if (focoParteAtiva !== null) return a.parte === focoParteAtiva;
-    if (camposFocoSet.size > 0 && !camposFocoSet.has(a.campo)) return false;
-    if (partesFocoSet.size > 0 && !partesFocoSet.has(a.parte)) return false;
-    return true;
+  // THE-15: a aresta só existe visualmente quando o nó de origem (a divergência)
+  // foi ativado por hover, clique/isolamento ou foco de teclado; foco externo
+  // (camposFoco) conta como ativação do mesmo nó. Estado por nó, não global.
+  const camposRevelados = new Set<CampoVigiado>(camposFocoSet);
+  if (hoverCampo) camposRevelados.add(hoverCampo);
+  if (focoCampo) camposRevelados.add(focoCampo);
+  if (isolamentoEfetivo) camposRevelados.add(isolamentoEfetivo);
+
+  const arestaClasse = (a: ArestaCausal): 'oculta' | 'ativa' | 'enfase' => {
+    if (!camposRevelados.has(a.campo)) return 'oculta';
+    if (hoverCampo === a.campo || focoCampo === a.campo || isolamentoEfetivo === a.campo) {
+      return 'enfase';
+    }
+    return 'ativa';
   };
 
   // Regras visíveis na coluna central: mostra apenas as regras ativas quando há foco
@@ -428,7 +435,7 @@ export function GrafoDomino({
     if (!temFiltroAtivo || regrasVisiveis.length !== 1) return null;
     const unica = regrasVisiveis[0];
     if (!unica) return null;
-    const ativas = arestas.filter((a) => a.campo === unica.campo && arestaAtiva(a));
+    const ativas = arestas.filter((a) => a.campo === unica.campo);
     if (ativas.length === 0) return null;
     const yEsq = geom.esquerdaY[unica.campo] ?? geom.altura / 2;
     const mediaDir =
@@ -472,7 +479,7 @@ export function GrafoDomino({
           </div>
           {temIsolamento && (
             <button type="button" className="botao-sutil" onClick={limparIsolamento}>
-              Mostrar todas as conexões
+              Limpar isolamento
             </button>
           )}
         </div>
@@ -517,6 +524,8 @@ export function GrafoDomino({
                 data-esmaecido={esmaecido ? 'true' : undefined}
                 onMouseEnter={() => setHoverCampo(no.campo)}
                 onMouseLeave={() => setHoverCampo((atual) => (atual === no.campo ? null : atual))}
+                onFocus={() => setFocoCampo(no.campo)}
+                onBlur={() => setFocoCampo((atual) => (atual === no.campo ? null : atual))}
                 onClick={() => alternarDivergencia(no)}
               >
                 <span className="domino-no-topo">
@@ -580,12 +589,17 @@ export function GrafoDomino({
               const c1x = geom.largura * 0.42;
               const c2x = geom.largura * 0.58;
               const d = `M 3 ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${xFim} ${y2}`;
-              const ativa = arestaAtiva(a);
-              const enfase = temFiltroAtivo && ativa;
+              const classeVis = arestaClasse(a);
+              const visivelAresta = classeVis !== 'oculta';
+              const enfase = classeVis === 'enfase';
               const classeAresta = [
                 'domino-aresta',
                 ehSimulacao ? 'domino-aresta-sim' : 'domino-aresta-solida',
-                enfase ? 'domino-aresta-enfase' : ativa ? 'domino-aresta-ativa' : 'domino-aresta-dim',
+                enfase
+                  ? 'domino-aresta-enfase'
+                  : visivelAresta
+                    ? 'domino-aresta-ativa'
+                    : 'domino-aresta-oculta',
               ].join(' ');
 
               return (
@@ -596,19 +610,17 @@ export function GrafoDomino({
                     className={classeAresta}
                     style={{ '--edge-i': Math.min(idx, 10) } as CSSProperties}
                     fill="none"
-                    stroke={ativa ? 'var(--change)' : 'var(--border-strong)'}
-                    strokeWidth={enfase ? 2.4 : ativa ? 1.75 : 1.2}
+                    stroke={visivelAresta ? 'var(--change)' : 'var(--border-strong)'}
+                    strokeWidth={enfase ? 2.4 : 1.75}
                     strokeLinecap="round"
                     strokeDasharray={tracejado}
-                    markerEnd={`url(#${ativa ? markerAtivoId : markerDimId})`}
+                    markerEnd={`url(#${visivelAresta ? markerAtivoId : markerDimId})`}
                   />
-                  {(enfase || (ondaInicial && ativa)) && !ehSimulacao && (
+                  {enfase && !ehSimulacao && (
                     <path
                       d={d}
                       pathLength={1}
-                      className={
-                        enfase ? 'domino-fluxo-pulso' : 'domino-fluxo-pulso domino-fluxo-chegada'
-                      }
+                      className="domino-fluxo-pulso"
                       style={{ '--edge-i': Math.min(idx, 10) } as CSSProperties}
                       fill="none"
                       strokeLinecap="round"
@@ -622,11 +634,7 @@ export function GrafoDomino({
               const y =
                 geom.esquerdaY[no.campo] ??
                 ((i + 0.5) / Math.max(1, nosDivergencia.length)) * geom.altura;
-              const ativo =
-                !temFiltroAtivo ||
-                focoCampoAtivo === no.campo ||
-                (focoParteAtiva !== null && no.partesImpactadas.has(focoParteAtiva)) ||
-                camposFocoSet.has(no.campo);
+              const ativo = camposRevelados.has(no.campo);
               return (
                 <circle
                   key={`ponto-${no.campo}`}
@@ -688,6 +696,8 @@ export function GrafoDomino({
                 onMouseLeave={() =>
                   setHoverParte((atual) => (atual === setor.parte ? null : atual))
                 }
+                onFocus={() => setFocoParte(setor.parte)}
+                onBlur={() => setFocoParte((atual) => (atual === setor.parte ? null : atual))}
                 onClick={() => clicarSetor(setor.parte)}
               >
                 <span className="domino-no-topo">

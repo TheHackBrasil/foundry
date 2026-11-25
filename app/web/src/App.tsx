@@ -347,6 +347,8 @@ export function App() {
               rota={torre.rota}
               aoTentarDeNovo={torre.recarregarLista}
               aoSelecionarMobile={fecharMenuMobile}
+              aoAbrirAgenda={abrirAgenda}
+              aoAbrirRevisao={abrirRevisao}
             />
           </div>
 
