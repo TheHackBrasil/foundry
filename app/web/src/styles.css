@@ -2097,15 +2097,6 @@ main[data-rota='ia'] {
 }
 .lente-resumo-acoes { display: inline-flex; align-items: center; gap: 0.375rem; flex: none; }
 
-/* ---------- split 60% Matriz / 40% Tarefas ---------- */
-.cols {
-  display: grid;
-  grid-template-columns: minmax(0, 1.48fr) minmax(22rem, 1fr);
-  gap: 1.75rem;
-  align-items: start;
-}
-.col-matriz, .col-tarefas { min-width: 0; }
-
 .sec-cab {
   display: flex;
   justify-content: space-between;
@@ -2500,13 +2491,6 @@ main[data-rota='ia'] {
 }
 
 /* ---------- Mapa de Impacto Causal (GrafoDomino) ---------- */
-.sec-domino {
-  display: grid;
-  gap: 0.875rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
-  min-width: 0;
-}
 
 .domino-wrap { display: grid; gap: 0.875rem; min-width: 0; }
 .domino-titulo { font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.015em; }
@@ -2563,7 +2547,6 @@ main[data-rota='ia'] {
 }
 .domino-aresta-ativa { opacity: 0.72; }
 .domino-aresta-enfase { opacity: 0.96; }
-.domino-aresta-dim { opacity: 0.16; }
 
 .domino-aresta-solida {
   stroke-dasharray: 1;
@@ -2591,13 +2574,6 @@ main[data-rota='ia'] {
   opacity: 0.85;
   pointer-events: none;
   animation: fluxo-causal 1350ms linear infinite;
-}
-.domino-fluxo-chegada {
-  stroke: var(--change);
-  stroke-width: 2.6;
-  stroke-dasharray: 0.18 0.82;
-  opacity: 0.92;
-  animation: fluxo-causal-chegada 1050ms cubic-bezier(0.22, 1, 0.36, 1) calc(220ms + var(--edge-i, 0) * 65ms) 1 both;
 }
 :root[data-tema='dark'] .domino-fluxo-pulso {
   stroke: var(--cord);
@@ -3639,7 +3615,6 @@ main[data-rota='ia'] {
   .cmd-tremor,
   .cmd-orbita > span,
   .domino-fluxo-pulso,
-  .domino-fluxo-chegada,
   .domino-aresta-sim,
   .palco-genui::before,
   .palco-bloco::after,
@@ -3652,7 +3627,6 @@ main[data-rota='ia'] {
     animation: none;
   }
   .domino-fluxo-pulso,
-  .domino-fluxo-chegada,
   .palco-bloco::after { opacity: 0; }
   .palco-bloco { clip-path: none; }
   .palco-curtain { transition: opacity 120ms ease; }

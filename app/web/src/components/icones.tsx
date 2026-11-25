@@ -355,3 +355,20 @@ export function IconeRota() {
     </svg>
   );
 }
+
+export function IconeLupa() {
+  return (
+    <svg {...base}>
+      <circle {...traco} cx="7" cy="7" r="4.25" />
+      <path {...traco} d="m10.25 10.25 3 3" />
+    </svg>
+  );
+}
+
+export function IconeChevron() {
+  return (
+    <svg {...base}>
+      <path {...traco} d="m6 3.75 4.5 4.25L6 12.25" />
+    </svg>
+  );
+}

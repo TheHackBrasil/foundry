@@ -7,7 +7,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import type { Contato, ItemRevisao, VersaoPedido } from '../../../../shared/model.ts';
 import { obterPedido, type PedidoResumo } from '../../api.ts';
 import { listarContatos, listarRevisao } from '../../apiOps.ts';
-import { IconeChevron, IconeLupa } from '../../icones.tsx';
+import { IconeChevron, IconeLupa } from '../icones.tsx';
 import type { Carga, RotaTorre } from '../../useTorre.ts';
 import '../../menuwiki.css';
 import {
