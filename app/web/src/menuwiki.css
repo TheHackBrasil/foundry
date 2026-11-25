@@ -1,0 +1,225 @@
+/* Indice wiki do rail (spec 0014, THE-20): secoes dobraveis com titulo,
+   resumo de uma linha e selo de estado por item. Mesma materia do monolito
+   escuro: tipografia apertada, zero caixa, violeta so para coordenacao. */
+
+.mw {
+  display: grid;
+  gap: 0.6875rem;
+  min-width: 0;
+}
+
+.mw-cab {
+  display: grid;
+  gap: 0.625rem;
+}
+
+/* Busca local: mesmo pilula sombreada do antigo filtro Todos/Conflitos. */
+.mw-busca {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.mw-busca svg {
+  position: absolute;
+  inset-inline-start: 0.625rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--rail-soft);
+  pointer-events: none;
+}
+.mw-busca input {
+  width: 100%;
+  min-height: 2.125rem;
+  padding: 0 0.625rem 0 1.875rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--on-rail) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-rail) 14%, transparent);
+  color: var(--on-rail);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+}
+.mw-busca input::placeholder {
+  color: var(--rail-soft);
+  opacity: 0.85;
+}
+
+/* Cabecalho de secao: mesma voz dos h2 do rail (maiúsculo, rail-soft). */
+.mw-secoes {
+  display: grid;
+  gap: 0.25rem;
+}
+.mw-secao {
+  display: grid;
+  gap: 0.125rem;
+}
+.mw-secao-titulo {
+  margin: 0;
+  font: inherit;
+}
+.mw-secao-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  width: 100%;
+  min-height: 1.875rem;
+  padding: 0 0.375rem;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--rail-soft);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--dur-micro) ease, color var(--dur-micro) ease;
+}
+.mw-secao-btn svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  flex: none;
+  transition: transform 160ms var(--ease-move);
+}
+.mw-secao-btn[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mw-secao-btn:hover {
+    background: color-mix(in srgb, var(--on-rail) 6%, transparent);
+    color: var(--on-rail);
+  }
+}
+.mw-secao-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mw-conta {
+  margin-inline-start: auto;
+  font-size: 0.71875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--rail-soft);
+}
+
+/* Abrir uma secao: entrada curta por transform/opacity; display:none do
+   [hidden] reinicia a animacao a cada abertura. */
+.mw-conteudo {
+  animation: mw-entra 180ms var(--ease-out);
+}
+@keyframes mw-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+/* Itens: titulo + selo na primeira linha, resumo de uma linha embaixo. O
+   estado selecionado herda o mesmo recorte da lista anterior. */
+.mw-itens {
+  display: grid;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mw-item {
+  display: grid;
+  gap: 0.1875rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  text-align: start;
+  font: inherit;
+  text-decoration: none;
+}
+.mw-item-link {
+  cursor: pointer;
+  transition: background-color var(--dur-micro) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mw-item-link:hover {
+    background: color-mix(in srgb, var(--on-rail) 8%, transparent);
+  }
+}
+.mw-item-link[aria-current='page'] {
+  background: color-mix(in srgb, var(--on-rail) 13%, transparent);
+  box-shadow: inset 0 1px 0 rgba(245, 242, 235, 0.14), inset 0 0 0 1px rgba(245, 242, 235, 0.08);
+}
+.mw-item-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4375rem;
+  min-width: 0;
+}
+.mw-item-titulo {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--on-rail);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.mw-item-sub {
+  font-size: 0.78125rem;
+  color: var(--rail-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tom 'sutil' do selo: o unico que nao existia nas rail-badge-*. */
+.mw-selo-sutil {
+  color: var(--rail-soft);
+}
+
+.mw-vazio {
+  margin: 0;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--rail-soft);
+}
+.mw-vazio-grupo {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  padding: 0.375rem 0;
+}
+
+/* Reduzido: sem translate nem rotacao; a abertura vira fade curto (camada 2)
+   e as transicoes de cor continuam (camada 3). */
+@media (prefers-reduced-motion: reduce) {
+  .mw-conteudo {
+    animation: mw-entra-reduz 120ms ease;
+  }
+  .mw-secao-btn svg {
+    transition: none;
+  }
+  .mw-secao-btn,
+  .mw-item-link {
+    transition-duration: 120ms;
+  }
+}
+@keyframes mw-entra-reduz {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .mw-item-link[aria-current='page'] {
+    outline: 2px solid Highlight;
+  }
+  .mw-secao-btn,
+  .mw-busca input {
+    border: 1px solid ButtonBorder;
+  }
+}
