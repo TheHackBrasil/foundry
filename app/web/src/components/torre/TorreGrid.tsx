@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -11,6 +10,7 @@ import {
 } from 'react';
 import {
   CARD_IDS,
+  COLUNAS_MAX,
   LAYOUT_PADRAO,
   TEMPLATES_VISTA,
   aplicarTemplate,
@@ -29,21 +29,28 @@ import { TorreVistas } from './TorreVistas.tsx';
 
 export interface CardMeta {
   titulo: string;
-  // Largura em colunas do grid de 12 (tiling). Mobile colapsa tudo para 12.
+  // Largura padrão em colunas do masonry (clamp ao nº de colunas que couber).
   span: number;
-  // Mínimo que o conteúdo aguenta antes de quebrar.
-  minSpan: number;
 }
 
+// Defaults pensados para o grid em 3 colunas: linhas fecham sem vãos
+// (matriz 2 + tarefas 1, domino full, sinais 1 + cadeia 2, simulador/versoes full).
 export const CARD_META: Record<CardId, CardMeta> = {
-  matriz: { titulo: 'Fontes e campos', span: 7, minSpan: 5 },
-  tarefas: { titulo: 'Tarefas abertas', span: 5, minSpan: 4 },
-  domino: { titulo: 'Mapa de impacto causal', span: 12, minSpan: 7 },
-  sinais: { titulo: 'Sinais e avisos', span: 6, minSpan: 4 },
-  cadeia: { titulo: 'Status da cadeia', span: 6, minSpan: 4 },
-  simulador: { titulo: 'Simulador de impacto', span: 12, minSpan: 7 },
-  versoes: { titulo: 'Histórico de versões', span: 12, minSpan: 6 },
+  matriz: { titulo: 'Fontes e campos', span: 2 },
+  tarefas: { titulo: 'Tarefas abertas', span: 1 },
+  domino: { titulo: 'Mapa de impacto causal', span: 3 },
+  sinais: { titulo: 'Sinais e avisos', span: 1 },
+  cadeia: { titulo: 'Status da cadeia', span: 2 },
+  simulador: { titulo: 'Simulador de impacto', span: 3 },
+  versoes: { titulo: 'Histórico de versões', span: 3 },
 };
+
+// Densidade global: largura-alvo de cada coluna — quanto maior, menos colunas
+// cabem na largura disponível (mesmo esquema do widget de referência).
+const ALVO_COLUNA = [240, 320, 470] as const;
+const GAP = 20;
+// Altura assumida antes da primeira medição via ResizeObserver.
+const ALTURA_ESTIMADA = 170;
 
 interface TorreGridProps {
   pedidoId: string;
@@ -63,31 +70,31 @@ interface DragAtivo {
   startY: number;
   lastX: number;
   lastY: number;
-  tx: number;
-  ty: number;
   ordemAntes: CardId[];
   moved: boolean;
 }
 
-interface ResizeAtivo {
-  id: CardId;
-  pointerId: number;
-  gridLeft: number;
-  passo: number;
-  ultimoSpan: number;
+interface Posicao {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  coluna: number;
+  span: number;
 }
 
-function movimentoReduzido(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
+// Espaço livre que um card largo deixa para trás ao pousar acima de uma coluna
+// mais baixa — preenchido por cards pequenos que vêm depois (backfill).
+interface Buraco {
+  col: number;
+  cima: number;
+  baixo: number;
 }
 
-// Orquestrador do tiling (THE-18): mantém ordem/visibilidade/expansão por
-// pedido, arraste fluido por pointer com FLIP dos vizinhos (só transform) e
-// reordenação por teclado na alça de cada card.
+// Orquestrador do tiling (THE-18): packing masonry — cada card cai na faixa de
+// `span` colunas mais baixa, posições/tamanhos saem do cálculo (não do CSS
+// grid) e transições de transform/width/height animam qualquer retile. Alturas
+// são medidas por ResizeObserver na .torre-card-medida de cada card.
 export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGridProps) {
   const [layout, setLayout] = useState<LayoutTorre>(
     () => lerLayoutPedido(pedidoId) ?? { ...LAYOUT_PADRAO },
@@ -96,17 +103,17 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     lerTemplatesCustom(),
   );
   const [dragId, setDragId] = useState<CardId | null>(null);
+  const [gridW, setGridW] = useState(0);
+  const [heights, setHeights] = useState<Partial<Record<CardId, number>>>({});
 
   const elsRef = useRef(new Map<CardId, HTMLElement>());
   const pecasRef = useRef(new Map<CardId, HTMLElement>());
-  const animsRef = useRef(new Map<string, Animation>());
+  const medidasRef = useRef(new Map<CardId, HTMLElement>());
   const dragRef = useRef<DragAtivo | null>(null);
-  const resizeRef = useRef<ResizeAtivo | null>(null);
   const gridElRef = useRef<HTMLDivElement | null>(null);
   const ordemVisivelRef = useRef<CardId[]>([]);
+  const posMapRef = useRef(new Map<CardId, Posicao>());
   const frameRef = useRef(0);
-  const frameResizeRef = useRef(0);
-  const [resizingId, setResizingId] = useState<CardId | null>(null);
 
   const ocultosSet = useMemo(() => new Set(layout.ocultos), [layout.ocultos]);
   const recolhidosSet = useMemo(() => new Set(layout.recolhidos), [layout.recolhidos]);
@@ -118,6 +125,10 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
 
   const ocultosSetRef = useRef(ocultosSet);
   ocultosSetRef.current = ocultosSet;
+
+  const densidade = layout.densidade ?? 1;
+  const cols = Math.max(1, Math.min(COLUNAS_MAX, Math.floor(gridW / ALVO_COLUNA[densidade]) || 1));
+  const cardW = gridW > 0 ? (gridW - (cols - 1) * GAP) / cols : 0;
 
   // Outro pedido foi aberto no mesmo mount (sem key no PainelPedido):
   // recarrega o layout persistido daquele pedido.
@@ -133,25 +144,157 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     guardarTemplatesCustom(templatesCustom);
   }, [templatesCustom]);
 
-  // Nada fica pendurado: animações WAAPI e frames agendados morrem com o grid.
+  // Um ResizeObserver para a largura do grid → número de colunas.
   useEffect(() => {
-    const anims = animsRef.current;
-    return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-      if (frameResizeRef.current) cancelAnimationFrame(frameResizeRef.current);
-      for (const a of anims.values()) a.cancel();
-    };
+    const el = gridElRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? el.clientWidth;
+      setGridW((prev) => (Math.abs(prev - w) >= 1 ? w : prev));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Um ResizeObserver para as alturas naturais: cada .torre-card-medida reporta
+  // sua altura de conteúdo — é a métrica do packing (o visual anima por CSS).
+  const roMedidasRef = useRef<ResizeObserver | null>(null);
+  useEffect(() => {
+    const ro = new ResizeObserver((entries) => {
+      setHeights((prev) => {
+        let mudou = false;
+        const prox = { ...prev };
+        for (const e of entries) {
+          const el = e.target as HTMLElement;
+          const id = el.dataset.cardMedida as CardId | undefined;
+          if (!id) continue;
+          const h = el.offsetHeight;
+          if (Math.abs((prox[id] ?? 0) - h) >= 1) {
+            prox[id] = h;
+            mudou = true;
+          }
+        }
+        return mudou ? prox : prev;
+      });
+    });
+    roMedidasRef.current = ro;
+    return () => ro.disconnect();
+  }, []);
+
+  const medidaRef = useCallback(
+    (id: CardId) => (el: HTMLElement | null) => {
+      if (el) {
+        medidasRef.current.set(id, el);
+        roMedidasRef.current?.observe(el);
+      } else {
+        const antigo = medidasRef.current.get(id);
+        if (antigo) roMedidasRef.current?.unobserve(antigo);
+        medidasRef.current.delete(id);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => () => {
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
   }, []);
 
   const spanDe = useCallback(
     (id: CardId) => {
-      const meta = CARD_META[id];
       const s = layout.spans?.[id];
-      const base = typeof s === 'number' && Number.isFinite(s) ? s : meta.span;
-      return Math.max(meta.minSpan, Math.min(12, base));
+      const base = typeof s === 'number' && Number.isFinite(s) ? s : CARD_META[id].span;
+      return Math.max(1, Math.min(cols, base));
     },
-    [layout.spans],
+    [layout.spans, cols],
   );
+  // Packing masonry: para cada card, a faixa de `span` colunas mais baixa —
+  // expandir só empurra quem está abaixo; o dense é estrutural, não opcional.
+  // Cards que pousam mais alto que o topo de uma coluna deixam um Buraco:
+  // cards posteriores que couberem ali sobem (skyline com backfill).
+  const posMap = useMemo(() => {
+    const mapa = new Map<CardId, Posicao>();
+    if (cols < 1 || cardW <= 0) return mapa;
+    const colH = new Array<number>(cols).fill(0);
+    const buracos: Buraco[] = [];
+    for (const id of ordemVisivel) {
+      const span = Math.min(spanDe(id), cols);
+      const h = heights[id] ?? ALTURA_ESTIMADA;
+      let bx = 0;
+      let bh = Infinity;
+      for (let i = 0; i + span <= cols; i += 1) {
+        const topo = Math.max(...colH.slice(i, i + span));
+        if (topo < bh) {
+          bh = topo;
+          bx = i;
+        }
+      }
+      // Backfill: uma faixa de colunas adjacentes cujos buracos têm sobreposição
+      // comum >= h hospeda o card mais alto que a skyline permitiria.
+      let usados: Buraco[] | null = null;
+      for (let i = 0; i + span <= cols; i += 1) {
+        let topo = -Infinity;
+        let fundo = Infinity;
+        const cand: Buraco[] = [];
+        let ok = true;
+        for (let c = i; c < i + span; c += 1) {
+          const b = buracos.find((x) => x.col === c && x.baixo - x.cima >= h);
+          if (!b) {
+            ok = false;
+            break;
+          }
+          cand.push(b);
+          topo = Math.max(topo, b.cima);
+          fundo = Math.min(fundo, b.baixo);
+        }
+        if (ok && fundo - topo >= h && topo < bh) {
+          bx = i;
+          bh = topo;
+          usados = cand;
+          break;
+        }
+      }
+      mapa.set(id, {
+        x: bx * (cardW + GAP),
+        y: bh,
+        w: span * cardW + (span - 1) * GAP,
+        h,
+        coluna: bx,
+        span,
+      });
+      if (usados) {
+        // O trecho acima de bh (buracos de alturas diferentes) continua livre;
+        // o de baixo vira um buraco menor ou some.
+        for (const b of usados) {
+          const fim = b.baixo;
+          if (b.cima < bh - 1) {
+            b.baixo = bh;
+            if (bh + h + GAP < fim - 1) {
+              buracos.push({ col: b.col, cima: bh + h + GAP, baixo: fim });
+            }
+          } else {
+            b.cima = bh + h + GAP;
+            if (b.baixo - b.cima < 1) buracos.splice(buracos.indexOf(b), 1);
+          }
+        }
+      } else {
+        for (let i = bx; i < bx + span; i += 1) {
+          const col = colH[i];
+          if (col !== undefined && col < bh - 1) {
+            buracos.push({ col: i, cima: col, baixo: bh });
+          }
+          colH[i] = bh + h + GAP;
+        }
+      }
+    }
+    posMapRef.current = mapa;
+    return mapa;
+  }, [ordemVisivel, spanDe, heights, cols, cardW]);
+
+  const gridH = useMemo(() => {
+    let fundo = 0;
+    for (const p of posMap.values()) fundo = Math.max(fundo, p.y + p.h);
+    return fundo;
+  }, [posMap]);
 
   const commitOrdemVisivel = useCallback((novaVisivel: CardId[]) => {
     setLayout((prev) => {
@@ -162,48 +305,6 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       return { ...prev, ordem: [...novaVisivel, ...foraDaLista, ...ocultosOrd] };
     });
   }, []);
-
-  // FLIP com captura visual (transform/opacity, WAAPI): a section é sempre o
-  // slot comprometido — o rect antes do cancel inclui a animação em voo, o
-  // rect depois é o novo commit; a diferença segura o card exatamente onde o
-  // olho o vê, mesmo quando um commit interrompe o deslize anterior.
-  // Gate nas deps: sem mudança de layout o efeito nem mede — renders de SSE
-  // não relêem rects nem reiniciam animações em voo.
-  const ordemKey = ordemVisivel.join(',');
-  useLayoutEffect(() => {
-    const d = dragRef.current;
-    for (const id of ordemVisivelRef.current) {
-      const el = elsRef.current.get(id);
-      if (!el) continue;
-      if (d && d.id === id) {
-        const r = el.getBoundingClientRect();
-        d.tx = d.lastX - d.grabDX - r.left;
-        d.ty = d.lastY - d.grabDY - r.top;
-        d.peca.style.transform = `translate3d(${d.tx}px, ${d.ty}px, 0)`;
-        continue;
-      }
-      const rVisual = el.getBoundingClientRect();
-      animsRef.current.get(`card:${id}`)?.cancel();
-      const rCommit = el.getBoundingClientRect();
-      const dx = rVisual.left - rCommit.left;
-      const dy = rVisual.top - rCommit.top;
-      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
-      if (movimentoReduzido()) continue;
-      const anim = el.animate(
-        [
-          { transform: `translate3d(${dx}px, ${dy}px, 0)` },
-          { transform: 'translate3d(0, 0, 0)' },
-        ],
-        { duration: 300, easing: 'cubic-bezier(0.22, 1.12, 0.32, 1)' },
-      );
-      const chave = `card:${id}`;
-      animsRef.current.set(chave, anim);
-      anim.onfinish = () => {
-        if (animsRef.current.get(chave) === anim) animsRef.current.delete(chave);
-      };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mede só em mudança real de layout
-  }, [ordemKey, layout]);
 
   const tituloDe = useCallback(
     (id: CardId) => titulosCard?.[id] ?? CARD_META[id].titulo,
@@ -220,32 +321,12 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         cancelAnimationFrame(frameRef.current);
         frameRef.current = 0;
       }
+      d.peca.style.transform = '';
       if (reverter) {
-        d.peca.style.transform = '';
         setLayout((prev) => ({ ...prev, ordem: d.ordemAntes }));
         return;
       }
-      // Assentamento: a peça cai do ponto do pointer para o slot comprometido,
-      // com uma curva que passa um pouco e volta — aterrissagem, não teleporte.
-      const r = d.sec.getBoundingClientRect();
-      const tx = d.lastX - d.grabDX - r.left;
-      const ty = d.lastY - d.grabDY - r.top;
-      d.peca.style.transform = '';
       if (d.moved) {
-        if (!movimentoReduzido() && (Math.abs(tx) > 0.5 || Math.abs(ty) > 0.5)) {
-          const anim = d.peca.animate(
-            [
-              { transform: `translate3d(${tx}px, ${ty}px, 0)` },
-              { transform: 'translate3d(0, 0, 0)' },
-            ],
-            { duration: 320, easing: 'cubic-bezier(0.2, 1.15, 0.3, 1)' },
-          );
-          const chave = `peca:${d.id}`;
-          animsRef.current.set(chave, anim);
-          anim.onfinish = () => {
-            if (animsRef.current.get(chave) === anim) animsRef.current.delete(chave);
-          };
-        }
         const idx = ordemVisivelRef.current.indexOf(d.id);
         aoAnunciar(
           `Card ${tituloDe(d.id)} movido para a posição ${idx + 1} de ${ordemVisivelRef.current.length}.`,
@@ -274,8 +355,6 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         startY: e.clientY,
         lastX: e.clientX,
         lastY: e.clientY,
-        tx: 0,
-        ty: 0,
         ordemAntes: layout.ordem,
         moved: false,
       };
@@ -302,28 +381,32 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       }
 
       // Trabalho por frame: eventos de pointer podem chegar a 120 Hz; um write
-      // de transform + leitura de rects por frame cobre o que o olho vê.
+      // de transform + decisão de destino por frame cobre o que o olho vê.
       if (frameRef.current) return;
       frameRef.current = requestAnimationFrame(() => {
         frameRef.current = 0;
         const ativo = dragRef.current;
-        if (!ativo || !ativo.moved) return;
-        const px = ativo.lastX;
-        const py = ativo.lastY;
+        const grid = gridElRef.current;
+        if (!ativo || !ativo.moved || !grid) return;
 
-        const r = ativo.sec.getBoundingClientRect();
-        ativo.tx = px - ativo.grabDX - r.left;
-        ativo.ty = py - ativo.grabDY - r.top;
-        ativo.peca.style.transform = `translate3d(${ativo.tx}px, ${ativo.ty}px, 0)`;
+        const g = grid.getBoundingClientRect();
+        const px = ativo.lastX - g.left;
+        const py = ativo.lastY - g.top;
 
-        // Destino com histerese: o slot só troca quando o pointer entra na
-        // caixa de um vizinho (inflada) ou chega claramente mais perto dele do
-        // que do centro do próprio slot — sem isso o destino oscila na borda.
+        // A peça segue o pointer a partir do slot comprometido.
+        const p = posMapRef.current.get(ativo.id);
+        if (p) {
+          ativo.peca.style.transform = `translate3d(${ativo.lastX - ativo.grabDX - (g.left + p.x)}px, ${ativo.lastY - ativo.grabDY - (g.top + p.y)}px, 0)`;
+        }
+
+        // Destino por posição do pointer sobre os rects do packing (nenhuma
+        // leitura de DOM por card): entrou na caixa de um vizinho ou ficou
+        // claramente mais perto dele do que do próprio slot → troca.
         const alvos = ordemVisivelRef.current.filter((id) => id !== ativo.id);
-        if (alvos.length === 0) return;
+        if (alvos.length === 0 || !p) return;
         const slotAtual = ordemVisivelRef.current.indexOf(ativo.id);
-        const slotCX = r.left + r.width / 2;
-        const slotCY = r.top + r.height / 2;
+        const slotCX = p.x + p.w / 2;
+        const slotCY = p.y + p.h / 2;
         const distSlot = Math.hypot(px - slotCX, py - slotCY);
 
         let melhorDist = Infinity;
@@ -332,22 +415,21 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         for (let i = 0; i < alvos.length; i += 1) {
           const alvoId = alvos[i];
           if (!alvoId) continue;
-          const outro = elsRef.current.get(alvoId);
+          const outro = posMapRef.current.get(alvoId);
           if (!outro) continue;
-          const rr = outro.getBoundingClientRect();
-          const cx = rr.left + rr.width / 2;
-          const cy = rr.top + rr.height / 2;
+          const cx = outro.x + outro.w / 2;
+          const cy = outro.y + outro.h / 2;
           const dist = Math.hypot(px - cx, py - cy);
           if (dist < melhorDist) {
             melhorDist = dist;
             dentro =
-              px >= rr.left - rr.width * 0.12 &&
-              px <= rr.right + rr.width * 0.12 &&
-              py >= rr.top - rr.height * 0.12 &&
-              py <= rr.bottom + rr.height * 0.12;
+              px >= outro.x - outro.w * 0.12 &&
+              px <= outro.x + outro.w * 1.12 &&
+              py >= outro.y - outro.h * 0.12 &&
+              py <= outro.y + outro.h * 1.12;
             const depois =
-              py > cy + rr.height * 0.3 ||
-              (Math.abs(py - cy) <= rr.height * 0.3 && px > cx);
+              py > cy + outro.h * 0.3 ||
+              (Math.abs(py - cy) <= outro.h * 0.3 && px > cx);
             destino = depois ? i + 1 : i;
           }
         }
@@ -405,129 +487,25 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     [aoAnunciar, commitOrdemVisivel, encerrarDrag, tituloDe],
   );
 
-  const commitSpan = useCallback((id: CardId, span: number) => {
-    const meta = CARD_META[id];
-    const alvo = Math.max(meta.minSpan, Math.min(12, Math.round(span)));
-    setLayout((prev) => {
-      if ((prev.spans?.[id] ?? meta.span) === alvo) return prev;
-      return { ...prev, spans: { ...prev.spans, [id]: alvo } };
-    });
-  }, []);
-
-  // Resize pela alça do canto: o passo de coluna sai da geometria real do
-  // grid e o commit segue o pointer; o FLIP dos vizinhos é o retile.
-  const aoResizeDown = useCallback(
-    (e: PointerEvent<HTMLButtonElement>, id: CardId) => {
-      if (e.button !== 0) return;
-      const grid = gridElRef.current;
-      if (!grid) return;
-      const g = grid.getBoundingClientRect();
-      const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
-      resizeRef.current = {
-        id,
-        pointerId: e.pointerId,
-        gridLeft: g.left,
-        passo: (g.width + gap) / 12,
-        ultimoSpan: spanDe(id),
-      };
-      try {
-        e.currentTarget.setPointerCapture(e.pointerId);
-      } catch {
-        // Sem capture segue com os handlers do botão.
-      }
-    },
-    [spanDe],
-  );
-
-  const aoResizeMove = useCallback(
-    (e: PointerEvent<HTMLButtonElement>) => {
-      const rz = resizeRef.current;
-      if (!rz || e.pointerId !== rz.pointerId) return;
-      if (frameResizeRef.current) return;
-      const px = e.clientX;
-      frameResizeRef.current = requestAnimationFrame(() => {
-        frameResizeRef.current = 0;
-        const ativo = resizeRef.current;
-        if (!ativo) return;
-        const meta = CARD_META[ativo.id];
-        const alvo = Math.round((px - ativo.gridLeft) / ativo.passo);
-        const clamp = Math.max(meta.minSpan, Math.min(12, alvo));
-        if (clamp !== ativo.ultimoSpan) {
-          ativo.ultimoSpan = clamp;
-          if (resizingId !== ativo.id) setResizingId(ativo.id);
-          commitSpan(ativo.id, clamp);
-        }
-      });
-    },
-    [commitSpan, resizingId],
-  );
-
-  const encerrarResize = useCallback(
-    (anunciar: boolean) => {
-      const rz = resizeRef.current;
-      if (!rz) return;
-      resizeRef.current = null;
-      setResizingId(null);
-      if (frameResizeRef.current) {
-        cancelAnimationFrame(frameResizeRef.current);
-        frameResizeRef.current = 0;
-      }
-      if (anunciar) {
-        aoAnunciar(`Card ${tituloDe(rz.id)} com largura ${spanDe(rz.id)} de 12 colunas.`);
-      }
-    },
-    [aoAnunciar, spanDe, tituloDe],
-  );
-
-  const aoResizeUp = useCallback(
-    (e: PointerEvent<HTMLButtonElement>) => {
-      const rz = resizeRef.current;
-      if (!rz || e.pointerId !== rz.pointerId) return;
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        // Capture já liberada.
-      }
-      encerrarResize(true);
-    },
-    [encerrarResize],
-  );
-
-  const aoResizeCancel = useCallback(() => {
-    encerrarResize(false);
-  }, [encerrarResize]);
-
-  const aoResizeKey = useCallback(
-    (e: KeyboardEvent<HTMLButtonElement>, id: CardId) => {
+  // Largura em colunas: clique cicla (max volta para 1), setas ajustam ±1.
+  const aoCiclarSpan = useCallback(
+    (id: CardId, delta: number) => {
       const atual = spanDe(id);
-      let alvo: number;
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') alvo = atual - 1;
-      else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') alvo = atual + 1;
-      else if (e.key === 'Home') alvo = CARD_META[id].minSpan;
-      else if (e.key === 'End') alvo = 12;
-      else return;
-      e.preventDefault();
-      commitSpan(id, alvo);
-      aoAnunciar(`Card ${tituloDe(id)} com largura ${Math.max(CARD_META[id].minSpan, Math.min(12, alvo))} de 12 colunas.`);
+      const prox = delta > 0 && atual >= cols ? 1 : Math.max(1, Math.min(cols, atual + delta));
+      if (prox === atual) return;
+      setLayout((prev) => ({ ...prev, spans: { ...prev.spans, [id]: prox } }));
+      aoAnunciar(`Card ${tituloDe(id)} com largura ${prox} de ${cols} colunas.`);
     },
-    [aoAnunciar, commitSpan, spanDe, tituloDe],
+    [aoAnunciar, cols, spanDe, tituloDe],
   );
 
-  const handleProps: TorreCardHandleProps = {
-    onPointerDown: aoPointerDown,
-    onPointerMove: aoPointerMove,
-    onPointerUp: aoPointerUp,
-    onPointerCancel: aoPointerCancel,
-    onKeyDown: aoKeyDown,
-  };
-
-  const resizeProps = {
-    onPointerDown: aoResizeDown,
-    onPointerMove: aoResizeMove,
-    onPointerUp: aoResizeUp,
-    onPointerCancel: aoResizeCancel,
-    onKeyDown: aoResizeKey,
-  };
+  const aoAlternarDensidade = useCallback(() => {
+    setLayout((prev) => ({
+      ...prev,
+      densidade: (((prev.densidade ?? 1) + 1) % 3) as 0 | 1 | 2,
+    }));
+    aoAnunciar(`Densidade da torre: ${['compacta', 'normal', 'grande'][((layout.densidade ?? 1) + 1) % 3]}.`);
+  }, [aoAnunciar, layout.densidade]);
 
   const alternarRecolhido = useCallback((id: CardId) => {
     setLayout((prev) => ({
@@ -538,22 +516,19 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     }));
   }, []);
 
-  const alternarOculto = useCallback(
-    (id: CardId) => {
-      setLayout((prev) => {
-        const ocultos = prev.ocultos.includes(id)
-          ? prev.ocultos.filter((c) => c !== id)
-          : [...prev.ocultos, id];
-        const ocultosSetNovo = new Set(ocultos);
-        const ordem = [
-          ...prev.ordem.filter((c) => !ocultosSetNovo.has(c)),
-          ...prev.ordem.filter((c) => ocultosSetNovo.has(c)),
-        ];
-        return { ...prev, ocultos, ordem };
-      });
-    },
-    [],
-  );
+  const alternarOculto = useCallback((id: CardId) => {
+    setLayout((prev) => {
+      const ocultos = prev.ocultos.includes(id)
+        ? prev.ocultos.filter((c) => c !== id)
+        : [...prev.ocultos, id];
+      const ocultosSetNovo = new Set(ocultos);
+      const ordem = [
+        ...prev.ordem.filter((c) => !ocultosSetNovo.has(c)),
+        ...prev.ordem.filter((c) => ocultosSetNovo.has(c)),
+      ];
+      return { ...prev, ocultos, ordem };
+    });
+  }, []);
 
   const mostrarTodos = useCallback(() => {
     setLayout((prev) => ({ ...prev, ocultos: [] }));
@@ -609,6 +584,16 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     [cards, ocultosSet, tituloDe],
   );
 
+  const handleProps: TorreCardHandleProps = {
+    onPointerDown: aoPointerDown,
+    onPointerMove: aoPointerMove,
+    onPointerUp: aoPointerUp,
+    onPointerCancel: aoPointerCancel,
+    onKeyDown: aoKeyDown,
+  };
+
+  const semPosicao = gridW <= 0;
+
   return (
     <>
       <TorreVistas
@@ -616,41 +601,60 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         customizados={templatesCustom}
         ativoId={ativoId}
         cards={cardsVisibilidade}
+        densidade={densidade}
         aoAplicar={aplicarVista}
         aoSalvarCustom={salvarVista}
         aoExcluirCustom={excluirVista}
         aoAlternarCard={alternarOculto}
         aoMostrarTodos={mostrarTodos}
+        aoAlternarDensidade={aoAlternarDensidade}
       />
 
-      <div className="torre-grid" ref={gridElRef}>
-        {ordemVisivel.map((id, i) => (
-          <TorreCard
-            key={id}
-            ref={(el) => {
-              if (el) elsRef.current.set(id, el);
-              else elsRef.current.delete(id);
-            }}
-            pecaRef={(el) => {
-              if (el) pecasRef.current.set(id, el);
-              else pecasRef.current.delete(id);
-            }}
-            id={id}
-            titulo={tituloDe(id)}
-            tituloId={`torre-titulo-${id}`}
-            ordemI={i}
-            recolhido={recolhidosSet.has(id)}
-            arrastando={dragId === id}
-            redimensionando={resizingId === id}
-            handleProps={handleProps}
-            resizeProps={resizeProps}
-            aoAlternarRecolhido={alternarRecolhido}
-            span={spanDe(id)}
-            spanMin={CARD_META[id].minSpan}
-          >
-            {cards[id]}
-          </TorreCard>
-        ))}
+      <div
+        className="torre-grid"
+        ref={gridElRef}
+        data-sem-posicao={semPosicao ? 'true' : undefined}
+        style={semPosicao ? undefined : { height: gridH }}
+      >
+        {ordemVisivel.map((id, i) => {
+          const p = posMap.get(id);
+          return (
+            <TorreCard
+              key={id}
+              ref={(el) => {
+                if (el) elsRef.current.set(id, el);
+                else elsRef.current.delete(id);
+              }}
+              pecaRef={(el) => {
+                if (el) pecasRef.current.set(id, el);
+                else pecasRef.current.delete(id);
+              }}
+              medidaRef={medidaRef(id)}
+              id={id}
+              titulo={tituloDe(id)}
+              tituloId={`torre-titulo-${id}`}
+              ordemI={i}
+              recolhido={recolhidosSet.has(id)}
+              arrastando={dragId === id}
+              handleProps={handleProps}
+              aoCiclarSpan={aoCiclarSpan}
+              aoAlternarRecolhido={alternarRecolhido}
+              span={p?.span ?? spanDe(id)}
+              spanMax={cols}
+              estilo={
+                p
+                  ? {
+                      transform: `translate3d(${p.x}px, ${p.y}px, 0)`,
+                      width: p.w,
+                      height: p.h,
+                    }
+                  : undefined
+              }
+            >
+              {cards[id]}
+            </TorreCard>
+          );
+        })}
       </div>
     </>
   );

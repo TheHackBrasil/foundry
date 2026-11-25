@@ -19,8 +19,11 @@ export interface LayoutTorre {
   ordem: CardId[];
   ocultos: CardId[];
   recolhidos: CardId[];
-  // Largura em colunas do grid de 12; ausente = span padrão do card.
+  // Largura em colunas do masonry (1 a COLUNAS_MAX); ausente = padrão do card.
   spans?: Partial<Record<CardId, number>>;
+  // Densidade global do grid: 0 compacto, 1 normal, 2 grande — muda o número
+  // de colunas que cabe na largura disponível.
+  densidade?: 0 | 1 | 2;
 }
 
 export interface VistaTemplate {
@@ -74,12 +77,14 @@ export function normalizarOrdem(ordem: readonly unknown[]): CardId[] {
 const filtrarValidos = (lista: readonly unknown[]): CardId[] =>
   lista.filter(ehCardId).filter((v, i, a) => a.indexOf(v) === i);
 
-export const SPAN_MIN = 3;
-export const SPAN_MAX = 12;
+export const COLUNAS_MAX = 4;
 export const normalizarSpan = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v)
-    ? Math.max(SPAN_MIN, Math.min(SPAN_MAX, Math.round(v)))
+    ? Math.max(1, Math.min(COLUNAS_MAX, Math.round(v)))
     : null;
+
+export const normalizarDensidade = (v: unknown): 0 | 1 | 2 | undefined =>
+  v === 0 || v === 1 || v === 2 ? v : undefined;
 
 function normalizarSpans(raw: unknown): Partial<Record<CardId, number>> | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
@@ -102,11 +107,13 @@ export function normalizarLayout(raw: unknown): LayoutTorre {
   };
   const ocultos = Array.isArray(parcial.ocultos) ? filtrarValidos(parcial.ocultos) : [];
   const spans = normalizarSpans(parcial.spans);
+  const densidade = normalizarDensidade((parcial as { densidade?: unknown }).densidade);
   return {
     ordem: normalizarOrdem(Array.isArray(parcial.ordem) ? parcial.ordem : []),
     ocultos,
     recolhidos: Array.isArray(parcial.recolhidos) ? filtrarValidos(parcial.recolhidos) : [],
     ...(spans ? { spans } : {}),
+    ...(densidade !== undefined ? { densidade } : {}),
   };
 }
 
@@ -163,7 +170,9 @@ export function templateCorrespondente(
   return null;
 }
 
-const CHAVE_PREFIXO = 'forseti:torre:v1';
+// v2: spans passaram a ser colunas do masonry (1..4), não mais do grid de 12 —
+// chave nova evita interpretar largura antiga como coluna.
+const CHAVE_PREFIXO = 'forseti:torre:v2';
 export const chaveLayoutPedido = (pedidoId: string): string =>
   `${CHAVE_PREFIXO}:layout:${pedidoId}`;
 export const CHAVE_TEMPLATES = `${CHAVE_PREFIXO}:templates`;

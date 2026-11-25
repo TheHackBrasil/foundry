@@ -12,11 +12,13 @@ interface TorreVistasProps {
   customizados: readonly VistaTemplate[];
   ativoId: string | null;
   cards: readonly CardVisibilidade[];
+  densidade: 0 | 1 | 2;
   aoAplicar: (template: VistaTemplate) => void;
   aoSalvarCustom: (nome: string) => void;
   aoExcluirCustom: (id: string) => void;
   aoAlternarCard: (id: CardId) => void;
   aoMostrarTodos: () => void;
+  aoAlternarDensidade: () => void;
 }
 
 // Barra de vistas do tiling (THE-19): presets aplicam ordem + visibilidade,
@@ -27,11 +29,13 @@ export function TorreVistas({
   customizados,
   ativoId,
   cards,
+  densidade,
   aoAplicar,
   aoSalvarCustom,
   aoExcluirCustom,
   aoAlternarCard,
   aoMostrarTodos,
+  aoAlternarDensidade,
 }: TorreVistasProps) {
   const [formAberto, setFormAberto] = useState(false);
   const [nome, setNome] = useState('');
@@ -96,6 +100,43 @@ export function TorreVistas({
         )}
 
         <div className="torre-vistas-acoes">
+          <button
+            type="button"
+            className="torre-densidade"
+            aria-label={`Densidade da grade: ${['compacta', 'normal', 'grande'][densidade]}. Clique para alternar.`}
+            title={`Densidade: ${['compacta', 'normal', 'grande'][densidade]}`}
+            onClick={aoAlternarDensidade}
+          >
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+              {densidade === 0 && (
+                <>
+                  <rect x="1.5" y="1.5" width="3.6" height="3.6" rx="1" />
+                  <rect x="6.2" y="1.5" width="3.6" height="3.6" rx="1" />
+                  <rect x="10.9" y="1.5" width="3.6" height="3.6" rx="1" />
+                  <rect x="1.5" y="6.2" width="3.6" height="3.6" rx="1" />
+                  <rect x="6.2" y="6.2" width="3.6" height="3.6" rx="1" />
+                  <rect x="10.9" y="6.2" width="3.6" height="3.6" rx="1" />
+                  <rect x="1.5" y="10.9" width="3.6" height="3.6" rx="1" />
+                  <rect x="6.2" y="10.9" width="3.6" height="3.6" rx="1" />
+                  <rect x="10.9" y="10.9" width="3.6" height="3.6" rx="1" />
+                </>
+              )}
+              {densidade === 1 && (
+                <>
+                  <rect x="1.5" y="1.5" width="6" height="6" rx="1.2" />
+                  <rect x="8.5" y="1.5" width="6" height="6" rx="1.2" />
+                  <rect x="1.5" y="8.5" width="6" height="6" rx="1.2" />
+                  <rect x="8.5" y="8.5" width="6" height="6" rx="1.2" />
+                </>
+              )}
+              {densidade === 2 && (
+                <>
+                  <rect x="1.5" y="2" width="13" height="5" rx="1.4" />
+                  <rect x="1.5" y="9" width="13" height="5" rx="1.4" />
+                </>
+              )}
+            </svg>
+          </button>
           {formAberto ? (
             <form className="torre-vista-form" onSubmit={confirmar}>
               <input

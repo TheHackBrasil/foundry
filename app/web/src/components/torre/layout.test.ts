@@ -95,7 +95,7 @@ describe('aplicarTemplate', () => {
       spans: { matriz: 20, tarefas: 2, fantasma: 6 } as VistaTemplate['spans'],
     };
     const r = aplicarTemplate(comSpans);
-    expect(r.spans).toEqual({ matriz: 12, tarefas: 3 });
+    expect(r.spans).toEqual({ matriz: 4, tarefas: 2 });
 
     const sem = aplicarTemplate({ id: 'y', nome: 'Y', ordem: ['matriz'] });
     expect('spans' in sem).toBe(false);
@@ -103,24 +103,33 @@ describe('aplicarTemplate', () => {
 });
 
 describe('spans no layout', () => {
-  it('normalizarLayout valida e clampa spans por card conhecido', () => {
+  it('normalizarLayout valida e clampa spans (1..4 colunas) por card conhecido', () => {
     const l = normalizarLayout({
       ordem: [],
       spans: { matriz: 4.6, domino: 99, nada: 5, sinais: 'largo' },
     });
-    expect(l.spans).toEqual({ matriz: 5, domino: 12 });
+    expect(l.spans).toEqual({ matriz: 4, domino: 4 });
   });
 
-  it('spans sobrevivem ao round-trip no storage do pedido', () => {
+  it('spans e densidade sobrevivem ao round-trip no storage do pedido', () => {
     const { storage } = storageFake();
-    const layout: LayoutTorre = { ...LAYOUT_PADRAO, spans: { matriz: 9, tarefas: 4 } };
+    const layout: LayoutTorre = {
+      ...LAYOUT_PADRAO,
+      spans: { matriz: 3, tarefas: 2 },
+      densidade: 2,
+    };
     guardarLayoutPedido('ped-s', layout, storage);
     expect(lerLayoutPedido('ped-s', storage)).toEqual(layout);
   });
 
+  it('densidade inválida é descartada na normalização', () => {
+    const l = normalizarLayout({ ordem: [], densidade: 7 });
+    expect(l.densidade).toBeUndefined();
+  });
+
   it('assinatura muda quando o span muda (template custom com largura)', () => {
-    const base = assinaturaVista(normalizarOrdem([]), [], { matriz: 9 });
-    const outro = assinaturaVista(normalizarOrdem([]), [], { matriz: 8 });
+    const base = assinaturaVista(normalizarOrdem([]), [], { matriz: 3 });
+    const outro = assinaturaVista(normalizarOrdem([]), [], { matriz: 2 });
     expect(base).not.toBe(outro);
   });
 });
