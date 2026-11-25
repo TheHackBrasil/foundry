@@ -1,5 +1,7 @@
 import {
   forwardRef,
+  useEffect,
+  useState,
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
@@ -9,9 +11,6 @@ import type { CardId } from './layout.ts';
 
 export interface TorreCardHandleProps {
   onPointerDown: (e: PointerEvent<HTMLButtonElement>, id: CardId) => void;
-  onPointerMove: (e: PointerEvent<HTMLButtonElement>) => void;
-  onPointerUp: (e: PointerEvent<HTMLButtonElement>) => void;
-  onPointerCancel: (e: PointerEvent<HTMLButtonElement>) => void;
   onKeyDown: (e: KeyboardEvent<HTMLButtonElement>, id: CardId) => void;
 }
 
@@ -19,7 +18,8 @@ interface TorreCardProps {
   id: CardId;
   titulo: string;
   tituloId: string;
-  // Largura atual em colunas do masonry e o máximo que cabe (cols do grid).
+  // Largura renderizada em colunas do masonry (pós-elástico) e o máximo que
+  // cabe (cols do grid).
   span: number;
   spanMax: number;
   ordemI: number;
@@ -28,7 +28,9 @@ interface TorreCardProps {
   pecaRef?: (el: HTMLElement | null) => void;
   medidaRef?: (el: HTMLElement | null) => void;
   handleProps: TorreCardHandleProps;
-  aoCiclarSpan: (id: CardId, delta: number) => void;
+  // ciclar=true: clique avança com wrap; ciclar=false: alvo absoluto clampado
+  // (setas do splitter nunca dão a volta — APG window splitter).
+  aoAjustarSpan: (id: CardId, alvo: number, ciclar: boolean) => void;
   aoAlternarRecolhido: (id: CardId) => void;
   // Posição/tamanho calculados pelo packing (transform/width/height).
   estilo?: CSSProperties;
@@ -39,11 +41,20 @@ interface TorreCardProps {
 // packing (transform/width/height vêm do layout e transicionam em CSS) e a
 // .torre-card-peca interna é o que voa no arraste. A .torre-card-medida mede a
 // altura natural do conteúdo — é ela que alimenta o packing via ResizeObserver.
+// A animação de entrada é mount-only: a classe .torre-entra sai no
+// animationend (ou assim que um arraste começa) e nunca volta, então nenhuma
+// mudança de estado a reinicia.
 export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreCard(
-  { id, titulo, tituloId, span, spanMax, ordemI, recolhido, arrastando, pecaRef, medidaRef, handleProps, aoCiclarSpan, aoAlternarRecolhido, estilo, children },
+  { id, titulo, tituloId, span, spanMax, ordemI, recolhido, arrastando, pecaRef, medidaRef, handleProps, aoAjustarSpan, aoAlternarRecolhido, estilo, children },
   ref,
 ) {
   const corpoId = `torre-corpo-${id}`;
+  const [entrando, setEntrando] = useState(true);
+  // Em voo a peça segue o pointer por transform inline — a keyframe de entrada
+  // sai na hora para não disputar a propriedade com o gesto.
+  useEffect(() => {
+    if (arrastando) setEntrando(false);
+  }, [arrastando]);
   return (
     <section
       ref={ref}
@@ -54,18 +65,24 @@ export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreC
       aria-labelledby={tituloId}
       style={{ '--ordem-i': ordemI, ...estilo } as CSSProperties}
     >
-      <div ref={pecaRef} className="torre-card-peca" data-lifted={arrastando ? 'true' : undefined}>
+      <div
+        ref={pecaRef}
+        className={entrando ? 'torre-card-peca torre-entra' : 'torre-card-peca'}
+        data-lifted={arrastando ? 'true' : undefined}
+        onAnimationEnd={(e) => {
+          if (e.animationName === 'torre-card-entra' || e.animationName === 'torre-card-entra-fade') {
+            setEntrando(false);
+          }
+        }}
+      >
         <div ref={medidaRef} className="torre-card-medida" data-card-medida={id}>
           <div className="torre-card-cab">
             <button
               type="button"
               className="torre-arraste"
-              aria-label={`Mover card ${titulo}. Setas reordenam; Home e End levam ao início ou ao fim.`}
-              aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home End"
+              aria-label={`Mover card ${titulo}. Setas movem para o vizinho mais próximo naquela direção; Home e End levam ao início ou ao fim; Escape cancela o arraste.`}
+              aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home End Escape"
               onPointerDown={(e) => handleProps.onPointerDown(e, id)}
-              onPointerMove={handleProps.onPointerMove}
-              onPointerUp={handleProps.onPointerUp}
-              onPointerCancel={handleProps.onPointerCancel}
               onKeyDown={(e) => handleProps.onKeyDown(e, id)}
             >
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
@@ -83,17 +100,23 @@ export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreC
             {spanMax > 1 && (
               <button
                 type="button"
+                role="separator"
                 className="torre-span"
                 data-largo={span > 1 ? 'true' : undefined}
-                aria-label={`Largura do card ${titulo}: ${span} de ${spanMax} colunas. Clique cicla; setas esquerda e direita ajustam.`}
+                aria-orientation="horizontal"
+                aria-valuenow={span}
+                aria-valuemin={1}
+                aria-valuemax={spanMax}
+                aria-valuetext={`${span} de ${spanMax} colunas`}
+                aria-label={`Largura do card ${titulo}. Setas ajustam entre 1 e ${spanMax} colunas; clique cicla.`}
                 aria-keyshortcuts="ArrowLeft ArrowRight Home End"
                 title={`Largura ${span}/${spanMax} — clique para ciclar`}
-                onClick={() => aoCiclarSpan(id, 1)}
+                onClick={() => aoAjustarSpan(id, span + 1, true)}
                 onKeyDown={(e) => {
-                  if (e.key === 'ArrowLeft') { e.preventDefault(); aoCiclarSpan(id, -1); }
-                  else if (e.key === 'ArrowRight') { e.preventDefault(); aoCiclarSpan(id, 1); }
-                  else if (e.key === 'Home') { e.preventDefault(); aoCiclarSpan(id, -spanMax); }
-                  else if (e.key === 'End') { e.preventDefault(); aoCiclarSpan(id, spanMax); }
+                  if (e.key === 'ArrowLeft') { e.preventDefault(); aoAjustarSpan(id, span - 1, false); }
+                  else if (e.key === 'ArrowRight') { e.preventDefault(); aoAjustarSpan(id, span + 1, false); }
+                  else if (e.key === 'Home') { e.preventDefault(); aoAjustarSpan(id, 1, false); }
+                  else if (e.key === 'End') { e.preventDefault(); aoAjustarSpan(id, spanMax, false); }
                 }}
               >
                 <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
