@@ -3,7 +3,7 @@
 // WORKSPACE_SEED e o conteudo compartilhado, gravado so por seed.ts e IMAP. Pela
 // API a seed e somente leitura (P-010).
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { OutgoingHttpHeaders } from 'node:http';
 import { dirname, join } from 'node:path';
@@ -33,6 +33,7 @@ import {
 import { projetar } from '../shared/projection.js';
 import { metricasDosCasos, projetarCasos, tokenDoCaso } from '../shared/casos.js';
 import { estimarCusto } from '../shared/custo.js';
+import { montarComprovante } from '../shared/comprovante.js';
 import type { Caso } from '../shared/model.js';
 import { executarAgente } from './agente/motor.js';
 import { ancorar, configAncoraDoEnv } from './anchor.js';
@@ -905,6 +906,44 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     const totalPedidos = (await sessao.listarPedidos()).length;
     return { metricas: metricasDosCasos(casos, totalPedidos) };
   });
+
+  // Comprovante verificavel (spec 0011): link-capacidade por pedido. A
+  // assinatura HMAC(workspace|pedidoId) impede enumeracao e forja — sem
+  // tabela, rotaciona com COMPROVANTE_SECRET. Sem env, um segredo efemero
+  // por processo serve a demo (links morrem no restart).
+  const segredoComprovante = process.env['COMPROVANTE_SECRET'] ?? randomBytes(32).toString('hex');
+  const assinarComprovante = (workspace: string, pedidoId: string): string =>
+    createHmac('sha256', segredoComprovante)
+      .update(`${workspace}\n${pedidoId}`)
+      .digest('base64url');
+
+  // A sessao dona emite o link; o front monta a URL absoluta.
+  app.get<{ Params: { id: string } }>('/api/pedidos/:id/comprovante', async (req, reply) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const dono = await sessao.wsDoPedido(req.params.id);
+    if (dono === null) return reply.code(404).send({ erro: 'pedido não encontrado' });
+    const url =
+      `/api/comprovante/${encodeURIComponent(dono)}/${encodeURIComponent(req.params.id)}/` +
+      assinarComprovante(dono, req.params.id);
+    return { url };
+  });
+
+  // O link e a credencial: prova completa, sem sessao, para a terceira parte
+  // refazer a cadeia e conferir a raiz ancorada on-chain. Os 3 segmentos
+  // ficam abaixo do limite de parametro do roteador.
+  app.get<{ Params: { workspace: string; pedidoId: string; assinatura: string } }>(
+    '/api/comprovante/:workspace/:pedidoId/:assinatura',
+    async (req, reply) => {
+      const { workspace, pedidoId, assinatura } = req.params;
+      if (assinatura !== assinarComprovante(workspace, pedidoId)) {
+        return reply.code(404).send({ erro: 'comprovante inválido' });
+      }
+      const s = store.paraWorkspace(workspace);
+      const eventos = await s.eventosDoPedido(pedidoId);
+      if (eventos.length === 0) return reply.code(404).send({ erro: 'comprovante inválido' });
+      return montarComprovante(pedidoId, eventos, await s.ultimoAncora(pedidoId));
+    },
+  );
 
   // Producao: o mesmo processo serve o build da web e a API na mesma origem.
   const webDist = cfg.webDist ?? join(AQUI, '..', 'web', 'dist');

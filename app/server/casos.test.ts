@@ -121,6 +121,43 @@ describe('spec 0011: mudanca, caso, metricas', () => {
     expect(metricas.pedidosComExcecao).toBeGreaterThan(0);
     expect(metricas.casosResolvidos).toBe(0); // o unico resolvido foi contestado
   });
+
+  it('comprovante verifica cadeia para terceiro, com trilha e casos', async () => {
+    const emissao = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/comprovante` });
+    expect(emissao.statusCode).toBe(200);
+    const { url } = emissao.json() as { url: string };
+    expect(url.startsWith('/api/comprovante/')).toBe(true);
+
+    // O link abre sem cookie de sessao: outra chamada inject, sem header.
+    const r = await app.inject({ method: 'GET', url });
+    expect(r.statusCode).toBe(200);
+    const c = r.json() as {
+      cadeiaIntegra: boolean;
+      trilha: Array<{ seq: number; hash: string; payload: Record<string, unknown> }>;
+      casos: Array<{ id: string }>;
+      ancora: unknown;
+      rootConfere: boolean | null;
+    };
+    expect(c.cadeiaIntegra).toBe(true);
+    expect(c.trilha.length).toBeGreaterThan(0);
+    expect(c.trilha.every((e) => typeof e.hash === 'string' && e.hash.length === 64)).toBe(true);
+    expect(c.casos.length).toBeGreaterThan(0);
+    // Sem ancora gravada no teste: o campo fica null, sem fingir conferencia.
+    expect(c.ancora).toBeNull();
+    expect(c.rootConfere).toBeNull();
+  });
+
+  it('assinatura de comprovante adulterada ou desconhecida recusa com 404', async () => {
+    const emissao = await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}/comprovante` });
+    const { url } = emissao.json() as { url: string };
+    const falsificado = url.replace(/[^/]+$/, 'assinaturaforjada');
+    expect((await app.inject({ method: 'GET', url: falsificado })).statusCode).toBe(404);
+    const foraDoPedido = url.replace(CHAVE, '99999999999999999999999999999999999999999999');
+    expect((await app.inject({ method: 'GET', url: foraDoPedido })).statusCode).toBe(404);
+    // pedido inexistente nao emite link
+    const r = await app.inject({ method: 'GET', url: '/api/pedidos/NAOEXISTE/comprovante' });
+    expect(r.statusCode).toBe(404);
+  });
 });
 
 describe('spec 0011: pendencia e identidade', () => {
