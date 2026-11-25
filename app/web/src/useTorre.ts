@@ -197,7 +197,7 @@ export function useTorre() {
       const primeiroId = pedidos.dados[0].pedidoId;
       if (rota === 'ia') {
         setSelecionado(primeiroId);
-      } else {
+      } else if (!window.location.hash.startsWith('#/operacao')) {
         window.location.replace(`#/pedido/${encodeURIComponent(primeiroId)}`);
       }
     }
