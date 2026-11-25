@@ -211,3 +211,53 @@ describe('templates custom', () => {
     expect(lidas.map((t) => t.nome)).toEqual(['Boa']);
   });
 });
+
+// ---------- V1: chip ativo ignora spans do usuário (spec 0015, bug D-T5) ----------
+
+describe('templateCorrespondente com spans (V1)', () => {
+  const todos = [...TEMPLATES_VISTA];
+
+  it('preset continua ativo depois de um clique na pill de largura', () => {
+    // Cenário do aceite: aplicar Operação, mexer na largura de um card e o
+    // chip precisa continuar correspondendo (antes nunca mais ativava).
+    const { ordem, ocultos } = aplicarTemplate(TEMPLATES_VISTA.find((t) => t.id === 'operacao')!);
+    expect(templateCorrespondente(ordem, ocultos, todos, { matriz: 3, domino: 1 })).toBe('operacao');
+  });
+
+  it('ordem alterada continua desativando o chip mesmo com spans', () => {
+    const { ordem, ocultos } = aplicarTemplate(TEMPLATES_VISTA.find((t) => t.id === 'fiscal')!);
+    const mexida = moverPorPasso(ordem, 'cadeia', 1);
+    expect(templateCorrespondente(mexida, ocultos, todos, { matriz: 2 })).toBeNull();
+  });
+
+  it('custom com spans declarados confere largura: desvio desativa, igualdade ativa', () => {
+    const custom: VistaTemplate = {
+      id: 'v-larg',
+      nome: 'Largas',
+      ordem: ['matriz', 'tarefas'],
+      spans: { matriz: 3, tarefas: 2 },
+      custom: true,
+    };
+    const { ordem, ocultos } = aplicarTemplate(custom);
+    // Span fora da declaração (domino) é ajuste livre: não quebra a vista.
+    expect(
+      templateCorrespondente(ordem, ocultos, [custom], { matriz: 3, tarefas: 2, domino: 4 }),
+    ).toBe('v-larg');
+    // Span declarado divergente desativa.
+    expect(
+      templateCorrespondente(ordem, ocultos, [custom], { matriz: 2, tarefas: 2 }),
+    ).toBeNull();
+    // Sem spans no layout, a vista com largura não corresponde.
+    expect(templateCorrespondente(ordem, ocultos, [custom], undefined)).toBeNull();
+  });
+
+  it('round-trip: layout persistido com spans ainda corresponde ao preset', () => {
+    const { storage } = storageFake();
+    const { ordem, ocultos } = aplicarTemplate(TEMPLATES_VISTA.find((t) => t.id === 'atrasos')!);
+    const layout: LayoutTorre = { ordem, ocultos, recolhidos: [], spans: { sinais: 2 } };
+    guardarLayoutPedido('p-v1', layout, storage);
+    const lido = lerLayoutPedido('p-v1', storage);
+    expect(lido).not.toBeNull();
+    expect(templateCorrespondente(lido!.ordem, lido!.ocultos, todos, lido!.spans)).toBe('atrasos');
+  });
+});

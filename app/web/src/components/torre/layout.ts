@@ -154,18 +154,44 @@ export function assinaturaVista(
   return `${ordem.filter((c) => !ocultosSet.has(c)).join('>')}|ocultos:${[...ocultos].sort().join(',')}|spans:${spansKey}`;
 }
 
+// Reduz os spans do layout aos ids que a lente do template controla — é o que
+// permite comparar "só o que o template declara" na assinatura.
+function projetarSpans(
+  spans: Partial<Record<CardId, number>> | undefined,
+  lente: Partial<Record<CardId, number>>,
+): Partial<Record<CardId, number>> {
+  const saida: Partial<Record<CardId, number>> = {};
+  for (const id of CARD_IDS) {
+    if (lente[id] === undefined) continue;
+    const s = spans?.[id];
+    if (s !== undefined) saida[id] = s;
+  }
+  return saida;
+}
+
 // Devolve o id do template (preset ou custom) que a vista atual reproduz, ou
 // null quando a pessoa mexeu em ordem/visibilidade depois de aplicar.
+// Regra D-T5 (spec 0014): chip ativo é detectado por ordem + ocultos. Os spans
+// entram na comparação só como "lente" do próprio template: quem não declara
+// larguras (todos os presets) ignora as do usuário — senão um clique na pill
+// de largura impedia qualquer preset de reativar (bug medido na auditoria).
 export function templateCorrespondente(
   ordem: readonly CardId[],
   ocultos: readonly CardId[],
   templates: readonly VistaTemplate[],
   spans?: Partial<Record<CardId, number>>,
 ): string | null {
-  const atual = assinaturaVista(ordem, ocultos, spans);
   for (const t of templates) {
     const aplicado = aplicarTemplate(t);
-    if (assinaturaVista(aplicado.ordem, aplicado.ocultos, aplicado.spans) === atual) return t.id;
+    // Template que declara spans (vista salva com larguras) também confere os
+    // cards que ele controla; spans fora da declaração são ajuste livre.
+    const lente = t.spans !== undefined ? (aplicado.spans ?? {}) : undefined;
+    const atual = assinaturaVista(
+      ordem,
+      ocultos,
+      lente ? projetarSpans(spans, lente) : undefined,
+    );
+    if (atual === assinaturaVista(aplicado.ordem, aplicado.ocultos, lente)) return t.id;
   }
   return null;
 }
