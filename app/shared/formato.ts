@@ -13,6 +13,7 @@ const ROTULO_FONTE = {
   pdf: 'PDF',
   imap: 'e-mail',
   manual: 'entrada manual',
+  email_transportadora: 'resposta da transportadora',
 } satisfies Record<FonteDocumento, string>;
 
 // Map, nao objeto: o status da planilha e texto livre e 'constructor' nao

@@ -5,11 +5,11 @@
 // bootstrap da agenda por fone fiscal (T142). Todos degradam: sem LLM,
 // sem provedora ou sem env, o fluxo fica igual ao da spec 0004.
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import Papa from 'papaparse';
 import { divergenciasDaNovaFonte, mudancasDaFonte } from '../shared/divergence.js';
 import { propagarTodas } from '../shared/rules.js';
-import { TIPOS_DOCUMENTO, type DocData, type Evento, type PropostaMapeamento, type Sinal } from '../shared/model.js';
+import { TIPOS_DOCUMENTO, type CamposObservados, type DocData, type Evento, type PropostaMapeamento, type Sinal } from '../shared/model.js';
 import { camposPorFonte, docDataParaPayload } from '../shared/projection.js';
 import type { Limites } from './config.js';
 import { bootstrapContatos } from './contatos.js';
@@ -26,7 +26,9 @@ import { parseEventoNFe, textoDoEvento } from './ingest/eventos.js';
 import { parseCsv } from './ingest/csv.js';
 import { parsePdf } from './ingest/pdf.js';
 import { parseXlsx } from './ingest/xlsx.js';
-import { extrairEml } from './ingest/eml.js';
+import { extrairEml, type EmlLido } from './ingest/eml.js';
+import { verificarDkim, type ResolverDns } from './ingest/dkim.js';
+import { chatJson } from './llm.js';
 import { nomeAnexoSeguro } from './ingest/imap.js';
 
 // Resultado interno do pipeline (eventos gravados, nao o numero). O contrato
@@ -196,6 +198,138 @@ async function emitirSinais(store: LedgerStore, canal: CanalSSE, pedidoId: strin
   );
   for (const ev of eventos) canal.evento(ev, store.workspace);
   return eventos;
+}
+
+// Claim da resposta de cobranca (spec 0010, RF7-RF9): matching por
+// In-Reply-To/References contra o Message-Id gravado, com fallback para a
+// chave de 44 digitos no assunto/corpo. O .eml bruto fica em evidencias por
+// hash; so emlHash + resultado DKIM entram nos dados do claim. Sem DKIM ou
+// sem confianca o item vai para revisao, nunca direto para o campo vigiado.
+const RE_CHAVE_44 = /\b\d{44}\b/;
+const STATUS_DECLARADO_OK = new Set(['emitida', 'em_transito', 'entregue', 'atrasada', 'cancelada']);
+const CONFIANCA_MIN_CLAIM = 0.7;
+const TETO_SEM_DKIM = 0.6;
+
+export interface ExtracaoDeclarada {
+  campos: CamposObservados;
+  confianca: number;
+}
+
+async function extrairCamposDeclarados(corpo: string): Promise<ExtracaoDeclarada | null> {
+  if (!corpo) return null;
+  let r: unknown;
+  try {
+    r = await chatJson([
+      {
+        role: 'system',
+        content:
+          'Voce le a resposta de uma transportadora sobre o status de uma entrega. ' +
+          'Extraia somente o que o remetente declarou explicitamente; sem declaracao clara, confianca baixa.',
+      },
+      {
+        role: 'user',
+        content:
+          'Responda APENAS JSON: {"previsaoEntrega": "YYYY-MM-DD"|null, ' +
+          '"status": "emitida|em_transito|entregue|atrasada|cancelada"|null, "confianca": 0..1}\n\nMensagem:\n' +
+          corpo.slice(0, 4000),
+      },
+    ]);
+  } catch {
+    // LLM indisponivel ou resposta quebrada: claim nao nasce, revisao decide.
+    return null;
+  }
+  const o = (r ?? {}) as Record<string, unknown>;
+  const confianca =
+    typeof o['confianca'] === 'number' ? Math.min(1, Math.max(0, o['confianca'])) : 0;
+  const campos: CamposObservados = {};
+  const prev = o['previsaoEntrega'];
+  if (typeof prev === 'string' && /^\d{4}-\d{2}-\d{2}/.test(prev)) {
+    campos.previsaoEntrega = prev.slice(0, 10);
+  }
+  const st = o['status'];
+  if (typeof st === 'string' && STATUS_DECLARADO_OK.has(st)) campos.status = st;
+  if (Object.keys(campos).length === 0) return { campos, confianca: Math.min(confianca, 0.5) };
+  return { campos, confianca };
+}
+
+export interface DepsResposta {
+  extrator?: (corpo: string) => Promise<ExtracaoDeclarada | null>;
+  resolverDkim?: ResolverDns;
+}
+
+// Devolve true quando o .eml e resposta de cobranca nossa (claim gravado ou
+// revisao aberta); false libera o fluxo IMAP generico. Obrigatoriamente sem
+// lancar: falha vira revisao ou false, nunca quebra o ingest.
+export async function processarRespostaEml(
+  store: LedgerStore,
+  canal: CanalSSE,
+  raw: Buffer,
+  lido: EmlLido,
+  deps: DepsResposta = {},
+): Promise<boolean> {
+  const cab = lido.cabecalho;
+  let cobranca: Awaited<ReturnType<LedgerStore['cobrancaPorMessageId']>> = null;
+  for (const ref of [cab.inReplyTo, ...cab.references].filter((s): s is string => !!s)) {
+    cobranca = await store.cobrancaPorMessageId(ref.trim());
+    if (cobranca) break;
+  }
+  let pedidoId = cobranca?.pedidoId ?? null;
+  if (!pedidoId) {
+    const chave = `${cab.assunto ?? ''}\n${lido.corpo}`.match(RE_CHAVE_44)?.[0];
+    if (chave && (await store.pedidoExiste(chave))) {
+      cobranca = await store.cobrancaAbertaDoPedido(chave);
+      if (cobranca) pedidoId = chave;
+    }
+  }
+  if (!pedidoId) return false;
+
+  const emlHash = createHash('sha256').update(raw).digest('hex');
+  await store.guardarEvidencia(emlHash, 'eml', raw);
+  const dkim = await verificarDkim(raw, deps.resolverDkim);
+  const extrator = deps.extrator ?? extrairCamposDeclarados;
+  const extraido = await extrator(lido.corpo);
+  let confianca = extraido?.confianca ?? 0;
+  if (dkim.resultado !== 'pass') confianca = Math.min(confianca, TETO_SEM_DKIM);
+
+  // A resposta chegou: a cobranca fecha mesmo quando o claim vai para
+  // revisao — a evidencia (emlHash) ja esta guardada.
+  if (cobranca) await store.atualizarCobranca(cobranca.id, { respondida: true });
+
+  const dados: Record<string, unknown> = {
+    dkim: dkim.resultado,
+    emlHash,
+    ...(cab.remetente ? { remetente: cab.remetente } : {}),
+    ...(cab.messageId ? { messageId: cab.messageId } : {}),
+    ...(dkim.assinante ? { dkimAssinante: dkim.assinante } : {}),
+    ...(cobranca ? { cobrancaId: cobranca.id } : {}),
+  };
+  const doc: DocData = {
+    fonte: 'email_transportadora',
+    docTipo: 'status_declarado',
+    pedidoId,
+    campos: extraido?.campos ?? {},
+    dados,
+    confianca,
+  };
+  if (!extraido || confianca < CONFIANCA_MIN_CLAIM || Object.keys(doc.campos).length === 0) {
+    const motivo =
+      dkim.resultado !== 'pass'
+        ? 'dkim_nao_verificado'
+        : extraido === null
+          ? 'extracao_indisponivel'
+          : 'resposta_baixa_confianca';
+    await store.enfileirarRevisao('imap', motivo, {
+      pedidoId,
+      docTipo: 'status_declarado',
+      fonte: 'email_transportadora',
+      campos: doc.campos,
+      dados: doc.dados,
+      confianca,
+    });
+    return true;
+  }
+  await processarDoc(store, canal, doc);
+  return true;
 }
 
 // Linhas de um CSV texto em objetos coluna -> valor: entrada de
@@ -420,7 +554,15 @@ export async function ingerir(
       }
       case 'eml': {
         if (dentroDeEml) throw new ErroParser('EML dentro de EML nao suportado');
-        const { anexos, corpo } = await extrairEml(buf);
+        const lido = await extrairEml(buf);
+        const { anexos, corpo } = lido;
+        // spec 0010: resposta de cobranca vira claim antes de olhar anexos;
+        // .eml sem anexo e sem resposta conhecida segue fora (422 como antes).
+        const ehResposta = await processarRespostaEml(store, canal, buf, lido);
+        if (anexos.length === 0) {
+          if (!ehResposta) throw new ErroParser('EML: sem anexo elegivel (.xml/.csv/.xlsx/.pdf)');
+          break; // claim (ou revisao por confianca) ja encerrou o caminho
+        }
         exigirCabe(anexos.length);
         // Pedidos que receberam documento neste .eml: o corpo so gera sinal
         // para eles (sinal sem pedido nao existe; o corpo nunca e gravado).

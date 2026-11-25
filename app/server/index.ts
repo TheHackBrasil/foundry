@@ -51,8 +51,10 @@ import {
   type ResultadoExecucao,
 } from './mandatos.js';
 import { notificarTarefa } from './nvoip.js';
-import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
-import { iniciarTickPendencias } from './pendencia.js';
+import { ErroParser, aprovarRevisao, ingerir, processarRespostaEml } from './pipeline.js';
+import { extrairEml } from './ingest/eml.js';
+import { assuntoECorpo, configCobrancaDoEnv, dentroDaJanela, enviarCobranca } from './cobranca.js';
+import { configPendenciaDoEnv, detectarPendencias, iniciarTickPendencias } from './pendencia.js';
 import { ehProcessoPrincipal } from './processo.js';
 import { ErroRequisicao, GuardaEspaco, JanelaFixa, mensagens } from './protecao.js';
 import { carregarSeed } from './seed.js';
@@ -468,18 +470,49 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   // "E se?" deterministico: nada e gravado (RF12). A comparacao e a mesma de
   // divergence.ts, com tolerancia de peso; fonteA e a fonte real do valor
   // atual (a ultima que declarou o campo) e fonteB e 'manual' (spec 0007).
-  app.post<{ Body: { pedidoId?: string; campos?: CamposObservados } }>(
+  // pendenciaHoras (spec 0010, T431) adianta o relogio da deteccao de
+  // pendencia: mostra o caso + a cobranca que o verificador abriria.
+  app.post<{ Body: { pedidoId?: string; campos?: CamposObservados; pendenciaHoras?: number } }>(
     '/api/simulate',
     async (req, reply) => {
-      const { pedidoId, campos } = req.body ?? {};
-      if (!pedidoId || !campos || Object.keys(campos).length === 0) {
-        return reply.code(400).send({ erro: 'pedidoId e campos obrigatórios' });
+      const { pedidoId, campos, pendenciaHoras } = req.body ?? {};
+      const temCampos = !!campos && Object.keys(campos).length > 0;
+      const temPendencia =
+        typeof pendenciaHoras === 'number' && Number.isFinite(pendenciaHoras) && pendenciaHoras > 0;
+      if (!pedidoId || (!temCampos && !temPendencia)) {
+        return reply.code(400).send({ erro: 'pedidoId e campos ou pendenciaHoras obrigatórios' });
+      }
+      if (pendenciaHoras !== undefined && !temPendencia) {
+        return reply.code(400).send({ erro: 'pendenciaHoras deve ser um número positivo' });
       }
       const s = await storeDoPedido(store.paraWorkspace(req.workspace), pedidoId);
       if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
-      const proj = projetar(await s.eventosDoPedido(pedidoId));
-      const divs = simularHipotese(proj.versoes, campos);
-      return { divergencias: divs, tarefas: propagarTodas(divs), simulacao: true };
+      const eventos = await s.eventosDoPedido(pedidoId);
+      const proj = projetar(eventos);
+      const divs = temCampos ? simularHipotese(proj.versoes, campos!) : [];
+      const r: Record<string, unknown> = { divergencias: divs, tarefas: propagarTodas(divs), simulacao: true };
+      if (temPendencia) {
+        const agoraFuturo = new Date(Date.now() + pendenciaHoras! * 3_600_000);
+        const detectadas = detectarPendencias(
+          eventos,
+          agoraFuturo,
+          configPendenciaDoEnv().horasSemAtualizacao,
+        );
+        const novas: Array<{ motivo: string; detalhe: string }> = [];
+        for (const p of detectadas) {
+          if (!(await s.pendenciaExiste(pedidoId, p.motivo))) novas.push(p);
+        }
+        r['pendencias'] = novas;
+        if (novas.length > 0) {
+          const contato = await s.contatoDaParte('transportadora');
+          const { assunto } = assuntoECorpo(pedidoId);
+          r['cobrancaSugerida'] = {
+            assunto,
+            destinatario: contato?.canal === 'email' ? contato.destino : null,
+          };
+        }
+      }
+      return r;
     },
   );
 
@@ -899,6 +932,33 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     },
   );
 
+  // Cobrancas de status (spec 0010): a fila visivel mostra sessao + seed;
+  // o envio e so da sessao dona, com janela anti-spam (RF5).
+  app.get('/api/cobrancas', async (req) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    return { cobrancas: await sessao.listarCobrancas() };
+  });
+
+  app.post<{ Params: { id: string } }>('/api/cobrancas/:id/enviar', async (req, reply) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const id = Number(req.params.id);
+    const cobranca = (await sessao.listarCobrancas()).find((c) => c.id === id);
+    if (!cobranca) return reply.code(404).send({ erro: 'cobrança não encontrada' });
+    // Cobranca de pedido seed: visitante le, nao envia (P-010).
+    exigirGravavel(cobranca.workspaceId, 'enviar cobrança de exemplo');
+    if (cobranca.status === 'respondida') {
+      return reply.code(409).send({ erro: 'cobrança já respondida' });
+    }
+    const cobCfg = configCobrancaDoEnv();
+    if (cobranca.status === 'enviada' && dentroDaJanela(cobranca, cobCfg.intervaloHoras)) {
+      return reply.code(409).send({ erro: 'janela anti-spam: aguarde antes de reenviar' });
+    }
+    const dono = store.paraWorkspace(cobranca.workspaceId);
+    const r = await enviarCobranca(dono, cobranca);
+    const atual = await dono.cobrancaPorId(cobranca.id);
+    return r.ok ? { ok: true, cobranca: atual } : reply.code(503).send({ erro: r.motivo, cobranca: atual });
+  });
+
   // Metricas da operacao (spec 0011): derivadas so de eventos do escopo.
   app.get('/api/metricas', async (req) => {
     const sessao = store.paraWorkspace(req.workspace);
@@ -976,6 +1036,15 @@ async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
       }),
     (nome, erro) => store.enfileirarRevisao('imap', 'anexo_rejeitado', { nome, erro }),
     (msg) => console.log(msg),
+    // spec 0010: mensagem sem anexo elegivel pode ser resposta de cobranca;
+    // o matching (In-Reply-To ou chave de 44) decide e fecha a cobranca.
+    async (raw: Buffer) => {
+      try {
+        return await processarRespostaEml(store, canal, raw, await extrairEml(raw));
+      } catch {
+        return false;
+      }
+    },
   );
   console.log(`imap: polling em ${cfg.host}:${cfg.port} a cada ${cfg.intervaloMs}ms`);
 }

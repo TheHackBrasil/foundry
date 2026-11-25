@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { consolidarCampos, camposPorFonte } from '../shared/projection.js';
 import type { Evento } from '../shared/model.js';
+import { configCobrancaDoEnv, criarCobrancaParaPendencia, enviarCobranca } from './cobranca.js';
 import type { LedgerStore } from './store.js';
 import type { CanalSSE } from './sse.js';
 
@@ -26,7 +27,11 @@ interface PendenciaDetectada {
 // - sem_atualizacao: ultimo evento mais velho que o limite
 // - cte_sem_nfe: CT-e presente sem NF-e alem do limite
 // - entrega_sem_confirmacao: previsao passou e nenhuma fonte disse 'entregue'
-function detectar(eventos: Evento[], agora: Date, limiteHoras: number): PendenciaDetectada[] {
+export function detectarPendencias(
+  eventos: Evento[],
+  agora: Date,
+  limiteHoras: number,
+): PendenciaDetectada[] {
   if (eventos.length === 0) return [];
   const limiteMs = limiteHoras * 3_600_000;
   const primeiro = new Date(eventos[0]!.ts);
@@ -67,11 +72,13 @@ export async function verificarWorkspace(
   config = configPendenciaDoEnv(),
 ): Promise<number> {
   const pedidos = await store.listarPedidos();
+  const cobCfg = configCobrancaDoEnv();
   let abertas = 0;
   for (const p of pedidos) {
     if (p.workspaceId !== store.workspace) continue;
     const eventos = await store.eventosDoPedido(p.pedidoId);
-    for (const pend of detectar(eventos, agora, config.horasSemAtualizacao)) {
+    let abriuNeste = false;
+    for (const pend of detectarPendencias(eventos, agora, config.horasSemAtualizacao)) {
       if (await store.pendenciaExiste(p.pedidoId, pend.motivo)) continue;
       const ev = await store.append(p.pedidoId, 'pendencia_aberta', {
         motivo: pend.motivo,
@@ -80,8 +87,23 @@ export async function verificarWorkspace(
       });
       canal.evento(ev, store.workspace);
       abertas += 1;
+      abriuNeste = true;
+    }
+    // spec 0010: pedido pendente tambem sugere cobranca de status a
+    // transportadora (idempotente por pedido). Com COBRANCA_AUTO=1 o envio
+    // sai sem aprovacao humana; default deixa pendente para o operador.
+    // `abriuNeste` cobre a rodada que acabou de abrir a pendencia: a lista
+    // `eventos` foi lida antes dos appends e nao os contem.
+    if (abriuNeste || eventos.some((e) => e.tipo === 'pendencia_aberta')) {
+      const { cobranca, criada } = await criarCobrancaParaPendencia(store, p.pedidoId, cobCfg.expiraHoras);
+      if (criada && cobCfg.auto && cobranca.status === 'pendente') {
+        await enviarCobranca(store, cobranca);
+      }
     }
   }
+  // Cobrancas sem resposta expiram: a pendencia segue visivel, o reenvio e
+  // manual e respeita a janela (RF5, caso de borda da spec).
+  await store.expirarCobrancas(agora);
   return abertas;
 }
 

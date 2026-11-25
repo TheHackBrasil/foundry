@@ -54,6 +54,7 @@ async function coletarEIngerir(
   ingerir: (nome: string, conteudo: Buffer) => Promise<unknown>,
   revisar: (nome: string, erro: string) => Promise<unknown>,
   log: (msg: string) => void,
+  responder?: (raw: Buffer) => Promise<boolean>,
 ): Promise<number> {
   const client = new ImapFlow({
     host: cfg.host,
@@ -105,6 +106,18 @@ async function coletarEIngerir(
             }
           }
         }
+        // spec 0010: sem anexo elegivel, a mensagem ainda pode ser resposta
+        // de cobranca — o matching decide e a marca como lida quando casa.
+        if (!elegivel && !falhaDeInfra && responder && msg.source) {
+          try {
+            if (await responder(msg.source)) {
+              elegivel = true;
+              processados += 1;
+            }
+          } catch (e) {
+            log(`imap: resposta adiada (${(e as Error).message})`);
+          }
+        }
         // Sem anexo elegivel nao e nosso: deixa nao lida (caixa pessoal).
         if (elegivel && !falhaDeInfra) {
           await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'], { uid: true });
@@ -125,6 +138,7 @@ export function iniciarPolling(
   ingerir: (nome: string, conteudo: Buffer) => Promise<unknown>,
   revisar: (nome: string, erro: string) => Promise<unknown>,
   log: (msg: string) => void,
+  responder?: (raw: Buffer) => Promise<boolean>,
 ): () => void {
   let vivo = true;
   let rodando = false;
@@ -132,7 +146,7 @@ export function iniciarPolling(
     if (!vivo || rodando) return;
     rodando = true;
     try {
-      const n = await coletarEIngerir(cfg, ingerir, revisar, log);
+      const n = await coletarEIngerir(cfg, ingerir, revisar, log, responder);
       if (n > 0) log(`imap: ${n} anexo(s) processados`);
     } catch (e) {
       log(`imap: falha no ciclo (${(e as Error).message})`);

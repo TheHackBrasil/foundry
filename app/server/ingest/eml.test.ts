@@ -83,16 +83,20 @@ describe('extrairEml', () => {
     expect(corpo).toBe('Corpo da mensagem de teste.');
   });
 
-  it('o erro nunca repete cabecalho da mensagem', async () => {
-    const mensagens = await Promise.all([
-      extrairEml(montarEml([])).catch((e: Error) => e.message),
-      extrairEml(montarEml([{ tipo: 'message/rfc822', corpo: montarEml([]), nome: 'x.eml' }])).catch((e: Error) => e.message),
-      extrairEml(Buffer.from(`${CABECALHOS.from}\r\n${CABECALHOS.subject}`)).catch((e: Error) => e.message),
-    ]);
-    for (const m of mensagens) {
-      expect(typeof m).toBe('string');
-      for (const v of VALORES_SENSIVEIS) expect(m).not.toContain(v);
-    }
+  it('sem anexo elegivel devolve anexos vazios e cabecalho so em memoria', async () => {
+    // spec 0010: .eml sem anexo elegivel nao lanca mais aqui — a resposta de
+    // cobranca pode nao ter anexo. O parse devolve anexos vazios e quem
+    // rejeita (com mensagem fixa, sem cabecalho) e o pipeline.
+    const semAnexo = await extrairEml(montarEml([]));
+    expect(semAnexo.anexos).toHaveLength(0);
+    const aninhado = await extrairEml(montarEml([{ tipo: 'message/rfc822', corpo: montarEml([]), nome: 'x.eml' }]));
+    expect(aninhado.anexos).toHaveLength(0);
+    const soCabecalho = await extrairEml(
+      Buffer.from(`From: ${CABECALHOS.from}\r\nSubject: ${CABECALHOS.subject}\r\n\r\ncorpo\r\n`),
+    );
+    expect(soCabecalho.anexos).toHaveLength(0);
+    // O cabecalho sai so em memoria (matching de resposta); nunca em erro.
+    expect(soCabecalho.cabecalho.remetente).toBe(VALORES_SENSIVEIS[0]);
   });
 });
 

@@ -11,7 +11,7 @@ export const PARTES: readonly Parte[] = [
 ] as const;
 
 // Origem do documento que entrou na camada (o que cada parceiro ja produz).
-export type FonteDocumento = 'nfe' | 'cte' | 'cce' | 'planilha' | 'pdf' | 'imap' | 'manual';
+export type FonteDocumento = 'nfe' | 'cte' | 'cce' | 'planilha' | 'pdf' | 'imap' | 'manual' | 'email_transportadora';
 
 export type TipoEvento =
   | 'nfe'
@@ -20,6 +20,7 @@ export type TipoEvento =
   | 'cancelamento'
   | 'planilha'
   | 'pdf'
+  | 'status_declarado'
   | 'divergencia'
   | 'tarefa'
   | 'ancora'
@@ -37,11 +38,12 @@ export type TipoEvento =
 // Tipos que representam um documento recebido (o resto e evento derivado):
 // usados para contar documentos por workspace e para ler o fold da projecao.
 // mandato, sinal e notificacao sao derivados como divergencia e tarefa (RF6).
-export const TIPOS_DOCUMENTO = ['nfe', 'cte', 'cce', 'cancelamento', 'planilha', 'pdf'] as const;
+export const TIPOS_DOCUMENTO = ['nfe', 'cte', 'cce', 'cancelamento', 'planilha', 'pdf', 'status_declarado'] as const;
 
 // Todas as fontes que um pedido pode declarar ('manual' so aparece como
-// fonteB de hipotese no simulate). Enum completo para validar ViewSpec.
-export const FONTES_DOCUMENTO = ['nfe', 'cte', 'cce', 'planilha', 'pdf', 'imap', 'manual'] as const;
+// fonteB de hipotese no simulate; 'email_transportadora' e o claim da
+// resposta de cobranca, spec 0010). Enum completo para validar ViewSpec.
+export const FONTES_DOCUMENTO = ['nfe', 'cte', 'cce', 'planilha', 'pdf', 'imap', 'manual', 'email_transportadora'] as const;
 
 // Campos que a camada vigia entre fontes (RF10). Ausente = a fonte nao declara.
 export interface CamposObservados {
@@ -159,6 +161,43 @@ export interface Caso {
   ciclos: number; // reaberturas
   ultimaRespostaParceiro?: { acao: 'confirmar' | 'contestar'; texto?: string; em: string };
   workspaceId?: string; // preenchido pela rota, nao vem do payload
+}
+
+// Cobranca de status (spec 0010): pendencia por tempo vira pedido de status
+// a transportadora pelo canal que ela ja usa (e-mail). 'pendente' espera
+// aprovacao humana; 'pendente_envio' marca SMTP ausente; 'expirada' fecha
+// sem resposta em COBRANCA_EXPIRA_HORAS.
+export type StatusCobranca =
+  | 'pendente'
+  | 'pendente_envio'
+  | 'enviada'
+  | 'respondida'
+  | 'expirada'
+  | 'erro_envio';
+
+export const STATUS_COBRANCA = [
+  'pendente',
+  'pendente_envio',
+  'enviada',
+  'respondida',
+  'expirada',
+  'erro_envio',
+] as const;
+
+export interface Cobranca {
+  id: number;
+  pedidoId: string;
+  workspaceId: string;
+  canal: 'email';
+  contatoId: number | null;
+  destinatario?: string;
+  status: StatusCobranca;
+  messageId?: string;
+  motivo?: string;
+  criadaEm: string;
+  enviadaEm?: string;
+  respondidaEm?: string;
+  expiraEm: string;
 }
 
 // Resposta do parceiro pelo link opaco (spec 0011): sem login, quem tem o
