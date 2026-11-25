@@ -539,3 +539,10 @@ foi verificado ao vivo em produção em 24/11.
   troca dentro da caixa do vizinho ou claramente mais perto que o slot
   atual); assentamento com curva de overshoot suave (320ms); entrada com
   stagger por posicao; collapse ganha fade interno.
+
+- Correcao de desempenho da rodada 1 (feedback "desempenho horrivel"):
+  o useLayoutEffect do FLIP media e re-disparava animacoes a CADA render
+  (SSE pulsa constante -> respawn perpétuo de WAAPIs de 300ms); agora o
+  efeito so mede em mudanca real de layout (ordem/ocultos), pointermove e
+  coalescido por requestAnimationFrame e animacoes/frames tem cleanup no
+  unmount.

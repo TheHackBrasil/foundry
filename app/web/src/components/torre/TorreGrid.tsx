@@ -92,6 +92,7 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
   const animsRef = useRef(new Map<string, Animation>());
   const dragRef = useRef<DragAtivo | null>(null);
   const ordemVisivelRef = useRef<CardId[]>([]);
+  const frameRef = useRef(0);
 
   const ocultosSet = useMemo(() => new Set(layout.ocultos), [layout.ocultos]);
   const recolhidosSet = useMemo(() => new Set(layout.recolhidos), [layout.recolhidos]);
@@ -118,6 +119,15 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     guardarTemplatesCustom(templatesCustom);
   }, [templatesCustom]);
 
+  // Nada fica pendurado: animações WAAPI e frame agendado morrem com o grid.
+  useEffect(() => {
+    const anims = animsRef.current;
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      for (const a of anims.values()) a.cancel();
+    };
+  }, []);
+
   const commitOrdemVisivel = useCallback((novaVisivel: CardId[]) => {
     setLayout((prev) => {
       const ocultosOrd = prev.ordem.filter((c) => ocultosSetRef.current.has(c));
@@ -132,9 +142,12 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
   // slot comprometido — o rect antes do cancel inclui a animação em voo, o
   // rect depois é o novo commit; a diferença segura o card exatamente onde o
   // olho o vê, mesmo quando um commit interrompe o deslize anterior.
+  // Gate nas deps: sem mudança de layout o efeito nem mede — renders de SSE
+  // não relêem rects nem reiniciam animações em voo.
+  const ordemKey = ordemVisivel.join(',');
   useLayoutEffect(() => {
     const d = dragRef.current;
-    for (const id of ordemVisivel) {
+    for (const id of ordemVisivelRef.current) {
       const el = elsRef.current.get(id);
       if (!el) continue;
       if (d && d.id === id) {
@@ -164,7 +177,8 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         if (animsRef.current.get(chave) === anim) animsRef.current.delete(chave);
       };
     }
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mede só em mudança real de layout
+  }, [ordemKey, layout]);
 
   const tituloDe = useCallback(
     (id: CardId) => titulosCard?.[id] ?? CARD_META[id].titulo,
@@ -177,6 +191,10 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       if (!d) return;
       dragRef.current = null;
       setDragId(null);
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = 0;
+      }
       if (reverter) {
         d.peca.style.transform = '';
         setLayout((prev) => ({ ...prev, ordem: d.ordemAntes }));
@@ -258,50 +276,61 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         setDragId(d.id);
       }
 
-      const r = d.sec.getBoundingClientRect();
-      d.tx = e.clientX - d.grabDX - r.left;
-      d.ty = e.clientY - d.grabDY - r.top;
-      d.peca.style.transform = `translate3d(${d.tx}px, ${d.ty}px, 0)`;
+      // Trabalho por frame: eventos de pointer podem chegar a 120 Hz; um write
+      // de transform + leitura de rects por frame cobre o que o olho vê.
+      if (frameRef.current) return;
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = 0;
+        const ativo = dragRef.current;
+        if (!ativo || !ativo.moved) return;
+        const px = ativo.lastX;
+        const py = ativo.lastY;
 
-      // Destino com histerese: o slot só troca quando o pointer entra na caixa
-      // de um vizinho (inflada) ou chega claramente mais perto dele do que do
-      // centro do próprio slot — sem isso o destino oscila na fronteira.
-      const alvos = ordemVisivelRef.current.filter((id) => id !== d.id);
-      if (alvos.length === 0) return;
-      const slotAtual = ordemVisivelRef.current.indexOf(d.id);
-      const slotCX = r.left + r.width / 2;
-      const slotCY = r.top + r.height / 2;
-      const distSlot = Math.hypot(e.clientX - slotCX, e.clientY - slotCY);
+        const r = ativo.sec.getBoundingClientRect();
+        ativo.tx = px - ativo.grabDX - r.left;
+        ativo.ty = py - ativo.grabDY - r.top;
+        ativo.peca.style.transform = `translate3d(${ativo.tx}px, ${ativo.ty}px, 0)`;
 
-      let melhorDist = Infinity;
-      let destino = -1;
-      let dentro = false;
-      for (let i = 0; i < alvos.length; i += 1) {
-        const alvoId = alvos[i];
-        if (!alvoId) continue;
-        const outro = elsRef.current.get(alvoId);
-        if (!outro) continue;
-        const rr = outro.getBoundingClientRect();
-        const cx = rr.left + rr.width / 2;
-        const cy = rr.top + rr.height / 2;
-        const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
-        if (dist < melhorDist) {
-          melhorDist = dist;
-          dentro =
-            e.clientX >= rr.left - rr.width * 0.12 &&
-            e.clientX <= rr.right + rr.width * 0.12 &&
-            e.clientY >= rr.top - rr.height * 0.12 &&
-            e.clientY <= rr.bottom + rr.height * 0.12;
-          const depois =
-            e.clientY > cy + rr.height * 0.3 ||
-            (Math.abs(e.clientY - cy) <= rr.height * 0.3 && e.clientX > cx);
-          destino = depois ? i + 1 : i;
+        // Destino com histerese: o slot só troca quando o pointer entra na
+        // caixa de um vizinho (inflada) ou chega claramente mais perto dele do
+        // que do centro do próprio slot — sem isso o destino oscila na borda.
+        const alvos = ordemVisivelRef.current.filter((id) => id !== ativo.id);
+        if (alvos.length === 0) return;
+        const slotAtual = ordemVisivelRef.current.indexOf(ativo.id);
+        const slotCX = r.left + r.width / 2;
+        const slotCY = r.top + r.height / 2;
+        const distSlot = Math.hypot(px - slotCX, py - slotCY);
+
+        let melhorDist = Infinity;
+        let destino = -1;
+        let dentro = false;
+        for (let i = 0; i < alvos.length; i += 1) {
+          const alvoId = alvos[i];
+          if (!alvoId) continue;
+          const outro = elsRef.current.get(alvoId);
+          if (!outro) continue;
+          const rr = outro.getBoundingClientRect();
+          const cx = rr.left + rr.width / 2;
+          const cy = rr.top + rr.height / 2;
+          const dist = Math.hypot(px - cx, py - cy);
+          if (dist < melhorDist) {
+            melhorDist = dist;
+            dentro =
+              px >= rr.left - rr.width * 0.12 &&
+              px <= rr.right + rr.width * 0.12 &&
+              py >= rr.top - rr.height * 0.12 &&
+              py <= rr.bottom + rr.height * 0.12;
+            const depois =
+              py > cy + rr.height * 0.3 ||
+              (Math.abs(py - cy) <= rr.height * 0.3 && px > cx);
+            destino = depois ? i + 1 : i;
+          }
         }
-      }
-      const decisivo = dentro || melhorDist < distSlot * 0.62;
-      if (decisivo && destino !== slotAtual) {
-        commitOrdemVisivel(inserirEm(alvos, d.id, destino));
-      }
+        const decisivo = dentro || melhorDist < distSlot * 0.62;
+        if (decisivo && destino !== slotAtual) {
+          commitOrdemVisivel(inserirEm(alvos, ativo.id, destino));
+        }
+      });
     },
     [commitOrdemVisivel],
   );
