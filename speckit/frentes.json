@@ -124,47 +124,44 @@
         "specs/0011-modelo-excecao/"
       ]
     },
-    "v2-torre": {
-      "brief": "specs/0014-ux-v2/brief-torre.md",
+    "polish-motor": {
+      "brief": "specs/0015-polimento-torre/brief-motor.md",
+      "paths": [
+        "app/web/src/components/torre/TorreGrid.tsx",
+        "app/web/src/components/torre/TorreCard.tsx",
+        "app/web/src/components/torre/packing.ts",
+        "app/web/src/components/torre/packing.test.ts",
+        "app/web/src/torre-v2.css",
+        "specs/0015-polimento-torre/brief-motor.md"
+      ]
+    },
+    "polish-vistas": {
+      "brief": "specs/0015-polimento-torre/brief-vistas.md",
+      "paths": [
+        "app/web/src/components/torre/layout.ts",
+        "app/web/src/components/torre/layout.test.ts",
+        "app/web/src/components/torre/TorreVistas.tsx",
+        "app/web/src/vistas.css",
+        "specs/0015-polimento-torre/brief-vistas.md"
+      ]
+    },
+    "polish-fluxo": {
+      "brief": "specs/0015-polimento-torre/brief-fluxo.md",
       "paths": [
         "app/web/src/components/PainelPedido.tsx",
+        "app/web/src/components/PedidoLista.tsx",
+        "app/web/src/useTorre.ts",
+        "app/web/src/useStream.ts",
+        "app/web/src/components/menuwiki/",
+        "app/web/src/format.ts",
+        "app/web/src/format.test.ts",
         "app/web/src/components/GrafoDomino.tsx",
-        "app/web/src/components/MatrizFontes.tsx",
         "app/web/src/components/StatusCadeia.tsx",
         "app/web/src/components/TarefasPorParte.tsx",
-        "app/web/src/components/SinaisEAvisos.tsx",
-        "app/web/src/components/SimuladorVivo.tsx",
-        "app/web/src/components/torre/",
-        "app/web/src/useTorre.ts",
-        "app/web/src/matriz.ts",
-        "app/web/src/matriz.test.ts",
-        "app/web/src/torre-v2.css",
-        "app/web/src/lenteCache.ts",
-        "specs/0014-ux-v2/brief-torre.md"
-      ]
-    },
-    "v2-painel": {
-      "brief": "specs/0014-ux-v2/brief-painel.md",
-      "paths": [
-        "app/web/src/components/EvidenciaLateralIA.tsx",
-        "app/web/src/components/PaginaAssistenteIA.tsx",
-        "app/web/src/components/assistente/",
-        "app/web/src/components/evidencia/",
-        "app/web/src/apiOps.ts",
-        "app/web/src/assistenteContrato.ts",
-        "app/web/src/ai-camada.test.ts",
-        "app/web/src/painel-v2.css",
-        "specs/0014-ux-v2/brief-painel.md"
-      ]
-    },
-    "v2-menu": {
-      "brief": "specs/0014-ux-v2/brief-menu.md",
-      "paths": [
-        "app/web/src/components/PedidoLista.tsx",
-        "app/web/src/components/menuwiki/",
-        "app/web/src/icones.tsx",
-        "app/web/src/menuwiki.css",
-        "specs/0014-ux-v2/brief-menu.md"
+        "app/web/src/components/MatrizFontes.tsx",
+        "app/web/src/components/torre/Card*.tsx",
+        "app/web/src/fluxo.css",
+        "specs/0015-polimento-torre/brief-fluxo.md"
       ]
     }
   }

@@ -21,8 +21,9 @@ imutável (A9).
 | [0012](0012-webhook-saida/spec.md) | Webhook de saída: canal webhook na agenda entrega tarefa por POST JSON | implementada | 2026-11-24 |
 | [0013](0013-rastreio-externo/spec.md) | Rastreio externo: polling de páginas públicas das transportadoras como fonte consultiva | rascunho | 2026-11-24 |
 | [0014](0014-ux-v2/spec.md) | UX v2: torre em tiling arrastavel, painel de evidencia autonomo, menu wiki e grafo limpo (THE-15 a THE-20) | implementada | 2026-11-24 |
+| [0015](0015-polimento-torre/spec.md) | Polimento da Torre guiado por auditoria multi-persona: motion, layout, performance, vistas e superficie | em execucao | 2026-11-25 |
 
-**Próximo número livre:** `0014`
+**Próximo número livre:** `0016`
 
 ## Lacunas conhecidas
 

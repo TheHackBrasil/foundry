@@ -552,3 +552,39 @@ foi verificado ao vivo em produção em 24/11.
   (pointer + setas/Home/End, role=separator com aria-valuenow), span min
   por card em CARD_META; `grid-auto-flow: dense` retile automatico
   preenchendo vaos; vista custom salva spans; FLIP cobre o reflow.
+
+## Sessao 23
+
+### D-059: polimento da Torre guiado por auditoria multi-persona
+
+- Auditoria read-only com 5 subagentes especialistas (motion com video a
+  60fps, visual, acessibilidade WCAG, usabilidade Nielsen, performance com
+  medicoes), cada um com skills dedicadas do ecossistema (review-animations,
+  impeccable, ux-accessibility-audit, ux-heuristics,
+  react-component-performance) e browser isolado por sessao nomeada do
+  agent-browser. Verificacao independente da integracao confirmou no
+  codigo: bug da assinatura de vistas (presets nunca reativam apos span
+  customizado, desvio de D-T5), arraste travavel sem safety net, pill de
+  largura sem semantica APG, coluna morta do packing em viewport largo e
+  drop do drag sem settle (teleporte medido de ate 779px em um frame).
+- Decisoes do usuario: arestas do grafo domino com opacity por volta de
+  0,2 em repouso (revisita THE-15 sem trair o espirito); movimento fluido
+  sempre (continuidade visual obrigatoria, nunca snap; o custo de longtask
+  e aceito e a performance vem de memoizacao, rede e refs, nao de cortar
+  animacao); execucao em waves paralelas como na spec 0014.
+- Spec 0015 registrada com 3 frentes na wave A, arquivos disjuntas:
+  polish-motor (motor do grid: settle real no drop, arraste estavel sem
+  reordenacao com pointer parado, safety net de pointer, ciclo de
+  ResizeObserver quebrado, setas espaciais 2-D, ordem DOM igual a visual,
+  splitter APG, packing sem coluna morta, auto-scroll, collapse como
+  transacao unica), polish-vistas (assinatura sem spans para presets,
+  densidade como segmented control, reset e undo com toast, vista padrao
+  global, vista salva completa, foco devolvido, colisao Fiscal vezes dois,
+  badge de ocultos) e polish-fluxo (memoizacao real, dedup de rede sem
+  tocar o servidor, formatters Intl cacheados, pulsos sem espelho, tarefas
+  agrupadas por setor, roving tabindex, timestamp compacto).
+- Contrato tolerante entre motor e vistas: prop opcional
+  `aoDefinirDensidade` definida nos dois briefs.
+- Wave B (polish-superficie: escala tipografica, marmore, elevacao,
+  preludio) detalhada apos a integracao da wave A, por natureza
+  transversal a styles.css e tokens.css.
