@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { RespostaAuditoria } from '../../../shared/model.ts';
 import { copiarTexto } from '../copiar.ts';
 import { CamadaShader } from '../shaders/index.ts';
 import type { Carga } from '../useTorre.ts';
+import { hashCurto } from './menuwiki/rede.ts';
 import {
   IconeConfere,
   IconeCopiar,
@@ -28,7 +29,7 @@ function urlAncoraSegura(ancora: Record<string, unknown> | null | undefined): st
   return /^https?:\/\//i.test(limpa) ? limpa : null;
 }
 
-export function StatusCadeia({
+export const StatusCadeia = memo(function StatusCadeia({
   auditoria,
   pulsoExterno = 0,
   aoVerificar,
@@ -36,37 +37,27 @@ export function StatusCadeia({
   aoAncorar,
   aoAnunciar,
 }: Props) {
-  // Preserva o último resultado válido durante a reverificação para o selo não saltar.
-  const [ultimoOk, setUltimoOk] = useState<RespostaAuditoria | null>(
+  // Preserva o último resultado válido durante a reverificação para o selo não
+  // saltar. Ref sincronizado em efeito: nada de setState durante o render
+  // (spec 0015, F3).
+  const ultimoOkRef = useRef<RespostaAuditoria | null>(
     auditoria.estado === 'ok' ? auditoria.dados : null,
   );
   const [copiado, setCopiado] = useState(false);
   const [ancorando, setAncorando] = useState(false);
-  const [pulsoSelo, setPulsoSelo] = useState(0);
+  // Pulso local (ancoragem concluída). Os demais pulsos são derivados: troca
+  // de raiz Merkle entra como hashCurto(raiz) e eventos SSE como pulsoExterno,
+  // somados direto na chave do shader, sem cópia em estado.
+  const [pulsoLocal, setPulsoLocal] = useState(0);
   const copiaTimerRef = useRef<number | null>(null);
-  const ultimaRaizRef = useRef<string | null>(
-    auditoria.estado === 'ok' ? auditoria.dados.rootAtual : null,
-  );
-  const pulsoExternoRef = useRef(pulsoExterno);
-
-  if (auditoria.estado === 'ok' && auditoria.dados !== ultimoOk) {
-    setUltimoOk(auditoria.dados);
-  }
+  const raizConhecidaRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (auditoria.estado !== 'ok') return;
-    if (ultimaRaizRef.current !== null && ultimaRaizRef.current !== auditoria.dados.rootAtual) {
-      setPulsoSelo((n) => n + 1);
+    if (auditoria.estado === 'ok') {
+      ultimoOkRef.current = auditoria.dados;
+      raizConhecidaRef.current = auditoria.dados.rootAtual;
     }
-    ultimaRaizRef.current = auditoria.dados.rootAtual;
   }, [auditoria]);
-
-  useEffect(() => {
-    if (pulsoExterno > pulsoExternoRef.current) {
-      pulsoExternoRef.current = pulsoExterno;
-      setPulsoSelo((n) => n + 1);
-    }
-  }, [pulsoExterno]);
 
   useEffect(
     () => () => {
@@ -80,11 +71,20 @@ export function StatusCadeia({
     auditoria.estado === 'ok'
       ? auditoria.dados
       : verificando
-        ? ultimoOk
+        ? ultimoOkRef.current
         : null;
   const falha = dados !== null && !dados.valida;
   const raizCurta = dados ? dados.rootAtual.slice(0, 8) : '';
   const urlBaseScan = urlAncoraSegura(dados?.ancora);
+
+  // Chave de pulso derivada: a raiz so entra depois de conhecida uma vez, para
+  // a primeira auditoria não disparar pulso na montagem; depois disso, raiz
+  // nova = hash novo = pulso. pulsoExterno soma os eventos SSE; pulsoLocal, a
+  // ancoragem manual.
+  const pulsoSelo =
+    pulsoLocal +
+    pulsoExterno +
+    (dados !== null && raizConhecidaRef.current !== null ? hashCurto(dados.rootAtual) : 0);
 
   async function copiarRaiz(raiz: string) {
     if (!(await copiarTexto(raiz))) return;
@@ -102,7 +102,7 @@ export function StatusCadeia({
     setAncorando(true);
     try {
       await aoAncorar();
-      setPulsoSelo((n) => n + 1);
+      setPulsoLocal((n) => n + 1);
     } finally {
       setAncorando(false);
     }
@@ -225,4 +225,4 @@ export function StatusCadeia({
       </div>
     </div>
   );
-}
+});

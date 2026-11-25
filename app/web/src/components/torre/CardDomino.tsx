@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type {
   AlvoFocoGenUI,
   CampoVigiado,
@@ -17,7 +18,7 @@ interface CardDominoProps {
   aoSelecionarPapel: (parte: Parte) => void;
 }
 
-export function CardDomino({
+export const CardDomino = memo(function CardDomino({
   divergencias,
   tarefas,
   modoSimulacao,
@@ -37,4 +38,4 @@ export function CardDomino({
       aoSelecionarPapel={aoSelecionarPapel}
     />
   );
-}
+});

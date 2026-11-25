@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { RespostaAuditoria } from '../../../../shared/model.ts';
 import type { Carga } from '../../useTorre.ts';
 import { StatusCadeia } from '../StatusCadeia.tsx';
@@ -11,7 +12,7 @@ interface CardCadeiaProps {
   aoAnunciar: (texto: string) => void;
 }
 
-export function CardCadeia({
+export const CardCadeia = memo(function CardCadeia({
   auditoria,
   pulsoExterno,
   aoVerificar,
@@ -29,4 +30,4 @@ export function CardCadeia({
       aoAnunciar={aoAnunciar}
     />
   );
-}
+});

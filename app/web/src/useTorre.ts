@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Contato, Evento, ProjecaoPedido, RespostaAuditoria } from '../../shared/model.ts';
+import { autoForkPedidoNaSessao, type PedidoResumo } from './api.ts';
 import {
-  auditarPedido,
-  autoForkPedidoNaSessao,
-  listarPedidos,
-  obterPedido,
-  type PedidoResumo,
-} from './api.ts';
-import { listarContatos, listarRevisao } from './apiOps.ts';
+  assinaturaAuditoria,
+  assinaturaContatos,
+  assinaturaPedidos,
+  assinaturaProjecao,
+  buscarAuditoria,
+  buscarContatos,
+  buscarPedidos,
+  buscarProjecao,
+  buscarRevisao,
+} from './components/menuwiki/rede.ts';
 import { chaveCurta } from './format.ts';
 import { chaveTarefa } from './matriz.ts';
 import { useStream, type EventoAncoraStream } from './useStream.ts';
@@ -75,6 +79,12 @@ export function useTorre() {
   const atual = useRef<string | null>(selecionado);
   const rotaRef = useRef<RotaTorre>(rota);
   const conhecidas = useRef<ReadonlySet<string> | null>(null);
+  // Assinaturas do ultimo estado aplicado: resposta repetida nao troca o
+  // objeto de estado, entao efeitos a jusante (MenuWiki, painel) nem disparam.
+  const assinaturaListaRef = useRef<string | null>(null);
+  const assinaturaProjRef = useRef<string | null>(null);
+  const assinaturaAuditoriaRef = useRef<string | null>(null);
+  const assinaturaContatosRef = useRef<string | null>(null);
   const pedidoSeq = useRef(0);
   const limpaNovas = useRef<number | undefined>(undefined);
   const repoeAnuncio = useRef<number | undefined>(undefined);
@@ -106,19 +116,31 @@ export function useTorre() {
   }, []);
 
   const recarregarAuxiliares = useCallback(async () => {
-    const [resRevisao, resContatos] = await Promise.allSettled([listarRevisao(), listarContatos()]);
+    const [resRevisao, resContatos] = await Promise.allSettled([buscarRevisao(), buscarContatos()]);
     if (resRevisao.status === 'fulfilled') {
       setRevisaoPendentes(resRevisao.value.itens.filter((item) => item.status === 'pendente').length);
     }
     if (resContatos.status === 'fulfilled') {
-      setContatos(resContatos.value);
+      const sig = assinaturaContatos(resContatos.value);
+      if (sig !== assinaturaContatosRef.current) {
+        assinaturaContatosRef.current = sig;
+        setContatos(resContatos.value);
+      }
     }
   }, []);
 
   const recarregarLista = useCallback(async () => {
     try {
-      setPedidos({ estado: 'ok', dados: await listarPedidos() });
+      const dados = await buscarPedidos();
+      const sig = assinaturaPedidos(dados);
+      if (sig !== assinaturaListaRef.current) {
+        assinaturaListaRef.current = sig;
+        setPedidos({ estado: 'ok', dados });
+      }
     } catch (e) {
+      // Falha zera a assinatura: a resposta seguinte sempre reaplica estado,
+      // mesmo identica a da ultima carga bem-sucedida.
+      assinaturaListaRef.current = null;
       setPedidos({ estado: 'erro', mensagem: mensagemDe(e) });
     } finally {
       setPrimeiraRespostaDaApi(true);
@@ -129,9 +151,13 @@ export function useTorre() {
   const verificarCadeia = useCallback(
     async (id: string, anunciarResultado = false) => {
       try {
-        const dados = await auditarPedido(id);
+        const dados = await buscarAuditoria(id);
         if (atual.current !== id) return;
-        setAuditoria({ estado: 'ok', dados });
+        const sig = assinaturaAuditoria(dados);
+        if (sig !== assinaturaAuditoriaRef.current) {
+          assinaturaAuditoriaRef.current = sig;
+          setAuditoria({ estado: 'ok', dados });
+        }
         if (anunciarResultado) {
           anunciar(
             dados.valida
@@ -141,6 +167,7 @@ export function useTorre() {
         }
       } catch (e) {
         if (atual.current !== id) return;
+        assinaturaAuditoriaRef.current = null;
         setAuditoria({ estado: 'erro', mensagem: mensagemDe(e) });
         if (anunciarResultado) anunciar(`Não foi possível verificar a cadeia: ${mensagemDe(e)}`);
       }
@@ -152,13 +179,17 @@ export function useTorre() {
     async (id: string, aviso?: string) => {
       const seq = ++pedidoSeq.current;
       try {
-        const dados = await obterPedido(id);
+        const dados = await buscarProjecao(id);
         if (seq !== pedidoSeq.current) return;
+        const sig = assinaturaProjecao(dados);
+        if (sig !== assinaturaProjRef.current) {
+          assinaturaProjRef.current = sig;
+          setProjecao({ estado: 'ok', dados });
+        }
         const chaves = new Set(dados.tarefas.map(chaveTarefa));
         const antes = conhecidas.current;
         const surgiram = antes ? [...chaves].filter((k) => !antes.has(k)) : [];
         conhecidas.current = chaves;
-        setProjecao({ estado: 'ok', dados });
         if (surgiram.length > 0) {
           setNovas(new Set(surgiram));
           setPulsoEventoSeq((s) => s + 1);
@@ -170,7 +201,10 @@ export function useTorre() {
           anunciar(`${aviso}${novasTarefas} ${plural(dados.totalEventos, 'evento', 'eventos')} no registro.`);
         }
       } catch (e) {
-        if (seq === pedidoSeq.current) setProjecao({ estado: 'erro', mensagem: mensagemDe(e) });
+        if (seq === pedidoSeq.current) {
+          assinaturaProjRef.current = null;
+          setProjecao({ estado: 'erro', mensagem: mensagemDe(e) });
+        }
       }
       void verificarCadeia(id);
     },
@@ -205,6 +239,8 @@ export function useTorre() {
 
   useEffect(() => {
     conhecidas.current = null;
+    assinaturaProjRef.current = null;
+    assinaturaAuditoriaRef.current = null;
     setNovas(new Set());
     if (!selecionado) return;
     setProjecao({ estado: 'carregando' });
@@ -300,6 +336,8 @@ export function useTorre() {
   const verificarDeNovo = useCallback(async () => {
     const id = atual.current;
     if (!id) return;
+    // 'carregando' apaga a assinatura para a resposta nunca saltar o estado ok.
+    assinaturaAuditoriaRef.current = null;
     setAuditoria({ estado: 'carregando' });
     await verificarCadeia(id, true);
   }, [verificarCadeia]);
