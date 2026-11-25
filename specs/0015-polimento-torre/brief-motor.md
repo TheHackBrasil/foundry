@@ -211,3 +211,76 @@ callback de ciclo atual para compatibilidade. Nao editar TorreVistas.tsx
 
 (preencher aqui conforme decisoes tomadas; a integracao copia para
 DECISIONS.md)
+
+- Logica pura extraida para packing.ts (novo): empacotar (skyline +
+  backfill), ordenarVisual, vizinhoDirecional, destinoArraste, spanEscalonado.
+  Coberta por packing.test.ts (20 testes). TorreGrid fica so com o motor de
+  interacao.
+- Span elastico implementado como pos-passo sobre a ocupacao final, nao
+  dentro do loop de packing. Um card so estica sobre void de verdade:
+  colunas livres na faixa vertical dele ate a borda direita. As extensoes
+  processam em ordem de packing, entao a parte esticada de um card bloqueia
+  a do proximo na mesma faixa. Escolhido em vez de rebalancear spans padrao:
+  resolve a coluna morta em qualquer combinacao de spans, sem depender de
+  tuning por densidade.
+- ALVO_COLUNA retunado para que compacta produza 4 colunas e normal 3 em
+  1280px (a diferenca passa a ser visivel em desktop comum, bonus do M9).
+- Modelo de arraste novo: a peca fica presa ao grab point por transform
+  inline reescrito a cada rAF como `pointer - grabOffset - rect da section
+  renderizada`. Como a medida e feita sobre a geometria real do frame, a
+  peca nunca desliza quando a base muda sob ela (retile, transicao da
+  propria section, scroll). Em voo nao ha transicao de transform (a classe
+  data-lifted exclui transform das transitions; o lift e aplicado
+  manualmente no primeiro move >5px para nao disputar o primeiro frame
+  com o React).
+- Destino do arraste com dois freios (destinoArraste): histerese de 26px de
+  deslocamento do pointer desde a ancora do ultimo commit, e teste de
+  decisividade (pointer dentro da caixa do alvo com margem de 12% ou
+  claramente mais perto do alvo que do proprio slot, razao 0.62). O commit
+  so sai se a ordem resultante difere da atual. Com o pointer parado a
+  ordem nunca muda: verificado segurando a peca 850ms e 48 frames sem
+  nenhum commit espontaneo.
+- Settle por WAAPI: no pointerup mede-se o rect atual da peca (o ponto de
+  release real), limpa-se o transform e anima-se de la ate o slot.
+  Duracao 180-280ms escalada pela distancia; um keyframe de fling usa a
+  velocidade do release com cap de 22px. A animacao e cancelavel: reagarrar
+  no meio do voo mede o rect no ponto onde a peca esta, cancela o WAAPI e
+  continua do mesmo lugar (verificado: salto de 8px, igual ao deslocamento
+  residual do proprio voo).
+- Entrada mount-only: classe .torre-entra sai no animationend (ou assim que
+  arrastando vira true) e nunca volta; nenhuma mudanca de estado reinicia
+  a keyframe de entrada.
+- Safety net no window com capture durante o arraste: pointerup faz drop,
+  pointercancel e Escape revertem a ordem, lostpointercapture marca flag,
+  blur encerra como drop, e o primeiro pointermove com botao zerado
+  encerra (rede para up perdido fora da janela). Listeners saem no
+  encerrar. Escape reverte a ordem commitada durante o gesto (verificado).
+- ResizeObserver em lote: medidas acumulam num mapa e fazem flush uma vez
+  por frame. Durante o retile um flag temporal (RETILE_MS) congela o RO e
+  a largura de cada .torre-card-medida e fixada no alvo, entao o tier de
+  container query nao pipoca no meio da transicao; o flush final mede na
+  geometria definitiva. Escolhido o flag temporal em vez de transitionend:
+  nao depende de animacao existir e cobre mudancas de coluna tambem.
+- Custo de pintura: transicao de height do .torre-grid removida; sombra de
+  levantado so via opacity de ::after pre-renderizada; crescimento da peca
+  via propriedade scale separada (compoe com o transform do pointer sem
+  disputar a mesma propriedade).
+- Collapse como transacao unica: grid-template-rows 1fr para 0fr com fade
+  do inner junto; no expand nao ha reexecucao de animacao de montagem.
+- Arestas ocultas do grafo domino em opacity 0.2 nos dois temas (dentro da
+  faixa 0.15-0.25 autorizada; verificado em dark e light).
+- Reduced motion: deslocamento espacial morto em CSS e, no lugar do
+  teleporte, fade WAAPI de ~130ms em cada card que mudou de posicao/
+  tamanho e no drop (Tier 2 da skill accessible-animation: causa e efeito
+  sem deslocamento). Verificado via emulacao: so animacoes de opacity
+  aparecem.
+- Setas do teclado: vizinhoDirecional escolhe o centro mais proximo na
+  direcao com penalidade perpendicular de 1.7 e exigencia de trajetoria
+  (mesma faixa para esq/dir ou dominio claro no eixo principal). O commit
+  insere na ordem da lista; em masonry a posicao final e derivada pelo
+  packing, entao um movimento em ordem pode nao mudar a posicao visual
+  quando a packing preenche o mesmo espaco. Aceito: o anuncio descreve o
+  movimento realizado e a seta seguinte opera sobre a nova ordem.
+- M14: aoDefinirDensidade(d) define densidade absoluta; aoAlternarDensidade
+  (ciclo) mantido para o botao existente. As duas passam ao TorreVistas por
+  spread das props, sem editar o arquivo da outra frente.
