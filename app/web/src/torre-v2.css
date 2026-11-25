@@ -98,24 +98,52 @@
   background: var(--surface);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-slab);
+  transition:
+    background-color var(--dur-micro) ease,
+    box-shadow var(--dur-micro) ease,
+    outline-color var(--dur-micro) ease;
+  outline: 1.5px dashed transparent;
+  outline-offset: -1.5px;
+}
+/* Slot comprometido: enquanto a peça voa, a célula mostra onde ela cai. */
+.torre-card[data-arrastando='true'] {
+  z-index: 20;
+  background: transparent;
+  box-shadow: none;
+  outline-color: var(--hairline-strong, var(--border));
+}
+.torre-card[data-arrastando='true'].slab-mineral::before { opacity: 0; }
+
+/* A peça é o que se move no arraste: ganha a cara do card, sobe de camada e
+   cresce 1.8% via propriedade `scale` (compõe com o `transform` do pointer). */
+.torre-card-peca {
+  position: relative;
+  height: 100%;
+  border-radius: var(--r-lg);
+  transition:
+    scale 150ms var(--ease-out),
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.torre-card-peca[data-lifted='true'] {
+  background: var(--surface);
+  box-shadow: var(--shadow-slab);
+  scale: 1.018;
+  z-index: 20;
+  will-change: transform;
 }
 /* Sombra de "levantado" pré-renderizada: o arraste só anima opacity. */
-.torre-card::after {
+.torre-card-peca::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   box-shadow: 0 18px 42px -18px color-mix(in srgb, var(--text) 45%, transparent);
   opacity: 0;
-  transition: opacity var(--dur-micro) ease;
+  transition: opacity 150ms ease;
   pointer-events: none;
-  z-index: 0;
 }
-.torre-card[data-arrastando='true'] {
-  z-index: 20;
-  will-change: transform;
-}
-.torre-card[data-arrastando='true']::after { opacity: 1; }
+.torre-card-peca[data-lifted='true']::after { opacity: 1; }
 
 .torre-card-cab {
   position: relative;
@@ -172,20 +200,28 @@
   overflow: hidden;
   min-height: 0;
   padding: 1rem 1.25rem 1.25rem;
-  transition: visibility 0s linear 0s;
+  transition:
+    opacity 200ms ease,
+    visibility 0s linear 0s;
 }
 /* visibility tira o conteúdo da tabulação; o delay esconde só no fim do
-   fechamento, mantendo o deslize do grid-rows. */
+   fechamento, mantendo o deslize do grid-rows; opacity amortece a saída. */
 .torre-card[data-recolhido='true'] .torre-card-corpo-inner {
+  opacity: 0;
   visibility: hidden;
-  transition: visibility 0s linear 260ms;
+  transition:
+    opacity 140ms ease,
+    visibility 0s linear 260ms;
 }
 
-/* Entrada de card reexibido: fade curto, sem deslocamento. */
-.torre-card { animation: torre-card-entra 220ms var(--ease-out) backwards; }
+/* Entrada de card: fade curto com leve subida e stagger por posição. */
+.torre-card {
+  animation: torre-card-entra 260ms var(--ease-out) backwards;
+  animation-delay: calc(var(--ordem-i, 0) * 28ms);
+}
 @keyframes torre-card-entra {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 .torre-card[data-arrastando='true'] { animation: none; }
 
@@ -223,9 +259,16 @@
 @media (prefers-reduced-motion: reduce) {
   .torre-card { animation: none; }
   .torre-card-corpo { transition: none; }
+  .torre-card-corpo-inner,
+  .torre-card[data-recolhido='true'] .torre-card-corpo-inner {
+    transition: visibility 0s linear 0s;
+  }
   .torre-toggle svg,
   .torre-cards-toggle > summary svg { transition: none; }
-  .torre-card::after { transition: none; }
+  .torre-card { transition: outline-color var(--dur-micro) ease; }
+  .torre-card-peca { transition: none; }
+  .torre-card-peca[data-lifted='true'] { scale: none; }
+  .torre-card-peca::after { transition: none; }
   /* THE-15: as arestas aparecem sem transição quando o nó é ativado. */
   .domino-aresta,
   .domino-aresta-solida { transition: none; }

@@ -527,3 +527,15 @@ foi verificado ao vivo em produção em 24/11.
   do split antigo removidas de styles.css; decisoes das frentes em D-T1
   a D-T6, D-M1 a D-M7 e D-P1 a D-P8 dos briefs da spec 0014. Gates na
   main integrada: tsc limpo, 143/143 testes web, vite build, guard 11/11.
+
+## Sessao 22
+
+- Rodada 1 de polimento de motion do tiling (feedback "muito cru" do
+  usuario): a section do card vira o slot comprometido (contorno
+  tracejado enquanto a peca voa); peca interna recebe o transform do
+  pointer, lift via propriedade `scale` CSS que compoe com o transform;
+  FLIP reescrito como visual-vs-commit com cancel da animacao em voo
+  (fim dos saltos em reordenacao rapida); destino com histerese (slot so
+  troca dentro da caixa do vizinho ou claramente mais perto que o slot
+  atual); assentamento com curva de overshoot suave (320ms); entrada com
+  stagger por posicao; collapse ganha fade interno.

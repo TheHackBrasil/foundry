@@ -53,7 +53,8 @@ interface TorreGridProps {
 interface DragAtivo {
   id: CardId;
   pointerId: number;
-  el: HTMLElement;
+  sec: HTMLElement;
+  peca: HTMLElement;
   grabDX: number;
   grabDY: number;
   startX: number;
@@ -87,8 +88,8 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
   const [dragId, setDragId] = useState<CardId | null>(null);
 
   const elsRef = useRef(new Map<CardId, HTMLElement>());
-  const posicoesRef = useRef(new Map<CardId, { left: number; top: number }>());
-  const montadoRef = useRef(false);
+  const pecasRef = useRef(new Map<CardId, HTMLElement>());
+  const animsRef = useRef(new Map<string, Animation>());
   const dragRef = useRef<DragAtivo | null>(null);
   const ordemVisivelRef = useRef<CardId[]>([]);
 
@@ -107,7 +108,6 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
   // recarrega o layout persistido daquele pedido.
   useEffect(() => {
     setLayout(lerLayoutPedido(pedidoId) ?? { ...LAYOUT_PADRAO });
-    montadoRef.current = false;
   }, [pedidoId]);
 
   useEffect(() => {
@@ -128,57 +128,41 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     });
   }, []);
 
-  // FLIP puro (transform/opacity, WAAPI): depois de cada commit, compara a posição
-  // nova de cada card com a anterior e desliza só os que mudaram. O card
-  // arrastado não entra no FLIP: a transform dele segue o ponteiro.
+  // FLIP com captura visual (transform/opacity, WAAPI): a section é sempre o
+  // slot comprometido — o rect antes do cancel inclui a animação em voo, o
+  // rect depois é o novo commit; a diferença segura o card exatamente onde o
+  // olho o vê, mesmo quando um commit interrompe o deslize anterior.
   useLayoutEffect(() => {
-    const atuais = new Map<CardId, { left: number; top: number }>();
+    const d = dragRef.current;
     for (const id of ordemVisivel) {
       const el = elsRef.current.get(id);
       if (!el) continue;
-      const r = el.getBoundingClientRect();
-      const d = dragRef.current;
       if (d && d.id === id) {
-        atuais.set(id, { left: r.left - d.tx, top: r.top - d.ty });
-      } else {
-        atuais.set(id, { left: r.left, top: r.top });
+        const r = el.getBoundingClientRect();
+        d.tx = d.lastX - d.grabDX - r.left;
+        d.ty = d.lastY - d.grabDY - r.top;
+        d.peca.style.transform = `translate3d(${d.tx}px, ${d.ty}px, 0)`;
+        continue;
       }
-    }
-
-    const prev = posicoesRef.current;
-    posicoesRef.current = atuais;
-    if (!montadoRef.current) {
-      montadoRef.current = true;
-      return;
-    }
-
-    const d = dragRef.current;
-    if (d) {
-      const c = atuais.get(d.id);
-      if (c) {
-        d.tx = d.lastX - d.grabDX - c.left;
-        d.ty = d.lastY - d.grabDY - c.top;
-        d.el.style.transform = `translate3d(${d.tx}px, ${d.ty}px, 0)`;
-      }
-    }
-
-    if (movimentoReduzido()) return;
-    for (const id of ordemVisivel) {
-      if (d && d.id === id) continue;
-      const p = prev.get(id);
-      const c = atuais.get(id);
-      if (!p || !c) continue;
-      const dx = p.left - c.left;
-      const dy = p.top - c.top;
+      const rVisual = el.getBoundingClientRect();
+      animsRef.current.get(`card:${id}`)?.cancel();
+      const rCommit = el.getBoundingClientRect();
+      const dx = rVisual.left - rCommit.left;
+      const dy = rVisual.top - rCommit.top;
       if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
-      const el = elsRef.current.get(id);
-      el?.animate(
+      if (movimentoReduzido()) continue;
+      const anim = el.animate(
         [
           { transform: `translate3d(${dx}px, ${dy}px, 0)` },
           { transform: 'translate3d(0, 0, 0)' },
         ],
-        { duration: 220, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
+        { duration: 300, easing: 'cubic-bezier(0.22, 1.12, 0.32, 1)' },
       );
+      const chave = `card:${id}`;
+      animsRef.current.set(chave, anim);
+      anim.onfinish = () => {
+        if (animsRef.current.get(chave) === anim) animsRef.current.delete(chave);
+      };
     }
   });
 
@@ -193,20 +177,31 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       if (!d) return;
       dragRef.current = null;
       setDragId(null);
-      d.el.style.transform = '';
       if (reverter) {
+        d.peca.style.transform = '';
         setLayout((prev) => ({ ...prev, ordem: d.ordemAntes }));
         return;
       }
+      // Assentamento: a peça cai do ponto do pointer para o slot comprometido,
+      // com uma curva que passa um pouco e volta — aterrissagem, não teleporte.
+      const r = d.sec.getBoundingClientRect();
+      const tx = d.lastX - d.grabDX - r.left;
+      const ty = d.lastY - d.grabDY - r.top;
+      d.peca.style.transform = '';
       if (d.moved) {
-        if (!movimentoReduzido()) {
-          d.el.animate(
+        if (!movimentoReduzido() && (Math.abs(tx) > 0.5 || Math.abs(ty) > 0.5)) {
+          const anim = d.peca.animate(
             [
-              { transform: `translate3d(${d.tx}px, ${d.ty}px, 0)` },
+              { transform: `translate3d(${tx}px, ${ty}px, 0)` },
               { transform: 'translate3d(0, 0, 0)' },
             ],
-            { duration: 180, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+            { duration: 320, easing: 'cubic-bezier(0.2, 1.15, 0.3, 1)' },
           );
+          const chave = `peca:${d.id}`;
+          animsRef.current.set(chave, anim);
+          anim.onfinish = () => {
+            if (animsRef.current.get(chave) === anim) animsRef.current.delete(chave);
+          };
         }
         const idx = ordemVisivelRef.current.indexOf(d.id);
         aoAnunciar(
@@ -221,13 +216,15 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     (e: PointerEvent<HTMLButtonElement>, id: CardId) => {
       // Só o botão principal arrasta; toque e caneta usam o mesmo caminho.
       if (e.button !== 0) return;
-      const el = elsRef.current.get(id);
-      if (!el) return;
-      const r = el.getBoundingClientRect();
+      const sec = elsRef.current.get(id);
+      const peca = pecasRef.current.get(id);
+      if (!sec || !peca) return;
+      const r = sec.getBoundingClientRect();
       dragRef.current = {
         id,
         pointerId: e.pointerId,
-        el,
+        sec,
+        peca,
         grabDX: e.clientX - r.left,
         grabDY: e.clientY - r.top,
         startX: e.clientX,
@@ -261,19 +258,24 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         setDragId(d.id);
       }
 
-      const r = d.el.getBoundingClientRect();
-      const lx = r.left - d.tx;
-      const ly = r.top - d.ty;
-      d.tx = e.clientX - d.grabDX - lx;
-      d.ty = e.clientY - d.grabDY - ly;
-      d.el.style.transform = `translate3d(${d.tx}px, ${d.ty}px, 0)`;
+      const r = d.sec.getBoundingClientRect();
+      d.tx = e.clientX - d.grabDX - r.left;
+      d.ty = e.clientY - d.grabDY - r.top;
+      d.peca.style.transform = `translate3d(${d.tx}px, ${d.ty}px, 0)`;
 
-      // Índice de destino: vizinho com centro mais próximo do ponteiro;
-      // depois ou antes conforme a metade do vizinho em que o ponteiro cai.
+      // Destino com histerese: o slot só troca quando o pointer entra na caixa
+      // de um vizinho (inflada) ou chega claramente mais perto dele do que do
+      // centro do próprio slot — sem isso o destino oscila na fronteira.
       const alvos = ordemVisivelRef.current.filter((id) => id !== d.id);
+      if (alvos.length === 0) return;
       const slotAtual = ordemVisivelRef.current.indexOf(d.id);
-      let destino = alvos.length;
+      const slotCX = r.left + r.width / 2;
+      const slotCY = r.top + r.height / 2;
+      const distSlot = Math.hypot(e.clientX - slotCX, e.clientY - slotCY);
+
       let melhorDist = Infinity;
+      let destino = -1;
+      let dentro = false;
       for (let i = 0; i < alvos.length; i += 1) {
         const alvoId = alvos[i];
         if (!alvoId) continue;
@@ -282,17 +284,22 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         const rr = outro.getBoundingClientRect();
         const cx = rr.left + rr.width / 2;
         const cy = rr.top + rr.height / 2;
-        const dist = (e.clientX - cx) ** 2 + (e.clientY - cy) ** 2;
+        const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
         if (dist < melhorDist) {
           melhorDist = dist;
+          dentro =
+            e.clientX >= rr.left - rr.width * 0.12 &&
+            e.clientX <= rr.right + rr.width * 0.12 &&
+            e.clientY >= rr.top - rr.height * 0.12 &&
+            e.clientY <= rr.bottom + rr.height * 0.12;
           const depois =
             e.clientY > cy + rr.height * 0.3 ||
             (Math.abs(e.clientY - cy) <= rr.height * 0.3 && e.clientX > cx);
           destino = depois ? i + 1 : i;
         }
       }
-      if (alvos.length === 0) destino = 0;
-      if (destino !== slotAtual) {
+      const decisivo = dentro || melhorDist < distSlot * 0.62;
+      if (decisivo && destino !== slotAtual) {
         commitOrdemVisivel(inserirEm(alvos, d.id, destino));
       }
     },
@@ -446,16 +453,21 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       />
 
       <div className="torre-grid">
-        {ordemVisivel.map((id) => (
+        {ordemVisivel.map((id, i) => (
           <TorreCard
             key={id}
             ref={(el) => {
               if (el) elsRef.current.set(id, el);
               else elsRef.current.delete(id);
             }}
+            pecaRef={(el) => {
+              if (el) pecasRef.current.set(id, el);
+              else pecasRef.current.delete(id);
+            }}
             id={id}
             titulo={tituloDe(id)}
             tituloId={`torre-titulo-${id}`}
+            ordemI={i}
             recolhido={recolhidosSet.has(id)}
             arrastando={dragId === id}
             handleProps={handleProps}
