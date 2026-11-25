@@ -506,3 +506,13 @@ foi verificado ao vivo em produção em 24/11.
   ancorada. Status `rascunho`: aguarda aceite do time antes de
   implementação. O áudio fecha a pendência P-002 e deve entrar
   formalmente pela frente escopo-produto.
+| D-050 | 24/11 | UX v2 em tres frentes disjuntas (spec 0014): v2-torre (tiling FLIP, templates, grafo limpo: THE-15/18/19), v2-painel (evidencia autonoma com GenUI + mini-descricao via SSE do agente: THE-16/17), v2-menu (rail estilo mini-Wikipedia: THE-20). `App.tsx`, `styles.css`, `genui/` e `shaders/` ficam com a integracao; cada frente cria seu proprio `.css`; server/shared fora do escopo (territorio app-operacao), mini-descricoes reusam `/api/mandatos/stream` | decidido | Video do produto (THE-8, 30/11) precisa da UI pronta; o feedback do usuario quebrou a onda 2 em quatro frentes executaveis |
+
+## Sessao 21
+
+- Orquestracao do plano v2 do Linear: board reconciliado (issues novas
+  THE-11 a THE-28 estavam todas Backlog/sem assignee), sobreposicoes
+  mapeadas (THE-23 = spec 0013/THE-30; THE-22 = spec 0010 da frente parceira;
+  THE-21 estende o motor ReAct da 0009, nao e agente novo).
+- Spec 0014 + frentes v2-torre/v2-painel/v2-menu registradas; tres
+  implementadores em worktrees disjuntas, integracao fia `App.tsx`.
