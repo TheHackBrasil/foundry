@@ -19,12 +19,15 @@ export interface LayoutTorre {
   ordem: CardId[];
   ocultos: CardId[];
   recolhidos: CardId[];
+  // Largura em colunas do grid de 12; ausente = span padrão do card.
+  spans?: Partial<Record<CardId, number>>;
 }
 
 export interface VistaTemplate {
   id: string;
   nome: string;
   ordem: CardId[];
+  spans?: Partial<Record<CardId, number>>;
   custom?: boolean;
 }
 
@@ -71,24 +74,53 @@ export function normalizarOrdem(ordem: readonly unknown[]): CardId[] {
 const filtrarValidos = (lista: readonly unknown[]): CardId[] =>
   lista.filter(ehCardId).filter((v, i, a) => a.indexOf(v) === i);
 
+export const SPAN_MIN = 3;
+export const SPAN_MAX = 12;
+export const normalizarSpan = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v)
+    ? Math.max(SPAN_MIN, Math.min(SPAN_MAX, Math.round(v)))
+    : null;
+
+function normalizarSpans(raw: unknown): Partial<Record<CardId, number>> | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const saida: Partial<Record<CardId, number>> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (!ehCardId(k)) continue;
+    const s = normalizarSpan(v);
+    if (s !== null) saida[k] = s;
+  }
+  return Object.keys(saida).length > 0 ? saida : undefined;
+}
+
 export function normalizarLayout(raw: unknown): LayoutTorre {
   if (typeof raw !== 'object' || raw === null) return { ...LAYOUT_PADRAO };
-  const parcial = raw as { ordem?: unknown; ocultos?: unknown; recolhidos?: unknown };
+  const parcial = raw as {
+    ordem?: unknown;
+    ocultos?: unknown;
+    recolhidos?: unknown;
+    spans?: unknown;
+  };
   const ocultos = Array.isArray(parcial.ocultos) ? filtrarValidos(parcial.ocultos) : [];
+  const spans = normalizarSpans(parcial.spans);
   return {
     ordem: normalizarOrdem(Array.isArray(parcial.ordem) ? parcial.ordem : []),
     ocultos,
     recolhidos: Array.isArray(parcial.recolhidos) ? filtrarValidos(parcial.recolhidos) : [],
+    ...(spans ? { spans } : {}),
   };
 }
 
-export function aplicarTemplate(template: VistaTemplate): Pick<LayoutTorre, 'ordem' | 'ocultos'> {
+export function aplicarTemplate(
+  template: VistaTemplate,
+): Pick<LayoutTorre, 'ordem' | 'ocultos' | 'spans'> {
   // Sem normalizarOrdem aqui: o template decide o conjunto visível, e o resto
-  // vai para ocultos (anexado ao fim da ordem, previsível ao reexibir).
+  // vai para ocultos (anexado ao fim da ordem, previsível ao reexibir). Spans
+  // só entram quando o template declara; sem eles, a largura atual fica.
   const visiveis = filtrarValidos(template.ordem);
   const noTemplate = new Set(visiveis);
   const ocultos = CARD_IDS.filter((id) => !noTemplate.has(id));
-  return { ordem: [...visiveis, ...ocultos], ocultos: [...ocultos] };
+  const spans = normalizarSpans(template.spans);
+  return { ordem: [...visiveis, ...ocultos], ocultos: [...ocultos], ...(spans ? { spans } : {}) };
 }
 
 // Reordena dentro da lista visível; cards ocultos ficam sempre ao final da ordem
@@ -105,9 +137,14 @@ export function moverPorPasso(ordem: readonly CardId[], id: CardId, passo: numbe
   return inserirEm(ordem, id, indice + passo);
 }
 
-export function assinaturaVista(ordem: readonly CardId[], ocultos: readonly CardId[]): string {
+export function assinaturaVista(
+  ordem: readonly CardId[],
+  ocultos: readonly CardId[],
+  spans?: Partial<Record<CardId, number>>,
+): string {
   const ocultosSet = new Set(ocultos);
-  return `${ordem.filter((c) => !ocultosSet.has(c)).join('>')}|ocultos:${[...ocultos].sort().join(',')}`;
+  const spansKey = CARD_IDS.map((id) => spans?.[id] ?? '').join(',');
+  return `${ordem.filter((c) => !ocultosSet.has(c)).join('>')}|ocultos:${[...ocultos].sort().join(',')}|spans:${spansKey}`;
 }
 
 // Devolve o id do template (preset ou custom) que a vista atual reproduz, ou
@@ -116,11 +153,12 @@ export function templateCorrespondente(
   ordem: readonly CardId[],
   ocultos: readonly CardId[],
   templates: readonly VistaTemplate[],
+  spans?: Partial<Record<CardId, number>>,
 ): string | null {
-  const atual = assinaturaVista(ordem, ocultos);
+  const atual = assinaturaVista(ordem, ocultos, spans);
   for (const t of templates) {
     const aplicado = aplicarTemplate(t);
-    if (assinaturaVista(aplicado.ordem, aplicado.ocultos) === atual) return t.id;
+    if (assinaturaVista(aplicado.ordem, aplicado.ocultos, aplicado.spans) === atual) return t.id;
   }
   return null;
 }
@@ -177,11 +215,12 @@ export function lerTemplatesCustom(
     const saida: VistaTemplate[] = [];
     for (const item of lista) {
       if (typeof item !== 'object' || item === null) continue;
-      const t = item as { id?: unknown; nome?: unknown; ordem?: unknown };
+      const t = item as { id?: unknown; nome?: unknown; ordem?: unknown; spans?: unknown };
       if (typeof t.id !== 'string' || typeof t.nome !== 'string' || !Array.isArray(t.ordem)) {
         continue;
       }
-      saida.push({ id: t.id, nome: t.nome, ordem: normalizarOrdem(t.ordem), custom: true });
+      const spans = normalizarSpans(t.spans);
+      saida.push({ id: t.id, nome: t.nome, ordem: normalizarOrdem(t.ordem), custom: true, ...(spans ? { spans } : {}) });
     }
     return saida;
   } catch {

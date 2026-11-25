@@ -86,6 +86,43 @@ describe('aplicarTemplate', () => {
     expect(r.ocultos.sort()).toEqual(['cadeia', 'simulador', 'versoes'].sort());
     expect(r.ordem).toHaveLength(CARD_IDS.length);
   });
+
+  it('template com spans devolve larguras normalizadas; sem spans não toca', () => {
+    const comSpans: VistaTemplate = {
+      id: 'x',
+      nome: 'X',
+      ordem: ['matriz', 'tarefas'],
+      spans: { matriz: 20, tarefas: 2, fantasma: 6 } as VistaTemplate['spans'],
+    };
+    const r = aplicarTemplate(comSpans);
+    expect(r.spans).toEqual({ matriz: 12, tarefas: 3 });
+
+    const sem = aplicarTemplate({ id: 'y', nome: 'Y', ordem: ['matriz'] });
+    expect('spans' in sem).toBe(false);
+  });
+});
+
+describe('spans no layout', () => {
+  it('normalizarLayout valida e clampa spans por card conhecido', () => {
+    const l = normalizarLayout({
+      ordem: [],
+      spans: { matriz: 4.6, domino: 99, nada: 5, sinais: 'largo' },
+    });
+    expect(l.spans).toEqual({ matriz: 5, domino: 12 });
+  });
+
+  it('spans sobrevivem ao round-trip no storage do pedido', () => {
+    const { storage } = storageFake();
+    const layout: LayoutTorre = { ...LAYOUT_PADRAO, spans: { matriz: 9, tarefas: 4 } };
+    guardarLayoutPedido('ped-s', layout, storage);
+    expect(lerLayoutPedido('ped-s', storage)).toEqual(layout);
+  });
+
+  it('assinatura muda quando o span muda (template custom com largura)', () => {
+    const base = assinaturaVista(normalizarOrdem([]), [], { matriz: 9 });
+    const outro = assinaturaVista(normalizarOrdem([]), [], { matriz: 8 });
+    expect(base).not.toBe(outro);
+  });
 });
 
 describe('templateCorrespondente', () => {

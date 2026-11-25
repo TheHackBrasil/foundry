@@ -31,16 +31,18 @@ export interface CardMeta {
   titulo: string;
   // Largura em colunas do grid de 12 (tiling). Mobile colapsa tudo para 12.
   span: number;
+  // Mínimo que o conteúdo aguenta antes de quebrar.
+  minSpan: number;
 }
 
 export const CARD_META: Record<CardId, CardMeta> = {
-  matriz: { titulo: 'Fontes e campos', span: 7 },
-  tarefas: { titulo: 'Tarefas abertas', span: 5 },
-  domino: { titulo: 'Mapa de impacto causal', span: 12 },
-  sinais: { titulo: 'Sinais e avisos', span: 6 },
-  cadeia: { titulo: 'Status da cadeia', span: 6 },
-  simulador: { titulo: 'Simulador de impacto', span: 12 },
-  versoes: { titulo: 'Histórico de versões', span: 12 },
+  matriz: { titulo: 'Fontes e campos', span: 7, minSpan: 5 },
+  tarefas: { titulo: 'Tarefas abertas', span: 5, minSpan: 4 },
+  domino: { titulo: 'Mapa de impacto causal', span: 12, minSpan: 7 },
+  sinais: { titulo: 'Sinais e avisos', span: 6, minSpan: 4 },
+  cadeia: { titulo: 'Status da cadeia', span: 6, minSpan: 4 },
+  simulador: { titulo: 'Simulador de impacto', span: 12, minSpan: 7 },
+  versoes: { titulo: 'Histórico de versões', span: 12, minSpan: 6 },
 };
 
 interface TorreGridProps {
@@ -67,6 +69,14 @@ interface DragAtivo {
   moved: boolean;
 }
 
+interface ResizeAtivo {
+  id: CardId;
+  pointerId: number;
+  gridLeft: number;
+  passo: number;
+  ultimoSpan: number;
+}
+
 function movimentoReduzido(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -91,8 +101,12 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
   const pecasRef = useRef(new Map<CardId, HTMLElement>());
   const animsRef = useRef(new Map<string, Animation>());
   const dragRef = useRef<DragAtivo | null>(null);
+  const resizeRef = useRef<ResizeAtivo | null>(null);
+  const gridElRef = useRef<HTMLDivElement | null>(null);
   const ordemVisivelRef = useRef<CardId[]>([]);
   const frameRef = useRef(0);
+  const frameResizeRef = useRef(0);
+  const [resizingId, setResizingId] = useState<CardId | null>(null);
 
   const ocultosSet = useMemo(() => new Set(layout.ocultos), [layout.ocultos]);
   const recolhidosSet = useMemo(() => new Set(layout.recolhidos), [layout.recolhidos]);
@@ -119,14 +133,25 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     guardarTemplatesCustom(templatesCustom);
   }, [templatesCustom]);
 
-  // Nada fica pendurado: animações WAAPI e frame agendado morrem com o grid.
+  // Nada fica pendurado: animações WAAPI e frames agendados morrem com o grid.
   useEffect(() => {
     const anims = animsRef.current;
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      if (frameResizeRef.current) cancelAnimationFrame(frameResizeRef.current);
       for (const a of anims.values()) a.cancel();
     };
   }, []);
+
+  const spanDe = useCallback(
+    (id: CardId) => {
+      const meta = CARD_META[id];
+      const s = layout.spans?.[id];
+      const base = typeof s === 'number' && Number.isFinite(s) ? s : meta.span;
+      return Math.max(meta.minSpan, Math.min(12, base));
+    },
+    [layout.spans],
+  );
 
   const commitOrdemVisivel = useCallback((novaVisivel: CardId[]) => {
     setLayout((prev) => {
@@ -380,12 +405,128 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     [aoAnunciar, commitOrdemVisivel, encerrarDrag, tituloDe],
   );
 
+  const commitSpan = useCallback((id: CardId, span: number) => {
+    const meta = CARD_META[id];
+    const alvo = Math.max(meta.minSpan, Math.min(12, Math.round(span)));
+    setLayout((prev) => {
+      if ((prev.spans?.[id] ?? meta.span) === alvo) return prev;
+      return { ...prev, spans: { ...prev.spans, [id]: alvo } };
+    });
+  }, []);
+
+  // Resize pela alça do canto: o passo de coluna sai da geometria real do
+  // grid e o commit segue o pointer; o FLIP dos vizinhos é o retile.
+  const aoResizeDown = useCallback(
+    (e: PointerEvent<HTMLButtonElement>, id: CardId) => {
+      if (e.button !== 0) return;
+      const grid = gridElRef.current;
+      if (!grid) return;
+      const g = grid.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+      resizeRef.current = {
+        id,
+        pointerId: e.pointerId,
+        gridLeft: g.left,
+        passo: (g.width + gap) / 12,
+        ultimoSpan: spanDe(id),
+      };
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Sem capture segue com os handlers do botão.
+      }
+    },
+    [spanDe],
+  );
+
+  const aoResizeMove = useCallback(
+    (e: PointerEvent<HTMLButtonElement>) => {
+      const rz = resizeRef.current;
+      if (!rz || e.pointerId !== rz.pointerId) return;
+      if (frameResizeRef.current) return;
+      const px = e.clientX;
+      frameResizeRef.current = requestAnimationFrame(() => {
+        frameResizeRef.current = 0;
+        const ativo = resizeRef.current;
+        if (!ativo) return;
+        const meta = CARD_META[ativo.id];
+        const alvo = Math.round((px - ativo.gridLeft) / ativo.passo);
+        const clamp = Math.max(meta.minSpan, Math.min(12, alvo));
+        if (clamp !== ativo.ultimoSpan) {
+          ativo.ultimoSpan = clamp;
+          if (resizingId !== ativo.id) setResizingId(ativo.id);
+          commitSpan(ativo.id, clamp);
+        }
+      });
+    },
+    [commitSpan, resizingId],
+  );
+
+  const encerrarResize = useCallback(
+    (anunciar: boolean) => {
+      const rz = resizeRef.current;
+      if (!rz) return;
+      resizeRef.current = null;
+      setResizingId(null);
+      if (frameResizeRef.current) {
+        cancelAnimationFrame(frameResizeRef.current);
+        frameResizeRef.current = 0;
+      }
+      if (anunciar) {
+        aoAnunciar(`Card ${tituloDe(rz.id)} com largura ${spanDe(rz.id)} de 12 colunas.`);
+      }
+    },
+    [aoAnunciar, spanDe, tituloDe],
+  );
+
+  const aoResizeUp = useCallback(
+    (e: PointerEvent<HTMLButtonElement>) => {
+      const rz = resizeRef.current;
+      if (!rz || e.pointerId !== rz.pointerId) return;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // Capture já liberada.
+      }
+      encerrarResize(true);
+    },
+    [encerrarResize],
+  );
+
+  const aoResizeCancel = useCallback(() => {
+    encerrarResize(false);
+  }, [encerrarResize]);
+
+  const aoResizeKey = useCallback(
+    (e: KeyboardEvent<HTMLButtonElement>, id: CardId) => {
+      const atual = spanDe(id);
+      let alvo: number;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') alvo = atual - 1;
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') alvo = atual + 1;
+      else if (e.key === 'Home') alvo = CARD_META[id].minSpan;
+      else if (e.key === 'End') alvo = 12;
+      else return;
+      e.preventDefault();
+      commitSpan(id, alvo);
+      aoAnunciar(`Card ${tituloDe(id)} com largura ${Math.max(CARD_META[id].minSpan, Math.min(12, alvo))} de 12 colunas.`);
+    },
+    [aoAnunciar, commitSpan, spanDe, tituloDe],
+  );
+
   const handleProps: TorreCardHandleProps = {
     onPointerDown: aoPointerDown,
     onPointerMove: aoPointerMove,
     onPointerUp: aoPointerUp,
     onPointerCancel: aoPointerCancel,
     onKeyDown: aoKeyDown,
+  };
+
+  const resizeProps = {
+    onPointerDown: aoResizeDown,
+    onPointerMove: aoResizeMove,
+    onPointerUp: aoResizeUp,
+    onPointerCancel: aoResizeCancel,
+    onKeyDown: aoResizeKey,
   };
 
   const alternarRecolhido = useCallback((id: CardId) => {
@@ -432,12 +573,13 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         id: `v${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`,
         nome,
         ordem: ordemVisivelRef.current,
+        spans: layout.spans,
         custom: true,
       };
       setTemplatesCustom((prev) => [...prev, novo]);
       aoAnunciar(`Vista ${nome} salva.`);
     },
-    [aoAnunciar],
+    [aoAnunciar, layout.spans],
   );
 
   const excluirVista = useCallback(
@@ -453,8 +595,8 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     [templatesCustom],
   );
   const ativoId = useMemo(
-    () => templateCorrespondente(layout.ordem, layout.ocultos, templatesTodos),
-    [layout.ordem, layout.ocultos, templatesTodos],
+    () => templateCorrespondente(layout.ordem, layout.ocultos, templatesTodos, layout.spans),
+    [layout.ordem, layout.ocultos, layout.spans, templatesTodos],
   );
 
   const cardsVisibilidade = useMemo(
@@ -481,7 +623,7 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         aoMostrarTodos={mostrarTodos}
       />
 
-      <div className="torre-grid">
+      <div className="torre-grid" ref={gridElRef}>
         {ordemVisivel.map((id, i) => (
           <TorreCard
             key={id}
@@ -499,9 +641,12 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
             ordemI={i}
             recolhido={recolhidosSet.has(id)}
             arrastando={dragId === id}
+            redimensionando={resizingId === id}
             handleProps={handleProps}
+            resizeProps={resizeProps}
             aoAlternarRecolhido={alternarRecolhido}
-            span={CARD_META[id].span}
+            span={spanDe(id)}
+            spanMin={CARD_META[id].minSpan}
           >
             {cards[id]}
           </TorreCard>

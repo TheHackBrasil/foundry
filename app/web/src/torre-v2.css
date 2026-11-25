@@ -87,6 +87,8 @@
 .torre-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
+  /* Retile automático: cards menores voltam e preenchem os vãos da grade. */
+  grid-auto-flow: dense;
   gap: 1.25rem;
   align-items: start;
 }
@@ -182,6 +184,33 @@
 }
 .torre-arraste { cursor: grab; touch-action: none; }
 .torre-card[data-arrastando='true'] .torre-arraste { cursor: grabbing; color: var(--text); }
+
+/* Alça de largura no canto inferior direito: discreté até o hover/foco. */
+.torre-resize {
+  position: absolute;
+  right: 0.375rem;
+  bottom: 0.375rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text2);
+  opacity: 0.55;
+  cursor: nwse-resize;
+  touch-action: none;
+  z-index: 2;
+  transition: background-color var(--dur-micro) ease, color var(--dur-micro) ease, opacity var(--dur-micro) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .torre-resize:hover { background: var(--tint-hover); color: var(--text); opacity: 1; }
+}
+.torre-resize:focus-visible { opacity: 1; }
+.torre-card[data-redimensionando='true'] .torre-resize { opacity: 1; color: var(--text); }
+.torre-card[data-redimensionando='true'] { outline: 1.5px solid var(--hairline-strong, var(--border)); outline-offset: -1.5px; }
 .torre-toggle svg { transition: transform var(--dur-ui) var(--ease-out); }
 .torre-card[data-recolhido='true'] .torre-toggle svg { transform: rotate(-90deg); }
 @media (hover: hover) and (pointer: fine) {

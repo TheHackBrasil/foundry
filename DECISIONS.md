@@ -546,3 +546,9 @@ foi verificado ao vivo em produção em 24/11.
   efeito so mede em mudanca real de layout (ordem/ocultos), pointermove e
   coalescido por requestAnimationFrame e animacoes/frames tem cleanup no
   unmount.
+
+- Tiling vira grid de verdade (pedido do usuario): largura variavel por
+  card: `layout.spans` persistido por pedido, alca de resize no canto
+  (pointer + setas/Home/End, role=separator com aria-valuenow), span min
+  por card em CARD_META; `grid-auto-flow: dense` retile automatico
+  preenchendo vaos; vista custom salva spans; FLIP cobre o reflow.

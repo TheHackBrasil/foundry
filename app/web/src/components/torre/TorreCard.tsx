@@ -15,16 +15,27 @@ export interface TorreCardHandleProps {
   onKeyDown: (e: KeyboardEvent<HTMLButtonElement>, id: CardId) => void;
 }
 
+export interface TorreCardResizeProps {
+  onPointerDown: (e: PointerEvent<HTMLButtonElement>, id: CardId) => void;
+  onPointerMove: (e: PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (e: PointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel: (e: PointerEvent<HTMLButtonElement>) => void;
+  onKeyDown: (e: KeyboardEvent<HTMLButtonElement>, id: CardId) => void;
+}
+
 interface TorreCardProps {
   id: CardId;
   titulo: string;
   tituloId: string;
   span: number;
+  spanMin: number;
   ordemI: number;
   recolhido: boolean;
   arrastando: boolean;
+  redimensionando: boolean;
   pecaRef?: (el: HTMLElement | null) => void;
   handleProps: TorreCardHandleProps;
+  resizeProps: TorreCardResizeProps;
   aoAlternarRecolhido: (id: CardId) => void;
   children: ReactNode;
 }
@@ -33,7 +44,7 @@ interface TorreCardProps {
 // mostra o contorno de destino) e a .torre-card-peca interna é o que voa no
 // arraste — medir a section dá sempre a posição comprometida, sem transform.
 export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreCard(
-  { id, titulo, tituloId, span, ordemI, recolhido, arrastando, pecaRef, handleProps, aoAlternarRecolhido, children },
+  { id, titulo, tituloId, span, spanMin, ordemI, recolhido, arrastando, redimensionando, pecaRef, handleProps, resizeProps, aoAlternarRecolhido, children },
   ref,
 ) {
   const corpoId = `torre-corpo-${id}`;
@@ -43,6 +54,7 @@ export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreC
       className={`torre-card tc-${id} slab-mineral`}
       data-torre-card={id}
       data-arrastando={arrastando ? 'true' : undefined}
+      data-redimensionando={redimensionando ? 'true' : undefined}
       data-recolhido={recolhido ? 'true' : undefined}
       aria-labelledby={tituloId}
       style={{ '--span-card': span, '--ordem-i': ordemI } as CSSProperties}
@@ -96,6 +108,32 @@ export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreC
         <div className="torre-card-corpo" id={corpoId}>
           <div className="torre-card-corpo-inner">{children}</div>
         </div>
+        <button
+          type="button"
+          className="torre-resize"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={`Largura do card ${titulo}: ${span} de 12 colunas. Setas esquerda e direita ajustam; Home mínimo, End máximo.`}
+          aria-valuenow={span}
+          aria-valuemin={spanMin}
+          aria-valuemax={12}
+          title={`Largura ${span}/12 — arraste ou use as setas`}
+          onPointerDown={(e) => resizeProps.onPointerDown(e, id)}
+          onPointerMove={resizeProps.onPointerMove}
+          onPointerUp={resizeProps.onPointerUp}
+          onPointerCancel={resizeProps.onPointerCancel}
+          onKeyDown={(e) => resizeProps.onKeyDown(e, id)}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+            <path
+              d="M13 3 3 13M13 8 8 13M13 13h0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
       </div>
     </section>
   );
