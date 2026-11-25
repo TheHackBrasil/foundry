@@ -1,12 +1,23 @@
 import {
+  memo,
+  useCallback,
   useLayoutEffect,
   useRef,
+  useState,
   type CSSProperties,
+  type KeyboardEvent,
   type MouseEvent,
   type RefObject,
 } from 'react';
 import type { AlvoFocoGenUI, CampoVigiado, FonteDocumento } from '../../../shared/model.ts';
-import { formatarMomento, formatarValor, rotuloCampo, rotuloFonte, variacao } from '../format.ts';
+import {
+  formatarMomento,
+  formatarMomentoCompleto,
+  formatarValor,
+  rotuloCampo,
+  rotuloFonte,
+  variacao,
+} from '../format.ts';
 import type { Celula, LinhaMatriz, Matriz } from '../matriz.ts';
 import { CamadaShader } from '../shaders/index.ts';
 import {
@@ -282,17 +293,25 @@ function CelulaItem({
   celula,
   destacar,
   focada,
+  pos,
+  tabIndex,
+  aoTeclar,
+  aoSincronizar,
   aoClicar,
 }: {
   linha: LinhaMatriz;
   celula: Celula;
   destacar: boolean;
   focada: boolean;
+  pos?: string;
+  tabIndex?: number;
+  aoTeclar?: (e: KeyboardEvent<HTMLButtonElement>) => void;
+  aoSincronizar?: () => void;
   aoClicar?: (alvo: AlvoFocoGenUI, e: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const rotulo = rotuloFonte(celula.fonte);
   const comum = {
-    role: 'cell',
+    role: 'gridcell',
     'data-fonte': rotulo,
     'data-flip-id': `cell-${linha.campo}-${celula.fonte}`,
   } as const;
@@ -331,9 +350,16 @@ function CelulaItem({
         </span>
       )}
       {celula.versao !== undefined && celula.em && (
-        <span className="orig">
-          v{celula.versao} · {formatarMomento(celula.em)}
-        </span>
+        // Timestamp compacto em uma linha (spec 0015, F8): sem wrap, o
+        // instante completo com ano vai no title e no dateTime.
+        <time
+          className="orig"
+          dateTime={celula.em}
+          title={formatarMomentoCompleto(celula.em)}
+          style={{ whiteSpace: 'nowrap' }}
+        >
+          v{celula.versao}&nbsp;·&nbsp;{formatarMomento(celula.em)}
+        </time>
       )}
     </>
   );
@@ -354,12 +380,59 @@ function CelulaItem({
         className="cel-btn"
         aria-pressed={focada}
         aria-label={`${rotuloCampo(linha.campo)} em ${rotulo}: ${formatarValor(linha.campo, celula.valor)}${delta ? `, variação ${delta}` : ''}`}
+        tabIndex={tabIndex}
+        data-mx-pos={pos}
+        onKeyDown={aoTeclar}
+        onFocus={aoSincronizar}
         onClick={(e) => aoClicar(alvo, e)}
       >
         {conteudo}
       </button>
     </div>
   );
+}
+
+// Varredura da grade de foco: anda de (l0,c0) na direcao (dl,dc) ate achar
+// posicao focavel; retorna null quando a borda chega sem candidato.
+function proximaNaGrade(
+  grade: readonly (readonly boolean[])[],
+  l0: number,
+  c0: number,
+  dl: number,
+  dc: number,
+): readonly [number, number] | null {
+  let l = l0 + dl;
+  let c = c0 + dc;
+  while (l >= 0 && l < grade.length) {
+    const linha = grade[l];
+    if (!linha || c < 0 || c >= linha.length) return null;
+    if (linha[c]) return [l, c] as const;
+    l += dl;
+    c += dc;
+  }
+  return null;
+}
+
+function primeiraPosicaoGrade(grade: readonly (readonly boolean[])[]): readonly [number, number] {
+  for (let l = 0; l < grade.length; l += 1) {
+    const linha = grade[l];
+    if (!linha) continue;
+    for (let c = 0; c < linha.length; c += 1) {
+      if (linha[c]) return [l, c] as const;
+    }
+  }
+  return [0, 0] as const;
+}
+
+function ultimaPosicaoGrade(grade: readonly (readonly boolean[])[]): readonly [number, number] {
+  for (let l = grade.length - 1; l >= 0; l -= 1) {
+    const linha = grade[l];
+    if (!linha) continue;
+    for (let c = linha.length - 1; c >= 0; c -= 1) {
+      if (linha[c]) return [l, c] as const;
+    }
+  }
+  return [0, 0] as const;
 }
 
 interface Props {
@@ -378,7 +451,7 @@ interface Props {
   aoFocar?: (alvo: AlvoFocoGenUI | null, origem?: readonly [number, number]) => void;
 }
 
-export function MatrizFontes({
+export const MatrizFontes = memo(function MatrizFontes({
   matriz,
   trilhos = [],
   aoAlternarTrilho,
@@ -395,6 +468,62 @@ export function MatrizFontes({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   useFlipMatriz(containerRef, assinaturaLente, direcaoLente);
+
+  // Grade de foco para roving tabindex (spec 0015, F7): a matriz vira um
+  // role=grid com um unico tab stop; setas percorrem rowheader (col 0) e
+  // celulas com valor. Celulas vazias e linhas sem divergencia nao tem
+  // botao, entao nao entram na grade.
+  const grade = matriz.linhas.map((linha) => {
+    const podeFocarLinha = Boolean(aoFocar && alvoPrincipalLinha(linha) && linha.divergente);
+    return [
+      podeFocarLinha,
+      ...linha.celulas.map((c) => Boolean(aoFocar) && c.valor !== undefined),
+    ] as const;
+  });
+  const [posFoco, setPosFoco] = useState<readonly [number, number]>([0, 0]);
+  const posEfetiva =
+    grade[posFoco[0]]?.[posFoco[1]] === true ? posFoco : primeiraPosicaoGrade(grade);
+  const gradeRef = useRef(grade);
+  gradeRef.current = grade;
+
+  const teclarGrade = useCallback((e: KeyboardEvent<HTMLElement>) => {
+    const atual = gradeRef.current;
+    const pos = (e.currentTarget as HTMLElement).dataset['mxPos'];
+    if (!pos) return;
+    const partes = pos.split(':');
+    const l0 = Number(partes[0]);
+    const c0 = Number(partes[1]);
+    let alvo: readonly [number, number] | null = null;
+    if (e.key === 'ArrowRight') alvo = proximaNaGrade(atual, l0, c0, 0, 1);
+    else if (e.key === 'ArrowLeft') alvo = proximaNaGrade(atual, l0, c0, 0, -1);
+    else if (e.key === 'ArrowDown') alvo = proximaNaGrade(atual, l0, c0, 1, 0);
+    else if (e.key === 'ArrowUp') alvo = proximaNaGrade(atual, l0, c0, -1, 0);
+    else if (e.key === 'Home' && e.ctrlKey) alvo = primeiraPosicaoGrade(atual);
+    else if (e.key === 'End' && e.ctrlKey) alvo = ultimaPosicaoGrade(atual);
+    else if (e.key === 'Home') {
+      const c = atual[l0]?.findIndex(Boolean) ?? -1;
+      alvo = c >= 0 ? ([l0, c] as const) : null;
+    } else if (e.key === 'End') {
+      const linha = atual[l0];
+      const c = linha ? linha.length - 1 - [...linha].reverse().findIndex(Boolean) : -1;
+      alvo = linha && c < linha.length && c >= 0 ? ([l0, c] as const) : null;
+    }
+    if (!alvo) return;
+    e.preventDefault();
+    const el = containerRef.current?.querySelector<HTMLElement>(
+      `[data-mx-pos="${alvo[0]}:${alvo[1]}"]`,
+    );
+    if (!el) return;
+    setPosFoco(alvo);
+    el.focus();
+  }, []);
+
+  const sincronizarPos = useCallback((pos: string) => {
+    const partes = pos.split(':');
+    const l = Number(partes[0]);
+    const c = Number(partes[1]);
+    setPosFoco((prev) => (prev[0] === l && prev[1] === c ? prev : [l, c] as const));
+  }, []);
 
   function calcularOrigemRelativa(e: MouseEvent<HTMLElement>): readonly [number, number] {
     const el = containerRef.current;
@@ -492,7 +621,7 @@ export function MatrizFontes({
       )}
 
       <div
-        role="table"
+        role="grid"
         aria-label="Fontes e campos do pedido"
         aria-busy={carregandoLente || undefined}
       >
@@ -553,6 +682,10 @@ export function MatrizFontes({
                       type="button"
                       className="rh-btn"
                       aria-pressed={focada}
+                      tabIndex={posEfetiva[0] === rowIdx && posEfetiva[1] === 0 ? 0 : -1}
+                      data-mx-pos={`${rowIdx}:0`}
+                      onKeyDown={teclarGrade}
+                      onFocus={() => sincronizarPos(`${rowIdx}:0`)}
                       onClick={(e) => alternarFoco(alvoLinha, e)}
                       title={`Destacar tarefas e células de ${rotuloCampo(linha.campo as CampoVigiado)}`}
                     >
@@ -584,13 +717,19 @@ export function MatrizFontes({
                     </>
                   )}
                 </div>
-                {linha.celulas.map((celula) => (
+                {linha.celulas.map((celula, celIdx) => (
                   <CelulaItem
                     key={celula.fonte}
                     linha={linha}
                     celula={celula}
                     destacar={destacar}
                     focada={celulaEstaFocada(linha, celula, focoAtivo)}
+                    pos={`${rowIdx}:${celIdx + 1}`}
+                    tabIndex={
+                      posEfetiva[0] === rowIdx && posEfetiva[1] === celIdx + 1 ? 0 : -1
+                    }
+                    aoTeclar={teclarGrade}
+                    aoSincronizar={() => sincronizarPos(`${rowIdx}:${celIdx + 1}`)}
                     {...(aoFocar ? { aoClicar: alternarFoco } : {})}
                   />
                 ))}
@@ -601,4 +740,4 @@ export function MatrizFontes({
       </div>
     </div>
   );
-}
+});
