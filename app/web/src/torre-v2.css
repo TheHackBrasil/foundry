@@ -1,0 +1,232 @@
+/* Torre v2 (spec 0014): tiling de cards arrastáveis e expansíveis (THE-18),
+   vistas por template (THE-19) e arestas do grafo sob demanda (THE-15).
+   Movimento só em transform/opacity (WAAPI no FLIP); reduced-motion corta o
+   deslocamento e mantém fades curtos. Paleta do brandbook v4 via tokens.css. */
+
+/* ---------- barra de vistas ---------- */
+.torre-vistas { margin-bottom: 1rem; }
+.torre-vistas-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+.torre-vistas-grupo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
+.torre-vistas-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.torre-vista-salva { display: inline-flex; align-items: center; gap: 0.125rem; }
+.torre-vista-remover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text2);
+  font-size: 0.9375rem;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .torre-vista-remover:hover { background: var(--tint-hover); color: var(--error); }
+}
+.torre-vista-form { display: inline-flex; align-items: center; gap: 0.375rem; }
+.torre-vista-input {
+  min-height: 1.9375rem;
+  width: 11rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.torre-cards-toggle { position: relative; }
+.torre-cards-toggle > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  min-height: 1.9375rem;
+  padding: 0 0.75rem;
+  border-radius: var(--r-pill);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  transition: background-color var(--dur-micro) ease, color var(--dur-micro) ease;
+}
+.torre-cards-toggle > summary::-webkit-details-marker { display: none; }
+.torre-cards-toggle > summary svg { transition: transform var(--dur-micro) var(--ease-out); }
+.torre-cards-toggle[open] > summary svg { transform: rotate(180deg); }
+@media (hover: hover) and (pointer: fine) {
+  .torre-cards-toggle > summary:hover { background: var(--tint-hover); color: var(--text); }
+}
+.torre-cards-toggle-lista {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  min-width: 15rem;
+  max-width: 22rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-slab);
+}
+
+/* ---------- grade de cards ---------- */
+.torre-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.torre-card {
+  grid-column: span var(--span-card, 12);
+  position: relative;
+  min-width: 0;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-slab);
+}
+/* Sombra de "levantado" pré-renderizada: o arraste só anima opacity. */
+.torre-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 18px 42px -18px color-mix(in srgb, var(--text) 45%, transparent);
+  opacity: 0;
+  transition: opacity var(--dur-micro) ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.torre-card[data-arrastando='true'] {
+  z-index: 20;
+  will-change: transform;
+}
+.torre-card[data-arrastando='true']::after { opacity: 1; }
+
+.torre-card-cab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6875rem 1rem;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--dur-micro) ease;
+}
+.torre-card:not([data-recolhido='true']) .torre-card-cab { border-bottom-color: var(--hairline); }
+
+.torre-card-titulo {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.torre-arraste,
+.torre-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  flex: none;
+  transition: background-color var(--dur-micro) ease, color var(--dur-micro) ease;
+}
+.torre-arraste { cursor: grab; touch-action: none; }
+.torre-card[data-arrastando='true'] .torre-arraste { cursor: grabbing; color: var(--text); }
+.torre-toggle svg { transition: transform var(--dur-ui) var(--ease-out); }
+.torre-card[data-recolhido='true'] .torre-toggle svg { transform: rotate(-90deg); }
+@media (hover: hover) and (pointer: fine) {
+  .torre-arraste:hover,
+  .torre-toggle:hover { background: var(--tint-hover); color: var(--text); }
+}
+
+/* Corpo colapsável via grid-template-rows (sem medir altura em JS). */
+.torre-card-corpo {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 260ms var(--ease-out);
+}
+.torre-card[data-recolhido='true'] .torre-card-corpo { grid-template-rows: 0fr; }
+.torre-card-corpo-inner {
+  overflow: hidden;
+  min-height: 0;
+  padding: 1rem 1.25rem 1.25rem;
+  transition: visibility 0s linear 0s;
+}
+/* visibility tira o conteúdo da tabulação; o delay esconde só no fim do
+   fechamento, mantendo o deslize do grid-rows. */
+.torre-card[data-recolhido='true'] .torre-card-corpo-inner {
+  visibility: hidden;
+  transition: visibility 0s linear 260ms;
+}
+
+/* Entrada de card reexibido: fade curto, sem deslocamento. */
+.torre-card { animation: torre-card-entra 220ms var(--ease-out) backwards; }
+@keyframes torre-card-entra {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.torre-card[data-arrastando='true'] { animation: none; }
+
+/* ---------- arestas do GrafoDominó sob demanda (THE-15) ---------- */
+.domino-aresta-oculta { opacity: 0; }
+
+/* ---------- conteúdo dentro dos cards ---------- */
+/* Card de meia largura: sinais e avisos empilham em coluna única. */
+.tc-sinais .sinais-avisos[data-ambos='true'] { grid-template-columns: minmax(0, 1fr); }
+/* O detalhe de versões já nasce slab; dentro do card ele vira conteúdo plano
+   para não aninhar superfície dentro de superfície. */
+.tc-versoes .versoes-detalhes {
+  max-width: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+.tc-versoes .versoes-sumario { padding-inline: 0; }
+.tc-versoes .versoes { padding-inline: 0; }
+
+/* ---------- responsividade ---------- */
+@media (max-width: 1239px) {
+  .torre-card.tc-matriz,
+  .torre-card.tc-tarefas { grid-column: span 12; }
+}
+@media (max-width: 760px) {
+  .torre-grid { gap: 1rem; }
+  .torre-card { grid-column: span 12; }
+  .torre-vistas-linha { align-items: stretch; flex-direction: column; }
+  .torre-vistas-acoes { justify-content: space-between; }
+  .torre-cards-toggle-lista { right: auto; left: 0; }
+}
+
+/* ---------- reduced-motion (A6): sem FLIP, sem deslize; fades curtos ficam ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .torre-card { animation: none; }
+  .torre-card-corpo { transition: none; }
+  .torre-toggle svg,
+  .torre-cards-toggle > summary svg { transition: none; }
+  .torre-card::after { transition: none; }
+  /* THE-15: as arestas aparecem sem transição quando o nó é ativado. */
+  .domino-aresta,
+  .domino-aresta-solida { transition: none; }
+}
