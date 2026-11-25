@@ -76,10 +76,11 @@ async function registrarDoc(tx: LedgerStore, doc: DocData): Promise<Evento[]> {
   const avisar = notificarEmTarefaDoEnv();
   for (const t of propagarTodas(divs)) {
     inseridos.push(await tx.append(doc.pedidoId, 'tarefa', { ...t }));
-    // T141: desligada por padrao (NVOIP_NOTIFY_ON_TASK); ligada, a Nvoip
-    // tenta avisar a parte e o resultado vira evento 'notificacao' — o
-    // modulo nunca lanca e so registra quando a provedora esta configurada.
-    if (avisar) {
+    // T141: a Nvoip so avisa com NVOIP_NOTIFY_ON_TASK ligado. Contato
+    // webhook (spec 0012) dispara sempre: a URL foi cadastrada pela
+    // propria sessao para receber a tarefa e nao depende da provedora.
+    const contato = await tx.contatoDaParte(t.parte);
+    if (avisar || contato?.canal === 'webhook') {
       const n = await notificarTarefa(tx, doc.pedidoId, t);
       if (n) inseridos.push(n);
     }

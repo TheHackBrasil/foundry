@@ -190,7 +190,9 @@ export function DrawerAgenda({
       novosErros.destino =
         canal === 'email'
           ? 'Informe o endereço de e-mail.'
-          : 'Informe o número de telefone com DDD/DDI.';
+          : canal === 'webhook'
+            ? 'Informe a URL do endpoint.'
+            : 'Informe o número de telefone com DDD/DDI.';
     } else if (destinoLimpo.length > MAX_TEXTO) {
       novosErros.destino = `Use no máximo ${MAX_TEXTO} caracteres.`;
     }
@@ -401,23 +403,39 @@ export function DrawerAgenda({
                     registrado na agenda, mas gera alerta de canal incompatível no disparo.
                   </p>
                 )}
+                {canal === 'webhook' && (
+                  <p className="meta">
+                    O servidor faz um POST JSON com a tarefa nessa URL (ex.: webhook.site). Não
+                    depende de provedora de disparo.
+                  </p>
+                )}
               </div>
 
               <div className="drawer-field">
                 <label htmlFor={destinoId}>
-                  {canal === 'email' ? 'Endereço de e-mail' : 'Telefone com DDI/DDD'}
+                  {canal === 'email'
+                    ? 'Endereço de e-mail'
+                    : canal === 'webhook'
+                      ? 'URL do webhook'
+                      : 'Telefone com DDI/DDD'}
                 </label>
                 <input
                   ref={destinoInputRef}
                   id={destinoId}
                   name="destino"
-                  type={canal === 'email' ? 'email' : 'tel'}
-                  inputMode={canal === 'email' ? 'email' : 'tel'}
+                  type={canal === 'email' ? 'email' : canal === 'webhook' ? 'url' : 'tel'}
+                  inputMode={canal === 'email' ? 'email' : canal === 'webhook' ? 'url' : 'tel'}
                   maxLength={MAX_TEXTO}
-                  autoComplete={canal === 'email' ? 'email' : 'tel'}
+                  autoComplete={canal === 'email' ? 'email' : 'off'}
                   className="drawer-input mono"
                   value={destino}
-                  placeholder={canal === 'email' ? 'operacao@empresa.com' : '+55 11 99999-0000'}
+                  placeholder={
+                    canal === 'email'
+                      ? 'operacao@empresa.com'
+                      : canal === 'webhook'
+                        ? 'https://webhook.site/seu-endpoint'
+                        : '+55 11 99999-0000'
+                  }
                   aria-invalid={errosCampo.destino ? 'true' : undefined}
                   aria-describedby={errosCampo.destino ? destinoErroId : undefined}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => {

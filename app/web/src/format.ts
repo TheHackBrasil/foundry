@@ -75,6 +75,7 @@ const ROTULO_CANAL = new Map<string, string>(
     sms: 'SMS',
     ligacao: 'Ligação',
     email: 'E-mail',
+    webhook: 'Webhook',
   } satisfies Record<CanalContato, string>),
 );
 

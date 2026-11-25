@@ -8,7 +8,7 @@ import { divergenciasDaNovaFonte } from '../../shared/divergence.js';
 import { type CampoVigiado, type Divergencia, type Evento, type Notificacao, type Parte } from '../../shared/model.js';
 import { camposPorFonte } from '../../shared/projection.js';
 import { propagarTodas } from '../../shared/rules.js';
-import { canalCompativel, notificarTarefa } from '../nvoip.js';
+import { canalEntrega, notificarTarefa } from '../nvoip.js';
 import { pedidoDaTool, recusaSeedSomenteLeitura } from './resolvedor.js';
 import type { ToolAgente } from './tipos.js';
 import {
@@ -44,7 +44,7 @@ export const TOOLS_ESCRITA: ToolAgente[] = [
       const { pedidoId, projecao: proj } = r.resolvido;
       const tarefa = [...proj.tarefas].reverse().find((t) => t.parte === args.parte) ?? null;
       const contato = await ctx.sessao.contatoDaParte(args.parte);
-      const canalOk = contato !== null && canalCompativel(contato.canal);
+      const canalOk = contato !== null && canalEntrega(contato.canal);
       const podeEnviar = tarefa !== null && canalOk;
       const motivoBloqueio = tarefa === null ? 'sem_tarefa' : contato === null ? 'sem_contato' : !canalOk ? 'canal_incompativel' : undefined;
       return {

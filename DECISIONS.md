@@ -72,6 +72,7 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-046 | 24/11 | Spec 0009 implementada (retroativo, sessão 17): agente conversacional ReAct em `app/server/agente/` com 9 tools internas (leitura e escrita), multi-turn com histórico por sessão, streaming token a token, recuperação de erro de tool e seed somente leitura | decidido por Thiago | A conversa é o formato que o juiz espera de "AI"; as tools leem e escrevem pelo motor determinístico, mantendo o ledger como única verdade |
 | D-047 | 24/11 | Correção dos dois P1 da revisão da onda 2: saída de tool viaja dentro da chave `evidencia` e o system prompt a trata como dado citado (injeção cross-visitante); match aproximado de pedido exige 4+ caracteres e `endsWith`, com `pedido_ambiguo` listando candidatos (escrita no pedido errado) | decidido | Achados bloqueantes do reviewer independente; corrigidos e deployados na sessão 17 |
 | D-048 | 24/11 | P2/P3 da revisão da onda 2 corrigidos: saída de tool no contexto limitada a 8k caracteres; tools novas recusadas quando o cliente aborta (escrita em voo conclui, decisão documentada); `destino` de contato mascarado em contexto e no payload `fim`; chamada de tool idêntica no mesmo turno devolve `chamada_duplicada`; `max_completion_tokens` nas chamadas do agente; `parseEventoStream` valida shape de `ev.bloco`; helpers `codigoCurtoPedido`/`alvoIgual` deduplicados; lock de `enviar_notificacao` encurtado (projeção fora da tx); `JanelaFixa` documentado como por processo; `engines.node >=20.3` (AbortSignal.any) | decidido | Rodada de fechamento da revisão; cada item saiu do relatório do reviewer, não de iniciativa nova |
+| D-049 | 24/11 | Webhook como canal da agenda (spec 0012): contato com `canal: 'webhook'` tem `destino` = URL http(s) validada e a tarefa sai por POST JSON direto, sem Nvoip; `NVOIP_NOTIFY_ON_TASK` governa só a provedora, a URL cadastrada pela sessão dispara sempre na propagação. Guard SSRF recusa loopback/privado/link-local na escrita e no envio (sem resolução de DNS, limitação assumida). Pesquisa de transportadoras entregue em `docs/transportadoras-rastreio.md` (backlog 32): 20 URLs testadas ao vivo, top 5 = Correios, Braspress, Jamef, Jadlog e SSW multi-carrier | decidido | Webhook responde a pergunta universal de integração sem depender de provedora nem credencial; agenda já modelava canal+destino, o canal novo reaproveita tabela, API e despacho existentes |
 
 ## Pendências
 
@@ -499,7 +500,7 @@ foi verificado ao vivo em produção em 24/11.
 
 ## Sessão 20
 
-- Spec 0010 rascunhada a partir do áudio transcrito do contato da
+- Spec 0012 rascunhada a partir do áudio transcrito do contato da
   TOTVS (24/11): agente de cobrança de status por e-mail, com
   pendência por tempo, claim `status_declarado` e evidência DKIM
   ancorada. Status `rascunho`: aguarda aceite do time antes de

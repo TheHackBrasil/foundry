@@ -125,10 +125,11 @@ export interface Tarefa {
   divergencia: Divergencia;
 }
 
-// Canais que a agenda de contatos aceita; a Nvoip entrega nos tres primeiros.
-export type CanalContato = 'whatsapp' | 'sms' | 'ligacao' | 'email';
+// Canais que a agenda de contatos aceita; a Nvoip entrega nos tres
+// primeiros, 'webhook' sai por POST direto na URL do destino (spec 0012).
+export type CanalContato = 'whatsapp' | 'sms' | 'ligacao' | 'email' | 'webhook';
 
-export const CANAIS_CONTATO = ['whatsapp', 'sms', 'ligacao', 'email'] as const;
+export const CANAIS_CONTATO = ['whatsapp', 'sms', 'ligacao', 'email', 'webhook'] as const;
 
 // Contato de uma parte num workspace (spec 0007, RF7). fonte: 'manual' (PUT),
 // 'documento' (bootstrap por fone de NF-e/CT-e) ou 'seed' (ficticio da demo).
