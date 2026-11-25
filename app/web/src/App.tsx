@@ -18,6 +18,8 @@ import { Marca } from './components/Marca.tsx';
 import { PaginaAssistenteIA } from './components/PaginaAssistenteIA.tsx';
 import { PainelPedido } from './components/PainelPedido.tsx';
 import { PedidoLista } from './components/PedidoLista.tsx';
+import { IconeOperacao } from './operacao/icones.tsx';
+import { PaginaOperacao } from './operacao/PaginaOperacao.tsx';
 import { rotuloMotivoNotificacao, rotuloParte } from './format.ts';
 import { aplicarTema, temaInicial, type Tema } from './tema.ts';
 import { useIndicadorDeslizante } from './useIndicadorDeslizante.ts';
@@ -26,6 +28,12 @@ import { useTorre } from './useTorre.ts';
 
 export function App() {
   const torre = useTorre();
+  // #/operacao (spec 0011, T533): rota lida aqui e não em useTorre, que
+  // pertence a outra frente — o hash vive inteiro neste componente.
+  const [rotaOperacao, setRotaOperacao] = useState(() =>
+    window.location.hash.startsWith('#/operacao'),
+  );
+  const rotaEfetiva = rotaOperacao ? 'operacao' : torre.rota;
   const [tema, setTema] = useState<Tema>(temaInicial);
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
   const [revisaoAberto, setRevisaoAberto] = useState(false);
@@ -43,7 +51,7 @@ export function App() {
   const fecharEnvioBtnRef = useRef<HTMLButtonElement | null>(null);
   const railNavRef = useRef<HTMLElement | null>(null);
 
-  const navIndicador = useIndicadorDeslizante(railNavRef, '[aria-current="page"]', torre.rota);
+  const navIndicador = useIndicadorDeslizante(railNavRef, '[aria-current="page"]', rotaEfetiva);
   const presencaEnvio = usePresencaAnimada(envioAberto, 200);
 
   const trocarTema = (t: Tema) => {
@@ -61,6 +69,13 @@ export function App() {
 
   const fecharMenuMobile = useCallback(() => {
     setMenuMobileAberto(false);
+  }, []);
+
+  // Mantém a rota #/operacao em sincronia com a barra de endereço.
+  useEffect(() => {
+    const aoMudar = () => setRotaOperacao(window.location.hash.startsWith('#/operacao'));
+    window.addEventListener('hashchange', aoMudar);
+    return () => window.removeEventListener('hashchange', aoMudar);
   }, []);
 
   // Gerencia foco, Escape e bloqueio de rolagem da gaveta lateral em telas estreitas.
@@ -302,16 +317,25 @@ export function App() {
               <a
                 href={hrefTorre}
                 className="rail-nav-link"
-                aria-current={torre.rota === 'torre' ? 'page' : undefined}
+                aria-current={rotaEfetiva === 'torre' ? 'page' : undefined}
                 onClick={fecharMenuMobile}
               >
                 <IconeTorre />
                 <span>Torre operacional</span>
               </a>
               <a
+                href="#/operacao"
+                className="rail-nav-link"
+                aria-current={rotaEfetiva === 'operacao' ? 'page' : undefined}
+                onClick={fecharMenuMobile}
+              >
+                <IconeOperacao />
+                <span>Operação</span>
+              </a>
+              <a
                 href={hrefIA}
                 className="rail-nav-link"
-                aria-current={torre.rota === 'ia' ? 'page' : undefined}
+                aria-current={rotaEfetiva === 'ia' ? 'page' : undefined}
                 onClick={fecharMenuMobile}
               >
                 <IconeAssistente />
@@ -365,9 +389,15 @@ export function App() {
             aoTema={trocarTema}
           />
 
-          <main id="conteudo" tabIndex={-1} data-rota={torre.rota}>
-            <div key={torre.rota} className="rota-palco" data-rota={torre.rota}>
-              {torre.rota === 'ia' ? (
+          <main id="conteudo" tabIndex={-1} data-rota={rotaEfetiva}>
+            <div key={rotaEfetiva} className="rota-palco" data-rota={rotaEfetiva}>
+              {rotaOperacao ? (
+                <PaginaOperacao
+                  aoAnunciar={torre.anunciar}
+                  aoAbrirNaTorre={torre.irParaTorre}
+                  pulsoEventoSeq={torre.pulsoEventoSeq}
+                />
+              ) : torre.rota === 'ia' ? (
                 <PaginaAssistenteIA
                   pedidos={listaPedidos}
                   pedidoId={torre.selecionado}

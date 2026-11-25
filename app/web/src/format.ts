@@ -19,6 +19,7 @@ const ROTULO_FONTE = new Map<string, string>(
     pdf: 'PDF',
     imap: 'E-mail',
     manual: 'Manual',
+    email_transportadora: 'Resposta da transportadora',
   } satisfies Record<FonteDocumento, string>),
 );
 

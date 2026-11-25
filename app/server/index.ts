@@ -936,7 +936,8 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   // o envio e so da sessao dona, com janela anti-spam (RF5).
   app.get('/api/cobrancas', async (req) => {
     const sessao = store.paraWorkspace(req.workspace);
-    return { cobrancas: await sessao.listarCobrancas() };
+    const cobrancas = await sessao.listarCobrancas();
+    return { cobrancas: cobrancas.map((c) => ({ ...c, daSessao: c.workspaceId === req.workspace })) };
   });
 
   app.post<{ Params: { id: string } }>('/api/cobrancas/:id/enviar', async (req, reply) => {
