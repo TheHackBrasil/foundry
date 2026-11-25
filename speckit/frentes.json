@@ -109,6 +109,20 @@
         "app/web/",
         "specs/0007-camada-ai-operacional/brief-ai-web.md"
       ]
+    },
+    "app-operacao": {
+      "brief": "specs/0011-modelo-excecao/brief-operacao.md",
+      "paths": [
+        "app/shared/",
+        "app/server/",
+        "app/contracts/",
+        "app/web/src/operacao/",
+        "app/web/src/App.tsx",
+        "app/package.json",
+        "app/package-lock.json",
+        "app/.env.example",
+        "specs/0011-modelo-excecao/"
+      ]
     }
   }
 }

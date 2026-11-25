@@ -19,7 +19,9 @@ imutável (A9).
 
 | [0010](0010-agente-cobranca-status/spec.md) | Agente de cobrança de status com claim verificável | rascunho | 2026-11-24 |
 
-**Próximo número livre:** `0011`
+| [0011](0011-modelo-excecao/spec.md) | Modelo de exceção completo (second brain -> código) | rascunho | 2026-11-24 |
+
+**Próximo número livre:** `0012`
 
 ## Lacunas conhecidas
 
