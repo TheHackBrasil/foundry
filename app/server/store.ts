@@ -66,6 +66,21 @@ CREATE TABLE IF NOT EXISTS templates (
   UNIQUE (workspace_id, remetente)
 );
 
+-- Identidade muitos-para-muitos (spec 0011): cada referencia extraida de um
+-- documento (chave NF-e, xPed, chave CT-e, CNPJ+serie+numero) liga ao pedido
+-- dono no workspace. Conflito de referencias nunca resolve em merge — o
+-- documento vai para a fila de revisao.
+CREATE TABLE IF NOT EXISTS pedido_documentos (
+  id           BIGSERIAL PRIMARY KEY,
+  workspace_id TEXT NOT NULL DEFAULT 'seed',
+  pedido_id    TEXT NOT NULL,
+  tipo_doc     TEXT NOT NULL,
+  referencia   TEXT NOT NULL,
+  ts           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, referencia)
+);
+CREATE INDEX IF NOT EXISTS pedido_documentos_ws ON pedido_documentos (workspace_id, pedido_id);
+
 CREATE OR REPLACE FUNCTION rejeita_mutacao_events() RETURNS trigger AS $$
 BEGIN
   RAISE EXCEPTION 'events e append-only: % nao permitido', TG_OP;
@@ -220,11 +235,20 @@ export class LedgerStore {
     return rows.map(paraEvento);
   }
 
-  // Idempotencia: = em jsonb ignora ordem de chaves do payload.
-  async eventoExiste(pedidoId: string, tipo: Evento['tipo'], payload: Record<string, unknown>): Promise<boolean> {
+  // Idempotencia: = em jsonb ignora ordem de chaves do payload. Chaves
+  // volateis (claims com afirmadoEm do ingest, token de resposta do caso)
+  // ficam fora da comparacao: mesmo documento ingerido de novo e no-op
+  // mesmo quando essas chaves mudam de valor (spec 0011).
+  async eventoExiste(
+    pedidoId: string,
+    tipo: Evento['tipo'],
+    payload: Record<string, unknown>,
+    volateis: string[] = ['claims', 'token'],
+  ): Promise<boolean> {
+    const coluna = volateis.reduce((col, k) => `${col} - '${k}'`, 'payload');
     const rows = await this.db.query(
-      `SELECT 1 AS n FROM events WHERE workspace_id = $1 AND pedido_id = $2 AND tipo = $3 AND payload = $4::jsonb LIMIT 1`,
-      [this.workspace, pedidoId, tipo, JSON.stringify(payload)],
+      `SELECT 1 AS n FROM events WHERE workspace_id = $1 AND pedido_id = $2 AND tipo = $3 AND ${coluna} = $4::jsonb LIMIT 1`,
+      [this.workspace, pedidoId, tipo, JSON.stringify(volateis.reduce((p, k) => ({ ...p, [k]: undefined }), payload))],
     );
     return rows.length > 0;
   }
@@ -326,6 +350,56 @@ export class LedgerStore {
       [this.seedWorkspace],
     );
     return rows[0]?.n ?? 0;
+  }
+
+  // Identidade (spec 0011): referencias extraidas do documento ->
+  // pedidos conhecidos. Mais de um pedido distinto = conflito (revisao).
+  async pedidosPorReferencias(
+    referencias: string[],
+  ): Promise<Array<{ referencia: string; pedidoId: string }>> {
+    if (referencias.length === 0) return [];
+    const rows = await this.db.query<{ referencia: string; pedido_id: string }>(
+      `SELECT referencia, pedido_id FROM pedido_documentos
+       WHERE workspace_id = $1 AND referencia = ANY($2)`,
+      [this.workspace, referencias],
+    );
+    return rows.map((r) => ({ referencia: r.referencia, pedidoId: r.pedido_id }));
+  }
+
+  async vincularDocumento(pedidoId: string, tipoDoc: string, referencias: string[]): Promise<void> {
+    for (const ref of referencias) {
+      await this.db.query(
+        `INSERT INTO pedido_documentos (workspace_id, pedido_id, tipo_doc, referencia)
+         VALUES ($1, $2, $3, $4) ON CONFLICT (workspace_id, referencia) DO NOTHING`,
+        [this.workspace, pedidoId, tipoDoc, ref],
+      );
+    }
+  }
+
+  async referenciasDoPedido(pedidoId: string): Promise<string[]> {
+    const rows = await this.db.query<{ referencia: string }>(
+      `SELECT referencia FROM pedido_documentos WHERE workspace_id = $1 AND pedido_id = $2 ORDER BY id`,
+      [this.workspace, pedidoId],
+    );
+    return rows.map((r) => r.referencia);
+  }
+
+  // Pendencias (spec 0011): workspaces que ja gravaram evento — o tick do
+  // servidor itera sobre eles sem conhecer sessoes.
+  async workspacesAtivos(): Promise<string[]> {
+    const rows = await this.db.query<{ workspace_id: string }>(
+      `SELECT DISTINCT workspace_id FROM events`,
+    );
+    return rows.map((r) => r.workspace_id);
+  }
+
+  async pendenciaExiste(pedidoId: string, motivo: string): Promise<boolean> {
+    const rows = await this.db.query(
+      `SELECT 1 AS n FROM events WHERE workspace_id = $1 AND pedido_id = $2
+       AND tipo = 'pendencia_aberta' AND payload->>'motivo' = $3 LIMIT 1`,
+      [this.workspace, pedidoId, motivo],
+    );
+    return rows.length > 0;
   }
 
   async ultimoAncora(pedidoId: string): Promise<Record<string, unknown> | null> {

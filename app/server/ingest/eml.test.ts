@@ -126,7 +126,13 @@ describe('POST /api/ingest com .eml', () => {
     return { status: res.statusCode, corpo: res.json() as Record<string, unknown>, texto: res.body };
   }
 
-  const normalizar = (evs: Evento[]) => evs.map((e) => ({ pedidoId: e.pedidoId, seq: e.seq, tipo: e.tipo, payload: e.payload }));
+  // spec 0011: claims e token sao volateis por design (ts do ingest, uuid);
+  // a comparacao entre ingest paths ignora essas chaves, como eventoExiste.
+  const limpar = (p: Record<string, unknown>) => {
+    const { claims, token, ...resto } = p;
+    return resto;
+  };
+  const normalizar = (evs: Evento[]) => evs.map((e) => ({ pedidoId: e.pedidoId, seq: e.seq, tipo: e.tipo, payload: limpar(e.payload) }));
 
   it('email-nfe.eml gera os mesmos eventos que o nfe-ok.xml solto', async () => {
     const a = await novaSessao();

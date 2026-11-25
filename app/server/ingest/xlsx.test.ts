@@ -331,7 +331,13 @@ describe('pipeline: upload, .eml e seed com xlsx (T121)', () => {
     const ra = await ingerir(a.store, a.canal, 'planilha.csv', ler('planilha.csv'));
     const rb = await ingerir(b.store, b.canal, 'planilha.xlsx', ler('planilha.xlsx'));
 
-    const norm = (evs: { tipo: string; payload: unknown }[]) => evs.map((e) => ({ tipo: e.tipo, payload: e.payload }));
+    // spec 0011: claims e token sao volateis por design.
+    const limpar = (p: Record<string, unknown>) => {
+      const { claims, token, ...resto } = p;
+      return resto;
+    };
+    const norm = (evs: { tipo: string; payload: unknown }[]) =>
+      evs.map((e) => ({ tipo: e.tipo, payload: limpar(e.payload as Record<string, unknown>) }));
     expect(norm(rb.eventos)).toEqual(norm(ra.eventos));
     await a.db.close();
     await b.db.close();
@@ -420,8 +426,13 @@ describe('POST /api/ingest com .xlsx', () => {
     expect(viaXlsx.statusCode).toBe(200);
     // Mesmos eventos: a planilha cria o pedido, entao o conjunto gravado fecha igual.
     expect(viaXlsx.json()['eventos']).toBe(viaCsv.json()['eventos']);
-    const evsA = (await s.store.paraWorkspace(a.split('=')[1]!).todosEventos()).map((e) => ({ tipo: e.tipo, payload: e.payload }));
-    const evsB = (await s.store.paraWorkspace(b.split('=')[1]!).todosEventos()).map((e) => ({ tipo: e.tipo, payload: e.payload }));
+    // spec 0011: claims e token sao volateis por design.
+    const limpar = (p: Record<string, unknown>) => {
+      const { claims, token, ...resto } = p;
+      return resto;
+    };
+    const evsA = (await s.store.paraWorkspace(a.split('=')[1]!).todosEventos()).map((e) => ({ tipo: e.tipo, payload: limpar(e.payload) }));
+    const evsB = (await s.store.paraWorkspace(b.split('=')[1]!).todosEventos()).map((e) => ({ tipo: e.tipo, payload: limpar(e.payload) }));
     expect(evsB).toEqual(evsA);
 
     const falso = await enviar(await novaSessao(), 'falso.xlsx', Buffer.from('PK\x03\x04 lixo'));

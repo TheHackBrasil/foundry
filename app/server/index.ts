@@ -3,12 +3,12 @@
 // WORKSPACE_SEED e o conteudo compartilhado, gravado so por seed.ts e IMAP. Pela
 // API a seed e somente leitura (P-010).
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { OutgoingHttpHeaders } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Fastify, { type FastifyError, type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyError, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
@@ -31,6 +31,9 @@ import {
   type ViewSpecV2,
 } from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
+import { metricasDosCasos, projetarCasos, tokenDoCaso } from '../shared/casos.js';
+import { estimarCusto } from '../shared/custo.js';
+import type { Caso } from '../shared/model.js';
 import { executarAgente } from './agente/motor.js';
 import { ancorar, configAncoraDoEnv } from './anchor.js';
 import { configDoEnv, inteiroDoEnv, type ConfigServidor } from './config.js';
@@ -48,6 +51,7 @@ import {
 } from './mandatos.js';
 import { notificarTarefa } from './nvoip.js';
 import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
+import { iniciarTickPendencias } from './pendencia.js';
 import { ehProcessoPrincipal } from './processo.js';
 import { ErroRequisicao, GuardaEspaco, JanelaFixa, mensagens } from './protecao.js';
 import { carregarSeed } from './seed.js';
@@ -774,6 +778,134 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     },
   );
 
+  // --- Casos de excecao e metricas (spec 0011) ---
+
+  // Casos de todos os pedidos visiveis (sessao + seed), marcados pelo dono.
+  async function casosDaSessao(sessao: LedgerStore): Promise<Caso[]> {
+    const out: Caso[] = [];
+    for (const p of await sessao.listarPedidos()) {
+      const evs = await store.paraWorkspace(p.workspaceId).eventosDoPedido(p.pedidoId);
+      for (const c of projetarCasos(evs)) out.push({ ...c, workspaceId: p.workspaceId });
+    }
+    return out;
+  }
+
+  // Resolve o dono do pedido a partir do casoId "pedidoId:seq".
+  async function storeDoCaso(sessao: LedgerStore, casoId: string) {
+    const pedidoId = casoId.split(':')[0] ?? '';
+    if (!pedidoId) return null;
+    return storeDoPedido(sessao, pedidoId);
+  }
+
+  app.get('/api/casos', async (req) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const casos = await casosDaSessao(sessao);
+    return {
+      casos: casos.map((c) => ({ ...c, daSessao: c.workspaceId === req.workspace })),
+    };
+  });
+
+  app.get<{ Params: { id: string } }>('/api/casos/:id', async (req, reply) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const s = await storeDoCaso(sessao, req.params.id);
+    if (!s) return reply.code(404).send({ erro: 'caso não encontrado' });
+    const eventos = await s.eventosDoPedido(req.params.id.split(':')[0]!);
+    const caso = projetarCasos(eventos).find((c) => c.id === req.params.id);
+    if (!caso) return reply.code(404).send({ erro: 'caso não encontrado' });
+    // O link do parceiro so aparece para a sessao dona: visitante nao ve.
+    const daSessao = s.workspace === req.workspace;
+    return {
+      caso: {
+        ...caso,
+        workspaceId: s.workspace,
+        daSessao,
+        ...(daSessao ? { tokenParceiro: tokenDoCaso(eventos, caso) } : {}),
+      },
+      custo: estimarCusto(caso),
+      documentos: await s.referenciasDoPedido(caso.pedidoId),
+    };
+  });
+
+  // Transicoes da sessao dona: assumir, resolver e reabrir gravam caso_*.
+  const transicaoCaso = (tipo: 'caso_atribuido' | 'caso_resolvido' | 'caso_reaberto') =>
+    async (req: FastifyRequest<{ Params: { id: string }; Body: { parte?: string; texto?: string } }>, reply: FastifyReply) => {
+      const sessao = store.paraWorkspace(req.workspace);
+      const s = await storeDoCaso(sessao, req.params.id);
+      if (!s) return reply.code(404).send({ erro: 'caso não encontrado' });
+      exigirGravavel(s.workspace, 'alterar caso de exemplo');
+      const eventos = await s.eventosDoPedido(req.params.id.split(':')[0]!);
+      const caso = projetarCasos(eventos).find((c) => c.id === req.params.id);
+      if (!caso) return reply.code(404).send({ erro: 'caso não encontrado' });
+      if (tipo === 'caso_atribuido') {
+        const parte = req.body?.parte;
+        if (!parte || !PARTES.includes(parte as Parte)) {
+          return reply.code(422).send({ erro: 'parte inválida', partes: PARTES });
+        }
+        if (caso.status === 'resolvido') {
+          return reply.code(409).send({ erro: 'caso resolvido: reabra antes de atribuir' });
+        }
+        const ev = await s.append(caso.pedidoId, tipo, { casoId: caso.id, parte });
+        canal.evento(ev, s.workspace);
+      } else if (tipo === 'caso_resolvido') {
+        if (caso.status === 'resolvido') return reply.code(409).send({ erro: 'caso já resolvido' });
+        const texto = typeof req.body?.texto === 'string' ? req.body.texto.slice(0, 2000) : undefined;
+        const ev = await s.append(caso.pedidoId, tipo, { casoId: caso.id, ...(texto ? { texto } : {}) });
+        canal.evento(ev, s.workspace);
+      } else {
+        if (caso.status !== 'resolvido' && caso.status !== 'contestado') {
+          return reply.code(409).send({ erro: 'só se reabre caso resolvido ou contestado' });
+        }
+        const ev = await s.append(caso.pedidoId, tipo, { casoId: caso.id });
+        canal.evento(ev, s.workspace);
+      }
+      return { ok: true };
+    };
+
+  app.post('/api/casos/:id/assumir', transicaoCaso('caso_atribuido'));
+  app.post('/api/casos/:id/resolver', transicaoCaso('caso_resolvido'));
+  app.post('/api/casos/:id/reabrir', transicaoCaso('caso_reaberto'));
+
+  // Resposta do parceiro pelo link opaco (spec 0011): sem sessao e sem 403
+  // de seed — o token do evento de origem e a credencial. So o hash dele
+  // vai para a trilha.
+  app.post<{ Params: { id: string }; Body: { token?: string; acao?: string; texto?: string } }>(
+    '/api/casos/:id/resposta',
+    async (req, reply) => {
+      const sessao = store.paraWorkspace(req.workspace);
+      const s = await storeDoCaso(sessao, req.params.id);
+      if (!s) return reply.code(404).send({ erro: 'caso não encontrado' });
+      const acao = req.body?.acao;
+      if (acao !== 'confirmar' && acao !== 'contestar') {
+        return reply.code(422).send({ erro: 'acao deve ser confirmar ou contestar' });
+      }
+      const eventos = await s.eventosDoPedido(req.params.id.split(':')[0]!);
+      const caso = projetarCasos(eventos).find((c) => c.id === req.params.id);
+      if (!caso) return reply.code(404).send({ erro: 'caso não encontrado' });
+      const token = tokenDoCaso(eventos, caso);
+      if (!token || req.body?.token !== token) {
+        return reply.code(403).send({ erro: 'token inválido' });
+      }
+      const texto = typeof req.body?.texto === 'string' ? req.body.texto.slice(0, 2000) : undefined;
+      const tokenHash = createHash('sha256').update(token).digest('hex').slice(0, 16);
+      const ev = await s.append(caso.pedidoId, 'caso_resposta_parceiro', {
+        casoId: caso.id,
+        acao,
+        ...(texto ? { texto } : {}),
+        tokenHash,
+      });
+      canal.evento(ev, s.workspace);
+      return { ok: true };
+    },
+  );
+
+  // Metricas da operacao (spec 0011): derivadas so de eventos do escopo.
+  app.get('/api/metricas', async (req) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const casos = await casosDaSessao(sessao);
+    const totalPedidos = (await sessao.listarPedidos()).length;
+    return { metricas: metricasDosCasos(casos, totalPedidos) };
+  });
+
   // Producao: o mesmo processo serve o build da web e a API na mesma origem.
   const webDist = cfg.webDist ?? join(AQUI, '..', 'web', 'dist');
   if (existsSync(webDist)) {
@@ -825,6 +957,9 @@ if (ehProcessoPrincipal(import.meta.url, process.argv[1])) {
     app.log.info(`seed: ${r.ingeridos} doc(s) processados, ${r.pulados} arquivo(s) sem efeito`);
   }
   await ligarImap(canal, store);
+  // Tick de pendencias (spec 0011): verifica todos os workspaces a cada
+  // PENDENCIA_TICK_MS; so abre 'pendencia_aberta' onde ainda nao existe.
+  iniciarTickPendencias(store, canal);
   // A hospedagem manda SIGTERM no redeploy: fecha os streams e o pool antes de sair.
   for (const sinal of ['SIGTERM', 'SIGINT'] as const) {
     process.once(sinal, () => {

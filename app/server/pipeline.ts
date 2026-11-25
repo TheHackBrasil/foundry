@@ -5,8 +5,9 @@
 // bootstrap da agenda por fone fiscal (T142). Todos degradam: sem LLM,
 // sem provedora ou sem env, o fluxo fica igual ao da spec 0004.
 
+import { randomUUID } from 'node:crypto';
 import Papa from 'papaparse';
-import { divergenciasDaNovaFonte } from '../shared/divergence.js';
+import { divergenciasDaNovaFonte, mudancasDaFonte } from '../shared/divergence.js';
 import { propagarTodas } from '../shared/rules.js';
 import { TIPOS_DOCUMENTO, type DocData, type Evento, type PropostaMapeamento, type Sinal } from '../shared/model.js';
 import { camposPorFonte, docDataParaPayload } from '../shared/projection.js';
@@ -51,11 +52,43 @@ async function paraRevisao(store: LedgerStore, doc: DocData, motivo: string): Pr
 
 // Payload gravado no evento do documento; confianca entra so quando a extracao
 // declarou (A7). O mesmo payload alimenta a checagem de reingestao.
+// claims (spec 0011): cada campo vigiado declarado vira afirmacao com origem.
 function payloadDoDoc(doc: DocData): Record<string, unknown> {
+  // afirmadoEm = quando a fonte declarou (data do documento), com fallback
+  // para o instante do ingest. Documento sem data declarada gera claim
+  // volatil — a idempotencia ignora 'claims' na comparacao por isso.
+  const declaradoEm =
+    (typeof doc.dados['dataEmissao'] === 'string' && doc.dados['dataEmissao']) ||
+    (typeof doc.dados['dhEmi'] === 'string' && doc.dados['dhEmi']) ||
+    new Date().toISOString();
+  const claims = Object.entries(doc.campos)
+    .filter(([, v]) => v !== undefined)
+    .map(([campo, valor]) => ({ campo, valor, fonte: doc.fonte, afirmadoEm: declaradoEm }));
   return {
     ...docDataParaPayload(doc),
+    ...(claims.length > 0 ? { claims } : {}),
     ...(doc.confianca !== undefined ? { confianca: doc.confianca } : {}),
   };
+}
+
+// Referencias de identidade extraidas do documento (spec 0011): a chave
+// declarada e os identificadores de negocio que o parser trouxe — tudo que
+// permitiria reconhecer "e o mesmo pedido" por outra via.
+function referenciasDoDoc(doc: DocData): string[] {
+  const refs = new Set<string>([`doc:${doc.pedidoId}`]);
+  const str = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+  const d = doc.dados;
+  if (str(d['chave'])) refs.add(`chave:${d['chave']}`);
+  if (str(d['xPed'])) refs.add(`xped:${d['xPed']}`);
+  if (str(d['chaveCte'])) refs.add(`cte:${d['chaveCte']}`);
+  if (Array.isArray(d['chavesNfe'])) {
+    for (const c of d['chavesNfe']) if (str(c)) refs.add(`chave:${c}`);
+  }
+  const emit = d['emitente'] as { cnpj?: string } | undefined;
+  if (emit?.cnpj && str(d['serie']) && str(d['numero'])) {
+    refs.add(`nfid:${emit.cnpj}:${d['serie']}:${d['numero']}`);
+  }
+  return [...refs];
 }
 
 // Doc + divergencias + tarefas dentro da tx do chamador, que trava o pedido
@@ -68,10 +101,16 @@ async function registrarDoc(tx: LedgerStore, doc: DocData): Promise<Evento[]> {
   const historico = await tx.eventosDoPedido(doc.pedidoId);
   const porFonte = camposPorFonte(historico.slice(0, -1)); // exclui a doc nova
   const existentes = [...porFonte.entries()].map(([fonte, campos]) => ({ fonte, campos }));
-  const divs = divergenciasDaNovaFonte({ fonte: doc.fonte, campos: doc.campos }, existentes);
+  const nova = { fonte: doc.fonte, campos: doc.campos };
+  const divs = [
+    ...divergenciasDaNovaFonte(nova, existentes),
+    // spec 0011: a mesma fonte mudou de versao tambem e excecao.
+    ...mudancasDaFonte(existentes.find((f) => f.fonte === doc.fonte), nova),
+  ];
 
   for (const d of divs) {
-    inseridos.push(await tx.append(doc.pedidoId, 'divergencia', { ...d }));
+    // token por divergencia = link de resposta do parceiro do caso aberto.
+    inseridos.push(await tx.append(doc.pedidoId, 'divergencia', { ...d, token: randomUUID() }));
   }
   const avisar = notificarEmTarefaDoEnv();
   for (const t of propagarTodas(divs)) {
@@ -87,14 +126,33 @@ async function registrarDoc(tx: LedgerStore, doc: DocData): Promise<Evento[]> {
   return inseridos;
 }
 
-// Doc + divergencias + tarefas numa unica tx.
+// Doc + divergencias + tarefas numa unica tx. Antes grava a identidade:
+// referencias do documento podem religa-lo a um pedido ja conhecido
+// (xPed igual, chave referenciada) — conflito entre dois pedidos vai
+// para revisao, nunca merge silencioso (spec 0011).
 async function processarDoc(
   store: LedgerStore,
   canal: CanalSSE,
-  doc: DocData,
+  docOriginal: DocData,
 ): Promise<{ eventos: Evento[]; revisaoId: number | null }> {
+  const referencias = referenciasDoDoc(docOriginal);
+  const matches = await store.pedidosPorReferencias(referencias);
+  const outros = [...new Set(matches.map((m) => m.pedidoId).filter((p) => p !== docOriginal.pedidoId))];
+  if (outros.length > 1) {
+    const revisaoId = await paraRevisao(store, docOriginal, 'identidade_conflitante');
+    return { eventos: [], revisaoId };
+  }
+  // Revinculo so para doc de chave propria (o pedidoId e identidade do
+  // proprio documento): NF-e complementar ou planilha com xPed igual cai no
+  // pedido conhecido. CT-e/CC-e declaram pedidoId = chave do doc coberto:
+  // referencia desconhecida continua 'pedido_desconhecido', sem desvio por
+  // ref secundaria (o CT-e que aponta para NF-e errada e conflito, nao merge).
+  const chavePropria = docOriginal.docTipo === 'nfe' || docOriginal.docTipo === 'planilha' || docOriginal.docTipo === 'pdf';
+  const revinculado = outros.length === 1 && chavePropria;
+  const doc: DocData = revinculado ? { ...docOriginal, pedidoId: outros[0]! } : docOriginal;
+
   const criadorDePedido = doc.docTipo === 'nfe' || doc.docTipo === 'planilha';
-  if (!criadorDePedido && !(await store.pedidoExiste(doc.pedidoId))) {
+  if (!criadorDePedido && !revinculado && !(await store.pedidoExiste(doc.pedidoId))) {
     const revisaoId = await paraRevisao(store, doc, 'pedido_desconhecido');
     return { eventos: [], revisaoId };
   }
@@ -106,8 +164,22 @@ async function processarDoc(
     if (await tx.eventoExiste(doc.pedidoId, doc.docTipo, payloadDoDoc(doc))) {
       return []; // reingestao identica: no-op
     }
-    return registrarDoc(tx, doc);
+    const inseridos = await registrarDoc(tx, doc);
+    if (revinculado) {
+      inseridos.push(
+        await tx.append(doc.pedidoId, 'documento_vinculado', {
+          docTipo: doc.docTipo,
+          fonte: doc.fonte,
+          chaveDeclarada: docOriginal.pedidoId,
+          referencias,
+        }),
+      );
+    }
+    return inseridos;
   });
+  if (eventos.length > 0) {
+    await store.vincularDocumento(doc.pedidoId, doc.docTipo, referencias);
+  }
 
   for (const ev of eventos) canal.evento(ev, store.workspace);
   return { eventos, revisaoId: null };

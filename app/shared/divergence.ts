@@ -50,6 +50,22 @@ export function divergenciasDaNovaFonte(
     .flatMap((f) => compararFontes(f, nova));
 }
 
+// Mudanca de versao dentro da mesma fonte (spec 0011): a fonte declarou um
+// valor antes e declara outro agora — ex.: planilha do fornecedor manda dia
+// 20 e depois dia 25. So compara campo que a versao nova redeclara; campo
+// ausente na nova versao nao e mudanca.
+export function mudancasDaFonte(
+  anterior: FonteCampos | undefined,
+  nova: FonteCampos,
+): Divergencia[] {
+  if (!anterior) return [];
+  return compararFontes(anterior, nova).map((d) => ({
+    ...d,
+    fonteB: nova.fonte,
+    tipo: 'mudanca' as const,
+  }));
+}
+
 // "E se?" deterministico (RF10/RF12): a hipotese ('manual') e comparada campo
 // a campo com o valor atual, usando a mesma regra e a tolerancia de
 // compararFontes. fonteA e a fonte real do valor atual: a ultima versao que
