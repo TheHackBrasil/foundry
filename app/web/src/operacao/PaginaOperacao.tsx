@@ -228,6 +228,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                   <span className="op-caso-topo">
                     <span className={classeStatusCaso(c.status)}>{rotuloStatusCaso(c.status)}</span>
                     {!c.daSessao && <span className="pilula-sutil">exemplo</span>}
+                    {c.daSessao && <span className="pilula-ok">sua sessão</span>}
                     <time className="meta mono num" dateTime={c.abertoEm}>
                       {formatarMomento(c.abertoEm)}
                     </time>
@@ -259,6 +260,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                     {rotuloStatusCobranca(cb.status)}
                   </span>
                   {!cb.daSessao && <span className="pilula-sutil">exemplo</span>}
+                  {cb.daSessao && <span className="pilula-ok">sua sessão</span>}
                   <button
                     type="button"
                     className="botao-sutil op-link-pedido"
@@ -327,6 +329,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                   {casoAtual.origem === 'pendencia' ? 'pendência' : 'divergência'}
                 </span>
                 {!casoAtual.daSessao && <span className="pilula-sutil">exemplo, somente leitura</span>}
+                {casoAtual.daSessao && <span className="pilula-ok">Sua sessão</span>}
               </div>
 
               <h3 className="op-card-titulo">{tituloCaso(casoAtual)}</h3>
@@ -415,6 +418,14 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                     ))}
                   </ul>
                 </div>
+              )}
+
+              {!casoAtual.daSessao && (
+                <p className="meta">
+                  Casos de exemplo são somente leitura. Para testar as ações, envie um
+                  documento na sua sessão: a divergência ou pendência dele abre um caso seu
+                  aqui na fila.
+                </p>
               )}
 
               {casoAtual.daSessao && casoAtual.status !== 'resolvido' && (
