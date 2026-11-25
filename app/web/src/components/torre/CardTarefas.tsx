@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type {
   AlvoFocoGenUI,
   CampoVigiado,
@@ -22,7 +23,7 @@ interface CardTarefasProps {
   aoAbrirAgenda: (parte?: Parte) => void;
 }
 
-export function CardTarefas({
+export const CardTarefas = memo(function CardTarefas({
   tarefas,
   contatos,
   filtro,
@@ -50,4 +51,4 @@ export function CardTarefas({
       aoAbrirAgenda={aoAbrirAgenda}
     />
   );
-}
+});

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type {
   CamposObservados,
   RespostaSimulacao,
@@ -18,7 +19,7 @@ interface CardSimuladorProps {
 
 // O simulador vive na mesma célula do tiling que os outros cards; o resultado
 // segue alimentando o modo simulação do grafo e da matriz via aoResultado.
-export function CardSimulador({
+export const CardSimulador = memo(function CardSimulador({
   pedidoId,
   versoes,
   daSessao,
@@ -36,4 +37,4 @@ export function CardSimulador({
       aoAnunciar={aoAnunciar}
     />
   );
-}
+});

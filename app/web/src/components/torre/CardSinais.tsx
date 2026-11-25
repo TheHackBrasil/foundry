@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { Notificacao, Sinal } from '../../../../shared/model.ts';
 import { SinaisEAvisos } from '../SinaisEAvisos.tsx';
 
@@ -8,7 +9,12 @@ interface CardSinaisProps {
   avisosNovos: ReadonlySet<string>;
 }
 
-export function CardSinais({ sinais, notificacoes, sinaisNovos, avisosNovos }: CardSinaisProps) {
+export const CardSinais = memo(function CardSinais({
+  sinais,
+  notificacoes,
+  sinaisNovos,
+  avisosNovos,
+}: CardSinaisProps) {
   if (sinais.length === 0 && notificacoes.length === 0) {
     return <p className="meta">Nenhum sinal consultivo ou aviso registrado neste pedido.</p>;
   }
@@ -20,4 +26,4 @@ export function CardSinais({ sinais, notificacoes, sinaisNovos, avisosNovos }: C
       avisosNovos={avisosNovos}
     />
   );
-}
+});
