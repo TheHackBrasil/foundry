@@ -366,48 +366,7 @@ export function TorreVistas({
   return (
     <div className="torre-vistas" role="group" aria-label="Vistas do painel" ref={barraRef} tabIndex={-1}>
       <div className="torre-vistas-linha">
-        <div className="vistas-zona" role="group" aria-labelledby="vistas-zona-rotulo">
-          <span id="vistas-zona-rotulo" className="vistas-rotulo">
-            Layouts
-          </span>
-          <div className="torre-vistas-grupo" role="group" aria-label="Layouts prontos">
-            {presets.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className="chip"
-                data-ativa={ativoId === t.id ? 'true' : undefined}
-                aria-pressed={ativoId === t.id}
-                aria-label={`Aplicar layout ${t.nome}`}
-                title={`Aplicar layout ${t.nome}`}
-                onClick={() => aplicarVista(t)}
-              >
-                {t.nome}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="torre-vistas-acoes">
-          <div className="vistas-densidade" role="radiogroup" aria-label="Densidade da grade">
-            {DENSIDADES.map(({ valor, rotulo }) => (
-              <button
-                key={valor}
-                ref={(el) => {
-                  radioRefs.current[valor] = el;
-                }}
-                type="button"
-                role="radio"
-                aria-checked={densidade === valor}
-                tabIndex={densidade === valor ? 0 : -1}
-                data-ativa={densidade === valor ? 'true' : undefined}
-                onClick={() => definirDensidade(valor)}
-                onKeyDown={(e) => teclaRadio(e, valor)}
-              >
-                {rotulo}
-              </button>
-            ))}
-          </div>
 
           <div className="vistas-menu" ref={menuRef}>
             <button
@@ -449,6 +408,56 @@ export function TorreVistas({
                 aria-label="Layout"
                 tabIndex={-1}
               >
+                <div className="vistas-menu-secao" role="group" aria-labelledby={`${painelId}-layouts`}>
+                  <span id={`${painelId}-layouts`} className="vistas-menu-titulo">
+                    Layouts prontos
+                  </span>
+                  <div className="vistas-menu-lista">
+                    {presets.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className="chip"
+                        data-ativa={ativoId === t.id ? 'true' : undefined}
+                        aria-pressed={ativoId === t.id}
+                        aria-label={`Aplicar layout ${t.nome}`}
+                        title={`Aplicar layout ${t.nome}`}
+                        onClick={() => {
+                          aplicarVista(t);
+                          fecharMenu(true);
+                        }}
+                      >
+                        {t.nome}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="vistas-menu-secao" role="group" aria-labelledby={`${painelId}-dens`}>
+                  <span id={`${painelId}-dens`} className="vistas-menu-titulo">
+                    Densidade
+                  </span>
+                  <div className="vistas-densidade" role="radiogroup" aria-label="Densidade da grade">
+                    {DENSIDADES.map(({ valor, rotulo }) => (
+                      <button
+                        key={valor}
+                        ref={(el) => {
+                          radioRefs.current[valor] = el;
+                        }}
+                        type="button"
+                        role="radio"
+                        aria-checked={densidade === valor}
+                        tabIndex={densidade === valor ? 0 : -1}
+                        data-ativa={densidade === valor ? 'true' : undefined}
+                        onClick={() => definirDensidade(valor)}
+                        onKeyDown={(e) => teclaRadio(e, valor)}
+                      >
+                        {rotulo}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {customizados.length > 0 && (
                   <div
                     className="vistas-menu-secao"

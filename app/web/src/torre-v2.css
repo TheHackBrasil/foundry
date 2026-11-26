@@ -5,12 +5,12 @@
    reage à largura real do card via container queries (tiers). */
 
 /* ---------- barra de vistas ---------- */
-.torre-vistas { margin-bottom: 1rem; }
+.torre-vistas { margin-bottom: 0.625rem; }
 .torre-vistas-linha {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.5rem 1rem;
 }
 .torre-vistas-grupo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
