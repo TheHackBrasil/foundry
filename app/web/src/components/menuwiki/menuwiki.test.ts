@@ -188,15 +188,22 @@ describe('filtrarSecoes', () => {
 });
 
 describe('colapso das secoes', () => {
-  it('abre tudo quando a chave nao existe ou o valor e invalido', () => {
+  it('so Pedidos nasce aberta quando a chave nao existe ou o valor e invalido', () => {
+    expect(colapsoInicial()).toEqual({
+      pedidos: true,
+      parceiros: false,
+      documentos: false,
+      regras: false,
+    });
     expect(lerColapso(null)).toEqual(colapsoInicial());
     expect(lerColapso('{"outro":1}')).toEqual(colapsoInicial());
     expect(lerColapso('nao-json')).toEqual(colapsoInicial());
   });
 
-  it('preserva secoes gravadas e completa as novas com aberto', () => {
-    const lido = lerColapso(JSON.stringify({ v: 1, abertas: { regras: false, fantasma: true } }));
-    expect(lido.regras).toBe(false);
+  it('preserva secoes gravadas e completa as novas com o padrao', () => {
+    const lido = lerColapso(JSON.stringify({ v: 1, abertas: { regras: true, fantasma: true } }));
+    expect(lido.regras).toBe(true);
+    expect(lido.parceiros).toBe(false);
     expect(lido.pedidos).toBe(true);
     expect('fantasma' in lido).toBe(false);
   });

@@ -3,8 +3,9 @@
 // revisao), aplica o filtro local e le/grava o colapso das secoes. Resumo e
 // selo saem de campos do contrato; quando o campo falta, a linha nao sai (A7).
 // O modo de leitura (spec 0017, item 40) tambem mora aqui: compacto e o
-// padrao, com uma linha por item; o resumo sai da tela e continua acessivel
-// via title/aria-label compostos por dicaItem e nomeAcessivelItem.
+// padrao. Na faixa compacta o item mostra so o nome (decisao da call 26/11,
+// menu rapido): selo e resumo saem da tela e continuam acessiveis via
+// title/aria-label compostos por dicaItem e nomeAcessivelItem.
 import {
   FONTES_DOCUMENTO,
   PARTES,
@@ -232,8 +233,10 @@ export const CHAVE_COLAPSO = 'forseti:menuwiki:v1';
 
 export type Colapso = Record<SecaoId, boolean>;
 
+// Por padrao a secao nasce minimizada (call 26/11, 1:06:07). Pedidos e a
+// excecao: o erro e o retry da carga moram dentro dela.
 export function colapsoInicial(): Colapso {
-  return { pedidos: true, parceiros: true, documentos: true, regras: true };
+  return { pedidos: true, parceiros: false, documentos: false, regras: false };
 }
 
 export function lerColapso(bruto: string | null | undefined): Colapso {
@@ -285,11 +288,12 @@ export function serializarModo(modo: ModoLista): string {
   return JSON.stringify({ v: 1, modo });
 }
 
-// Rotulos do item no modo compacto: a linha .mw-item-sub sai da tela, mas a
-// informacao nao se perde (A6). dicaItem alimenta o title (tooltip e, com
-// aria-label presente, descricao acessivel); nomeAcessivelItem compoe o
-// aria-label dos itens navegaveis na mesma ordem em que o conteudo expandido
-// e lido: titulo, selo, resumo. No expandido nada muda.
+// Rotulos do item no modo compacto: o selo e a linha .mw-item-sub saem da
+// tela (so o nome fica), mas a informacao nao se perde (A6). dicaItem
+// alimenta o title (tooltip e, com aria-label presente, descricao
+// acessivel); nomeAcessivelItem compoe o aria-label dos itens navegaveis na
+// mesma ordem em que o conteudo expandido e lido: titulo, selo, resumo. No
+// expandido nada muda.
 export function dicaItem(item: ItemWiki, compacto: boolean): string | undefined {
   if (!compacto) return item.tituloCompleto;
   return [item.tituloCompleto ?? item.titulo, item.resumo]

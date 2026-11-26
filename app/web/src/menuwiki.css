@@ -1,8 +1,9 @@
 /* Indice wiki do rail (spec 0014, THE-20): secoes dobraveis com titulo,
    resumo de uma linha e selo de estado por item. Mesma materia do monolito
    escuro: tipografia apertada, zero caixa, violeta so para coordenacao.
-   O modo compacto (spec 0017, item 40) e o padrao: uma linha por item, com
-   o resumo acessivel via title/aria-label; .mw-compacto aperta a medida. */
+   O modo compacto (spec 0017, item 40) e o padrao: uma faixa por item so
+   com o nome (menu rapido, call 26/11), com selo e resumo acessiveis via
+   title/aria-label; .mw-compacto aperta a medida. */
 
 .mw {
   display: grid;
@@ -223,13 +224,16 @@
   white-space: nowrap;
 }
 
-/* Modo compacto (padrao): o item vira uma linha so. O titulo passa de duas
-   para uma linha e o respiro vertical encolhe; o resumo fica fora da tela
-   como .so-leitor e continua no title/aria-label. */
+/* Modo compacto (padrao): o item vira uma faixa so com o nome ("menu
+   rapido", call 26/11). Selo e resumo nao renderizam na tela e seguem no
+   title/aria-label; a faixa encolhe ate o alvo minimo de toque (--ctl-sm),
+   garantido pelo min-height. */
 .mw-compacto .mw-item {
-  padding-block: 0.375rem;
+  min-height: var(--ctl-sm);
+  padding-block: 0.25rem;
 }
 .mw-compacto .mw-item-titulo {
+  line-height: 1.35;
   -webkit-line-clamp: 1;
 }
 
