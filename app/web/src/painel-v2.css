@@ -239,3 +239,34 @@
     box-shadow: inset 0 0 0 1px ButtonText;
   }
 }
+
+/* ---------- disclosure de setor (card Tarefas): grid-rows 0fr/1fr ----------
+   Antes a altura animava via WAAPI e um onfinish desmontava o corpo — num
+   re-toggle rapido o callback stale escondia a lista com aria-expanded=true
+   (glitch medido 26/11). A transicao declarativa reverte no meio do curso;
+   visibility sai com atraso para tirar o conteudo do foco/leitura de tela
+   sem desmontar nada. */
+.tarefas-corpo {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms var(--ease-out);
+}
+.tarefas-corpo[data-aberto='true'] {
+  grid-template-rows: 1fr;
+}
+.tarefas-corpo-in {
+  min-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transition: visibility 0s linear 200ms;
+}
+.tarefas-corpo[data-aberto='true'] > .tarefas-corpo-in {
+  visibility: visible;
+  transition-delay: 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tarefas-corpo,
+  .tarefas-corpo-in {
+    transition: none;
+  }
+}
