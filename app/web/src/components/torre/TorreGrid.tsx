@@ -106,6 +106,10 @@ interface DragAtivo {
   // Âncora de histerese: pointer (cliente) no último commit de ordem.
   ax: number;
   ay: number;
+  // Âncora de histerese em espaço do grid (null = inicializa no próximo tick):
+  // resiste ao auto-scroll, que move o conteúdo sob o pointer parado.
+  agx: number | null;
+  agy: number | null;
   ordemAntes: CardId[];
   ocultosAntes: readonly CardId[];
   moved: boolean;
@@ -491,6 +495,12 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
           // keyframe de fling usa a velocidade do release (cap ~22px).
           const dur = Math.min(280, Math.max(180, 165 + dist * 0.28));
           const kf: Keyframe[] = [{ transform: `translate3d(${offX}px, ${offY}px, 0)` }];
+          // Segurar parado antes de soltar não pode carregar a velocidade de
+          // antes do hold: sem mover há 160ms+ o fling zera.
+          if (performance.now() - d.lastT > 160) {
+            d.vx = 0;
+            d.vy = 0;
+          }
           const speed = Math.hypot(d.vx, d.vy);
           if (speed > 0.35) {
             const over = Math.min(22, speed * 30);
@@ -505,7 +515,11 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
             easing: 'cubic-bezier(0.22, 1.08, 0.36, 1)',
           });
           // Cancelado pelo regrab: quem agarra assume o pousar depois.
-          anim.finished.then(finalizar).catch(() => {});
+          // Cancelamento sem regrab (unmount, card ocultado no meio do voo)
+          // também finaliza — senão voandoIds/data-arraste-ativo ficam presos.
+          anim.finished.then(finalizar).catch(() => {
+            if (!dragRef.current || dragRef.current.id !== d.id) finalizar();
+          });
         }
       } else {
         finalizar();
@@ -538,6 +552,8 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     } else if (d.lastY > vh - ZONA_SCROLL) {
       sy = Math.ceil(((d.lastY - (vh - ZONA_SCROLL)) / ZONA_SCROLL) * VEL_SCROLL_MAX);
     }
+    // Pointer fora da viewport jogava a razão acima de 1 sem cap — clampa.
+    sy = Math.max(-VEL_SCROLL_MAX, Math.min(VEL_SCROLL_MAX, sy));
     if (sy !== 0) {
       if (d.scroller) d.scroller.scrollTop += sy;
       else window.scrollBy(0, sy);
@@ -549,13 +565,19 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     const grid = gridElRef.current;
     if (grid) {
       const g = grid.getBoundingClientRect();
+      const pgx = d.lastX - g.left;
+      const pgy = d.lastY - g.top;
+      if (d.agx === null) {
+        d.agx = pgx;
+        d.agy = pgy;
+      }
       const dest = destinoArraste({
-        px: d.lastX - g.left,
-        py: d.lastY - g.top,
-        clientX: d.lastX,
-        clientY: d.lastY,
-        ancoraX: d.ax,
-        ancoraY: d.ay,
+        px: pgx,
+        py: pgy,
+        clientX: pgx,
+        clientY: pgy,
+        ancoraX: d.agx,
+        ancoraY: d.agy ?? pgy,
         ordem: ordemVisivelRef.current,
         posMap: posMapRef.current,
         arrastado: d.id,
@@ -565,6 +587,8 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         commitOrdemVisivel(inserirEm(alvos, d.id, dest));
         d.ax = d.lastX;
         d.ay = d.lastY;
+        d.agx = null;
+        d.agy = null;
       }
     }
     frameRef.current = requestAnimationFrame(tick);
@@ -656,6 +680,8 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         vy: 0,
         ax: e.clientX,
         ay: e.clientY,
+        agx: null,
+        agy: null,
         ordemAntes: layout.ordem,
         ocultosAntes: layout.ocultos,
         moved: false,
