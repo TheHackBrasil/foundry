@@ -629,3 +629,18 @@ foi verificado ao vivo em produção em 24/11.
   data-adapt (trilho/grade/tabela/lista + papeis essencial/corredor/ponte/
   aux/meta). Cards futuros adaptam por formato sem hardcode por componente.
   GrafoDomino e o primeiro cidadao; pisos duros de 624px removidos.
+
+## Sessao 26/11 (wave adversarial + backlog da call)
+
+D-062: backlog enriquecido por recon. Itens 38-49 entram na fila a partir
+da transcricao da call de alinhamento (26/11), enriquecidos por dois
+agentes de recon com evidencia arquivo:linha e verificados por reviewer
+independente (nenhuma citacao falsa; 3 imprecisas corrigidas antes do
+commit). Ordem por dependencia e impacto na demo, decisao do usuario.
+Spec 0016 (entrada de insights) aberta para o item 38, o maior gap do
+pitch: jurado leigo decide em segundos e a entrada atual nao prova valor.
+Correcoes cirurgicas da wave adversarial de QA integradas na mesma sessao:
+span elastico nao infla largura explicita (a pill nunca mais mente),
+histerese do arraste em espaco de grid (teleporte do drop no auto-scroll),
+phantom drag, user-select no unmount, ghost frame de remocao, ocultos
+restaurados no Escape.

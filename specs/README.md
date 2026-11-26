@@ -22,8 +22,9 @@ imutável (A9).
 | [0013](0013-rastreio-externo/spec.md) | Rastreio externo: polling de páginas públicas das transportadoras como fonte consultiva | rascunho | 2026-11-24 |
 | [0014](0014-ux-v2/spec.md) | UX v2: torre em tiling arrastavel, painel de evidencia autonomo, menu wiki e grafo limpo (THE-15 a THE-20) | implementada | 2026-11-24 |
 | [0015](0015-polimento-torre/spec.md) | Polimento da Torre guiado por auditoria multi-persona: motion, layout, performance, vistas e superficie | em execucao | 2026-11-25 |
+| [0016](0016-entrada-insights/spec.md) | Entrada de insights: primeira impressao em segundos com stories computados dos dados reais | em especificacao | 2026-11-26 |
 
-**Próximo número livre:** `0016`
+**Próximo número livre:** `0017`
 
 ## Lacunas conhecidas
 
