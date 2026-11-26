@@ -162,9 +162,10 @@
   font-size: var(--fs-ui);
   font-weight: 600;
   color: var(--on-rail);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   min-width: 0;
 }
 .mw-item-sub {
