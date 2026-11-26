@@ -14,8 +14,8 @@ git worktree add ../foundry-wt-<nome> -b wt/<nome>
 ```
 
 - Worktree nomeado `../foundry-wt-<nome>` (fora da raiz principal), branch
-  `wt/<nome>`. O nome descreve a frente: hoje `app-core`, `app-infra`,
-  `app-demo` e `escopo-produto`.
+  `wt/<nome>`. O nome descreve a frente: hoje `harness`, `escopo-produto` e
+  `site-forseti` (D-065).
 - O **dono da frente** trabalha lá dentro; a cópia principal (`foundry/`)
   fica na `main` limpa para integração e leitura.
 - A área de cada frente é a lista de paths do brief, espelhada em
