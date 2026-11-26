@@ -617,3 +617,15 @@ foi verificado ao vivo em produção em 24/11.
   revertido na implementacao: margin-inline auto desliga o stretch do grid
   item e a largura intrinseca colapsa a zero porque os filhos sao absolutos.
   Verificacao visual nos dois temas com screenshots antes/depois.
+
+## Sessao 13
+- wave C (spec 0015): motion-fisica integrada. Causa raiz do flicker era a
+  reordenacao de nos DOM no mesmo commit do retarget (transicao suprimida),
+  nao o easing; ordem DOM agora atrasa ate a torre assentar. Duracao de
+  retile proporcional ao deslocamento (340ms base + 0.35ms/px, teto 680ms),
+  curva material-standard sem velocidade inicial, piso de 380ms nos siblings
+  durante arraste.
+- adapt-generica integrada: camada estrutural adaptacao.css com gramatica
+  data-adapt (trilho/grade/tabela/lista + papeis essencial/corredor/ponte/
+  aux/meta). Cards futuros adaptam por formato sem hardcode por componente.
+  GrafoDomino e o primeiro cidadao; pisos duros de 624px removidos.
