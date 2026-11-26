@@ -763,25 +763,43 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     [aoAnunciar],
   );
 
+  // A barra envia o layout persistido como segundo argumento (decisão 7 da
+  // frente polish-vistas): capturar recolhidos/densidade aqui torna a vista
+  // autocontida e o sidecar da barra vira apenas caminho de migração.
   const salvarVista = useCallback(
-    (nome: string) => {
+    (nome: string, layoutCompleto?: LayoutTorre) => {
+      const recolhidosVista = layoutCompleto?.recolhidos ?? layout.recolhidos;
       const novo: VistaTemplate = {
         id: `v${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`,
         nome,
         ordem: ordemVisivelRef.current,
         spans: layout.spans,
+        ...(recolhidosVista.length ? { recolhidos: [...recolhidosVista] } : {}),
+        densidade: layoutCompleto?.densidade ?? layout.densidade ?? 1,
         custom: true,
       };
       setTemplatesCustom((prev) => [...prev, novo]);
       aoAnunciar(`Vista ${nome} salva.`);
     },
-    [aoAnunciar, layout.spans],
+    [aoAnunciar, layout.spans, layout.recolhidos, layout.densidade],
   );
 
   const excluirVista = useCallback(
     (id: string) => {
       setTemplatesCustom((prev) => prev.filter((t) => t.id !== id));
       aoAnunciar('Vista excluída.');
+    },
+    [aoAnunciar],
+  );
+
+  // Reinsere a vista excluída (Desfazer do toast da barra). O template chega
+  // completo: campos do sidecar já foram mesclados pela barra antes da captura.
+  const restaurarVista = useCallback(
+    (template: VistaTemplate) => {
+      setTemplatesCustom((prev) =>
+        prev.some((t) => t.id === template.id) ? prev : [...prev, template],
+      );
+      aoAnunciar(`Vista ${template.nome} restaurada.`);
     },
     [aoAnunciar],
   );
@@ -819,6 +837,7 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
   return (
     <>
       <TorreVistas
+        pedidoId={pedidoId}
         presets={TEMPLATES_VISTA}
         customizados={templatesCustom}
         ativoId={ativoId}
@@ -827,6 +846,8 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         aoAplicar={aplicarVista}
         aoSalvarCustom={salvarVista}
         aoExcluirCustom={excluirVista}
+        aoRestaurarVista={restaurarVista}
+        aoAnunciar={aoAnunciar}
         aoAlternarCard={alternarOculto}
         aoMostrarTodos={mostrarTodos}
         aoAlternarDensidade={aoAlternarDensidade}

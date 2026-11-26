@@ -588,3 +588,22 @@ foi verificado ao vivo em produção em 24/11.
 - Wave B (polish-superficie: escala tipografica, marmore, elevacao,
   preludio) detalhada apos a integracao da wave A, por natureza
   transversal a styles.css e tokens.css.
+
+- Integracao da wave A na main (merges limpos, arquivos disjuntos):
+  polish-motor (settle real no drop medido frame a frame, arraste estavel
+  com histerese de ancora, safety net window-level, ciclo de ResizeObserver
+  quebrado com freeze temporal, setas espaciais 2-D, ordem DOM igual a
+  visual, splitter APG, passo elastico anti-coluna-morta, auto-scroll,
+  collapse em transacao unica, arestas 0,2, reduced-motion com fade curto),
+  polish-vistas (lente por template na assinatura, densidade radiogroup,
+  reset e undo com toast, vista global, vista salva completa via sidecar,
+  foco devolvido, zona Layouts mata a colisao Fiscal, badge de ocultos) e
+  polish-fluxo (GETs /api de 32 para 7 num reload, mega useMemo fatiado por
+  card, memo nos 7 wrappers, pulsos derivados sem espelho, tarefas por
+  setor com disclosure, roving tabindex com tab stops de 118 para 76,
+  timestamp compacto). Fiacao de integracao no TorreGrid: salvarVista
+  captura recolhidos/densidade (vista autocontida), restaurarVista para o
+  Desfazer de exclusao, pedidoId e aoAnunciar passados a barra. Gates na
+  main integrada: tsc limpo, 202/202 testes web, vite build, guard 11/11.
+  Verificacao end-to-end no browser: aresta 0,2 medida, preset reativa
+  apos span (bug V1 morto), separator APG com aria-valuenow.
