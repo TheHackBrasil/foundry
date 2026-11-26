@@ -1,0 +1,42 @@
+name: deploy
+
+# Deploy automatico no Railway a cada push na main.
+# Setup uma vez (dono do projeto Railway):
+#   1. Railway -> projeto forseti -> Tokens -> New Token -> copia.
+#   2. GitHub -> repo -> Settings -> Secrets and variables -> Actions:
+#      - secret  RAILWAY_TOKEN   = token do passo 1
+#      - variable RAILWAY_SERVICE = nome do servico do app no projeto
+#   3. O servico precisa apontar o Dockerfile em deploy/Dockerfile
+#      (o `railway up` roda dentro de app/, mesmo layout do deploy manual).
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy
+        working-directory: app
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service "${{ vars.RAILWAY_SERVICE }}"
+
+      - name: Smoke
+        env:
+          BASE_URL: ${{ vars.DEMO_URL }}
+        run: |
+          if [ -n "$BASE_URL" ]; then
+            node app/deploy/smoke.mjs
+          else
+            echo "DEMO_URL nao configurada; smoke pulado."
+          fi
