@@ -118,6 +118,22 @@ interface DragAtivo {
   userSelect: string;
 }
 
+// Gesto de resize pela borda direita (spec 0017): sem repack durante o
+// arraste — o ghost absoluto mostra a largura-alvo snapada no span inteiro
+// mais próximo e o commit único no pointerup cai no mesmo caminho do
+// separator (aoAjustarSpan), herdando a animação física do retile.
+interface ResizeAtivo {
+  id: CardId;
+  pointerId: number;
+  sec: HTMLElement;
+  // Largura da coluna e teto congelados no pointerdown (sem repack no gesto).
+  cardW: number;
+  cols: number;
+  spanAntes: number;
+  spanAlvo: number;
+  userSelect: string;
+}
+
 // Orquestrador do tiling (THE-18): packing masonry — cada card cai na faixa de
 // `span` colunas mais baixa, posições/tamanhos saem do cálculo (não do CSS
 // grid) e transições de transform/width/height animam qualquer retile. Alturas
@@ -150,6 +166,9 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
   const frameRef = useRef(0);
   // Rede de segurança do arraste: remove os listeners do window ao encerrar.
   const limparDragRef = useRef<(() => void) | null>(null);
+  const resizeRef = useRef<ResizeAtivo | null>(null);
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  const limparResizeRef = useRef<(() => void) | null>(null);
   // Medidas do RO em lote (um flush por frame) + congelamento durante retile.
   const pendenteRef = useRef(new Map<CardId, number>());
   const flushRef = useRef(0);
@@ -266,6 +285,13 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         document.documentElement.style.userSelect = d.userSelect;
         dragRef.current = null;
       }
+      limparResizeRef.current?.();
+      const r = resizeRef.current;
+      if (r) {
+        document.documentElement.style.userSelect = r.userSelect;
+        resizeRef.current = null;
+      }
+      delete document.documentElement.dataset.torreResize;
     },
     [],
   );
@@ -810,6 +836,138 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     [aoAnunciar, cols, spanDe, tituloDe],
   );
 
+  // ---------- resize por arraste de borda (spec 0017) ----------
+  // Largura de n colunas inclui os gaps internos; o inverso arredonda para o
+  // span inteiro mais próximo, clampado em 1..cols — nunca largura livre.
+  const larguraSpan = (n: number, cw: number) => n * cw + (n - 1) * GAP;
+  const spanParaLargura = (w: number, cw: number, max: number) =>
+    Math.max(1, Math.min(max, Math.round((w + GAP) / (cw + GAP))));
+
+  const encerrarResize = useCallback(
+    (commit: boolean) => {
+      const r = resizeRef.current;
+      if (!r) return;
+      resizeRef.current = null;
+      limparResizeRef.current?.();
+      limparResizeRef.current = null;
+      const ghost = ghostRef.current;
+      if (ghost) delete ghost.dataset.ativo;
+      delete r.sec.dataset.resizing;
+      document.documentElement.style.userSelect = r.userSelect;
+      delete document.documentElement.dataset.torreResize;
+      if (commit && r.spanAlvo !== r.spanAntes) {
+        // Mesmo caminho do separator: um commit só, e o retile anima.
+        aoAjustarSpan(r.id, r.spanAlvo, false);
+      } else if (!commit && r.spanAlvo !== r.spanAntes) {
+        aoAnunciar('Redimensionamento cancelado; card voltou à largura anterior.');
+      }
+    },
+    [aoAjustarSpan, aoAnunciar],
+  );
+
+  const registrarResize = useCallback(
+    (ev: globalThis.PointerEvent) => {
+      const r = resizeRef.current;
+      if (!r || ev.pointerId !== r.pointerId) return;
+      // Pointerup perdido fora da janela: o primeiro move sem botão commita.
+      if ((ev.buttons & 1) === 0) {
+        encerrarResize(true);
+        return;
+      }
+      const grid = gridElRef.current;
+      // O slot vem do posMap vivo: outro retile (medida de altura) pode ter
+      // mexido a âncora no meio do gesto — o ghost acompanha o alvo real.
+      const p = posMapRef.current.get(r.id);
+      const ghost = ghostRef.current;
+      if (!grid || !p || !ghost) {
+        encerrarResize(false);
+        return;
+      }
+      const gx = ev.clientX - grid.getBoundingClientRect().left;
+      const alvo = spanParaLargura(gx - p.x, r.cardW, r.cols);
+      if (alvo !== r.spanAlvo) {
+        r.spanAlvo = alvo;
+        ghost.style.width = `${larguraSpan(alvo, r.cardW)}px`;
+        const n = ghost.firstElementChild;
+        if (n) n.textContent = `${alvo} de ${r.cols}`;
+      }
+      ghost.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
+      ghost.style.height = `${p.h}px`;
+    },
+    [encerrarResize],
+  );
+
+  const aoResizeDown = useCallback(
+    (e: PointerEvent<HTMLDivElement>, id: CardId) => {
+      if (e.button !== 0) return;
+      const sec = elsRef.current.get(id);
+      const p = posMapRef.current.get(id);
+      const ghost = ghostRef.current;
+      if (!sec || !p || !ghost || cardW <= 0) return;
+      if (dragRef.current) encerrarDrag(false);
+      if (resizeRef.current) encerrarResize(false);
+      e.preventDefault();
+      const spanAtual = spanDe(id);
+      const r: ResizeAtivo = {
+        id,
+        pointerId: e.pointerId,
+        sec,
+        cardW,
+        cols,
+        spanAntes: spanAtual,
+        spanAlvo: spanAtual,
+        userSelect: document.documentElement.style.userSelect,
+      };
+      resizeRef.current = r;
+      sec.dataset.resizing = 'true';
+      document.documentElement.style.userSelect = 'none';
+      // Cursor global: com capture o pointer sai da zona de 14px e o cursor
+      // dos elementos sob ele venceria sem esta trava.
+      document.documentElement.dataset.torreResize = 'true';
+      ghost.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
+      ghost.style.width = `${p.w}px`;
+      ghost.style.height = `${p.h}px`;
+      const n = ghost.firstElementChild;
+      if (n) n.textContent = `${spanAtual} de ${cols}`;
+      ghost.dataset.ativo = 'true';
+      const onMove = (ev: globalThis.PointerEvent) => registrarResize(ev);
+      const onUp = (ev: globalThis.PointerEvent) => {
+        if (ev.pointerId === r.pointerId) encerrarResize(true);
+      };
+      const onCancel = (ev: globalThis.PointerEvent) => {
+        if (ev.pointerId === r.pointerId) encerrarResize(false);
+      };
+      const onKey = (ev: globalThis.KeyboardEvent) => {
+        if (ev.key === 'Escape' && resizeRef.current) {
+          ev.preventDefault();
+          encerrarResize(false);
+        }
+      };
+      // Blur commita o alvo corrente — mesmo tratamento do drop no arraste.
+      const onBlur = () => {
+        if (resizeRef.current) encerrarResize(true);
+      };
+      window.addEventListener('pointermove', onMove, { capture: true });
+      window.addEventListener('pointerup', onUp, { capture: true });
+      window.addEventListener('pointercancel', onCancel, { capture: true });
+      window.addEventListener('keydown', onKey, { capture: true });
+      window.addEventListener('blur', onBlur);
+      limparResizeRef.current = () => {
+        window.removeEventListener('pointermove', onMove, { capture: true });
+        window.removeEventListener('pointerup', onUp, { capture: true });
+        window.removeEventListener('pointercancel', onCancel, { capture: true });
+        window.removeEventListener('keydown', onKey, { capture: true });
+        window.removeEventListener('blur', onBlur);
+      };
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Sem Pointer Capture o window segue cobrindo move/up/cancel.
+      }
+    },
+    [cardW, cols, encerrarDrag, encerrarResize, registrarResize, spanDe],
+  );
+
   const aoAlternarDensidade = useCallback(() => {
     setLayout((prev) => ({
       ...prev,
@@ -928,6 +1086,7 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
   const handleProps: TorreCardHandleProps = {
     onPointerDown: aoPointerDown,
     onKeyDown: aoKeyDown,
+    onResizeDown: aoResizeDown,
   };
 
   // M14: prop nova do TorreVistas chega pela outra frente; o spread de objeto
@@ -967,6 +1126,11 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
             : { height: gridH, '--teto-corpo': `${TETO_CORPO[densidade]}px` } as CSSPropertiesSemTeto
         }
       >
+        {/* Ghost do resize de borda: manipulado por estilo inline a cada
+            move (sem estado React) — zero repack/churn durante o gesto. */}
+        <div ref={ghostRef} className="torre-resize-ghost" aria-hidden="true">
+          <span className="torre-resize-ghost-n" />
+        </div>
         {ordemDom.map((id, i) => {
           const p = posMap.get(id);
           // Card removido (oculto/preset) sai do posMap um commit antes de sair

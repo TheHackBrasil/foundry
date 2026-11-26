@@ -263,6 +263,87 @@
 }
 .torre-span-prox svg { align-self: center; flex: none; }
 
+/* ---------- resize por borda direita (spec 0017) ---------- */
+/* Zona de arraste centrada na aresta do card: 7px dentro, 7px no gap —
+   não cobre o grip (header à esquerda), o separator nem o toggle (que
+   param a ≥16px da aresta) e não invade o card vizinho (gap de 20px). */
+.torre-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -7px;
+  width: 14px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 5;
+}
+@media (pointer: coarse) {
+  .torre-resize { right: -10px; width: 20px; }
+}
+/* Faixa na aresta: apaga-se em repouso, acende no hover e durante o gesto.
+   Só opacity/cor — nada de layout ou sombra animada. */
+.torre-resize::before {
+  content: '';
+  position: absolute;
+  top: 0.625rem;
+  bottom: 0.625rem;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: var(--r-pill);
+  background: var(--hairline-strong);
+  opacity: 0;
+  transition:
+    opacity var(--dur-micro) ease,
+    background-color var(--dur-micro) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .torre-resize:hover::before { opacity: 1; }
+}
+/* Gesto em curso: a aresta acesa na cor de "mudou" acompanha o ghost. */
+.torre-card[data-resizing='true'] .torre-resize::before {
+  opacity: 1;
+  background: var(--change);
+}
+/* Cursor travado enquanto o botão está pressionado: o pointer sai da zona
+   de 14px com capture e o cursor dos elementos sob ele venceria sem isso. */
+html[data-torre-resize='true'],
+html[data-torre-resize='true'] * { cursor: col-resize !important; }
+/* Com a peça voando o slot é só o tracejado de destino — sem zona de resize. */
+.torre-card[data-arrastando='true'] .torre-resize { display: none; }
+
+/* Ghost da largura-alvo: contorno snapado no span inteiro mais próximo,
+   movido por transform/width inline (sem React, sem repack). Por cima dos
+   cards para a borda futura aparecer também ao encolher. */
+.torre-resize-ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 24;
+  display: none;
+  border-radius: var(--r-lg);
+  outline: 2px solid var(--change);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--change) 7%, transparent);
+  pointer-events: none;
+}
+.torre-resize-ghost[data-ativo='true'] { display: block; }
+.torre-resize-ghost-n {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .torre-toggle svg { transition: transform var(--dur-ui) var(--ease-out); }
 .torre-card[data-recolhido='true'] .torre-toggle svg { transform: rotate(-90deg); }
 @media (hover: hover) and (pointer: fine) {

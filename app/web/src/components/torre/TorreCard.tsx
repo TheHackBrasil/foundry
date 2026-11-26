@@ -12,6 +12,10 @@ import type { CardId } from './layout.ts';
 export interface TorreCardHandleProps {
   onPointerDown: (e: PointerEvent<HTMLButtonElement>, id: CardId) => void;
   onKeyDown: (e: KeyboardEvent<HTMLButtonElement>, id: CardId) => void;
+  // Borda direita arrastável (resize de janela): opcional para consumidores
+  // que só usam mover/teclado. A affordance acessível do mesmo mecanismo é o
+  // separator .torre-span no cabeçalho — este handle é aria-hidden.
+  onResizeDown?: (e: PointerEvent<HTMLDivElement>, id: CardId) => void;
 }
 
 interface TorreCardProps {
@@ -178,6 +182,16 @@ export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreC
           </div>
         </div>
       </div>
+      {/* Zona de arraste da largura: filha da section (não da peça) para não
+          voar no arraste de reordenar nem ser clipada pelo overflow da peça.
+          Só existe quando há para onde redimensionar (spanMax > 1). */}
+      {spanMax > 1 && handleProps.onResizeDown && (
+        <div
+          className="torre-resize"
+          aria-hidden="true"
+          onPointerDown={(e) => handleProps.onResizeDown?.(e, id)}
+        />
+      )}
     </section>
   );
 });
