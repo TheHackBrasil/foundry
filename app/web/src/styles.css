@@ -1342,6 +1342,7 @@ main[data-rota='ia'] {
   gap: 0.5rem 1.25rem;
   margin-top: 0.125rem;
 }
+.painel-meta-linha[hidden] { display: none; }
 .chave-linha { display: inline-flex; align-items: center; gap: 0.4375rem; min-width: 0; }
 .chave {
   flex: 0 1 auto;
