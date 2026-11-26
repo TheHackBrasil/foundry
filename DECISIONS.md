@@ -73,6 +73,8 @@ o "o quê" de cada entrega; este arquivo guarda a história e o "porquê" datado
 | D-047 | 24/11 | Correção dos dois P1 da revisão da onda 2: saída de tool viaja dentro da chave `evidencia` e o system prompt a trata como dado citado (injeção cross-visitante); match aproximado de pedido exige 4+ caracteres e `endsWith`, com `pedido_ambiguo` listando candidatos (escrita no pedido errado) | decidido | Achados bloqueantes do reviewer independente; corrigidos e deployados na sessão 17 |
 | D-048 | 24/11 | P2/P3 da revisão da onda 2 corrigidos: saída de tool no contexto limitada a 8k caracteres; tools novas recusadas quando o cliente aborta (escrita em voo conclui, decisão documentada); `destino` de contato mascarado em contexto e no payload `fim`; chamada de tool idêntica no mesmo turno devolve `chamada_duplicada`; `max_completion_tokens` nas chamadas do agente; `parseEventoStream` valida shape de `ev.bloco`; helpers `codigoCurtoPedido`/`alvoIgual` deduplicados; lock de `enviar_notificacao` encurtado (projeção fora da tx); `JanelaFixa` documentado como por processo; `engines.node >=20.3` (AbortSignal.any) | decidido | Rodada de fechamento da revisão; cada item saiu do relatório do reviewer, não de iniciativa nova |
 | D-049 | 24/11 | Webhook como canal da agenda (spec 0012): contato com `canal: 'webhook'` tem `destino` = URL http(s) validada e a tarefa sai por POST JSON direto, sem Nvoip; `NVOIP_NOTIFY_ON_TASK` governa só a provedora, a URL cadastrada pela sessão dispara sempre na propagação. Guard SSRF recusa loopback/privado/link-local na escrita e no envio (sem resolução de DNS, limitação assumida). Pesquisa de transportadoras entregue em `docs/transportadoras-rastreio.md` (backlog 32): 20 URLs testadas ao vivo, top 5 = Correios, Braspress, Jamef, Jadlog e SSW multi-carrier | decidido | Webhook responde a pergunta universal de integração sem depender de provedora nem credencial; agenda já modelava canal+destino, o canal novo reaproveita tabela, API e despacho existentes |
+| D-063 | 26/11 | Harness de operações (spec 0017, aprovada em 26/11): operador como módulo no mesmo processo do app, sem serviço novo, com DBOS Transact sobre o mesmo Postgres e lock de líder; escada fixa e-mail, WhatsApp, ligação e humano; consulta e e-mail sem aprovação, WhatsApp e ligação com OK humano, compromisso nunca pelo agente; SDK da Anthropic com Claude Opus 5.5 (decisão) e Haiku 5.5 (extração); MCP só de leitura preso ao caso; teste comparativo de voz com Fluke, ElevenLabs, Retell, Telnyx, LiveKit e GPT-Live | proposto | Escolhas do usuário em 26/11 (estrutura sem amarra ao modelo gratuito, fatia fina e-mail, WhatsApp e ligação, ligação com aprovação, testar todos os candidatos de voz) e pesquisas da sessão: DBOS grava checkpoint e ledger na mesma transação sem servidor novo; Temporal Cloud fica como plano B |
+| D-064 | 26/11 | Postgres fica; o item 37 (migrar para Turso) está avaliado e descartado. Isolamento segue por `workspace_id` | decidido | O ledger depende de trigger PL/pgSQL, inclusive para TRUNCATE (`app/server/store.ts:115-131`); o Turso não tem PL/pgSQL, trigger de TRUNCATE nem NOTIFY, e nem DBOS nem Temporal rodam sobre ele (docs.turso.tech, docs.dbos.dev) |
 
 ## Pendências
 
@@ -644,3 +646,21 @@ span elastico nao infla largura explicita (a pill nunca mais mente),
 histerese do arraste em espaco de grid (teleporte do drop no auto-scroll),
 phantom drag, user-select no unmount, ghost frame de remocao, ocultos
 restaurados no Escape.
+
+## Sessão 24: harness de operações, spec 0017 (26/11)
+
+D-063 e D-064: spec 0017 aberta em rascunho a partir do item 47, do
+áudio da TOTVS e do documento de análise de mercado e arquitetura.
+Escolhas do usuário: estrutura sem amarra ao modelo gratuito de produção;
+banco por critério técnico, de preferência Postgres (D-064 mantém o
+Postgres e fecha o item 37); primeiro corte é a fatia fina
+em que um caso percorre e-mail, WhatsApp e ligação de teste até virar
+declaração; consulta e e-mail saem sozinhos, WhatsApp e ligação esperam
+OK; testar todos os candidatos de voz. Cinco levantamentos paralelos
+(regras do speckit, mapa do código, backlog e decisões, infraestrutura,
+voz e telefonia) sustentam o plano. Achados do mapa que entram como
+trabalho da spec: cobrança fora do ledger, agenda com um contato por
+parte, resposta que não fecha o caso de pendência, IMAP que só casa
+cobranças da seed e possível cobrança nova a cada tick depois de
+respondida ou expirada. Restam cinco perguntas abertas na spec antes do
+status `aprovada`.
