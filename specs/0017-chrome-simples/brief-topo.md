@@ -1,5 +1,23 @@
 # Brief topo (busca universal + header), call 26/11 [46:53] e [50:19]
 
+## REFINAMENTO DO USUARIO (prioridade sobre o resto deste brief)
+
+A busca e no estilo do site/docs do Supabase: command palette tipo
+Cmd+K, NAO dropdown colado no input.
+
+- Gatilho compacto na topbar, mas ao focar/clicar abre uma PALETA
+  centralizada (overlay modal no centro superior da tela).
+- Atalho global Ctrl+K ou Cmd+K abre de qualquer lugar; Escape fecha e
+  devolve o foco.
+- Input grande no topo da paleta; resultados ao vivo; grupos por tipo
+  com rotulo (Pedidos, Parceiros, Documentos) quando houver mais de um.
+- Highlight do trecho casado; cada resultado com icone do tipo + nome +
+  contexto curto. Visual de palette premium.
+- aria: input da paleta e o dono do foco com aria-activedescendant
+  (padrao combobox APG).
+- Sem preview rico ainda, mas estruture a paleta pensando nele: largura
+  generosa, espaco para painel lateral futuro.
+
 Worktree: ../foundry-wt-topo, branch wt/topo.
 Arquivos permitidos: app/web/src/components/Cabecalho.tsx,
 app/web/src/components/BuscaUniversal.tsx (novo),
