@@ -6,6 +6,7 @@ import { App } from './App.tsx';
 import { aplicarTema, temaInicial } from './tema.ts';
 import './tokens.css';
 import './styles.css';
+import './adaptacao.css';
 
 aplicarTema(temaInicial());
 

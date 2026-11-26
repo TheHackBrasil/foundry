@@ -1,0 +1,109 @@
+/* Camada de adaptacao estrutural da torre (spec 0015, frente adapt-generica).
+   Regras por formato e nao por identidade de componente: o conteudo declara
+   o que ele e por tokens em data-adapt e a camada decide como ele cede ou
+   recebe espaco dentro do card. Contrato completo e guia de adocao em
+   specs/0015-polimento-torre/brief-adapt.md.
+
+   data-adapt e uma lista de tokens separada por espaco (seletor ~=).
+   Formatos de container: trilho, grade, tabela, lista.
+   Papeis de item: essencial, corredor, ponte, aux, meta.
+
+   Lei da camada: dentro de um card nenhum conteudo impoe largura minima
+   maior que o proprio card. Todo encolhimento desce ate 0 (flex-basis 0,
+   minmax(0, ...), min-width 0); legibilidade vem de re-flow e de uma ordem
+   de dispensa explicita, nunca de piso fixo.
+
+   Os seletores dobram o atributo ([data-adapt~='x'][data-adapt], 0,2,0)
+   para a camada vencer classes de identidade (.domino-palco, 0,1,0) e a
+   folha forseti-ops que GrafoDomino injeta no head depois dos CSS do app.
+   Onde duas regras da camada empatam, a de tier vem depois no arquivo e
+   vence a de base. */
+
+/* Piso zero na raiz de cada conteudo de card: nada antes do formato pode
+   empurrar o card para fora da celula do packing. */
+.torre-card-corpo-inner > * { min-width: 0; }
+
+/* ---------- trilho: zonas proporcionais lado a lado ----------
+   Os filhos repartem a largura por --adapt-share (1 por padrao). A zona
+   corredor (ligacao entre zonas, ex.: o corredor SVG do grafo) recebe
+   share menor porque e caminho, nao conteudo. A ponte nao reparte: ocupa
+   so o proprio conteudo (ex.: o conector alternativo do modo empilhado). */
+[data-adapt~='trilho'][data-adapt] {
+  display: flex;
+  align-items: stretch;
+  gap: var(--adapt-gap, 0);
+}
+[data-adapt~='trilho'][data-adapt] > * {
+  flex: var(--adapt-share, 1) 1 0;
+  min-width: 0;
+}
+[data-adapt~='trilho'][data-adapt] > [data-adapt~='corredor'] { --adapt-share: 0.55; }
+[data-adapt~='trilho'][data-adapt] > [data-adapt~='ponte'] { flex: none; }
+
+/* ---------- grade: celulas que fluem pela largura ----------
+   auto-fit com piso legivel por celula (--adapt-col-min). Quando nem uma
+   celula minima cabe, min(100%, ...) colapsa para coluna unica em vez de
+   estourar o card: a quantidade de celulas nunca vira overflow. */
+[data-adapt~='grade'][data-adapt] {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--adapt-col-min, 9.5rem)), 1fr)
+  );
+}
+[data-adapt~='grade'][data-adapt] > * { min-width: 0; }
+
+/* ---------- lista: sequencia vertical de itens ----------
+   Marca uma coluna de conteudos independentes; os itens encolhem ate 0 e
+   os papeis (aux, meta) governam a dispensa por tier. */
+[data-adapt~='lista'][data-adapt] {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+[data-adapt~='lista'][data-adapt] > * { min-width: 0; }
+
+/* ---------- tier compacto (card <= 700px) ----------
+   A tabela abranda: linhas mantem o piso legivel declarado pelo
+   componente (--adapt-min) e o excesso vira scroll horizontal com trilho
+   fino em vez de clipar a ultima coluna. */
+@container tcard (max-width: 700px) {
+  [data-adapt~='tabela'][data-adapt] {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  [data-adapt~='tabela'][data-adapt] > * {
+    min-width: var(--adapt-min, 100%);
+  }
+}
+
+/* ---------- tier estreito (card <= 430px) ----------
+   meta (informacao secundaria) some: a leitura do essencial fica intacta
+   porque os rotulos acessiveis carregam o mesmo texto. O corredor cede
+   mais share. Trilho com quatro zonas ou mais (sem ponte, que ja sabe se
+   virar conector) quebra linha em vez de esmagar conteudo. */
+@container tcard (max-width: 430px) {
+  [data-adapt~='meta'][data-adapt] { display: none; }
+  [data-adapt~='trilho'][data-adapt] > [data-adapt~='corredor'] { --adapt-share: 0.4; }
+  [data-adapt~='trilho'][data-adapt]:has(> :nth-child(4)):not(:has(> [data-adapt~='ponte'])) {
+    flex-wrap: wrap;
+  }
+  [data-adapt~='trilho'][data-adapt]:has(> :nth-child(4)):not(:has(> [data-adapt~='ponte'])) > * {
+    flex: 1 1 40%;
+  }
+}
+
+/* ---------- tier micro (card <= 340px) ----------
+   So o essencial: aux (estrutura dispensavel, ex.: cabecalho de colunas,
+   medidor decorativo) some; o corredor encolhe ao seu minimo de leitura. */
+@container tcard (max-width: 340px) {
+  [data-adapt~='aux'][data-adapt] { display: none; }
+  [data-adapt~='trilho'][data-adapt] > [data-adapt~='corredor'] { --adapt-share: 0.3; }
+}
+
+/* Viewport estreita vale como contexto estreito fora de cards: aux some.
+   Dentro de card quem manda e a largura do card, mas um card nunca e mais
+   largo que a janela, entao a regra e consistente nos dois niveis. */
+@media (max-width: 760px) {
+  [data-adapt~='aux'][data-adapt] { display: none; }
+}
