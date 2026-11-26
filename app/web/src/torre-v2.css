@@ -20,13 +20,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.375rem;
-  height: 1.375rem;
+  width: var(--ctl-sm);
+  height: var(--ctl-sm);
   border: 0;
   border-radius: var(--r-pill);
   background: transparent;
   color: var(--text2);
-  font-size: 0.9375rem;
+  font-size: var(--fs-ui);
   line-height: 1;
   cursor: pointer;
 }
@@ -35,7 +35,7 @@
 }
 .torre-vista-form { display: inline-flex; align-items: center; gap: 0.375rem; }
 .torre-vista-input {
-  min-height: 1.9375rem;
+  min-height: var(--ctl-sm);
   width: 11rem;
   padding: 0 0.625rem;
   border: 1px solid var(--control-border);
@@ -43,7 +43,7 @@
   background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--fs-meta);
 }
 
 .torre-cards-toggle { position: relative; }
@@ -52,10 +52,10 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3125rem;
-  min-height: 1.9375rem;
+  min-height: var(--ctl-sm);
   padding: 0 0.75rem;
   border-radius: var(--r-pill);
-  font-size: 0.8125rem;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--text2);
   cursor: pointer;
@@ -86,10 +86,11 @@
 
 /* ---------- grade de cards (masonry) ---------- */
 /* Posições vêm do packing em JS; transform/width/height transicionam aqui —
-   qualquer retile (drag, span, densidade, conteúdo novo) anima sozinho. */
+   qualquer retile (drag, span, densidade, conteúdo novo) anima sozinho.
+   A altura do grid em si não transiciona: os cards já animam de forma
+   independente e a transição do container só custava frames. */
 .torre-grid {
   position: relative;
-  transition: height 300ms var(--ease-out);
 }
 /* Antes da primeira medição o grid não tem altura calculada: coluna estática. */
 .torre-grid[data-sem-posicao='true'] .torre-card {
@@ -114,12 +115,14 @@
   outline-offset: -1.5px;
   /* inline-size vira o container das queries de tier do conteúdo. */
   container: tcard / inline-size;
+  /* box-shadow real não transiciona: sombra animada só via opacity de
+     pseudo-elemento (a da peça levantada). Repintar sombra em superfície
+     grande a cada frame era custo puro. */
   transition:
     transform 300ms var(--ease-out),
     width 300ms var(--ease-out),
     height 300ms var(--ease-out),
     background-color var(--dur-micro) ease,
-    box-shadow var(--dur-micro) ease,
     outline-color var(--dur-micro) ease;
 }
 /* Slot comprometido: enquanto a peça voa, a célula mostra onde ela cai. */
@@ -142,20 +145,18 @@
   transition:
     transform 320ms cubic-bezier(0.2, 1.15, 0.3, 1),
     scale 160ms var(--ease-out),
-    background-color 150ms ease,
-    box-shadow 150ms ease;
+    background-color 150ms ease;
 }
-/* Em voo o transform segue o pointer direto — sem a transição de assentar. */
+/* Em voo o transform segue o pointer direto — sem transição (o assentar pós-
+   drop roda via WAAPI; a transição de transform aqui é só fallback). */
 .torre-card-peca[data-lifted='true'] {
   background: var(--surface);
-  box-shadow: var(--shadow-slab);
   scale: 1.018;
   z-index: 20;
   will-change: transform;
   transition:
     scale 160ms var(--ease-out),
-    background-color 150ms ease,
-    box-shadow 150ms ease;
+    background-color 150ms ease;
 }
 /* Sombra de "levantado" pré-renderizada: o arraste só anima opacity. */
 .torre-card-peca::after {
@@ -185,7 +186,7 @@
 .torre-card-titulo {
   flex: 1;
   min-width: 0;
-  font-size: 1.0625rem;
+  font-size: var(--fs-card-t);
   font-weight: 700;
   letter-spacing: -0.015em;
 }
@@ -195,8 +196,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.875rem;
-  height: 1.875rem;
+  width: var(--ctl-sm);
+  height: var(--ctl-sm);
   border: 0;
   border-radius: var(--r-sm);
   background: transparent;
@@ -213,13 +214,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  min-height: 1.625rem;
+  min-height: var(--ctl-sm);
   padding: 0 0.5rem;
   border: 0;
   border-radius: var(--r-pill);
   background: transparent;
   color: var(--text2);
-  font-size: 0.75rem;
+  font-size: var(--fs-micro);
   font-weight: 600;
   cursor: pointer;
   flex: none;
@@ -238,23 +239,42 @@
   .torre-toggle:hover { background: var(--tint-hover); color: var(--text); }
 }
 
-/* Recolhido esconde o corpo na hora — a borda do card desce animada pela
-   transição de height da <section> (métrica do packing = altura medida).
-   O corpo também tem teto: conteúdo excedente rola dentro do card em vez de
-   esticar o packing — a altura medida já reflete o clamp, sem lógica extra. */
+/* Recolhido fecha como transação única: a trilha do grid encolhe 1fr→0fr (a
+   casca acompanha pela métrica do packing) enquanto o conteúdo some num fade
+   rápido em vez de sumir antes da casca. Sem display:none — assim animações
+   internas de montagem não reexecutam ao expandir. O teto do corpo vem da
+   densidade (--teto-corpo no grid), nunca de vh: redimensionar a janela na
+   vertical não repacka a torre. */
 .torre-card-corpo {
+  display: grid;
+  grid-template-rows: 1fr;
   min-height: 0;
-  max-height: min(880px, calc(100vh - 120px));
+  max-height: var(--teto-corpo, 880px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  transition: grid-template-rows 220ms var(--ease-out);
 }
-.torre-card-corpo-inner { padding: 1rem 1.25rem 1.25rem; }
-.torre-card[data-recolhido='true'] .torre-card-corpo { display: none; }
+.torre-card-corpo-inner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 1rem 1.25rem 1.25rem;
+  transition: opacity 140ms ease 40ms, visibility 0s;
+}
+.torre-card[data-recolhido='true'] .torre-card-corpo {
+  grid-template-rows: 0fr;
+}
+.torre-card[data-recolhido='true'] .torre-card-corpo-inner {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 110ms ease, visibility 0s 120ms;
+}
 
 /* Entrada de card: fade com leve subida na peça (transform nela, não na
-   section — a section já usa transform para se posicionar no packing). */
-.torre-card-peca {
+   section — a section já usa transform para se posicionar no packing). Só na
+   montagem: a classe sai no animationend e nunca volta, então mudanças de
+   estado (drop, recolher, retile) não a reexecutam. */
+.torre-card-peca.torre-entra {
   animation: torre-card-entra 260ms var(--ease-out) backwards;
   animation-delay: calc(var(--ordem-i, 0) * 28ms);
 }
@@ -262,15 +282,18 @@
   from { opacity: 0; transform: translate3d(0, 6px, 0); }
   to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
-.torre-card-peca[data-lifted='true'] { animation: none; }
+@keyframes torre-card-entra-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 /* Controle de densidade na barra de vistas. */
 .torre-densidade {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.9375rem;
-  min-height: 1.9375rem;
+  min-width: var(--ctl-sm);
+  min-height: var(--ctl-sm);
   border: 0;
   border-radius: var(--r-pill);
   background: transparent;
@@ -283,7 +306,9 @@
 }
 
 /* ---------- arestas do GrafoDominó sob demanda (THE-15) ---------- */
-.domino-aresta-oculta { opacity: 0; }
+/* Repouso revisto (spec 0015): a estrutura fica visível mas quieta ~0.2;
+   hover, foco e clique continuam escalando para a classe ativa/ênfase. */
+.domino-aresta-oculta { opacity: 0.2; }
 
 /* ---------- conteúdo dentro dos cards ---------- */
 /* Card de meia largura: sinais e avisos empilham em coluna única. */
@@ -310,9 +335,9 @@
    abaixo de ~430px a info secundária cede lugar ao essencial. */
 @container tcard (max-width: 430px) {
   .torre-card-cab { padding: 0.5625rem 0.75rem; gap: 0.375rem; }
-  .torre-card-titulo { font-size: 0.9375rem; }
+  .torre-card-titulo { font-size: var(--fs-ui); }
   .torre-card-corpo-inner { padding: 0.75rem 0.875rem 0.9375rem; }
-  .resumo-mx { font-size: 0.8125rem; }
+  .resumo-mx { font-size: var(--fs-meta); }
   .mx-trilhos-label { display: none; }
   .domino-tags-origem,
   .domino-comparacao { display: none; }
@@ -342,16 +367,68 @@
   .torre-cards-toggle-lista { right: auto; left: 0; }
 }
 
-/* ---------- reduced-motion (A6): sem retile animado, sem deslize ---------- */
+/* ---------- reduced-motion (A6): sem deslocamento, mas com fade curto ---------- */
+/* Tiering (skill accessible-animation): remove o movimento espacial (Tier 1)
+   e mantém fades de opacity ≤140ms (Tier 2/3) para preservar causa-efeito —
+   nada de teleporte seco. Os pulses de retile em si vêm de WAAPI no JS. */
 @media (prefers-reduced-motion: reduce) {
-  .torre-grid { transition: none; }
-  .torre-grid > .torre-card { transition: outline-color var(--dur-micro) ease; }
+  .torre-grid > .torre-card {
+    transition: opacity 130ms ease, outline-color var(--dur-micro) ease;
+  }
   .torre-card-peca,
-  .torre-card-peca[data-lifted='true'] { transition: none; animation: none; }
+  .torre-card-peca[data-lifted='true'] { transition: none; }
   .torre-card-peca::after { transition: none; }
+  .torre-card-peca.torre-entra {
+    animation-name: torre-card-entra-fade;
+    animation-duration: 140ms;
+  }
+  .torre-card-corpo { transition: none; }
+  .torre-card-corpo-inner { transition: opacity 120ms ease, visibility 0s; }
+  .torre-card[data-recolhido='true'] .torre-card-corpo-inner {
+    transition: opacity 110ms ease, visibility 0s 110ms;
+  }
   .torre-toggle svg,
   .torre-cards-toggle > summary svg { transition: none; }
   /* THE-15: as arestas aparecem sem transição quando o nó é ativado. */
   .domino-aresta,
   .domino-aresta-solida { transition: none; }
+}
+
+/* S4 interior plano: dentro de um card da torre nada flutua nem repete textura;
+   hierarquia vem de borda e fundo, nao de sombra empilhada */
+.torre-card-corpo .domino-card-div,
+.torre-card-corpo [class*='medidor'],
+.torre-card-corpo [class*='slab'] {
+  box-shadow: none;
+}
+/* Superfícies aninhadas (matriz, grupos de tarefa, nós do dominó, pill de
+   regra) perdem a sombra de laje e viram região de hairline — máximo uma
+   linha de contorno, nunca sombra dentro de sombra. O brilho de foco/simulação
+   vira só anel, sem camada de drop shadow. */
+.torre-card-corpo .mx,
+.torre-card-corpo .tarefas-grupo,
+.torre-card-corpo .domino-no,
+.torre-card-corpo .domino-regra-pill {
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.torre-card-corpo .mx-simulacao {
+  box-shadow: inset 0 0 0 1.5px var(--change);
+}
+/* Grupo de tarefa focado é seleção, não divergência: anel neutro (S6). */
+.torre-card-corpo .tarefas-grupo-focado {
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+}
+
+/* Scrollbar interna só aparece com o card sob o cursor (S10): em repouso o
+   conteúdo corre limpo, sem trilho permanente roubando largura. */
+.torre-card-corpo::-webkit-scrollbar { width: 0; height: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .torre-card-corpo:hover { scrollbar-width: thin; }
+  .torre-card-corpo:hover::-webkit-scrollbar { width: 10px; }
+  .torre-card-corpo:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text) 20%, transparent);
+    border: 3px solid transparent;
+    border-radius: var(--r-pill);
+    background-clip: padding-box;
+  }
 }

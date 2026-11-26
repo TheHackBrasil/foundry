@@ -63,13 +63,13 @@
 }
 
 .ev2-prova-rotulo {
-  font-size: 0.78125rem;
-  font-weight: 650;
+  font-size: var(--fs-meta);
+  font-weight: 700;
   color: var(--text2);
 }
 
 .ev2-prova-detalhe {
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   line-height: 1.45;
   color: var(--text);
   overflow-wrap: break-word;
@@ -82,13 +82,13 @@
   justify-content: center;
   gap: 0.375rem;
   width: fit-content;
-  min-height: 2rem;
+  min-height: var(--ctl-sm);
   padding: 0 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--ia-r-pill);
   background: var(--bg);
   color: var(--text);
-  font-size: 0.78125rem;
+  font-size: var(--fs-meta);
   font-weight: 600;
   cursor: pointer;
   transition: background-color 160ms ease, border-color 160ms ease;
@@ -101,8 +101,8 @@
 }
 
 .ev2-btn-detalhar {
-  color: var(--change);
-  border-color: color-mix(in srgb, var(--change) 42%, var(--border));
+  color: var(--text);
+  border-color: var(--border-strong);
 }
 
 /* Estados honestos da leitura: progresso, vazio e erro. */
@@ -110,12 +110,12 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   color: var(--text2);
 }
 
 .ev2-vazio {
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   line-height: 1.5;
   color: var(--text2);
 }
@@ -130,7 +130,7 @@
 }
 
 .ev2-erro-msg {
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   line-height: 1.45;
   color: var(--error);
 }
@@ -157,8 +157,8 @@
 }
 
 .ev2-sinal-item[data-foco-ativo='true'] {
-  background: var(--change-bg);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--change) 38%, transparent);
+  background: var(--tint-soft);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
 .ev2-sinal {
@@ -180,18 +180,18 @@
 }
 
 .ev2-sinal-tipo {
-  font-size: 0.84375rem;
-  font-weight: 650;
+  font-size: var(--fs-ui);
+  font-weight: 700;
   color: var(--text);
 }
 
 .ev2-sinal-meta {
-  font-size: 0.78125rem;
+  font-size: var(--fs-meta);
   color: var(--text2);
 }
 
 .ev2-sinal-resumo {
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   line-height: 1.45;
   color: var(--text2);
 }
@@ -199,7 +199,7 @@
 @media (hover: hover) {
   .ia-mini-campo.ev2-alvo:hover,
   .estado.ev2-alvo:hover {
-    color: var(--change);
+    color: var(--text);
   }
 
   .ev2-btn:hover {
@@ -212,7 +212,7 @@
   }
 
   .ev2-sinal-item[data-foco-ativo='true']:hover {
-    background: var(--change-bg);
+    background: var(--tint-hover);
   }
 }
 

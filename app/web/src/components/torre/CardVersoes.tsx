@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { ProjecaoPedido } from '../../../../shared/model.ts';
 import { formatarMomento, rotuloFonte } from '../../format.ts';
 
@@ -6,7 +7,7 @@ interface CardVersoesProps {
 }
 
 // Histórico de documentos recebidos (veio do PainelPedido).
-export function CardVersoes({ versoes }: CardVersoesProps) {
+export const CardVersoes = memo(function CardVersoes({ versoes }: CardVersoesProps) {
   if (versoes.length === 0) {
     return <p className="meta">Nenhuma versão de documento registrada.</p>;
   }
@@ -35,4 +36,4 @@ export function CardVersoes({ versoes }: CardVersoesProps) {
       </ul>
     </details>
   );
-}
+});

@@ -114,6 +114,26 @@ export function formatarConfianca(valor: number): string {
   return `${pct}%`;
 }
 
+// Formatadores Intl custam ~microssegundos por instancia; criados por celula
+// viravam custo de render. Uma instancia por opcao, reutilizada para sempre.
+const FMT_NUMERO = new Intl.NumberFormat('pt-BR');
+const FMT_NUMERO_2CASAS = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
+const FMT_MOMENTO = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const FMT_MOMENTO_COMPLETO = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+export const numeroPtBR = (n: number): string => FMT_NUMERO.format(n);
+
 export function formatarDuracao(segundos: number): string {
   const seguro = Number.isFinite(segundos) ? Math.max(0, Math.floor(segundos)) : 0;
   const min = Math.floor(seguro / 60);
@@ -133,7 +153,7 @@ export function formatarValor(campo: CampoVigiado, valor: unknown): string {
     case 'previsaoEntrega':
       return formatarData(String(valor));
     case 'pesoTotal':
-      return `${Number(valor).toLocaleString('pt-BR')} kg`;
+      return `${numeroPtBR(Number(valor))} kg`;
     case 'status':
       return ROTULO_STATUS.get(String(valor)) ?? textoCru(valor);
     default:
@@ -145,18 +165,24 @@ export const chaveCurta = (id: string): string =>
   id.length > 14 ? `${id.slice(0, 4)}…${id.slice(-6)}` : id;
 
 // O Postgres devolve "2026-11-21 01:29:59.1+00"; o Date pede "T" e o fuso com minutos.
-export function formatarMomento(texto: string): string {
+function parseMomento(texto: string): Date | null {
   const iso = (texto.includes('T') ? texto : texto.replace(' ', 'T')).replace(/([+-]\d{2})$/, '$1:00');
   const data = new Date(iso);
-  if (Number.isNaN(data.getTime())) return texto;
-  return data
-    .toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-    .replace(/,\s*/, ' ');
+  return Number.isNaN(data.getTime()) ? null : data;
+}
+
+export function formatarMomento(texto: string): string {
+  const data = parseMomento(texto);
+  if (!data) return texto;
+  return FMT_MOMENTO.format(data).replace(/,\s*/, ' ');
+}
+
+// Variante com ano para title/tooltip: a celula da matriz mostra "25/11 16:44"
+// em uma linha e o completo fica a um hover de distancia (F8 da spec 0015).
+export function formatarMomentoCompleto(texto: string): string {
+  const data = parseMomento(texto);
+  if (!data) return texto;
+  return FMT_MOMENTO_COMPLETO.format(data).replace(/,\s*/, ' ');
 }
 
 // "3126 1112 ..." em grupos de quatro, como a chave de acesso no documento fiscal.
@@ -180,7 +206,7 @@ export function variacao(campo: CampoVigiado, valor: unknown, referencia: unknow
   if (campo === 'pesoTotal' || campo === 'volumes') {
     const dif = Number(valor) - Number(referencia);
     if (!Number.isFinite(dif) || dif === 0) return null;
-    const num = Math.abs(dif).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    const num = FMT_NUMERO_2CASAS.format(Math.abs(dif));
     return `${sinal(dif)}${num}${campo === 'pesoTotal' ? ' kg' : ''}`;
   }
   return null;

@@ -3,12 +3,12 @@
 // (propostas de mapeamento da fila de revisao). Mantem o contrato do antigo
 // PedidoLista: href por rota, aria-current no selecionado, retry no erro e
 // aoSelecionarMobile em todo item navegavel.
-import { useEffect, useId, useMemo, useState } from 'react';
-import type { Contato, ItemRevisao, VersaoPedido } from '../../../../shared/model.ts';
-import { obterPedido, type PedidoResumo } from '../../api.ts';
-import { listarContatos, listarRevisao } from '../../apiOps.ts';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { Contato, ItemRevisao } from '../../../../shared/model.ts';
+import type { PedidoResumo } from '../../api.ts';
 import { IconeChevron, IconeLupa } from '../icones.tsx';
 import type { Carga, RotaTorre } from '../../useTorre.ts';
+import { buscarContatos, buscarRevisao, buscarVersoesPedido } from './rede.ts';
 import '../../menuwiki.css';
 import {
   CHAVE_COLAPSO,
@@ -41,8 +41,8 @@ export interface MenuWikiProps {
 }
 
 const LISTA_VAZIA: readonly PedidoResumo[] = [];
-// A projecao de cada pedido e buscada uma vez por ciclo de lista; o teto
-// protege workspaces grandes de uma rajada de GETs por render.
+// A projecao de cada pedido e buscada sob demanda (secao aberta e visivel);
+// o teto protege workspaces grandes de uma rajada de GETs por render.
 const MAX_PEDIDOS_DOC = 8;
 const MAX_ITENS_DOC = 20;
 
@@ -91,17 +91,18 @@ export function MenuWiki({
   }, [abertas]);
 
   // Agenda e fila mudam por ingest e por decisao na revisao: a rebusta segue
-  // o mesmo ciclo da lista de pedidos (SSE ja a atualiza).
+  // o mesmo ciclo da lista de pedidos (SSE ja a atualiza). Os GETs passam pelo
+  // dedupe de rede.ts: quem chega junto divide a mesma promise em voo.
   useEffect(() => {
     let vivo = true;
-    listarContatos()
+    buscarContatos()
       .then((dados) => {
         if (vivo) setContatos({ estado: 'ok', dados });
       })
       .catch((e) => {
         if (vivo) setContatos({ estado: 'erro', mensagem: mensagemDe(e) });
       });
-    listarRevisao()
+    buscarRevisao()
       .then((r) => {
         if (vivo) setRevisao({ estado: 'ok', dados: Array.isArray(r.itens) ? r.itens : [] });
       })
@@ -112,33 +113,6 @@ export function MenuWiki({
       vivo = false;
     };
   }, [listaCompleta]);
-
-  // Documentos: uma versao na projecao = um documento recebido (RF18). Pedido
-  // que falha contribui zero documentos, nao derruba a secao.
-  useEffect(() => {
-    let vivo = true;
-    if (listaCompleta.length === 0) {
-      setDocs({ estado: 'ok', dados: [] });
-      return;
-    }
-    const alvos = listaCompleta.slice(0, MAX_PEDIDOS_DOC);
-    Promise.all(
-      alvos.map((p) =>
-        obterPedido(p.pedidoId)
-          .then((proj) => ({ pedido: p, versoes: proj.versoes }))
-          .catch((): { pedido: PedidoResumo; versoes: VersaoPedido[] } => ({ pedido: p, versoes: [] })),
-      ),
-    )
-      .then((entradas) => {
-        if (vivo) setDocs({ estado: 'ok', dados: itensDocumentos(entradas, rota, MAX_ITENS_DOC) });
-      })
-      .catch((e) => {
-        if (vivo) setDocs({ estado: 'erro', mensagem: mensagemDe(e) });
-      });
-    return () => {
-      vivo = false;
-    };
-  }, [listaCompleta, rota]);
 
   const secoesBase = useMemo<SecaoWiki[]>(
     () => [
@@ -183,6 +157,63 @@ export function MenuWiki({
     }
     return visiveis;
   }, [secoesBase, consulta, consultaAtiva, contatos, docs, revisao, pedidos.estado]);
+
+  const abertaDocumentos = consultaAtiva || abertas.documentos;
+  const secaoDocumentosRef = useRef<HTMLDivElement | null>(null);
+  const [documentosVisiveis, setDocumentosVisiveis] = useState(false);
+
+  // Documentos carrega tarde: a secao so busca versoes quando aberta e dentro
+  // da viewport (ou imediatamente se o navegador nao tem IntersectionObserver).
+  useEffect(() => {
+    const el = secaoDocumentosRef.current;
+    if (!abertaDocumentos || !el) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setDocumentosVisiveis(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entradas) => {
+        const entrada = entradas[0];
+        if (!entrada) return;
+        if (entrada.isIntersecting) {
+          setDocumentosVisiveis(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '120px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [abertaDocumentos, listaCompleta.length]);
+
+  // Documentos: uma versao na projecao = um documento recebido (RF18). Pedido
+  // que falha contribui zero documentos, nao derruba a secao. Cache por
+  // revisao (rede.ts): pedido sem evento novo nao refaz GET.
+  useEffect(() => {
+    let vivo = true;
+    if (!documentosVisiveis) return;
+    if (listaCompleta.length === 0) {
+      setDocs({ estado: 'ok', dados: [] });
+      return;
+    }
+    const alvos = listaCompleta.slice(0, MAX_PEDIDOS_DOC);
+    Promise.all(
+      alvos.map((p) =>
+        buscarVersoesPedido(p)
+          .then((proj) => ({ pedido: p, versoes: proj.versoes }))
+          .catch(() => ({ pedido: p, versoes: [] as const })),
+      ),
+    )
+      .then((entradas) => {
+        if (vivo) setDocs({ estado: 'ok', dados: itensDocumentos(entradas, rota, MAX_ITENS_DOC) });
+      })
+      .catch((e) => {
+        if (vivo) setDocs({ estado: 'erro', mensagem: mensagemDe(e) });
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [listaCompleta, rota, documentosVisiveis]);
 
   const alternar = (id: SecaoId) =>
     setAbertas((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -287,7 +318,12 @@ export function MenuWiki({
                 </button>
               </h3>
 
-              <div id={contentId} className="mw-conteudo" hidden={!aberta}>
+              <div
+                id={contentId}
+                className="mw-conteudo"
+                hidden={!aberta}
+                ref={sec.id === 'documentos' ? secaoDocumentosRef : undefined}
+              >
                 {sec.id === 'pedidos' && carga.estado === 'carregando' && (
                   <p className="mw-vazio">Carregando pedidos…</p>
                 )}

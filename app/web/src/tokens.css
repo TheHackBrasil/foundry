@@ -32,7 +32,19 @@
   --font-title: 'Manrope Variable', 'Manrope', system-ui, sans-serif;
   --font-ui: 'Manrope Variable', 'Manrope', system-ui, sans-serif;
   --font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
-  --radius: 2px;
+
+  /* Escala tipográfica travada (spec 0015, S1): 6 degraus, zero meio-pixel.
+     Secundário nunca abaixo de 12px efetivos. Pesos: 400, 600 e 700. */
+  --fs-micro: 0.75rem;   /* 12px: rótulos caps, metadados mínimos */
+  --fs-meta: 0.8125rem;  /* 13px: texto secundário e controles compactos */
+  --fs-ui: 0.9375rem;    /* 15px: corpo e controles de ação */
+  --fs-card-t: 1.125rem; /* 18px: título único de card e valor de célula */
+  --fs-display: 1.5rem;  /* 24px: valor de KPI, título de modal/seção */
+  --fs-h1: 2.25rem;      /* 36px: título do pedido */
+
+  /* Alturas de controle travadas (S2): compacto 28px, ação 36px. */
+  --ctl-sm: 1.75rem;
+  --ctl-md: 2.25rem;
   color-scheme: light;
 }
 

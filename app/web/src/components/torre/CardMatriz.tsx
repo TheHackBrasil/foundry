@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { AlvoFocoGenUI, FonteDocumento } from '../../../../shared/model.ts';
 import { formatarValor, rotuloCampo, rotuloFonte, variacao } from '../../format.ts';
 import type { LinhaMatriz, Matriz } from '../../matriz.ts';
@@ -68,7 +69,7 @@ function Resumo({ linhas }: { linhas: readonly LinhaMatriz[] }) {
   );
 }
 
-export function CardMatriz({
+export const CardMatriz = memo(function CardMatriz({
   matriz,
   trilhos,
   aoAlternarTrilho,
@@ -103,4 +104,4 @@ export function CardMatriz({
       {matriz.fontes.length > 0 && <Resumo linhas={matriz.linhas} />}
     </>
   );
-}
+});

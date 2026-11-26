@@ -1,4 +1,5 @@
 import {
+  memo,
   useEffect,
   useId,
   useLayoutEffect,
@@ -6,6 +7,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
 } from 'react';
 import {
   CAMPOS_VIGIADOS,
@@ -113,7 +115,13 @@ function comparacaoConcreta(d: Divergencia): string {
   return `${a} → ${b}`;
 }
 
-export function GrafoDomino({
+function mesmoMapaY(a: Record<string, number>, b: Record<string, number>): boolean {
+  const chaves = Object.keys(a);
+  if (chaves.length !== Object.keys(b).length) return false;
+  return chaves.every((k) => a[k] === b[k]);
+}
+
+export const GrafoDomino = memo(function GrafoDomino({
   divergencias,
   tarefas,
   modo = 'atual',
@@ -138,6 +146,10 @@ export function GrafoDomino({
   // Foco de teclado revela as arestas do nó sem exigir clique (THE-15).
   const [focoCampo, setFocoCampo] = useState<CampoVigiado | null>(null);
   const [focoParte, setFocoParte] = useState<Parte | null>(null);
+  // Roving tabindex por coluna (spec 0015, F7): um ponto de Tab por coluna
+  // do mapa; setas verticais percorrem a coluna, horizontais cruzam as duas.
+  const [posEsq, setPosEsq] = useState(0);
+  const [posDir, setPosDir] = useState(0);
   const [visivel, setVisivel] = useState(true);
   const [revelado, setRevelado] = useState(() => typeof IntersectionObserver === 'undefined');
 
@@ -306,7 +318,7 @@ export function GrafoDomino({
         const btn = esqRefs.current.get(no.campo);
         if (!btn) continue;
         const r = btn.getBoundingClientRect();
-        esquerdaY[no.campo] = r.top + r.height / 2 - rCentro.top;
+        esquerdaY[no.campo] = Math.round(r.top + r.height / 2 - rCentro.top);
       }
 
       const direitaY: Record<string, number> = {};
@@ -314,15 +326,21 @@ export function GrafoDomino({
         const btn = dirRefs.current.get(setor.parte);
         if (!btn) continue;
         const r = btn.getBoundingClientRect();
-        direitaY[setor.parte] = r.top + r.height / 2 - rCentro.top;
+        direitaY[setor.parte] = Math.round(r.top + r.height / 2 - rCentro.top);
       }
 
-      setGeom({
-        largura: Math.round(rCentro.width),
-        altura: Math.round(rCentro.height),
-        esquerdaY,
-        direitaY,
-      });
+      const largura = Math.round(rCentro.width);
+      const altura = Math.round(rCentro.height);
+      // Bail-out por igualdade (spec 0015, F4): o ResizeObserver dispara em
+      // qualquer reflow, mas geometria igual mantém o objeto e não re-renderiza.
+      setGeom((prev) =>
+        prev.largura === largura &&
+        prev.altura === altura &&
+        mesmoMapaY(prev.esquerdaY, esquerdaY) &&
+        mesmoMapaY(prev.direitaY, direitaY)
+          ? prev
+          : { largura, altura, esquerdaY, direitaY },
+      );
     };
 
     medir();
@@ -334,6 +352,35 @@ export function GrafoDomino({
     for (const btn of dirRefs.current.values()) ro.observe(btn);
     return () => ro.disconnect();
   }, [assinaturaNos, nosDivergencia, setoresAtivos]);
+
+  const posEfEsq = Math.min(posEsq, Math.max(0, nosDivergencia.length - 1));
+  const posEfDir = Math.min(posDir, Math.max(0, setoresAtivos.length - 1));
+
+  function teclarNo(e: KeyboardEvent<HTMLButtonElement>, coluna: 'esq' | 'dir', i: number) {
+    const total = (coluna === 'esq' ? nosDivergencia : setoresAtivos).length;
+    if (total === 0) return;
+    let destino: { coluna: 'esq' | 'dir'; i: number } | null = null;
+    if (e.key === 'ArrowDown') destino = { coluna, i: (i + 1) % total };
+    else if (e.key === 'ArrowUp') destino = { coluna, i: (i - 1 + total) % total };
+    else if (e.key === 'Home') destino = { coluna, i: 0 };
+    else if (e.key === 'End') destino = { coluna, i: total - 1 };
+    else if (e.key === 'ArrowRight' && coluna === 'esq' && setoresAtivos.length > 0) {
+      destino = { coluna: 'dir', i: posEfDir };
+    } else if (e.key === 'ArrowLeft' && coluna === 'dir' && nosDivergencia.length > 0) {
+      destino = { coluna: 'esq', i: posEfEsq };
+    }
+    if (!destino) return;
+    e.preventDefault();
+    if (destino.coluna === 'esq') {
+      setPosEsq(destino.i);
+      const no = nosDivergencia[destino.i];
+      if (no) esqRefs.current.get(no.campo)?.focus();
+    } else {
+      setPosDir(destino.i);
+      const s = setoresAtivos[destino.i];
+      if (s) dirRefs.current.get(s.parte)?.focus();
+    }
+  }
 
   function alternarDivergencia(no: NoDivergencia) {
     const proximo = isolamentoEfetivo === no.campo ? null : no.campo;
@@ -522,9 +569,14 @@ export function GrafoDomino({
                 aria-label={textoAria}
                 data-ativo={destacado ? 'true' : undefined}
                 data-esmaecido={esmaecido ? 'true' : undefined}
+                tabIndex={noIdx === posEfEsq ? 0 : -1}
+                onKeyDown={(e) => teclarNo(e, 'esq', noIdx)}
                 onMouseEnter={() => setHoverCampo(no.campo)}
                 onMouseLeave={() => setHoverCampo((atual) => (atual === no.campo ? null : atual))}
-                onFocus={() => setFocoCampo(no.campo)}
+                onFocus={() => {
+                  setPosEsq(noIdx);
+                  setFocoCampo(no.campo);
+                }}
                 onBlur={() => setFocoCampo((atual) => (atual === no.campo ? null : atual))}
                 onClick={() => alternarDivergencia(no)}
               >
@@ -692,11 +744,16 @@ export function GrafoDomino({
                 aria-label={`${rotuloParte(setor.parte)}: ${setor.totalAcoes} ${setor.totalAcoes === 1 ? 'ação' : 'ações'}${setor.primeiraAcao ? `. Prioridade: ${setor.primeiraAcao}` : ''}`}
                 data-ativo={destacado ? 'true' : undefined}
                 data-esmaecido={esmaecido ? 'true' : undefined}
+                tabIndex={setorIdx === posEfDir ? 0 : -1}
+                onKeyDown={(e) => teclarNo(e, 'dir', setorIdx)}
                 onMouseEnter={() => setHoverParte(setor.parte)}
                 onMouseLeave={() =>
                   setHoverParte((atual) => (atual === setor.parte ? null : atual))
                 }
-                onFocus={() => setFocoParte(setor.parte)}
+                onFocus={() => {
+                  setPosDir(setorIdx);
+                  setFocoParte(setor.parte);
+                }}
                 onBlur={() => setFocoParte((atual) => (atual === setor.parte ? null : atual))}
                 onClick={() => clicarSetor(setor.parte)}
               >
@@ -727,4 +784,4 @@ export function GrafoDomino({
       </div>
     </section>
   );
-}
+});

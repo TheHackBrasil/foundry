@@ -20,6 +20,7 @@ import {
   type Parte,
   type ProjecaoPedido,
   type RespostaAuditoria,
+  type RespostaSimulacao,
   type ViewSpecV2,
 } from '../../../shared/model.ts';
 import { aplicarHipoteseComoPlanilha, obterViewSpecV2 } from '../apiOps.ts';
@@ -100,6 +101,7 @@ interface Props {
 
 const ORDEM_ABAS: readonly FiltroParte[] = [FILTRO_TODAS, ...PARTES];
 const NOVO_REGISTRO_MS = 8000;
+const CENTRO_DOMINO: readonly [number, number] = [0.5, 0.5];
 
 function formatarManifestoItens(dados: ProjecaoPedido): string | null {
   const itens = dados.pedido?.itens ?? [];
@@ -205,6 +207,7 @@ function Conteudo({
   aoAnunciar,
   aoSelecionar,
 }: Omit<Props, 'projecao'> & { dados: ProjecaoPedido }) {
+  // INSTRUMENTACAO TEMPORARIA (remover antes do merge)
   const visaoId = useId();
   const matriz = useMemo(
     () => montarMatriz(dados.versoes, dados.divergencias),
@@ -220,8 +223,15 @@ function Conteudo({
   const [fontesExpandidas, setFontesExpandidas] = useState<ReadonlySet<FonteDocumento>>(new Set());
   const [focoAtivo, setFocoAtivo] = useState<AlvoFocoGenUI | null>(focoInicial ?? null);
   const [modoSimulacao, setModoSimulacao] = useState(false);
-  const [pulsoDomino, setPulsoDomino] = useState(0);
-  const [origemDomino, setOrigemDomino] = useState<readonly [number, number]>([0.5, 0.5]);
+  // Pulso do domino derivado (spec 0015, F3): o seq de eventos SSE soma na
+  // chave direto do prop, sem copia em state; pulsos locais (foco, hipotese,
+  // mandato) guardam n, a origem do clique e o seq de evento daquele momento
+  // para decidir quem dispara por ultimo sem effect.
+  const [pulsoLocal, setPulsoLocal] = useState<{
+    n: number;
+    origem: readonly [number, number];
+    eventoSeq: number;
+  }>({ n: 0, origem: CENTRO_DOMINO, eventoSeq: 0 });
   const [pulsoRefracao, setPulsoRefracao] = useState(0);
   const [chaveCopiada, setChaveCopiada] = useState(false);
   const [fadeEsq, setFadeEsq] = useState(false);
@@ -231,26 +241,40 @@ function Conteudo({
   const lenteSeq = useRef(0);
   const lenteAbort = useRef<AbortController | null>(null);
   const ultimoTotalRef = useRef(dados.totalEventos);
-  const ultimoPulsoEventoRef = useRef(pulsoEventoSeq);
+  const pulsoEventoRef = useRef(pulsoEventoSeq);
+  // Roving tabindex na faixa de KPIs (spec 0015, F7): um ponto de Tab para
+  // a faixa inteira; setas percorrem os cartoes de divergencia e o de tarefas.
+  const [posKpi, setPosKpi] = useState(0);
+  const kpiRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const copiaTimerRef = useRef<number | null>(null);
   const montouLenteRef = useRef(false);
   const ultimaLenteAnunciadaRef = useRef<string | null>(null);
 
+  const dispararPulsoDomino = useCallback((origem?: readonly [number, number]) => {
+    setPulsoLocal((prev) => ({
+      n: prev.n + 1,
+      origem: origem ?? prev.origem,
+      eventoSeq: pulsoEventoRef.current,
+    }));
+  }, []);
+
   useEffect(() => {
     if (!focoInicial) return;
     setFocoAtivo(focoInicial);
-    setOrigemDomino([0.5, 0.5]);
-    setPulsoDomino((n) => n + 1);
+    dispararPulsoDomino(CENTRO_DOMINO);
     aoConsumirFocoInicial?.();
-  }, [focoInicial, aoConsumirFocoInicial]);
+  }, [focoInicial, aoConsumirFocoInicial, dispararPulsoDomino]);
 
+  // O ref acompanha o prop sem render extra: o pulso de evento entra na
+  // chave derivada abaixo, nao em estado espelhado.
   useEffect(() => {
-    if (pulsoEventoSeq > ultimoPulsoEventoRef.current) {
-      ultimoPulsoEventoRef.current = pulsoEventoSeq;
-      setOrigemDomino([0.5, 0.5]);
-      setPulsoDomino((n) => n + 1);
-    }
+    pulsoEventoRef.current = pulsoEventoSeq;
   }, [pulsoEventoSeq]);
+
+  // Chave e origem derivadas no render: evento pulsa do centro; se o ultimo
+  // pulso foi local (seq de evento nao andou desde entao), vale a origem dele.
+  const pulsoDomino = pulsoLocal.n + pulsoEventoSeq;
+  const origemDomino = pulsoEventoSeq > pulsoLocal.eventoSeq ? CENTRO_DOMINO : pulsoLocal.origem;
 
   const totalTarefasAgrupadas = useMemo(
     () => agruparTarefas(dados.tarefas).length,
@@ -588,11 +612,10 @@ function Conteudo({
     (alvo: AlvoFocoGenUI | null, origem?: readonly [number, number]) => {
       setFocoAtivo(alvo);
       if (alvo) {
-        setOrigemDomino(origem ?? [0.5, 0.5]);
-        setPulsoDomino((n) => n + 1);
+        dispararPulsoDomino(origem ?? CENTRO_DOMINO);
       }
     },
-    [],
+    [dispararPulsoDomino],
   );
 
   async function copiarChave() {
@@ -606,22 +629,36 @@ function Conteudo({
     }, 1800);
   }
 
-  async function aplicarHipotesePapel(hipotese: CamposObservados) {
-    let alvo = id;
-    if (!daSessao) {
-      const novoId = await aoGarantirSessao(id);
-      if (!novoId) {
-        throw new Error('Não foi possível preparar a sessão isolada para gravar a atualização.');
+  const aplicarHipotesePapel = useCallback(
+    async (hipotese: CamposObservados) => {
+      let alvo = id;
+      if (!daSessao) {
+        const novoId = await aoGarantirSessao(id);
+        if (!novoId) {
+          throw new Error('Não foi possível preparar a sessão isolada para gravar a atualização.');
+        }
+        alvo = novoId;
       }
-      alvo = novoId;
-    }
-    const r = await aplicarHipoteseComoPlanilha(alvo, hipotese);
-    setPulsoDomino((n) => n + 1);
-    if (r.pedidoId) aoSelecionar(r.pedidoId);
-    await aoRecarregarPedido();
-    setModoSimulacao(false);
-    aoAnunciar('Atualização aplicada como planilha na sua sessão.');
-  }
+      const r = await aplicarHipoteseComoPlanilha(alvo, hipotese);
+      dispararPulsoDomino();
+      if (r.pedidoId) aoSelecionar(r.pedidoId);
+      await aoRecarregarPedido();
+      setModoSimulacao(false);
+      aoAnunciar('Atualização aplicada como planilha na sua sessão.');
+    },
+    [id, daSessao, aoGarantirSessao, aoSelecionar, aoRecarregarPedido, aoAnunciar, dispararPulsoDomino],
+  );
+
+  const aoResultadoSimulacao = useCallback(
+    (res: { hipotese: CamposObservados; resultado: RespostaSimulacao } | null) => {
+      setModoSimulacao(res !== null);
+    },
+    [],
+  );
+
+  const aoPulsoDominoCentral = useCallback(() => {
+    dispararPulsoDomino(CENTRO_DOMINO);
+  }, [dispararPulsoDomino]);
 
   const manifesto = useMemo(() => formatarManifestoItens(dados), [dados]);
   const kpisDivergencia = useMemo(
@@ -644,6 +681,22 @@ function Conteudo({
     if (!focoAtivo && filtro !== FILTRO_TODAS) return [filtro];
     return undefined;
   }, [focoAtivo, filtro]);
+
+  // kpisDivergencia.length cartoes de campo + 1 cartao de tarefas no fim.
+  const posEfKpi = Math.min(posKpi, kpisDivergencia.length);
+
+  function teclarKpi(e: KeyboardEvent<HTMLButtonElement>, i: number) {
+    const total = kpisDivergencia.length + 1;
+    let prox = -1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') prox = (i + 1) % total;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prox = (i - 1 + total) % total;
+    else if (e.key === 'Home') prox = 0;
+    else if (e.key === 'End') prox = total - 1;
+    if (prox < 0) return;
+    e.preventDefault();
+    setPosKpi(prox);
+    kpiRefs.current[prox]?.focus();
+  }
 
   function alternarKpiCampo(kpi: KpiDivergencia) {
     const jaAtivo =
@@ -749,93 +802,28 @@ function Conteudo({
     return ultima?.valor ? formatarValor('status', ultima.valor) : 'Emitida';
   }, [matriz.linhas]);
 
-  // Cada seção vira um card do tiling (THE-18): conteúdo montado aqui, ordem e
-  // visibilidade decididas pelo TorreGrid com o layout persistido do pedido.
-  const cardsTorre = useMemo<Partial<Record<CardId, ReactNode>>>(
-    () => ({
-      matriz: (
-        <CardMatriz
-          matriz={matrizExibida}
-          trilhos={trilhosDobraveis}
-          aoAlternarTrilho={alternarTrilhoFonte}
-          destacar={resultadoLente.destacarDivergencias}
-          carregandoLente={carregandoLente}
-          assinaturaLente={assinaturaLente}
-          direcaoLente={direcaoLente}
-          pulsoDomino={pulsoDomino}
-          origemDomino={origemDomino}
-          pulsoRefracao={pulsoRefracao}
-          modoSimulacao={modoSimulacao}
-          focoAtivo={focoAtivo}
-          aoFocar={lidarFoco}
-        />
-      ),
-      tarefas: (
-        <CardTarefas
-          tarefas={dados.tarefas}
-          contatos={contatos}
-          filtro={filtro}
-          novas={novas}
-          direcao={direcaoLente}
-          painelId={`${visaoId}-painel`}
-          rotuloAbaId={`${visaoId}-${filtro}`}
-          focoAtivo={focoAtivo}
-          aoFocar={lidarFoco}
-          aoNotificar={aoNotificar}
-          aoAbrirAgenda={aoAbrirAgenda}
-        />
-      ),
-      domino: (
-        <CardDomino
-          divergencias={dados.divergencias}
-          tarefas={dados.tarefas}
-          modoSimulacao={modoSimulacao}
-          camposFoco={camposFocoDomino}
-          partesFoco={partesFocoDomino}
-          aoFocar={lidarFoco}
-          aoSelecionarPapel={trocarPerspectiva}
-        />
-      ),
-      sinais: (
-        <CardSinais
-          sinais={dados.sinais}
-          notificacoes={dados.notificacoes}
-          sinaisNovos={sinaisNovos}
-          avisosNovos={avisosNovos}
-        />
-      ),
-      cadeia: (
-        <CardCadeia
-          auditoria={auditoria}
-          pulsoExterno={pulsoEventoSeq}
-          aoVerificar={aoVerificar}
-          aoAbrirAuditoria={aoAbrirAuditoria}
-          aoAncorar={aoAncorar}
-          aoAnunciar={aoAnunciar}
-        />
-      ),
-      simulador: (
-        <CardSimulador
-          pedidoId={id}
-          versoes={dados.versoes}
-          daSessao={daSessao}
-          aoResultadoSimulacao={(res) => setModoSimulacao(res !== null)}
-          aoAplicarNaSessao={aplicarHipotesePapel}
-          aoAnunciar={aoAnunciar}
-        />
-      ),
-      versoes: <CardVersoes versoes={dados.versoes} />,
-    }),
+  // Cada seção vira um card do tiling (THE-18). Um useMemo por card (spec
+  // 0015, F1): o elemento só é recriado quando o próprio dado muda, então um
+  // pulso de evento ou troca de foco não redesenha os outros seis cards.
+  const cardMatriz = useMemo<ReactNode>(
+    () => (
+      <CardMatriz
+        matriz={matrizExibida}
+        trilhos={trilhosDobraveis}
+        aoAlternarTrilho={alternarTrilhoFonte}
+        destacar={resultadoLente.destacarDivergencias}
+        carregandoLente={carregandoLente}
+        assinaturaLente={assinaturaLente}
+        direcaoLente={direcaoLente}
+        pulsoDomino={pulsoDomino}
+        origemDomino={origemDomino}
+        pulsoRefracao={pulsoRefracao}
+        modoSimulacao={modoSimulacao}
+        focoAtivo={focoAtivo}
+        aoFocar={lidarFoco}
+      />
+    ),
     [
-      id,
-      daSessao,
-      dados,
-      auditoria,
-      contatos,
-      novas,
-      pulsoEventoSeq,
-      filtro,
-      visaoId,
       matrizExibida,
       trilhosDobraveis,
       alternarTrilhoFonte,
@@ -849,17 +837,135 @@ function Conteudo({
       modoSimulacao,
       focoAtivo,
       lidarFoco,
-      trocarPerspectiva,
+    ],
+  );
+
+  const cardTarefas = useMemo<ReactNode>(
+    () => (
+      <CardTarefas
+        tarefas={dados.tarefas}
+        contatos={contatos}
+        filtro={filtro}
+        novas={novas}
+        direcao={direcaoLente}
+        painelId={`${visaoId}-painel`}
+        rotuloAbaId={`${visaoId}-${filtro}`}
+        focoAtivo={focoAtivo}
+        aoFocar={lidarFoco}
+        aoNotificar={aoNotificar}
+        aoAbrirAgenda={aoAbrirAgenda}
+      />
+    ),
+    [
+      dados.tarefas,
+      contatos,
+      filtro,
+      novas,
+      direcaoLente,
+      visaoId,
+      focoAtivo,
+      lidarFoco,
       aoNotificar,
       aoAbrirAgenda,
-      aoVerificar,
-      aoAbrirAuditoria,
-      aoAncorar,
-      aoAnunciar,
-      sinaisNovos,
-      avisosNovos,
-      aplicarHipotesePapel,
     ],
+  );
+
+  const cardDomino = useMemo<ReactNode>(
+    () => (
+      <CardDomino
+        divergencias={dados.divergencias}
+        tarefas={dados.tarefas}
+        modoSimulacao={modoSimulacao}
+        camposFoco={camposFocoDomino}
+        partesFoco={partesFocoDomino}
+        aoFocar={lidarFoco}
+        aoSelecionarPapel={trocarPerspectiva}
+      />
+    ),
+    [
+      dados.divergencias,
+      dados.tarefas,
+      modoSimulacao,
+      camposFocoDomino,
+      partesFocoDomino,
+      lidarFoco,
+      trocarPerspectiva,
+    ],
+  );
+
+  const cardSinais = useMemo<ReactNode>(
+    () => (
+      <CardSinais
+        sinais={dados.sinais}
+        notificacoes={dados.notificacoes}
+        sinaisNovos={sinaisNovos}
+        avisosNovos={avisosNovos}
+      />
+    ),
+    [dados.sinais, dados.notificacoes, sinaisNovos, avisosNovos],
+  );
+
+  const cardCadeia = useMemo<ReactNode>(
+    () => (
+      <CardCadeia
+        auditoria={auditoria}
+        pulsoExterno={pulsoEventoSeq}
+        aoVerificar={aoVerificar}
+        aoAbrirAuditoria={aoAbrirAuditoria}
+        aoAncorar={aoAncorar}
+        aoAnunciar={aoAnunciar}
+      />
+    ),
+    [auditoria, pulsoEventoSeq, aoVerificar, aoAbrirAuditoria, aoAncorar, aoAnunciar],
+  );
+
+  const cardSimulador = useMemo<ReactNode>(
+    () => (
+      <CardSimulador
+        pedidoId={id}
+        versoes={dados.versoes}
+        daSessao={daSessao}
+        aoResultadoSimulacao={aoResultadoSimulacao}
+        aoAplicarNaSessao={aplicarHipotesePapel}
+        aoAnunciar={aoAnunciar}
+      />
+    ),
+    [id, dados.versoes, daSessao, aoResultadoSimulacao, aplicarHipotesePapel, aoAnunciar],
+  );
+
+  const cardVersoes = useMemo<ReactNode>(
+    () => <CardVersoes versoes={dados.versoes} />,
+    [dados.versoes],
+  );
+
+  const cardsTorre = useMemo<Partial<Record<CardId, ReactNode>>>(
+    () => ({
+      matriz: cardMatriz,
+      tarefas: cardTarefas,
+      domino: cardDomino,
+      sinais: cardSinais,
+      cadeia: cardCadeia,
+      simulador: cardSimulador,
+      versoes: cardVersoes,
+    }),
+    [cardMatriz, cardTarefas, cardDomino, cardSinais, cardCadeia, cardSimulador, cardVersoes],
+  );
+
+  const titulosCard = useMemo<Partial<Record<CardId, string>>>(
+    () => ({
+      tarefas: filtro === FILTRO_TODAS ? 'Tarefas abertas' : `Tarefas · ${rotuloParte(filtro)}`,
+    }),
+    [filtro],
+  );
+
+  const aoFecharPalco = useCallback(() => {
+    setPalcoPapelAberto(false);
+    setModoSimulacao(false);
+  }, []);
+
+  const aoExecutarComandoPalco = useCallback(
+    (cmd: string) => aoAbrirAssistente(cmd),
+    [aoAbrirAssistente],
   );
 
   return (
@@ -982,10 +1088,16 @@ function Conteudo({
               return (
                 <button
                   key={kpi.campo}
+                  ref={(el) => {
+                    kpiRefs.current[idx] = el;
+                  }}
                   type="button"
                   className="kpi-hero-item kpi-hero-clicavel"
                   style={{ '--stagger': Math.min(idx, 4) } as CSSProperties}
                   aria-pressed={ativo}
+                  tabIndex={idx === posEfKpi ? 0 : -1}
+                  onKeyDown={(e) => teclarKpi(e, idx)}
+                  onFocus={() => setPosKpi(idx)}
                   onClick={() => alternarKpiCampo(kpi)}
                 >
                   <span className="kpi-hero-label">
@@ -999,10 +1111,16 @@ function Conteudo({
               );
             })}
             <button
+              ref={(el) => {
+                kpiRefs.current[kpisDivergencia.length] = el;
+              }}
               type="button"
               className="kpi-hero-item kpi-hero-clicavel"
               style={{ '--stagger': Math.min(kpisDivergencia.length, 4) } as CSSProperties}
               aria-pressed={false}
+              tabIndex={kpisDivergencia.length === posEfKpi ? 0 : -1}
+              onKeyDown={(e) => teclarKpi(e, kpisDivergencia.length)}
+              onFocus={() => setPosKpi(kpisDivergencia.length)}
               onClick={() => {
                 const reduzido =
                   typeof window !== 'undefined' &&
@@ -1075,10 +1193,7 @@ function Conteudo({
         aoGarantirSessao={aoGarantirSessao}
         aoRecarregarPedido={aoRecarregarPedido}
         aoSimulacaoAtiva={setModoSimulacao}
-        aoPulsoDomino={() => {
-          setOrigemDomino([0.5, 0.5]);
-          setPulsoDomino((n) => n + 1);
-        }}
+        aoPulsoDomino={aoPulsoDominoCentral}
       />
 
       <div className="perspectiva-faixa">
@@ -1189,16 +1304,13 @@ function Conteudo({
           contatos={contatos}
           focoAtivo={focoAtivo}
           aoFocar={lidarFoco}
-          aoExecutarComando={(cmd) => aoAbrirAssistente(cmd)}
+          aoExecutarComando={aoExecutarComandoPalco}
           aoSelecionarPapel={trocarPerspectiva}
           aoNotificar={aoNotificar}
           aoAbrirAgenda={aoAbrirAgenda}
-          aoSimularResultado={(res) => setModoSimulacao(res !== null)}
+          aoSimularResultado={aoResultadoSimulacao}
           aoAplicarHipotese={aplicarHipotesePapel}
-          aoFechar={() => {
-            setPalcoPapelAberto(false);
-            setModoSimulacao(false);
-          }}
+          aoFechar={aoFecharPalco}
           aoAnunciar={aoAnunciar}
           slotLoader={<SeloMonolitosShader ativo={true} tamanho={24} />}
         />
@@ -1207,12 +1319,7 @@ function Conteudo({
       <TorreGrid
         pedidoId={id}
         cards={cardsTorre}
-        titulosCard={{
-          tarefas:
-            filtro === FILTRO_TODAS
-              ? 'Tarefas abertas'
-              : `Tarefas · ${rotuloParte(filtro)}`,
-        }}
+        titulosCard={titulosCard}
         aoAnunciar={aoAnunciar}
       />
     </>
