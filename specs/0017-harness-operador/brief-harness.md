@@ -23,8 +23,61 @@ gate colada no commit.
 
 ## Spikes (T701 a T703)
 
-Sem resultado ainda. Cada spike registra aqui a resposta, a fonte e o
-comando usado.
+Cada spike registra aqui a resposta, a fonte e o comando usado.
+
+### T702: DBOS sobre PGlite (26/11)
+
+Resposta: não roda. O DBOS 5.7.0 só conecta por `systemDatabaseUrl` ou por
+um `Pool` do `pg` (`systemDatabasePool`, em
+`app/node_modules/@dbos-inc/dbos-sdk/dist/src/dbos-executor.d.ts`), e o
+PGlite não abre socket sem o `pglite-socket`, que não está nas
+dependências. Os testes de fluxo usam o Postgres do
+`app/docker-compose.yml`, num banco próprio (`foundry_teste_operador`, criado
+pelo teste se faltar), e são pulados quando o banco não responde, então o
+`npm test` continua passando sem Docker.
+
+Versões: `@dbos-inc/dbos-sdk` 5.7.0, Postgres 17.12 (imagem
+`postgres:17-alpine`), Node 22.19.0.
+
+Estado do DBOS: schema `dbos` no mesmo Postgres do app
+(`systemDatabaseSchemaName: 'dbos'`). O launch criou 14 tabelas (entre elas
+`workflow_status`, `operation_outputs`, `notifications`) sem tocar o schema
+`public`. O checkpoint do passo transacional fica em
+`dbos.transaction_completion`, criado pela fonte de dados do ledger.
+
+Versão do app: o DBOS só recupera fluxo pendente da mesma
+`applicationVersion`; sem valor, ele calcula um hash do código e um deploy
+novo deixa os fluxos antigos órfãos. O operador exige `OPERADOR_VERSAO` e não
+sobe sem ela.
+
+Comandos:
+
+```bash
+docker compose -f app/docker-compose.yml up -d
+cd app
+npx vitest run operador/db-dbos.test.ts operador/index.test.ts operador/fluxo/caso.test.ts
+# sem banco, as suítes com Postgres aparecem como puladas:
+DATABASE_URL=postgres://x:x@localhost:5999/x npx vitest run operador
+```
+
+Consequências no código (T723 a T725):
+
+- O SDK 5.7 tira as transações do núcleo e as põe em fontes de dados
+  (`@dbos-inc/dbos-sdk/datasource`). O pacote pronto para `pg` não está nas
+  dependências, então `app/operador/db-dbos.ts` implementa o contrato público
+  `DataSourceTransactionHandler`: evento e checkpoint na mesma transação,
+  replay do checkpoint depois de queda e conferência de dono do fluxo antes
+  do COMMIT.
+- O `contato_iniciado` é gravado com commit próprio dentro do passo do
+  efeito, logo antes da chamada ao fornecedor, porque precisa estar no banco
+  antes do efeito. Passo que roda de novo e acha a intenção já gravada
+  consulta o fornecedor pela chave em vez de reenviar.
+- Recusa definitiva do fornecedor (`contato_falhou`) sobe de degrau como
+  prazo vencido; falha ambígua sem resposta na consulta (`contato_incerto`)
+  devolve o caso ao analista.
+- Duas instâncias no mesmo processo não sobem o DBOS (singleton): o teste
+  de liderança usa um lançador falso sobre o lock real do Postgres, e o
+  lançador real sobe uma vez no teste do Fastify.
 
 ## Contas (T709)
 
