@@ -240,6 +240,165 @@
   }
 }
 
+/* ==========================================================================
+   spec 0017 (superficie2): de-conteneirizacao dentro dos cards da torre
+   ==========================================================================
+   Feedback 26/11: "muitas bordas, card dentro de card". A hierarquia interna
+   passa a vir de espacamento e fundo sutil; as bordas que ficam sao
+   hairlines em color-mix com a tinta do tema (alpha baixo) e nunca mais a
+   borda opaca --border. Anel/cheio permanecem so onde carregam funcao:
+   foco de grupo ou celula, estado de simulacao, controle pressionado.
+   Seletores .torre-card .torre-card-corpo (0,3,0) vencem as mesmas regras
+   em torre-v2.css (0,2,0) mesmo com a folha carregando antes no bundle. */
+.torre-card {
+  --tc-hair: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+/* Tarefas: o setor deixava de ser laje (anel + cabecalho tonal) e vira uma
+   regiao de texto separada por hairline; o anel volta so no grupo focado. */
+.torre-card .torre-card-corpo .tarefas-grupo {
+  background: transparent;
+  box-shadow: none;
+  border-radius: var(--r-sm);
+}
+.torre-card .torre-card-corpo .tarefas-grupo + .tarefas-grupo {
+  border-top: 1px solid var(--tc-hair);
+}
+.torre-card .torre-card-corpo .tarefas-grupo-focado {
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+}
+.torre-card .torre-card-corpo .tarefas-grupo-cab {
+  padding: 0.75rem 0.125rem 0.625rem;
+  background: transparent;
+  border-bottom: 0;
+}
+.torre-card .torre-card-corpo .tarefas-grupo-icone {
+  background: transparent;
+  color: var(--text2);
+}
+.torre-card .torre-card-corpo .tarefa {
+  padding: 0.75rem;
+}
+.torre-card .torre-card-corpo .tarefa + .tarefa {
+  border-top-color: var(--tc-hair);
+}
+.torre-card .torre-card-corpo .tarefa-envio-erro {
+  margin-inline: 0.75rem;
+}
+
+/* Controles dentro do card: mesmo anel semi-transparente da casa
+   (--control-border ja e color-mix), sem bevel nem fundo de superficie. */
+.torre-card .torre-card-corpo .botao-sutil:not(.tarefa-btn-ok),
+.torre-card .torre-card-corpo .selo-btn,
+.torre-card .torre-card-corpo .mx-trilho-btn {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--control-border);
+}
+.torre-card .torre-card-corpo .selo-btn-destaque {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* Matriz: a moldura da tabela some — as hairlines internas ja leem como
+   grade; o anel de simulacao continua porque e estado, nao moldura. */
+.torre-card .torre-card-corpo .mx {
+  background: transparent;
+  box-shadow: none;
+}
+.torre-card .torre-card-corpo .mx-simulacao {
+  box-shadow: inset 0 0 0 1.5px var(--change);
+}
+.torre-card .torre-card-corpo .mx-h {
+  background: var(--tint-soft);
+  box-shadow: inset 0 -1px 0 var(--tc-hair);
+}
+.torre-card .torre-card-corpo .mx-b {
+  box-shadow: inset 0 -1px 0 var(--tc-hair);
+}
+.torre-card .torre-card-corpo .mx-b:last-child {
+  box-shadow: none;
+}
+.torre-card .torre-card-corpo .mx-trilhos {
+  background: transparent;
+  border-bottom-color: var(--tc-hair);
+}
+
+/* Domino: o no e botao — vira preenchimento tonal e o anel so volta nos
+   estados (hover, ativo), que sao a affordance real do controle. */
+.torre-card .torre-card-corpo .domino-no {
+  background: var(--tint-soft);
+  box-shadow: none;
+}
+.torre-card .torre-card-corpo .domino-no[data-ativo='true'],
+.torre-card .torre-card-corpo .domino-no[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--change-bg) 42%, var(--surface));
+}
+@media (hover: hover) and (pointer: fine) {
+  .torre-card .torre-card-corpo .domino-no:hover {
+    background: color-mix(in srgb, var(--change-bg) 24%, var(--surface));
+  }
+}
+.torre-card .torre-card-corpo .domino-acordo {
+  box-shadow: none;
+}
+.torre-card .torre-card-corpo .domino-col-titulos,
+.torre-card .torre-card-corpo .domino-card-rodape,
+.torre-card .torre-card-corpo .domino-tags-origem,
+.torre-card .torre-card-corpo .domino-inativos {
+  border-color: var(--tc-hair);
+}
+.torre-card .torre-card-corpo .domino-regra-pill {
+  box-shadow: none;
+}
+
+/* Sinais e avisos: o painel-card embutido achata para o proprio card; a
+   mensagem citada fica bloco tonal (fundo sutil) sem anel. */
+.torre-card .torre-card-corpo .painel-card {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.torre-card .torre-card-corpo .registro-item {
+  border-top-color: var(--tc-hair);
+}
+.torre-card .torre-card-corpo .aviso-msg {
+  background: var(--tint-soft);
+  box-shadow: none;
+}
+
+/* Versoes: hairlines do historico na mesma tinta translucida. */
+.torre-card .torre-card-corpo .versoes {
+  border-top-color: var(--tc-hair);
+}
+.torre-card .torre-card-corpo .versoes li {
+  border-bottom-color: var(--tc-hair);
+}
+
+/* Simulador: os quatro campos viram blocos de fundo sutil; a tabela de
+   resultado e o rodape descem para hairline translucida. */
+.torre-card .torre-card-corpo .sim-vivo-campo {
+  background: var(--tint-soft);
+  box-shadow: none;
+}
+.torre-card .torre-card-corpo .sim-tabela {
+  background: transparent;
+  box-shadow: 0 0 0 1px var(--tc-hair);
+}
+.torre-card .torre-card-corpo .sim-h {
+  background: var(--tint-soft);
+  box-shadow: inset 0 -1px 0 var(--tc-hair);
+}
+.torre-card .torre-card-corpo .sim-b {
+  box-shadow: inset 0 -1px 0 var(--tc-hair);
+}
+.torre-card .torre-card-corpo .sim-b:last-child {
+  box-shadow: none;
+}
+.torre-card .torre-card-corpo .sim-vivo-rodape,
+.torre-card .torre-card-corpo .cmd-bloco + .cmd-bloco {
+  border-top-color: var(--tc-hair);
+}
+
 /* ---------- disclosure de setor (card Tarefas): grid-rows 0fr/1fr ----------
    Antes a altura animava via WAAPI e um onfinish desmontava o corpo — num
    re-toggle rapido o callback stale escondia a lista com aria-expanded=true
@@ -269,4 +428,23 @@
   .tarefas-corpo-in {
     transition: none;
   }
+}
+
+/* ---------- textos persistentes fora: affordance sob demanda ----------
+   O cartao "pedido de exemplo / somente leitura" e a faixa "Simulacao ·
+   nada gravado" viram ruido dentro do card da torre: a honestidade do modo
+   demo permanece no feedback da propria acao (pilula ok/erro no rodape).
+   Escondem-se so visualmente — seguem na arvore acessivel (so-leitor). */
+.tc-simulador .sim-vivo-rodape .meta,
+.tc-simulador .palco-bloco-cab .pilula-warn,
+.painel-titulo-linha > .pilula-sutil {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
