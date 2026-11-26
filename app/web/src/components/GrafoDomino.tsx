@@ -541,17 +541,17 @@ export const GrafoDomino = memo(function GrafoDomino({
         </div>
       )}
 
-      <div className="domino-col-titulos" aria-hidden="true">
+      <div className="domino-col-titulos" aria-hidden="true" data-adapt="trilho aux">
         <span>Divergências ({nosDivergencia.length})</span>
-        <span className="domino-col-titulo-centro">Fluxo causal</span>
+        <span className="domino-col-titulo-centro" data-adapt="corredor">Fluxo causal</span>
         <span>
           Setores ({setoresAtivos.length} · {totalAcoes}{' '}
           {totalAcoes === 1 ? 'ação' : 'ações'})
         </span>
       </div>
 
-      <div className="domino-palco">
-        <div className="domino-col" role="group" aria-label="O que divergiu">
+      <div className="domino-palco" data-adapt="trilho">
+        <div className="domino-col" role="group" aria-label="O que divergiu" data-adapt="lista essencial">
           {nosDivergencia.map((no, noIdx) => {
             const pressionado = isolamentoEfetivo === no.campo;
             const destacado =
@@ -595,7 +595,7 @@ export const GrafoDomino = memo(function GrafoDomino({
                     <span className="domino-delta-pilula mono num">{no.resumoDelta}</span>
                   )}
                 </span>
-                <span className="domino-comparacao mono num">{no.comparacao}</span>
+                <span className="domino-comparacao mono num" data-adapt="meta">{no.comparacao}</span>
                 <span className="domino-card-rodape">
                   <span className="domino-fonte-badge">{no.fontesTexto}</span>
                   <span className="domino-regra-inline">{no.regraCausal}</span>
@@ -605,7 +605,7 @@ export const GrafoDomino = memo(function GrafoDomino({
           })}
         </div>
 
-        <div className="domino-centro" ref={centroRef}>
+        <div className="domino-centro" ref={centroRef} data-adapt="corredor">
           <svg
             className="domino-svg"
             viewBox={`0 0 ${Math.max(1, geom.largura)} ${Math.max(1, geom.altura)}`}
@@ -721,14 +721,14 @@ export const GrafoDomino = memo(function GrafoDomino({
           )}
         </div>
 
-        <div className="domino-fluxo-mobile" aria-hidden="true">
+        <div className="domino-fluxo-mobile" aria-hidden="true" data-adapt="ponte">
           <span className="domino-fluxo-seta">↓</span>
           <span className="domino-fluxo-regras">
             {regrasVisiveis.map((r) => r.regraCausal).join(' · ')}
           </span>
         </div>
 
-        <div className="domino-col" role="group" aria-label="Quem precisa agir">
+        <div className="domino-col" role="group" aria-label="Quem precisa agir" data-adapt="lista essencial">
           {setoresAtivos.map((setor, setorIdx) => {
             const pressionado = parteIsoladaEfetiva === setor.parte;
             const destacado =
@@ -776,7 +776,7 @@ export const GrafoDomino = memo(function GrafoDomino({
                   <span className="domino-acao-preview">{setor.primeiraAcao}</span>
                 )}
                 {setor.camposOrigem.length > 0 && (
-                  <span className="domino-tags-origem">
+                  <span className="domino-tags-origem" data-adapt="meta">
                     {setor.camposOrigem.map((c) => TAG_CURTA_CAMPO.get(c) ?? rotuloCampo(c)).join(' · ')}
                   </span>
                 )}
@@ -785,7 +785,7 @@ export const GrafoDomino = memo(function GrafoDomino({
           })}
 
           {setoresInativos.length > 0 && (
-            <p className="domino-inativos meta">
+            <p className="domino-inativos meta" data-adapt="meta">
               Sem ação: {setoresInativos.map((s) => rotuloParte(s.parte)).join(', ')}
             </p>
           )}
