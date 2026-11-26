@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import {
   LAYOUT_PADRAO,
   TEMPLATE_LAYOUT_PADRAO,
@@ -98,6 +98,9 @@ export function TorreVistas({
   const [formAberto, setFormAberto] = useState(false);
   const [nome, setNome] = useState('');
   const [toast, setToast] = useState<Toast | null>(null);
+  // Spec 0017 (chrome-toolbar): a faixa encolhe para presets + densidade; o
+  // resto vive num popover "Layout" com foco preso enquanto aberto.
+  const [menuAberto, setMenuAberto] = useState(false);
   // Espelho do sidecar em state (rerender) + ref (leitura síncrona no clique).
   const [meta, setMeta] = useState<Record<string, VistaMeta>>(() => lerVistasMeta());
   const metaRef = useRef(meta);
@@ -105,6 +108,10 @@ export function TorreVistas({
   const inputRef = useRef<HTMLInputElement>(null);
   const botaoSalvarRef = useRef<HTMLButtonElement>(null);
   const barraRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const painelRef = useRef<HTMLDivElement>(null);
+  const gatilhoRef = useRef<HTMLButtonElement>(null);
+  const painelId = useId();
   const chipsSalvosRef = useRef(new Map<string, HTMLButtonElement>());
   const radioRefs = useRef<Array<HTMLButtonElement | null>>([null, null, null]);
   // Id da vista vizinha que recebe o foco depois de uma exclusão (V6).
@@ -238,6 +245,79 @@ export function TorreVistas({
     );
   }
 
+  // Fechar por Escape ou por ação interna devolve o foco ao gatilho; fechar
+  // por clique fora deixa o foco onde o clique caiu.
+  function fecharMenu(devolverFoco: boolean) {
+    setMenuAberto(false);
+    if (devolverFoco) window.setTimeout(() => gatilhoRef.current?.focus(), 0);
+  }
+
+  // Anel de foco do popover: gatilho, controles do painel e botões do toast
+  // (o toast mora dentro do wrapper para o Desfazer continuar alcançável sem
+  // fechar o menu por clique fora).
+  function focosDoMenu(): HTMLElement[] {
+    const raiz = menuRef.current;
+    if (!raiz) return [];
+    return Array.from(
+      raiz.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)'),
+    );
+  }
+
+  // Abrir joga o foco para dentro do painel (APG dialog/popover).
+  useEffect(() => {
+    if (!menuAberto) return;
+    const alvo =
+      painelRef.current?.querySelector<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled)',
+      ) ?? painelRef.current;
+    alvo?.focus();
+  }, [menuAberto]);
+
+  // Listeners no document (não no wrapper): o foco preso precisa cobrir até o
+  // caso dele cair no body quando o elemento focado desmonta (ex.: fechar o
+  // toast) — daí o próximo Tab reentra no anel pelo gatilho. Escape e clique
+  // fora fecham; o stopPropagation dos Escapes internos (input do form, toast)
+  // impede que este listener os confunda com "fechar menu".
+  useEffect(() => {
+    if (!menuAberto) return;
+    function aoPointerDown(e: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        fecharMenu(false);
+      }
+    }
+    function aoKeyDown(e: globalThis.KeyboardEvent) {
+      if (e.key === 'Escape') {
+        fecharMenu(true);
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const els = focosDoMenu();
+      const primeiro = els[0];
+      const ultimo = els[els.length - 1];
+      if (!primeiro || !ultimo) {
+        e.preventDefault();
+        painelRef.current?.focus();
+        return;
+      }
+      const i = els.indexOf(document.activeElement as HTMLElement);
+      if (e.shiftKey) {
+        if (i <= 0) {
+          e.preventDefault();
+          ultimo.focus();
+        }
+      } else if (i === -1 || i === els.length - 1) {
+        e.preventDefault();
+        primeiro.focus();
+      }
+    }
+    document.addEventListener('pointerdown', aoPointerDown);
+    document.addEventListener('keydown', aoKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', aoPointerDown);
+      document.removeEventListener('keydown', aoKeyDown);
+    };
+  }, [menuAberto]);
+
   // V5: quando a vista recém-salva aparece na lista, grava no sidecar os
   // campos que o salvar do Grid ainda não captura e arma o Desfazer dela.
   useEffect(() => {
@@ -268,7 +348,9 @@ export function TorreVistas({
     if (alvo === null) return;
     focoPendenteRef.current = null;
     const el = alvo === 'acoes' ? null : chipsSalvosRef.current.get(alvo);
-    (el ?? botaoSalvarRef.current ?? barraRef.current)?.focus();
+    // Sem vizinha e com o form aberto, o foco cai no painel do menu (que fica
+    // aberto depois da exclusão), nunca no body.
+    (el ?? botaoSalvarRef.current ?? painelRef.current ?? barraRef.current)?.focus();
   }, [customizados]);
 
   // Toast sem ação some sozinho; com "Desfazer" fica até a pessoa dispensar
@@ -304,64 +386,6 @@ export function TorreVistas({
               </button>
             ))}
           </div>
-
-          {customizados.length > 0 && (
-            <div className="torre-vistas-grupo" role="group" aria-label="Vistas salvas por você">
-              {customizados.map((t, i) => {
-                const ehGlobal = meta[t.id]?.global ?? t.global ?? false;
-                return (
-                  <span key={t.id} className="torre-vista-salva">
-                    <button
-                      ref={(el) => {
-                        if (el) chipsSalvosRef.current.set(t.id, el);
-                        else chipsSalvosRef.current.delete(t.id);
-                      }}
-                      type="button"
-                      className="chip"
-                      data-ativa={ativoId === t.id ? 'true' : undefined}
-                      aria-pressed={ativoId === t.id}
-                      aria-label={`Aplicar vista ${t.nome}`}
-                      title={`Aplicar vista ${t.nome}`}
-                      onClick={() => aplicarVista(t)}
-                    >
-                      {t.nome}
-                    </button>
-                    <button
-                      type="button"
-                      className="vista-pin"
-                      data-ativa={ehGlobal ? 'true' : undefined}
-                      aria-pressed={ehGlobal}
-                      aria-label={
-                        ehGlobal
-                          ? `Deixar de abrir a vista ${t.nome} em todos os pedidos`
-                          : `Abrir a vista ${t.nome} em todos os pedidos`
-                      }
-                      title="Usar em todos os pedidos"
-                      onClick={() => alternarGlobal(t)}
-                    >
-                      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
-                        <path
-                          d="M8 1.8 9.9 5.7l4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6Z"
-                          fill={ehGlobal ? 'currentColor' : 'none'}
-                          stroke="currentColor"
-                          strokeWidth="1.3"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="torre-vista-remover"
-                      aria-label={`Excluir vista ${t.nome}`}
-                      onClick={() => excluirVista(t, i)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         <div className="torre-vistas-acoes">
@@ -385,47 +409,20 @@ export function TorreVistas({
             ))}
           </div>
 
-          {formAberto ? (
-            <form className="torre-vista-form" onSubmit={confirmar}>
-              <input
-                ref={inputRef}
-                type="text"
-                className="torre-vista-input"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Nome da vista"
-                aria-label="Nome da nova vista"
-                maxLength={40}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') fecharFormComFoco();
-                }}
-              />
-              <button type="submit" className="chip" disabled={!nome.trim()}>
-                Salvar
-              </button>
-            </form>
-          ) : (
+          <div className="vistas-menu" ref={menuRef}>
             <button
-              ref={botaoSalvarRef}
+              ref={gatilhoRef}
               type="button"
-              className="botao-sutil"
-              onClick={abrirForm}
-            >
-              Salvar vista atual
-            </button>
-          )}
-
-          <button type="button" className="botao-sutil" onClick={restaurarPadrao}>
-            Restaurar layout padrão
-          </button>
-
-          <details className="torre-cards-toggle">
-            <summary
+              className="botao-sutil vistas-menu-gatilho"
+              aria-expanded={menuAberto}
+              aria-controls={painelId}
+              aria-haspopup="dialog"
               aria-label={
-                ocultosCount > 0 ? `Cards, ${ocultosCount} ocultos` : 'Cards'
+                ocultosCount > 0 ? `Layout, ${ocultosCount} cards ocultos` : 'Layout'
               }
+              onClick={() => setMenuAberto((v) => !v)}
             >
-              Cards
+              Layout
               {ocultosCount > 0 && (
                 <span className="vistas-badge" aria-hidden="true">
                   {ocultosCount}
@@ -441,66 +438,211 @@ export function TorreVistas({
                   strokeLinejoin="round"
                 />
               </svg>
-            </summary>
-            <div className="torre-cards-toggle-lista" role="group" aria-label="Ligar e desligar cards">
-              {cards.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="chip"
-                  data-ativa={!c.oculto ? 'true' : undefined}
-                  aria-pressed={!c.oculto}
-                  onClick={() => aoAlternarCard(c.id)}
+            </button>
+
+            {menuAberto && (
+              <div
+                ref={painelRef}
+                id={painelId}
+                className="vistas-menu-painel"
+                role="dialog"
+                aria-label="Layout"
+                tabIndex={-1}
+              >
+                {customizados.length > 0 && (
+                  <div
+                    className="vistas-menu-secao"
+                    role="group"
+                    aria-labelledby={`${painelId}-salvas`}
+                  >
+                    <span id={`${painelId}-salvas`} className="vistas-menu-titulo">
+                      Vistas salvas
+                    </span>
+                    <div className="vistas-menu-lista">
+                      {customizados.map((t, i) => {
+                        const ehGlobal = meta[t.id]?.global ?? t.global ?? false;
+                        return (
+                          <span key={t.id} className="torre-vista-salva">
+                            <button
+                              ref={(el) => {
+                                if (el) chipsSalvosRef.current.set(t.id, el);
+                                else chipsSalvosRef.current.delete(t.id);
+                              }}
+                              type="button"
+                              className="chip"
+                              data-ativa={ativoId === t.id ? 'true' : undefined}
+                              aria-pressed={ativoId === t.id}
+                              aria-label={`Aplicar vista ${t.nome}`}
+                              title={`Aplicar vista ${t.nome}`}
+                              // Aplicar é comando com confirmação no toast:
+                              // o menu fecha e o foco volta ao gatilho.
+                              onClick={() => {
+                                aplicarVista(t);
+                                fecharMenu(true);
+                              }}
+                            >
+                              {t.nome}
+                            </button>
+                            <button
+                              type="button"
+                              className="vista-pin"
+                              data-ativa={ehGlobal ? 'true' : undefined}
+                              aria-pressed={ehGlobal}
+                              aria-label={
+                                ehGlobal
+                                  ? `Deixar de abrir a vista ${t.nome} em todos os pedidos`
+                                  : `Abrir a vista ${t.nome} em todos os pedidos`
+                              }
+                              title="Usar em todos os pedidos"
+                              onClick={() => alternarGlobal(t)}
+                            >
+                              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
+                                <path
+                                  d="M8 1.8 9.9 5.7l4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6Z"
+                                  fill={ehGlobal ? 'currentColor' : 'none'}
+                                  stroke="currentColor"
+                                  strokeWidth="1.3"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              className="torre-vista-remover"
+                              aria-label={`Excluir vista ${t.nome}`}
+                              onClick={() => excluirVista(t, i)}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="vistas-menu-secao vistas-menu-acoes">
+                  {formAberto ? (
+                    <form className="torre-vista-form" onSubmit={confirmar}>
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        className="torre-vista-input"
+                        value={nome}
+                        onChange={(e) => setNome(e.target.value)}
+                        placeholder="Nome da vista"
+                        aria-label="Nome da nova vista"
+                        maxLength={40}
+                        onKeyDown={(e) => {
+                          // Escape aqui fecha só o form: o stopPropagation
+                          // impede o listener de fechar o menu inteiro junto.
+                          if (e.key === 'Escape') {
+                            e.stopPropagation();
+                            fecharFormComFoco();
+                          }
+                        }}
+                      />
+                      <button type="submit" className="chip" disabled={!nome.trim()}>
+                        Salvar
+                      </button>
+                    </form>
+                  ) : (
+                    <button
+                      ref={botaoSalvarRef}
+                      type="button"
+                      className="botao-sutil"
+                      onClick={abrirForm}
+                    >
+                      Salvar vista atual
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="botao-sutil"
+                    onClick={() => {
+                      restaurarPadrao();
+                      fecharMenu(true);
+                    }}
+                  >
+                    Restaurar layout padrão
+                  </button>
+                </div>
+
+                <div
+                  className="vistas-menu-secao"
+                  role="group"
+                  aria-labelledby={`${painelId}-cards`}
                 >
-                  {c.titulo}
+                  <span id={`${painelId}-cards`} className="vistas-menu-titulo">
+                    Cards
+                    {ocultosCount > 0 && (
+                      <span className="vistas-badge" aria-hidden="true">
+                        {ocultosCount}
+                      </span>
+                    )}
+                  </span>
+                  <div className="vistas-menu-cards" role="group" aria-label="Ligar e desligar cards">
+                    {cards.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="chip"
+                        data-ativa={!c.oculto ? 'true' : undefined}
+                        aria-pressed={!c.oculto}
+                        onClick={() => aoAlternarCard(c.id)}
+                      >
+                        {c.titulo}
+                      </button>
+                    ))}
+                    <button type="button" className="botao-sutil" onClick={aoMostrarTodos}>
+                      Mostrar todos
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {toast && (
+              <div
+                key={toast.key}
+                className="vistas-toast"
+                // Com a ponte aoAnunciar a região global já anuncia; sem ela, o
+                // próprio toast vira status (evita anúncio duplicado no leitor).
+                role={aoAnunciar ? undefined : 'status'}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    setToast(null);
+                  }
+                }}
+              >
+                <span className="vistas-toast-texto">{toast.texto}</span>
+                {toast.desfazer && (
+                  <button
+                    type="button"
+                    className="vistas-toast-acao"
+                    onClick={() => {
+                      const d = toast.desfazer;
+                      setToast(null);
+                      d?.();
+                    }}
+                  >
+                    Desfazer
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="vistas-toast-fechar"
+                  aria-label="Fechar aviso"
+                  onClick={() => setToast(null)}
+                >
+                  ×
                 </button>
-              ))}
-              <button type="button" className="botao-sutil" onClick={aoMostrarTodos}>
-                Mostrar todos
-              </button>
-            </div>
-          </details>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      {toast && (
-        <div
-          key={toast.key}
-          className="vistas-toast"
-          // Com a ponte aoAnunciar a região global já anuncia; sem ela, o
-          // próprio toast vira status (evita anúncio duplicado no leitor).
-          role={aoAnunciar ? undefined : 'status'}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation();
-              setToast(null);
-            }
-          }}
-        >
-          <span className="vistas-toast-texto">{toast.texto}</span>
-          {toast.desfazer && (
-            <button
-              type="button"
-              className="vistas-toast-acao"
-              onClick={() => {
-                const d = toast.desfazer;
-                setToast(null);
-                d?.();
-              }}
-            >
-              Desfazer
-            </button>
-          )}
-          <button
-            type="button"
-            className="vistas-toast-fechar"
-            aria-label="Fechar aviso"
-            onClick={() => setToast(null)}
-          >
-            ×
-          </button>
-        </div>
-      )}
     </div>
   );
 }
