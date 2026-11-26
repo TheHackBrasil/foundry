@@ -269,7 +269,7 @@
   min-height: 0;
   max-height: var(--teto-corpo, 880px);
   overflow-y: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
   transition: grid-template-rows 220ms var(--ease-out);
 }
 .torre-card-corpo-inner {
