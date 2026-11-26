@@ -23,6 +23,7 @@ interface Props {
   revisaoPendentes: number;
   aoAbrirRevisao: () => void;
   aoAbrirAgenda: () => void;
+  aoAbrirAssistente: (comando?: string) => void;
   aoAbrirMenuMobile: () => void;
   menuMobileAberto: boolean;
   menuBtnRef?: RefObject<HTMLButtonElement | null>;
@@ -38,6 +39,7 @@ export function Cabecalho({
   revisaoPendentes,
   aoAbrirRevisao,
   aoAbrirAgenda,
+  aoAbrirAssistente,
   aoAbrirMenuMobile,
   menuMobileAberto,
   menuBtnRef,
@@ -136,6 +138,7 @@ export function Cabecalho({
           contatos={contatos}
           rota={rota}
           aoAbrirAgenda={aoAbrirAgenda}
+          aoPerguntarIA={aoAbrirAssistente}
         />
 
         <div className="tema" role="group" aria-label="Tema" data-tema-ativo={tema}>

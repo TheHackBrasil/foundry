@@ -384,6 +384,7 @@ export function App() {
             revisaoPendentes={torre.revisaoPendentes}
             aoAbrirRevisao={abrirRevisao}
             aoAbrirAgenda={() => abrirAgenda()}
+            aoAbrirAssistente={abrirAssistente}
             aoAbrirMenuMobile={() => setMenuMobileAberto((a) => !a)}
             menuMobileAberto={menuMobileAberto}
             menuBtnRef={menuBtnRef}
