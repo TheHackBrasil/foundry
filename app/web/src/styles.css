@@ -2487,9 +2487,13 @@ main[data-rota='ia'] {
 
 .domino-wrap { display: grid; gap: 0.875rem; min-width: 0; }
 .domino-titulo { font-size: var(--fs-card-t); font-weight: 700; letter-spacing: -0.015em; }
+/* Palco e titulos sao trilhos da camada de adaptacao (adaptacao.css): a
+   reparticao real sai do data-adapt no markup. Os templates abaixo ficam
+   como fallback fluido (sem piso duro) para contextos sem a camada —
+   grids que nunca estouram o proprio container. */
 .domino-col-titulos {
   display: grid;
-  grid-template-columns: minmax(14.5rem, 1.05fr) minmax(9.5rem, 0.9fr) minmax(15rem, 1.15fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.55fr) minmax(0, 1.1fr);
   gap: 0;
   font-size: var(--fs-meta);
   font-weight: 700;
@@ -2503,7 +2507,7 @@ main[data-rota='ia'] {
 
 .domino-palco {
   display: grid;
-  grid-template-columns: minmax(14.5rem, 1.05fr) minmax(9.5rem, 0.9fr) minmax(15rem, 1.15fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.55fr) minmax(0, 1.1fr);
   align-items: stretch;
   gap: 0;
   position: relative;
@@ -2633,6 +2637,7 @@ main[data-rota='ia'] {
 .domino-no {
   width: 100%;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.375rem;
   padding: 0.9375rem 1rem;
   text-align: start;
@@ -2690,24 +2695,31 @@ main[data-rota='ia'] {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.5rem;
 }
+.domino-no-topo > * { min-width: 0; }
+/* Titulo em fluxo normal (nao flex): o texto pode quebrar e uma palavra
+   longa sozinha ("Transportadora") parte em vez de vazar do no quando a
+   coluna fica com ~90px. O ponto de divergencia vira inline-block para
+   manter a mesma cara. */
 .domino-card-titulo {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4375rem;
+  display: inline;
   font-size: var(--fs-ui);
   font-weight: 700;
   line-height: 1.25;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 .domino-card-div .domino-card-titulo::before {
   content: '';
+  display: inline-block;
   width: 6px;
   height: 6px;
   border-radius: var(--r-pill);
   background: var(--change);
-  flex: none;
+  margin-right: 0.4375rem;
+  vertical-align: 0.08em;
 }
 .domino-delta-pilula {
   display: inline-flex;
@@ -2838,11 +2850,8 @@ main[data-rota='ia'] {
 }
 .domino-fluxo-seta { font-size: var(--fs-ui); line-height: 1; }
 
-/* Adaptação elegante do GrafoDomino dentro da coluna estreita do Assistente IA. */
-.ia-turno-resposta .domino-col-titulos,
-.ia-turno-resposta .domino-palco {
-  grid-template-columns: minmax(11.5rem, 1.05fr) minmax(5.5rem, 0.7fr) minmax(12rem, 1.1fr);
-}
+/* Na coluna estreita do Assistente IA o trilho da camada de adaptacao ja
+   reparte sem piso duro; sobra aqui so o ajuste tipografico dos titulos. */
 .ia-turno-resposta .domino-col-titulos {
   font-size: var(--fs-micro);
 }
@@ -3494,11 +3503,13 @@ main[data-rota='ia'] {
   .drawer-panel { border-radius: 0; }
 }
 
-/* Mapa causal empilha com setas descendentes abaixo de 760px */
+/* Mapa causal empilha com setas descendentes abaixo de 760px. As duas
+   propriedades do palco cobrem os dois mundos: grid-template-columns
+   vale para o fallback grid; flex-direction vale quando a camada de
+   adaptacao tornou o palco um trilho flex. */
 @media (max-width: 760px) {
   .domino-col-titulos { display: none; }
-  .domino-palco,
-  .ia-turno-resposta .domino-palco { grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+  .domino-palco { grid-template-columns: minmax(0, 1fr); flex-direction: column; gap: 0.75rem; }
   .domino-centro { display: none; }
   .domino-fluxo-mobile { display: flex; }
 }
