@@ -181,18 +181,18 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
         </div>
       </header>
 
-      <dl className="op-metricas" aria-label="Métricas da operação">
+      <dl className="op-metricas slab-mineral" aria-label="Métricas da operação">
         {metricas.estado === 'ok' ? (
           cartoesMetricas(metricas.dados).map((c) => (
             <div key={c.rotulo} className="op-metrica">
-              <dt className="meta">{c.rotulo}</dt>
+              <dt className="op-metrica-rotulo">{c.rotulo}</dt>
               <dd className="op-metrica-valor num">{c.valor}</dd>
               {c.ajuda && <dd className="meta">{c.ajuda}</dd>}
             </div>
           ))
         ) : (
           <div className="op-metrica">
-            <dt className="meta">Métricas</dt>
+            <dt className="op-metrica-rotulo">Métricas</dt>
             <dd className="meta">
               {metricas.estado === 'carregando' ? 'Carregando…' : metricas.mensagem}
             </dd>
@@ -320,7 +320,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
           {detalhe.estado === 'carregando' && <p className="meta">Carregando…</p>}
           {detalhe.estado === 'erro' && <p className="meta">{detalhe.mensagem}</p>}
           {detalhe.estado === 'ok' && casoAtual && (
-            <article className="op-card" aria-label={`Caso ${casoAtual.id}`}>
+            <article className="op-card slab-mineral" aria-label={`Caso ${casoAtual.id}`}>
               <div className="op-caso-topo">
                 <span className={classeStatusCaso(casoAtual.status)}>
                   {rotuloStatusCaso(casoAtual.status)}
@@ -449,7 +449,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                         </select>
                         <button
                           type="button"
-                          className="botao"
+                          className="botao-sutil"
                           disabled={ocupada}
                           onClick={() =>
                             void executar(
@@ -478,7 +478,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                       />
                       <button
                         type="button"
-                        className="botao"
+                        className="botao op-acao-primaria"
                         disabled={ocupada}
                         onClick={() =>
                           void executar(async () => {
