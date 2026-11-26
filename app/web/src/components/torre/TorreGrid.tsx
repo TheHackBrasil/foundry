@@ -690,7 +690,10 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
   // window splitter) e anunciam o limite em vez de dar a volta.
   const aoAjustarSpan = useCallback(
     (id: CardId, alvo: number, ciclar: boolean) => {
-      const atual = posMapRef.current.get(id)?.span ?? spanDe(id);
+      // Intenção do layout (spanDe), nunca o span elástico do posMap: o
+      // pós-passo elástico infla posMap quando há coluna morta à direita, e
+      // ler de lá tornava o ciclo não-determinístico (travava sem dar a volta).
+      const atual = spanDe(id);
       let prox: number;
       if (ciclar) prox = atual >= cols ? 1 : atual + 1;
       else prox = Math.max(1, Math.min(cols, alvo));
@@ -887,7 +890,7 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
               handleProps={handleProps}
               aoAjustarSpan={aoAjustarSpan}
               aoAlternarRecolhido={alternarRecolhido}
-              span={p?.span ?? spanDe(id)}
+              span={spanDe(id)}
               spanMax={cols}
               estilo={
                 p

@@ -251,7 +251,6 @@
   min-height: 0;
   max-height: var(--teto-corpo, 880px);
   overflow-y: auto;
-  overscroll-behavior: contain;
   scrollbar-width: none;
   transition: grid-template-rows 220ms var(--ease-out);
 }
@@ -327,6 +326,20 @@
 /* ---------- tiers do conteúdo (container query por largura real do card) ---------- */
 /* Matriz em card estreito: as colunas de fonte têm um mínimo legível e a
    tabela rola na horizontal em vez de clipar a última coluna. */
+/* Domino estreito: o palco tem mínimos de 624px em styles.css — dentro de um
+   card da torre as colunas cedem até o conteúdo, e o corredor causal central
+   (só arestas SVG) comprime sem quebrar. */
+@container tcard (max-width: 700px) {
+  /* O wrap é grid de coluna auto: sem minmax a faixa dimensiona pelo
+     max-content do palco (624px) e estoura o card estreito. */
+  .tc-domino .domino-wrap { grid-template-columns: minmax(0, 1fr); }
+  .tc-domino .domino-palco {
+    grid-template-columns: minmax(0, 1.05fr) minmax(3.5rem, 0.55fr) minmax(0, 1.1fr);
+  }
+  .tc-domino .domino-col-titulos {
+    grid-template-columns: minmax(0, 1.05fr) minmax(3.5rem, 0.55fr) minmax(0, 1.1fr);
+  }
+}
 @container tcard (max-width: 700px) {
   .tc-matriz .mx [role='table'] { overflow-x: auto; scrollbar-width: thin; }
   .tc-matriz .mx-row { min-width: calc(9.5rem + var(--n) * 7.5rem); }
@@ -341,6 +354,9 @@
   .mx-trilhos-label { display: none; }
   .domino-tags-origem,
   .domino-comparacao { display: none; }
+  .tc-domino .domino-palco {
+    grid-template-columns: minmax(0, 1fr) minmax(2.25rem, 0.4fr) minmax(0, 1fr);
+  }
   .selo-meta,
   .selo-cadeia-info { display: none; }
   .versoes-sumario,
