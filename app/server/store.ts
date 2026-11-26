@@ -5,11 +5,31 @@ import { randomBytes } from 'node:crypto';
 import { GENESIS_HASH, hashEvento, verificarCadeia, type VerificacaoCadeia } from '../shared/chain.js';
 import { TIPOS_DOCUMENTO } from '../shared/model.js';
 import type { CanalContato, Cobranca, Contato, Evento, ItemRevisao, Parte, PropostaMapeamento } from '../shared/model.js';
+import type { EstadoKillSwitch } from '../operador/politica.js';
 import { CONTATOS_SEED } from './contatos.js';
 import type { Db } from './db.js';
 
 // Contato da agenda com id e dono, como contatoDaParte devolve.
 export type ContatoDaAgenda = Contato & { id: number; workspaceId: string; naoContatarIa: boolean };
+
+// Sinal ao operador (RF18): declaracao aprovada na revisao que o fluxo do
+// caso ainda nao leu.
+export interface SinalOperador {
+  id: number;
+  workspaceId: string;
+  pedidoId: string;
+  revisaoId: number;
+  fonte: string;
+  seqDeclaracao: number | null;
+  criadoEm: string;
+}
+
+// Linha do contato_aceito casada pelo id externo, antes de achar o caso.
+export interface AceiteDoFornecedor {
+  workspaceId: string;
+  pedidoId: string;
+  chave: string;
+}
 
 // 'workspace': so as cobrancas do store; 'todos': a caixa IMAP do sistema.
 export type EscopoCobranca = 'workspace' | 'todos';
@@ -153,6 +173,44 @@ CREATE INDEX IF NOT EXISTS evidencias_apagar_em ON evidencias (apagar_em) WHERE 
 -- incerto, falhou) repetem a chave sem colidir.
 CREATE UNIQUE INDEX IF NOT EXISTS events_contato_iniciado_chave
   ON events (workspace_id, pedido_id, (payload->>'chave')) WHERE tipo = 'contato_iniciado';
+
+-- Spec 0017, RF17: dedupe de webhook de fornecedor pelo id do evento. Fica
+-- fora do workspace porque a entrada ainda nao sabe de quem e o evento; o
+-- mapeamento vem depois, pelo id externo do contato_aceito.
+CREATE TABLE IF NOT EXISTS webhook_eventos (
+  fornecedor   TEXT NOT NULL,
+  id_evento    TEXT NOT NULL,
+  recebido_em  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (fornecedor, id_evento)
+);
+
+-- Spec 0017, RF10: kill switch global e por workspace, fora do snapshot da
+-- politica e lido antes de cada efeito externo. escopo 'global' usa
+-- workspace_id vazio. acionado = true: nenhum efeito sai.
+CREATE TABLE IF NOT EXISTS operador_controle (
+  escopo        TEXT NOT NULL CHECK (escopo IN ('global', 'workspace')),
+  workspace_id  TEXT NOT NULL DEFAULT '',
+  acionado      BOOLEAN NOT NULL,
+  por           TEXT NULL,
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (escopo, workspace_id)
+);
+
+-- Spec 0017, RF18: declaracao de WhatsApp ou ligacao aprovada na revisao
+-- sinaliza o operador. Uma linha por item de revisao; o operador marca como
+-- lida quando o fluxo acorda e rele o ledger.
+CREATE TABLE IF NOT EXISTS operador_sinais (
+  id             BIGSERIAL PRIMARY KEY,
+  workspace_id   TEXT NOT NULL,
+  pedido_id      TEXT NOT NULL,
+  revisao_id     BIGINT NOT NULL,
+  fonte          TEXT NOT NULL,
+  seq_declaracao INT NULL,
+  criado_em      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  lido_em        TIMESTAMPTZ NULL,
+  UNIQUE (workspace_id, revisao_id)
+);
+CREATE INDEX IF NOT EXISTS operador_sinais_pendentes ON operador_sinais (workspace_id) WHERE lido_em IS NULL;
 
 CREATE OR REPLACE FUNCTION rejeita_mutacao_events() RETURNS trigger AS $$
 BEGIN
@@ -775,5 +833,101 @@ export class LedgerStore {
        ON CONFLICT (workspace_id, remetente) DO UPDATE SET mapeamento = EXCLUDED.mapeamento`,
       [this.workspace, remetente, JSON.stringify(mapeamento)],
     );
+  }
+  // --- Operador (spec 0017) ---
+
+  // Dedupe de webhook (RF17): true so na primeira vez que o par chega.
+  async registrarWebhookSeInedito(fornecedor: string, idEvento: string): Promise<boolean> {
+    const rows = await this.db.query<{ n: number }>(
+      `INSERT INTO webhook_eventos (fornecedor, id_evento) VALUES ($1, $2)
+       ON CONFLICT (fornecedor, id_evento) DO NOTHING RETURNING 1 AS n`,
+      [fornecedor, idEvento],
+    );
+    return rows.length > 0;
+  }
+
+  // O efeito falhou: o reenvio do fornecedor precisa ser processado.
+  async esquecerWebhook(fornecedor: string, idEvento: string): Promise<void> {
+    await this.db.query(`DELETE FROM webhook_eventos WHERE fornecedor = $1 AND id_evento = $2`, [fornecedor, idEvento]);
+  }
+
+  // contato_aceito com o id externo, em qualquer workspace, cujo
+  // contato_iniciado (mesma chave, mesmo pedido) saiu pelo fornecedor. Quem
+  // chama recusa quando ha mais de um: id externo ambiguo nao mapeia.
+  async aceitesPorIdExterno(fornecedor: string, idExterno: string): Promise<AceiteDoFornecedor[]> {
+    return this.db.query<AceiteDoFornecedor>(
+      `SELECT DISTINCT a.workspace_id AS "workspaceId", a.pedido_id AS "pedidoId", a.payload->>'chave' AS chave
+       FROM events a JOIN events i
+         ON i.workspace_id = a.workspace_id AND i.pedido_id = a.pedido_id
+        AND i.tipo = 'contato_iniciado' AND i.payload->>'chave' = a.payload->>'chave'
+       WHERE a.tipo = 'contato_aceito' AND a.payload->>'idExterno' = $2 AND i.payload->>'fornecedor' = $1
+       LIMIT 2`,
+      [fornecedor, idExterno],
+    );
+  }
+
+  // Kill switch (RF10): lido do banco a cada efeito, nunca do snapshot.
+  async lerKillSwitch(): Promise<EstadoKillSwitch> {
+    const rows = await this.db.query<{ escopo: string; workspace_id: string }>(
+      `SELECT escopo, workspace_id FROM operador_controle WHERE acionado ORDER BY workspace_id`,
+    );
+    return {
+      global: rows.some((r) => r.escopo === 'global'),
+      workspaces: rows.filter((r) => r.escopo === 'workspace').map((r) => r.workspace_id),
+    };
+  }
+
+  // workspaceId null = chave global. por: rotulo de quem mudou, nunca o token.
+  async definirKillSwitch(workspaceId: string | null, acionado: boolean, por: string | null = null): Promise<void> {
+    await this.db.query(
+      `INSERT INTO operador_controle (escopo, workspace_id, acionado, por, atualizado_em)
+       VALUES ($1, $2, $3, $4, now())
+       ON CONFLICT (escopo, workspace_id) DO UPDATE SET acionado = EXCLUDED.acionado, por = EXCLUDED.por, atualizado_em = now()`,
+      [workspaceId === null ? 'global' : 'workspace', workspaceId ?? '', acionado, por],
+    );
+  }
+
+  // Sinal ao operador (RF18), idempotente por item de revisao.
+  async registrarSinalOperador(pedidoId: string, revisaoId: number, fonte: string, seqDeclaracao: number | null): Promise<void> {
+    await this.db.query(
+      `INSERT INTO operador_sinais (workspace_id, pedido_id, revisao_id, fonte, seq_declaracao)
+       VALUES ($1, $2, $3, $4, $5) ON CONFLICT (workspace_id, revisao_id) DO NOTHING`,
+      [this.workspace, pedidoId, revisaoId, fonte, seqDeclaracao],
+    );
+  }
+
+  async sinaisOperadorPendentes(pedidoId?: string): Promise<SinalOperador[]> {
+    const rows = await this.db.query<Record<string, unknown>>(
+      `SELECT * FROM operador_sinais WHERE workspace_id = $1 AND lido_em IS NULL
+       AND ($2::text IS NULL OR pedido_id = $2) ORDER BY id`,
+      [this.workspace, pedidoId ?? null],
+    );
+    return rows.map((r) => ({
+      id: Number(r['id']),
+      workspaceId: r['workspace_id'] as string,
+      pedidoId: r['pedido_id'] as string,
+      revisaoId: Number(r['revisao_id']),
+      fonte: r['fonte'] as string,
+      seqDeclaracao: r['seq_declaracao'] === null || r['seq_declaracao'] === undefined ? null : Number(r['seq_declaracao']),
+      criadoEm: new Date(r['criado_em'] as string).toISOString(),
+    }));
+  }
+
+  async marcarSinalLido(id: number): Promise<boolean> {
+    const rows = await this.db.query(
+      `UPDATE operador_sinais SET lido_em = now() WHERE workspace_id = $1 AND id = $2 AND lido_em IS NULL RETURNING id`,
+      [this.workspace, id],
+    );
+    return rows.length > 0;
+  }
+
+  // Resposta de canal sem assinatura ainda na revisao: pausa a escada (RF18).
+  async declaracaoEmRevisao(pedidoId: string): Promise<boolean> {
+    const rows = await this.db.query(
+      `SELECT 1 AS n FROM review_queue WHERE workspace_id = $1 AND status = 'pendente'
+       AND payload->>'pedidoId' = $2 AND payload->>'fonte' = ANY($3::text[]) LIMIT 1`,
+      [this.workspace, pedidoId, ['whatsapp_transportadora', 'ligacao_transportadora']],
+    );
+    return rows.length > 0;
   }
 }

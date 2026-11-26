@@ -30,6 +30,7 @@ import { notificarEmTarefaDoEnv, notificarTarefa } from './nvoip.js';
 import { ErroRequisicao, mensagens } from './protecao.js';
 import { extrairSinais } from './sinal.js';
 import type { LedgerStore } from './store.js';
+import type { ResultadoExtracao } from '../operador/agente/extracao.js';
 import type { CanalSSE } from './sse.js';
 import { detectarTipo } from './ingest/detect.js';
 import { ErroParser, parseNFe } from './ingest/nfe.js';
@@ -442,19 +443,91 @@ export async function aprovarRevisao(
   if (typeof p?.pedidoId !== 'string') {
     return aprovarComMapeamento(canal, alvo, id, item['payload'] as Record<string, unknown>);
   }
-  const doc: DocData = { fonte: p.fonte, docTipo: p.docTipo, pedidoId: p.pedidoId, campos: p.campos, dados: p.dados };
+  const doOperador = FONTES_OPERADOR.has(p.fonte);
+  const confianca = (item['payload'] as { confianca?: unknown }).confianca;
+  const doc: DocData = {
+    fonte: p.fonte,
+    docTipo: p.docTipo,
+    pedidoId: p.pedidoId,
+    campos: p.campos,
+    dados: p.dados,
+    // Declaracao do operador guarda a confianca da extracao (A7, RF26).
+    ...(doOperador && typeof confianca === 'number' && Number.isFinite(confianca) ? { confianca } : {}),
+  };
   const r = await alvo.transaction(async (tx) => {
     // Mesma ordem do processarDoc: o lock do pedido vem antes da decisao.
     await tx.travarPedido(doc.pedidoId);
     if (!(await tx.resolverRevisao(id, 'aprovado'))) return null;
-    if (await tx.eventoExiste(doc.pedidoId, doc.docTipo, payloadDoDoc(doc))) {
-      return []; // item irmao ja aprovado: doc identico ja esta no ledger
+    const gravados = (await tx.eventoExiste(doc.pedidoId, doc.docTipo, payloadDoDoc(doc)))
+      ? [] // item irmao ja aprovado: doc identico ja esta no ledger
+      : await registrarDoc(tx, doc);
+    // RF18: aprovar a declaracao de WhatsApp ou ligacao sinaliza o operador,
+    // na mesma tx do status_declarado.
+    if (doOperador) {
+      const seq = gravados.find((e) => e.tipo === doc.docTipo)?.seq ?? null;
+      await tx.registrarSinalOperador(doc.pedidoId, id, doc.fonte, seq);
     }
-    return registrarDoc(tx, doc);
+    return gravados;
   });
   if (r === null) return null;
   for (const ev of r) canal.evento(ev, alvo.workspace);
+  if (doOperador) avisarOperador({ workspaceId: alvo.workspace, pedidoId: doc.pedidoId, revisaoId: id, fonte: doc.fonte });
   return r;
+}
+
+// --- Operador (spec 0017, RF18; T727) ---
+
+// Fontes do operador: canal sem assinatura, sempre pela revisao.
+const FONTES_OPERADOR: ReadonlySet<string> = new Set(['whatsapp_transportadora', 'ligacao_transportadora']);
+
+export const ORIGEM_REVISAO_OPERADOR = 'operador';
+
+// Resultado da extracao (operador/agente/extracao.ts) entra na fila de
+// revisao como qualquer resposta sem assinatura: o item ja vem no formato
+// que aprovarRevisao le. Nunca grava status_declarado direto (invariante 5).
+export async function enfileirarDeclaracaoOperador(
+  store: LedgerStore,
+  resultado: Pick<ResultadoExtracao, 'motivo' | 'item'>,
+): Promise<number> {
+  const { item } = resultado;
+  if (!FONTES_OPERADOR.has(item.fonte) || item.docTipo !== 'status_declarado') {
+    throw new RangeError(`fonte fora do operador: ${String(item.fonte)}`);
+  }
+  return store.enfileirarRevisao(ORIGEM_REVISAO_OPERADOR, resultado.motivo, {
+    pedidoId: item.pedidoId,
+    docTipo: item.docTipo,
+    fonte: item.fonte,
+    campos: item.campos,
+    dados: item.dados,
+    confianca: item.confianca,
+  });
+}
+
+// Aviso em memoria para acordar o fluxo do caso antes do proximo tick
+// (o DBOS.send so acelera; a fonte da verdade e a tabela operador_sinais e
+// o ledger). Ouvinte que lanca nao derruba a aprovacao.
+export interface AvisoOperador {
+  workspaceId: string;
+  pedidoId: string;
+  revisaoId: number;
+  fonte: string;
+}
+
+const ouvintesOperador = new Set<(aviso: AvisoOperador) => void>();
+
+export function ouvirSinaisOperador(fn: (aviso: AvisoOperador) => void): () => void {
+  ouvintesOperador.add(fn);
+  return () => ouvintesOperador.delete(fn);
+}
+
+function avisarOperador(aviso: AvisoOperador): void {
+  for (const fn of ouvintesOperador) {
+    try {
+      fn(aviso);
+    } catch {
+      // o sinal duravel ja esta gravado
+    }
+  }
 }
 
 // Aprovacao do item de layout desconhecido (RF11/T124): a proposta aceita

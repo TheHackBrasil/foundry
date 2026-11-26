@@ -4,7 +4,10 @@ import {
   contemDadoPessoal,
   criarClienteClaude,
   erroDaChamada,
+  estimarCustoBrl,
   lerResposta,
+  lerUso,
+  PRECOS_ESTIMADOS_PADRAO,
   MODELO_AGENTE_PADRAO,
   MODELO_EXTRACAO_PADRAO,
   montarRequisicao,
@@ -34,6 +37,7 @@ function resposta(extra: Partial<RespostaClaude> = {}): RespostaClaude {
     stop_reason: extra.stop_reason ?? 'end_turn',
     stop_details: extra.stop_details ?? null,
     content: extra.content ?? [],
+    ...(extra.usage ? { usage: extra.usage } : {}),
   };
 }
 
@@ -327,5 +331,49 @@ describe('modo degradado (NFR-demo)', () => {
       disponivel: true,
       modelo: 'claude-haiku-5-5',
     });
+  });
+});
+
+describe('custo estimado (RF9, A7)', () => {
+  const usage = { input_tokens: 1_000_000, output_tokens: 500_000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+
+  it('le o usage da resposta e converte pela tabela da config, rotulado estimativa', async () => {
+    const precos = { 'claude-opus-5-5': { entradaBrlPorMilhao: 10, saidaBrlPorMilhao: 40 } };
+    const { porta } = portaFalsa([json({ assunto: 'Status da carga', corpo: `Qual o status da NF-e ${CHAVE}?` }, { usage })]);
+    const c = criarClienteClaude({ apiKey: 'sk-teste', porta, precos });
+    const r = await c.gerarEstruturado(pedidoBase);
+    expect(r.ok).toBe(true);
+    expect(r.uso).toEqual({
+      modelo: 'claude-opus-5-5',
+      tokensEntrada: 1_000_000,
+      tokensSaida: 500_000,
+      tokensEscritaCache: 0,
+      tokensLeituraCache: 0,
+      custoEstimadoBrl: 30, // 1 x 10 + 0,5 x 40
+      metodo: 'estimativa',
+    });
+  });
+
+  it('a redacao repassa o uso, inclusive quando a saida e recusada pela validacao', async () => {
+    const { porta } = portaFalsa([json({ corpo: 'sem assunto' }, { usage })]);
+    const r = await redigirMensagem(criarClienteClaude({ apiKey: 'sk-teste', porta }), resumo);
+    expect(r.ok).toBe(false);
+    expect(r.uso?.tokensSaida).toBe(500_000);
+    expect(r.uso?.custoEstimadoBrl).toBeGreaterThan(0);
+  });
+
+  it('cache entra pelos fatores do preco; modelo fora da tabela da null, sem chute', () => {
+    const base = { modelo: 'm', tokensEntrada: 0, tokensSaida: 0, tokensEscritaCache: 1_000_000, tokensLeituraCache: 1_000_000 };
+    const precos = { m: { entradaBrlPorMilhao: 10, saidaBrlPorMilhao: 0, fatorEscritaCache: 1.25, fatorLeituraCache: 0.1 } };
+    expect(estimarCustoBrl(base, precos)).toBe(13.5);
+    expect(estimarCustoBrl({ ...base, modelo: 'outro' }, precos)).toBeNull();
+  });
+
+  it('sem usage nao ha uso; os padroes cobrem os dois modelos do operador', () => {
+    expect(lerUso(resposta())).toBeNull();
+    expect(Object.keys(PRECOS_ESTIMADOS_PADRAO).sort()).toEqual([MODELO_AGENTE_PADRAO, MODELO_EXTRACAO_PADRAO].sort());
+    const haiku = lerUso(resposta({ model: MODELO_EXTRACAO_PADRAO, usage: { input_tokens: 2_000, output_tokens: 300 } }));
+    expect(haiku?.custoEstimadoBrl).toBeGreaterThan(0);
+    expect(haiku?.custoEstimadoBrl).toBeLessThan(0.01);
   });
 });

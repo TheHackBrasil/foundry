@@ -67,6 +67,9 @@ export interface ConfigServidor {
   rateLimit: ConfigRateLimit;
   sse: OpcoesSSE;
   mandatos: ConfigMandatos;
+  // Credencial de aprovador do operador (spec 0017, RF10). Ausente: as
+  // rotas que pedem aprovador respondem 401 sempre.
+  operadorAprovadorToken?: string | null;
 }
 
 type Ambiente = Record<string, string | undefined>;
@@ -121,6 +124,7 @@ export function configDoEnv(env: Ambiente = process.env): ConfigServidor {
   }
   return {
     seedWs: workspaceSeed(env),
+    operadorAprovadorToken: texto(env, 'OPERADOR_APROVADOR_TOKEN') ?? null,
     corsOrigens: origensCors(env),
     ipHeader,
     webDist: texto(env, 'WEB_DIST_DIR') ?? null,

@@ -61,12 +61,95 @@ export interface ErroClaude {
 export interface FalhaClaude {
   ok: false;
   erro: ErroClaude;
+  uso?: UsoClaude; // a chamada saiu e foi cobrada mesmo com saida invalida
 }
 
 // Validacao local (sem chamada) e resultado de chamada, que diz qual
 // modelo serviu (pode ser o do fallback).
 export type Validacao<T> = { ok: true; valor: T } | FalhaClaude;
-export type ResultadoClaude<T> = { ok: true; valor: T; modelo: string } | FalhaClaude;
+export type ResultadoClaude<T> = { ok: true; valor: T; modelo: string; uso?: UsoClaude } | FalhaClaude;
+
+// ---------------------------------------------------------------------------
+// Custo (RF9, A7): tokens lidos do usage da resposta e convertidos em reais
+// pela tabela de precos da configuracao. O resultado e estimativa, nunca a
+// fatura: o cambio e os precos mudam, e o rotulo 'estimativa' acompanha o
+// valor ate a tela.
+
+export interface PrecoModelo {
+  entradaBrlPorMilhao: number; // input_tokens
+  saidaBrlPorMilhao: number; // output_tokens
+  // Multiplicadores do preco de entrada para cache; ausentes valem 1.
+  fatorEscritaCache?: number; // cache_creation_input_tokens
+  fatorLeituraCache?: number; // cache_read_input_tokens
+}
+
+export type TabelaPrecos = Readonly<Record<string, PrecoModelo>>;
+
+// Estimativa padrao, nao medida (A7). Fonte: tabela de precos da Anthropic
+// em US$ por milhao de tokens (claude-opus-5-5: 4 entrada e 20 saida;
+// claude-haiku-5-5: 0,10 e 0,50, ate 100 mil tokens de prompt), consultada
+// em 26/11/2026, vezes um cambio suposto de R$ 5,50 por dolar. Cache: escrita
+// 1,25 e leitura 0,1 do preco de entrada. Quem opera troca pela config.
+export const CAMBIO_ESTIMADO_BRL_POR_USD = 5.5;
+
+function precoDeUsd(entradaUsd: number, saidaUsd: number): PrecoModelo {
+  return {
+    entradaBrlPorMilhao: entradaUsd * CAMBIO_ESTIMADO_BRL_POR_USD,
+    saidaBrlPorMilhao: saidaUsd * CAMBIO_ESTIMADO_BRL_POR_USD,
+    fatorEscritaCache: 1.25,
+    fatorLeituraCache: 0.1,
+  };
+}
+
+export const PRECOS_ESTIMADOS_PADRAO: TabelaPrecos = {
+  'claude-opus-5-5': precoDeUsd(4, 20),
+  'claude-haiku-5-5': precoDeUsd(0.1, 0.5),
+};
+
+export interface UsoClaude {
+  modelo: string;
+  tokensEntrada: number;
+  tokensSaida: number;
+  tokensEscritaCache: number;
+  tokensLeituraCache: number;
+  // null quando o modelo nao esta na tabela: sem preco, sem chute.
+  custoEstimadoBrl: number | null;
+  metodo: 'estimativa';
+}
+
+function inteiroNaoNegativo(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+
+export function estimarCustoBrl(
+  uso: Omit<UsoClaude, 'custoEstimadoBrl' | 'metodo'>,
+  precos: TabelaPrecos = PRECOS_ESTIMADOS_PADRAO,
+): number | null {
+  const p = precos[uso.modelo];
+  if (!p) return null;
+  const entrada =
+    uso.tokensEntrada +
+    uso.tokensEscritaCache * (p.fatorEscritaCache ?? 1) +
+    uso.tokensLeituraCache * (p.fatorLeituraCache ?? 1);
+  const brl = (entrada * p.entradaBrlPorMilhao + uso.tokensSaida * p.saidaBrlPorMilhao) / 1_000_000;
+  // Centesimo de centavo: o teto do RF9 soma muitas chamadas pequenas.
+  return Math.round(brl * 10_000) / 10_000;
+}
+
+// usage ausente (porta falsa antiga, proxy) devolve null: o chamador nao
+// inventa custo.
+export function lerUso(resp: RespostaClaude, precos: TabelaPrecos = PRECOS_ESTIMADOS_PADRAO): UsoClaude | null {
+  const u = resp.usage;
+  if (!u || typeof u !== 'object') return null;
+  const base = {
+    modelo: resp.model,
+    tokensEntrada: inteiroNaoNegativo(u.input_tokens),
+    tokensSaida: inteiroNaoNegativo(u.output_tokens),
+    tokensEscritaCache: inteiroNaoNegativo(u.cache_creation_input_tokens),
+    tokensLeituraCache: inteiroNaoNegativo(u.cache_read_input_tokens),
+  };
+  return { ...base, custoEstimadoBrl: estimarCustoBrl(base, precos), metodo: 'estimativa' };
+}
 
 export function falhaClaude(tipo: TipoErroClaude, motivo: string, extra: Partial<ErroClaude> = {}): FalhaClaude {
   return { ok: false, erro: { tipo, motivo, ...extra } };
@@ -254,7 +337,11 @@ function blocoEvidencia(evidencias: readonly EvidenciaTexto[], nomes: readonly s
 // Porta (DIP): o SDK real em producao, um falso nos testes. Os testes nunca
 // chamam a rede.
 
-export type RespostaClaude = Pick<Anthropic.Beta.Messages.BetaMessage, 'content' | 'stop_reason' | 'stop_details' | 'model'>;
+export type RespostaClaude = Pick<Anthropic.Beta.Messages.BetaMessage, 'content' | 'stop_reason' | 'stop_details' | 'model'> & {
+  usage?: Partial<
+    Pick<Anthropic.Beta.Messages.BetaUsage, 'input_tokens' | 'output_tokens' | 'cache_creation_input_tokens' | 'cache_read_input_tokens'>
+  > | null;
+};
 
 export interface PortaMensagensClaude {
   create(params: ParamsMensagem, opcoes?: { signal?: AbortSignal }): Promise<RespostaClaude>;
@@ -393,6 +480,7 @@ export interface ConfigClienteClaude {
   modelo?: string | undefined; // OPERADOR_MODELO_AGENTE ou OPERADOR_MODELO_EXTRACAO
   porta?: PortaMensagensClaude; // injecao; sem ela, o SDK real
   opcoesPorta?: OpcoesPortaAnthropic;
+  precos?: TabelaPrecos; // R$ por milhao de tokens; sem ela, PRECOS_ESTIMADOS_PADRAO
 }
 
 export function criarClienteClaude(config: ConfigClienteClaude, modeloPadrao: string = MODELO_AGENTE_PADRAO): ClienteClaude {
@@ -422,7 +510,9 @@ export function criarClienteClaude(config: ConfigClienteClaude, modeloPadrao: st
       } catch (e) {
         return { ok: false, erro: erroDaChamada(e) };
       }
-      return lerResposta(resp);
+      const r = lerResposta(resp);
+      const uso = lerUso(resp, config.precos);
+      return uso ? { ...r, uso } : r;
     },
   };
 }
@@ -630,5 +720,6 @@ export async function redigirMensagem(
   });
   if (!r.ok) return r;
   const v = validarRedacao(r.valor, contexto);
-  return v.ok ? { ok: true, valor: v.valor, modelo: r.modelo } : v;
+  const uso = r.uso ? { uso: r.uso } : {};
+  return v.ok ? { ok: true, valor: v.valor, modelo: r.modelo, ...uso } : { ...v, ...uso };
 }

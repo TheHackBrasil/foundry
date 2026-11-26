@@ -39,6 +39,7 @@ import { executarAgente } from './agente/motor.js';
 import { ancorar, configAncoraDoEnv } from './anchor.js';
 import { configDoEnv, inteiroDoEnv, type ConfigServidor } from './config.js';
 import { listarAgenda, validarContato } from './contatos.js';
+import { registrarRotaControle } from './controle.js';
 import { createDb, type Db } from './db.js';
 import { imapConfigDoEnv, iniciarPolling } from './ingest/imap.js';
 import { ErroLlm, llmConfigDoEnv } from './llm.js';
@@ -773,6 +774,9 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     if (r.ok) canal.enviar('ancora', r, s.workspace);
     return r.ok ? r : reply.code(503).send(r);
   });
+
+  // Kill switch do operador (spec 0017, RF10): so com credencial de aprovador.
+  registrarRotaControle(app, { store, token: cfg.operadorAprovadorToken });
 
   // Fila de revisao (RF7/T035): docs sem pedido ou extracao incerta. A sessao
   // le a propria fila e a da seed, mas so decide os proprios itens.

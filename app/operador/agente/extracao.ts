@@ -2,9 +2,10 @@
 // ou transcricao de ligacao (spec 0017, RF18; T727, parte do modulo). Roda
 // no Claude Haiku 5.5 com saida por schema estruturado e devolve sempre um
 // item de revisao: canal sem assinatura nunca vira status_declarado direto,
-// e so a aprovacao do analista grava o fato (invariante 5). A integracao com
-// o pipeline e com o sinal ao operador fica para a task seguinte; os nomes de
-// campo e o teto de confianca seguem app/server/pipeline.ts:210-253.
+// e so a aprovacao do analista grava o fato (invariante 5). O resultado entra
+// na fila por enfileirarDeclaracaoOperador (app/server/pipeline.ts), e
+// aprovar o item grava status_declarado e sinaliza o operador. Os nomes de
+// campo e o teto de confianca seguem a resposta de e-mail do pipeline.
 
 import type { CamposObservados, FonteDocumento } from '../../shared/model.js';
 import {
@@ -15,6 +16,7 @@ import {
   type ErroClaude,
   type Esforco,
   type TipoEvidencia,
+  type UsoClaude,
   type Validacao,
 } from './claude.js';
 
@@ -84,6 +86,7 @@ export interface ResultadoExtracao {
   motivo: MotivoRevisaoOperador;
   item: ItemRevisaoDeclaracao;
   erro?: ErroClaude;
+  uso?: UsoClaude; // tokens e custo estimado da chamada, quando houve
 }
 
 export const SISTEMA_EXTRACAO =
@@ -232,9 +235,10 @@ export async function extrairDeclaracao(cliente: ClienteClaude, entrada: Entrada
     maxTokens: 8_000,
     ...(entrada.signal ? { signal: entrada.signal } : {}),
   });
-  if (!r.ok) return semExtracao(r.erro);
+  const uso = r.uso ? { uso: r.uso } : {};
+  if (!r.ok) return { ...semExtracao(r.erro), ...uso };
   const v = validarDeclaracao(r.valor, { nomes, alertaInstrucao });
-  if (!v.ok) return semExtracao(v.erro);
+  if (!v.ok) return { ...semExtracao(v.erro), ...uso };
 
   return {
     destino: 'revisao',
@@ -252,5 +256,6 @@ export async function extrairDeclaracao(cliente: ClienteClaude, entrada: Entrada
       },
       confianca: v.valor.confianca,
     },
+    ...uso,
   };
 }
