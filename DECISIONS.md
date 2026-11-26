@@ -607,3 +607,13 @@ foi verificado ao vivo em produção em 24/11.
   main integrada: tsc limpo, 202/202 testes web, vite build, guard 11/11.
   Verificacao end-to-end no browser: aresta 0,2 medida, preset reativa
   apos span (bug V1 morto), separator APG com aria-valuenow.
+
+## Sessao 12
+- wave B (spec 0015, polish-superficie): superficie premium entregue. Escala
+  tipografica consolidada em 6 degraus via tokens, pesos em 600/700, controles
+  interativos travados em 28px, veios de marmore finos e direcionais com
+  opacidade reduzida (claro 0.085, escuro 0.05), textura nunca aninhada,
+  interior dos cards sem sombra empilhada. S9 (cap de largura do grid)
+  revertido na implementacao: margin-inline auto desliga o stretch do grid
+  item e a largura intrinseca colapsa a zero porque os filhos sao absolutos.
+  Verificacao visual nos dois temas com screenshots antes/depois.
