@@ -40,3 +40,40 @@ de tema nesta wave (depende de superficie de configuracoes inexistente).
 
 Verificacao: tsc, vitest (230 baseline), build. Screenshots da topbar
 com busca aberta/digitando nos dois temas. Commit thisux1, sem push.
+
+## Decisoes da frente
+
+- D-T1 (escopo): preview rico do item 35 fica FORA desta wave. O recorte
+  da call e busca rapida de navegacao; preview entra quando houver
+  superficie propria para ele.
+- D-T2 (dados): a busca cobre so o que ja esta carregado no cliente,
+  zero GET novo: pedidos e contatos via props do App (listaPedidos e
+  torre.contatos) e documentos via projecaoCacheada() de rede.ts, que so
+  devolve projecao ja buscada e validada por totalEventos. Resultado: a
+  secao Documentos aparece quando o pedido foi aberto ou pre-buscado
+  pelo MenuWiki na sessao, nunca com fetch disparado pela busca.
+- D-T3 (navegacao): resultado de pedido/documento usa o href route-aware
+  de dados.ts (#/pedido/:id na torre, #/ia/:id na rota ia), mesmo
+  criterio do SeletorPedidoPopover e do indice lateral. Resultado de
+  parceiro abre a Agenda (mesma acao que o MenuWiki liga a parceiros).
+- D-T4 (aria): listbox com aria-activedescendant no padrao do
+  SeletorPedidoPopover, com uma correcao de fiacao: como o input e o
+  proprio gatilho (combobox), o activedescendant mora nele e nao no
+  container, forma que o APG recomenda para autocomplete. Grupos por
+  secao usam role=group com rotulo.
+- D-T5 (comportamento): resultados ao vivo com debounce de 150ms;
+  consulta vazia mostra o inventario capado como modo browse; Escape
+  fecha o popup e, ja fechado, limpa o campo; "/" foca a busca de
+  qualquer ponto fora de campo editavel (helper elementoEditavel
+  reutilizado); selecao limpa o campo e fecha.
+- D-T6 (de-slop): botoes da topbar na regua compacta --ctl-sm (28px) com
+  fs-meta e icone de 14px, iguais ao passo do toggle de tema; em toque
+  voltam a 44px como os demais controles. Pill roxa da Revisao removida:
+  a pendencia vira chip de contagem em tinta neutra (--text2 sobre
+  --tint-soft), sem dot nem fundo colorido. Sem agrupamento extra de
+  botoes: a barra tem poucos controles e o toggle de tema fica onde
+  esta, conforme o recorte.
+- D-T7 (css): busca.css carrega antes de styles.css na cascata (ordem do
+  grafo de modulos, nao de main.tsx), entao as regras de de-slop levam
+  pai .topo para vencer por especificidade, e .topo ganha
+  overflow:visible para o dropdown escapar da barra.
