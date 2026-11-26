@@ -30,6 +30,8 @@ em execução só via spec (`speckit/specify.md`). Status: `todo` /
 | 33 | Fonte externa de rastreio: polling de páginas públicas das transportadoras da lista (item 32) como fonte consultiva no painel; spec 0013 escrita em 24/11 (registro data-driven, evento `rastreio` com dedup, vocab normalizado, guard SSRF, Firecrawl só para SPA) | spec pronta | THE-30; implementação aguarda frente `app-operacao` (dona de `app/server/`) ou coordenação de paths |
 | 34 | Cadastrar Resend (conta, domínio de envio, API key) para destravar o item 27; ação externa do usuário | todo | pedido do usuário 24/11; bloqueia 27 |
 | 35 | Busca fuzzy global no site inteiro: campo único que varre pedidos, documentos, campos, contatos, tarefas e eventos; destaque do trecho casado no resultado, preview rico do alvo ao lado (card do pedido, trecho do documento, status da cadeia), navegação completa por teclado e UI/UX polida | todo | pedido do usuário 25/11; fuzzy search com preview rico e highlight dos matches |
+| 36 | Log completo de e-mail com histórico acessível pelo harness do agente: toda mensagem enviada ou recebida (SMTP/IMAP) persistida com thread, anexos e linha do tempo consultável; usuário vai mandar a transcrição da call como material | todo | pedido do usuário 25/11 |
+| 37 | Migrar Postgres para Turso (SQLite distribuído) com isolamento multitenant por workspace: avaliação de custo, latência de edge e simplicidade operacional; sessões anônimas já são o wedge de tenancy | todo | pedido do usuário 25/11 |
 
 | 4 | Publicar `slides/` do deck de descoberta Enviagora | todo | arquivos já portados; subir no mesmo deploy |
 | 6 | Capítulo pós-call Enviagora no diário | blocked | call remarcada sem data: escrever só com resultado real |
