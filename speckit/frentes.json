@@ -303,6 +303,16 @@
     "app/web/src/vistas.css",
     "specs/0017-chrome-simples/brief-consolida.md"
    ]
+  },
+  "resize-borda": {
+   "brief": "specs/0017-chrome-simples/brief-resize-borda.md",
+   "paths": [
+    "app/web/src/components/torre/TorreGrid.tsx",
+    "app/web/src/components/torre/TorreCard.tsx",
+    "app/web/src/torre-v2.css",
+    "app/web/src/components/torre/packing.ts",
+    "specs/0017-chrome-simples/brief-resize-borda.md"
+   ]
   }
  }
 }
