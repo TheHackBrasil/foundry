@@ -155,3 +155,73 @@
     to { opacity: 1; transform: translate3d(0, 0, 0); }
   }
 }
+
+/* ---------- menu "Layout" (spec 0017, chrome-toolbar): popover com foco
+   preso que concentra vistas salvas, salvar/restaurar e o toggle de cards;
+   na faixa ficam só os presets e a densidade. O toast mora dentro de
+   .vistas-menu no DOM: clique nele não é "fora" do menu e o Desfazer entra
+   no anel de foco enquanto o menu está aberto. */
+.vistas-menu { position: relative; }
+.vistas-menu-gatilho svg { transition: transform var(--dur-micro) var(--ease-out); }
+.vistas-menu-gatilho[aria-expanded='true'] svg { transform: rotate(180deg); }
+
+.vistas-menu-painel {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 16rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  max-height: min(30rem, calc(100vh - 6rem));
+  overflow-y: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-slab);
+}
+.vistas-menu-secao { display: flex; flex-direction: column; gap: 0.5rem; }
+.vistas-menu-secao + .vistas-menu-secao {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.vistas-menu-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+
+/* vistas salvas em linhas de menu: o chip de aplicar cresce, pin e excluir
+   ficam à direita; ações da seção ocupam a largura e leem como itens. */
+.vistas-menu-lista { display: flex; flex-direction: column; gap: 0.25rem; }
+.vistas-menu-lista .torre-vista-salva { display: flex; align-items: center; gap: 0.25rem; }
+.vistas-menu-lista .torre-vista-salva > .chip {
+  flex: 1;
+  justify-content: flex-start;
+  text-align: left;
+  min-width: 0;
+}
+.vistas-menu-acoes > .botao-sutil { width: 100%; justify-content: flex-start; }
+.vistas-menu-acoes .torre-vista-form { display: flex; width: 100%; }
+.vistas-menu-acoes .torre-vista-input { width: auto; flex: 1; min-width: 0; }
+
+.vistas-menu-cards { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .vistas-menu-painel { animation: vistas-menu-entra 140ms var(--ease-out); }
+  @keyframes vistas-menu-entra {
+    from { opacity: 0; transform: translate3d(0, -4px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vistas-menu-gatilho svg { transition: none; }
+}
