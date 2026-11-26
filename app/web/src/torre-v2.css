@@ -252,7 +252,7 @@
   max-height: var(--teto-corpo, 880px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   transition: grid-template-rows 220ms var(--ease-out);
 }
 .torre-card-corpo-inner {
@@ -400,4 +400,35 @@
 .torre-card-corpo [class*='medidor'],
 .torre-card-corpo [class*='slab'] {
   box-shadow: none;
+}
+/* Superfícies aninhadas (matriz, grupos de tarefa, nós do dominó, pill de
+   regra) perdem a sombra de laje e viram região de hairline — máximo uma
+   linha de contorno, nunca sombra dentro de sombra. O brilho de foco/simulação
+   vira só anel, sem camada de drop shadow. */
+.torre-card-corpo .mx,
+.torre-card-corpo .tarefas-grupo,
+.torre-card-corpo .domino-no,
+.torre-card-corpo .domino-regra-pill {
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.torre-card-corpo .mx-simulacao {
+  box-shadow: inset 0 0 0 1.5px var(--change);
+}
+/* Grupo de tarefa focado é seleção, não divergência: anel neutro (S6). */
+.torre-card-corpo .tarefas-grupo-focado {
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+}
+
+/* Scrollbar interna só aparece com o card sob o cursor (S10): em repouso o
+   conteúdo corre limpo, sem trilho permanente roubando largura. */
+.torre-card-corpo::-webkit-scrollbar { width: 0; height: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .torre-card-corpo:hover { scrollbar-width: thin; }
+  .torre-card-corpo:hover::-webkit-scrollbar { width: 10px; }
+  .torre-card-corpo:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text) 20%, transparent);
+    border: 3px solid transparent;
+    border-radius: var(--r-pill);
+    background-clip: padding-box;
+  }
 }

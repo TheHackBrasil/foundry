@@ -4,7 +4,6 @@
    60fps estritamente em compositor (transform / opacity / clip-path / stroke-dashoffset). */
 
 :root {
-  --r-xs: 6px;
   --r-sm: 10px;
   --r-md: 14px;
   --r-lg: 18px;
@@ -56,11 +55,13 @@
   --elev-ctrl-hover: var(--bevel-luz), 0 0 0 1px var(--border-strong), 0 2px 6px -2px rgba(22, 60, 56, 0.1);
   --elev-cmd: var(--shadow-slab);
 
-  /* Veios orgânicos reais de mármore travertino/Carrara (claro) e Nero Marquina (escuro)
-     usando type='turbulence' com esticamento de contraste no canal alpha para evitar cinza plano. */
-  --veio-claro: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.014 0.11' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.14  0 0 0 0 0.24  0 0 0 0 0.21  0 0 0 2.15 -0.78'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
-  --veio-escuro: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.014 0.11' numOctaves='3' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.72  0 0 0 0 0.84  0 0 0 0 0.80  0 0 0 2.05 -0.82'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --grao-mineral: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  /* Veios autoriais de mármore (spec 0015, S3): traços finos e direcionais
+     desenhados à mão — nada de feTurbulence, que lia como mancha de fumaça.
+     Um único asset de 1600px; cada laje recorta uma zona diferente via
+     --veio-x/--veio-y, então o padrão nunca se repete igual entre cards.
+     Tema escuro é liso: superfície premium não leva textura em cima de
+     superfície escura (Nero Marquina de verdade é quase plano). */
+  --veio-claro: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000' preserveAspectRatio='xMidYMid slice'%3E%3Cg fill='none' stroke='%233d544d' stroke-linecap='round'%3E%3Cpath d='M-60 800 C 300 700 700 780 1060 680 S 1500 560 1700 620' stroke-width='1.6' stroke-opacity='.3'/%3E%3Cpath d='M-80 760 C 280 672 660 744 1020 656 S 1460 540 1680 600' stroke-width='.7' stroke-opacity='.24'/%3E%3Cpath d='M-40 830 C 320 736 720 806 1080 712 S 1520 596 1720 650' stroke-width='.6' stroke-opacity='.2'/%3E%3Cpath d='M-70 240 C 260 320 620 210 940 300 S 1400 430 1680 390' stroke-width='1.3' stroke-opacity='.26'/%3E%3Cpath d='M-30 266 C 270 340 630 236 950 320 S 1410 452 1690 412' stroke-width='.6' stroke-opacity='.2'/%3E%3Cpath d='M90 218 C 280 296 560 208 860 288' stroke-width='.5' stroke-opacity='.18'/%3E%3Cpath d='M560 -60 C 620 170 720 330 880 430 S 1140 620 1200 1060' stroke-width='1.7' stroke-opacity='.26'/%3E%3Cpath d='M580 -40 C 636 176 734 330 890 428' stroke-width='.6' stroke-opacity='.2'/%3E%3Cpath d='M880 400 c 70 -26 140 4 220 -32' stroke-width='.6' stroke-opacity='.2'/%3E%3Cpath d='M1150 810 c 50 -38 110 -36 170 -58' stroke-width='.6' stroke-opacity='.18'/%3E%3Cpath d='M-40 110 c 90 -30 200 -8 300 -44' stroke-width='.5' stroke-opacity='.16'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 :root[data-tema='dark'] {
@@ -110,23 +111,8 @@ body {
     radial-gradient(ellipse 58% 48% at 12% 100%, rgba(101, 65, 153, 0.12), transparent 58%);
 }
 
-/* Papel de algodão mineral no claro e grão tátil de basalto no escuro (perceptível sem ruído). */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.056;
-  mix-blend-mode: multiply;
-  background-image: var(--grao-mineral);
-}
-:root[data-tema='dark'] body::before {
-  opacity: 0.052;
-  mix-blend-mode: soft-light;
-}
-
-/* Lajes minerais: veios reais de mármore travertino (claro) e Nero Marquina (escuro) + luz direcional. */
+/* Lajes minerais: veios reais de mármore travertino/Carrara + luz direcional.
+   Textura só existe no claro e nunca em laje aninhada — o escuro fica liso. */
 .slab-mineral {
   position: relative;
   isolation: isolate;
@@ -142,15 +128,21 @@ body::before {
   border-radius: inherit;
   pointer-events: none;
   z-index: 2;
-  opacity: 0.085;
+  opacity: 0.3;
   mix-blend-mode: multiply;
   background-image: var(--veio-claro);
-  background-size: 300px 300px;
+  background-size: 1900px auto;
+  background-position: var(--veio-x, 0%) var(--veio-y, 0%);
 }
+/* Cada laje recorta uma zona diferente do mesmo veio — sem tile repetido
+   e sem a ilusão de um risco contínuo atravessando as faixas do prelúdio. */
+.kpi-hero-faixa::before { --veio-x: 36%; --veio-y: 58%; }
+.rota-visual::before { --veio-x: 74%; --veio-y: 30%; }
+.torre-grid > .torre-card:nth-of-type(4n + 2)::before { --veio-x: 68%; --veio-y: 24%; }
+.torre-grid > .torre-card:nth-of-type(4n + 3)::before { --veio-x: 22%; --veio-y: 72%; }
+.torre-grid > .torre-card:nth-of-type(4n + 4)::before { --veio-x: 84%; --veio-y: 56%; }
 :root[data-tema='dark'] .slab-mineral::before {
-  opacity: 0.05;
-  mix-blend-mode: screen;
-  background-image: var(--veio-escuro);
+  content: none;
 }
 
 .slab-mineral .slab-mineral::before {
@@ -160,7 +152,7 @@ body::before {
   background-image: none;
 }
 
-::selection { background: var(--change-bg); color: var(--text); }
+::selection { background: color-mix(in srgb, var(--primary) 22%, transparent); color: var(--text); }
 [data-tema-trocando] *:not(.tema-pill),
 [data-tema-trocando] *::before,
 [data-tema-trocando] *::after {
@@ -177,7 +169,7 @@ s { text-decoration-thickness: 1px; }
 .mono { font-family: var(--font-mono); }
 .num { font-variant-numeric: tabular-nums; }
 
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-xs); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-sm); }
 .lateral :focus-visible { outline-color: var(--on-rail); }
 
 .so-leitor { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -247,7 +239,6 @@ s { text-decoration-thickness: 1px; }
   min-width: var(--ctl-sm);
   padding: 0 0.25rem;
   border: 0;
-  border-bottom: 1px dotted color-mix(in srgb, var(--border-strong) 70%, transparent);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -316,7 +307,7 @@ s { text-decoration-thickness: 1px; }
   height: 0.875rem;
   flex: none;
 }
-.pilula-coord { color: var(--change); }
+.pilula-coord { color: var(--primary); }
 .pilula-ok { color: var(--ok); }
 .pilula-warn { color: var(--warn); }
 .pilula-erro { color: var(--error); }
@@ -330,8 +321,8 @@ s { text-decoration-thickness: 1px; }
   height: 9px;
   flex: none;
   border-radius: 2px;
-  border: 1.5px solid var(--change);
-  background: var(--change-bg);
+  border: 1.5px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
   transform: rotate(45deg);
 }
 
@@ -405,22 +396,6 @@ s { text-decoration-thickness: 1px; }
 :root[data-tema='dark'] .topo {
   background-image: linear-gradient(96deg, rgba(232, 240, 238, 0.045) 0%, transparent 44%, rgba(0, 0, 0, 0.16) 100%);
   box-shadow: var(--bevel-luz), 0 2px 10px -4px rgba(0, 0, 0, 0.45);
-}
-.topo::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.14;
-  mix-blend-mode: multiply;
-  background-image: var(--veio-claro);
-  background-size: 300px 300px;
-}
-:root[data-tema='dark'] .topo::before {
-  opacity: 0.13;
-  mix-blend-mode: screen;
-  background-image: var(--veio-escuro);
 }
 .topo > * {
   position: relative;
@@ -616,17 +591,6 @@ s { text-decoration-thickness: 1px; }
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   isolation: isolate;
-}
-.lateral::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-  opacity: 0.17;
-  mix-blend-mode: screen;
-  background-image: var(--veio-escuro), var(--grao-mineral);
-  background-size: 380px 380px, 180px 180px;
 }
 
 .rail-corpo {
@@ -898,9 +862,10 @@ s { text-decoration-thickness: 1px; }
   font-size: var(--fs-ui);
   font-weight: 600;
   color: var(--on-rail);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   min-width: 0;
 }
 
@@ -928,7 +893,8 @@ s { text-decoration-thickness: 1px; }
 }
 .rail-badge-ok { color: #95d7a2; }
 .rail-badge-warn { color: #f0c374; }
-.rail-badge-coord { color: #d7c5ea; }
+/* coord em azul-aço: roxo fica reservado à divergência (S6) */
+.rail-badge-coord { color: #a3c4dd; }
 .rail-badge-erro { color: #ffa098; }
 
 .lista-sub {
@@ -1052,7 +1018,7 @@ s { text-decoration-thickness: 1px; }
 .envio-zona input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .envio-zona:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 .envio-zona svg { width: 1.25rem; height: 1.25rem; flex: none; color: var(--text); }
-.envio-sobre { background: var(--change-bg); border-color: var(--change); }
+.envio-sobre { background: var(--tint-soft); border-color: var(--border-strong); }
 
 .envio-kit { display: grid; gap: 0.625rem; }
 .envio-kit-titulo {
@@ -1176,7 +1142,10 @@ main {
   padding: 1.5rem 2rem 3rem;
   display: block;
   min-width: 0;
-  max-width: 92rem;
+  /* S9: teto confortável de 1536px na coluna; o excedente do viewport vira
+     respiro simétrico nas duas laterais em vez de esticar os cards. */
+  max-width: 96rem;
+  margin-inline: auto;
   width: 100%;
 }
 main:focus { outline: none; }
@@ -1198,7 +1167,7 @@ main[data-rota='ia'] {
 .painel-pedido {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.375rem;
+  gap: 1.125rem;
   align-content: start;
   min-width: 0;
 }
@@ -1236,7 +1205,7 @@ main[data-rota='ia'] {
   flex-wrap: wrap;
   gap: 0.875rem 1.5rem;
   margin-top: 0.25rem;
-  padding: 0.875rem 1.125rem;
+  padding: 0.625rem 1.125rem;
   border-radius: var(--r-md);
   background-color: var(--surface);
   box-shadow: var(--shadow-slab);
@@ -1348,7 +1317,7 @@ main[data-rota='ia'] {
   align-items: center;
   gap: 0.3125rem;
   padding: 0.25rem 0.5rem;
-  border-radius: var(--r-xs);
+  border-radius: var(--r-sm);
   background: var(--surface2);
   font-size: var(--fs-micro);
   font-weight: 700;
@@ -1445,9 +1414,9 @@ main[data-rota='ia'] {
 }
 .selo-btn svg { width: 0.875rem; height: 0.875rem; flex: none; }
 .selo-btn-destaque {
-  background: var(--primary);
-  color: var(--on-primary);
-  box-shadow: none;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .selo-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 @media (hover: hover) and (pointer: fine) {
@@ -1456,9 +1425,8 @@ main[data-rota='ia'] {
     box-shadow: inset 0 0 0 1px var(--border-strong);
   }
   .selo-btn-destaque:not(:disabled):hover {
-    background: var(--primary);
-    box-shadow: none;
-    opacity: 0.9;
+    background: var(--tint-hover);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
   }
 }
 
@@ -1477,7 +1445,7 @@ main[data-rota='ia'] {
   gap: 0.25rem;
   align-content: start;
   text-align: start;
-  padding: 1.0625rem 1.25rem;
+  padding: 0.75rem 1.125rem;
   border: 0;
   background: transparent;
   color: var(--text);
@@ -1491,7 +1459,7 @@ main[data-rota='ia'] {
   inset-inline: 0;
   bottom: 0;
   height: 2.5px;
-  background: var(--change);
+  background: var(--text);
   transform: scaleX(0);
   transform-origin: center;
   transition: transform 220ms var(--ease-enter);
@@ -1504,7 +1472,7 @@ main[data-rota='ia'] {
   }
 }
 .kpi-hero-clicavel[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--change-bg) 42%, var(--surface));
+  background: var(--tint-soft);
 }
 .kpi-hero-clicavel[aria-pressed='true']::after {
   transform: scaleX(1);
@@ -1665,7 +1633,7 @@ main[data-rota='ia'] {
 .tarefas-grupo-icone {
   width: 1.625rem;
   height: 1.625rem;
-  border-radius: var(--r-xs);
+  border-radius: var(--r-sm);
   background: var(--surface2);
   color: var(--text);
 }
@@ -1730,7 +1698,7 @@ main[data-rota='ia'] {
   padding: 0.375rem 0.4375rem 0.375rem 1rem;
 }
 .cmd-form-ouvindo {
-  background: color-mix(in srgb, var(--change-bg) 28%, var(--surface));
+  background: color-mix(in srgb, var(--error-bg) 65%, var(--surface));
 }
 
 .cmd-prefixo {
@@ -1747,9 +1715,9 @@ main[data-rota='ia'] {
 
 /* Referências inline editoriais dentro da narrativa GenUI (sublinhado, zero pílula). */
 .citacao-btn[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--change-bg) 82%, transparent);
-  color: var(--change);
-  border-bottom-color: var(--change);
+  background: var(--tint-hover);
+  color: var(--text);
+  border-bottom-color: var(--border-strong);
   border-radius: 3px;
   box-shadow: none;
 }
@@ -1775,13 +1743,13 @@ main[data-rota='ia'] {
   height: var(--ctl-md);
   padding: 0.1875rem 0.25rem 0.1875rem 0.625rem;
   border-radius: var(--r-pill);
-  background: var(--change-bg);
+  background: var(--error-bg);
   gap: 0.4375rem;
   animation: entrar-sutil 180ms var(--ease-out) both;
 }
 .voz-canvas { display: block; width: 92px; height: 22px; }
-.voz-lira-wrap { position: relative; overflow: hidden; border-radius: var(--r-xs); }
-.voz-tempo { font-size: var(--fs-micro); font-weight: 600; color: var(--change); min-width: 2.25rem; text-align: end; }
+.voz-lira-wrap { position: relative; overflow: hidden; border-radius: var(--r-sm); }
+.voz-tempo { font-size: var(--fs-micro); font-weight: 600; color: var(--error); min-width: 2.25rem; text-align: end; }
 .voz-ativo-parar {
   display: inline-flex;
   align-items: center;
@@ -1792,8 +1760,8 @@ main[data-rota='ia'] {
   border: 0;
   border-radius: var(--r-pill);
   background: var(--surface);
-  color: var(--change);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--change) 45%, transparent);
+  color: var(--error);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--error) 45%, transparent);
   font-size: var(--fs-meta);
   font-weight: 600;
   cursor: pointer;
@@ -1894,14 +1862,14 @@ main[data-rota='ia'] {
 }
 .cmd-turno-btn:focus-visible { outline-offset: -2px; }
 .cmd-turno-btn[aria-pressed='true'] {
-  background: var(--change-bg);
+  background: var(--tint-hover);
   color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--change);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .cmd-turno-acao {
   font-size: var(--fs-micro);
   font-weight: 600;
-  color: var(--change);
+  color: var(--text2);
 }
 
 .cmd-erro-faixa {
@@ -1953,7 +1921,7 @@ main[data-rota='ia'] {
 .kpi-item:first-child { padding-inline-start: 0; }
 .kpi-item + .kpi-item { border-inline-start: 1px solid var(--hairline); }
 .kpi-valor { font: 700 var(--fs-display)/1.15 var(--font-title); letter-spacing: -0.02em; }
-.kpi-destaque { color: var(--change); }
+.kpi-destaque { color: var(--primary); }
 .kpi-rotulo { font-size: var(--fs-micro); color: var(--text2); font-weight: 600; }
 
 .sim-tabela {
@@ -1985,9 +1953,9 @@ main[data-rota='ia'] {
 }
 .chip:focus-visible { outline-offset: -2px; }
 .chip[data-ativa='true'] {
-  background: var(--change-bg);
-  color: var(--change);
-  box-shadow: inset 0 0 0 1px var(--change);
+  background: var(--tint-hover);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 @media (hover: hover) and (pointer: fine) {
   .chip:not(:disabled):hover { background: var(--tint-hover); box-shadow: inset 0 0 0 1px var(--border-strong); }
@@ -2062,7 +2030,7 @@ main[data-rota='ia'] {
   transition: color var(--dur-micro) ease;
 }
 .aba[aria-selected='true'] { color: var(--text); }
-.aba[aria-selected='true'] .aba-n { background: transparent; color: var(--change); font-weight: 700; }
+.aba[aria-selected='true'] .aba-n { background: transparent; color: var(--text); font-weight: 700; }
 .aba:focus-visible { outline-offset: -2px; }
 @media (hover: hover) and (pointer: fine) {
   .aba:hover { color: var(--text); }
@@ -2161,11 +2129,11 @@ main[data-rota='ia'] {
 }
 .mx-trilho-btn svg { width: 0.75rem; height: 0.75rem; color: var(--text2); flex: none; }
 .mx-trilho-btn[aria-pressed='true'] {
-  background: var(--change-bg);
-  color: var(--change);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--change) 50%, transparent);
+  background: var(--tint-hover);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
-.mx-trilho-btn[aria-pressed='true'] svg { color: var(--change); }
+.mx-trilho-btn[aria-pressed='true'] svg { color: var(--text); }
 @media (hover: hover) and (pointer: fine) {
   .mx-trilho-btn:hover { background: var(--tint-hover); box-shadow: inset 0 0 0 1px var(--border-strong); }
 }
@@ -2184,17 +2152,16 @@ main[data-rota='ia'] {
   color: var(--text2);
 }
 .mx-h > div { padding: 0.75rem 1rem; display: grid; align-content: center; }
-.mx-h > div + div { border-inline-start: 1px solid var(--border); }
 .mx-h b { font-weight: 700; font-size: var(--fs-meta); letter-spacing: 0.05em; color: var(--text); }
 
 .mx-b { box-shadow: inset 0 -1px 0 var(--border); transition: background-color var(--dur-micro) ease; }
 .mx-b:last-child { box-shadow: none; }
 .mx-row-focada {
-  background: color-mix(in srgb, var(--change-bg) 34%, var(--surface));
+  background: var(--tint-soft);
 }
 @media (hover: hover) and (pointer: fine) {
   .mx-b:hover { background: color-mix(in srgb, var(--text) 2.5%, var(--surface)); }
-  .mx-row-focada:hover { background: color-mix(in srgb, var(--change-bg) 42%, var(--surface)); }
+  .mx-row-focada:hover { background: var(--tint-hover); }
 }
 
 .rh { padding: 1rem 1rem; display: grid; gap: 0.3125rem; align-content: start; }
@@ -2256,7 +2223,6 @@ main[data-rota='ia'] {
   display: grid;
   gap: 0.25rem;
   align-content: start;
-  border-inline-start: 1px solid var(--border);
   min-width: 0;
 }
 .cel-btn {
@@ -2283,16 +2249,29 @@ main[data-rota='ia'] {
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
-/* 2 camadas limpas na célula divergente: placa suave + delta-pilula 999px. */
+/* Divergência marcada por célula (S5): placa suave + diamante no canto —
+   a linha vertical da gaiola saiu e a leitura deixou de ser por coluna. */
 .cel-dv {
-  background: color-mix(in srgb, var(--change-bg) 42%, var(--surface));
+  background: color-mix(in srgb, var(--change-bg) 30%, var(--surface));
+}
+.cel-dv::after {
+  content: '';
+  position: absolute;
+  top: 0.625rem;
+  inset-inline-end: 0.625rem;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  transform: rotate(45deg);
+  border-radius: 1.5px;
+  background: var(--change);
+  opacity: 0.85;
 }
 :root[data-tema='dark'] .cel-dv {
-  background: color-mix(in srgb, var(--change-bg) 52%, var(--surface));
+  background: color-mix(in srgb, var(--change-bg) 38%, var(--surface));
 }
 .cel-focada {
-  box-shadow: inset 0 0 0 2px var(--change);
-  background: color-mix(in srgb, var(--change-bg) 62%, var(--surface));
+  box-shadow: inset 0 0 0 2px var(--border-strong);
+  background: var(--tint-soft);
   z-index: 1;
 }
 .cel .antes, .cel .orig { font-size: var(--fs-meta); color: var(--text2); font-variant-numeric: tabular-nums; line-height: 1.38; }
@@ -2404,14 +2383,14 @@ main[data-rota='ia'] {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--change-bg);
+  background: var(--tint-hover);
   opacity: 0;
   transition: opacity 200ms ease;
   pointer-events: none;
   z-index: 0;
 }
 .tarefa-nova::after {
-  opacity: 0.34;
+  opacity: 0.3;
 }
 .tarefa-focada::after {
   opacity: 0.48;
@@ -2431,11 +2410,10 @@ main[data-rota='ia'] {
 .origem-btn {
   display: inline-flex;
   align-items: baseline;
-  gap: 0.25rem;
+  gap: 0.375rem;
   min-height: var(--ctl-sm);
   padding: 0.125rem 0;
   border: 0;
-  border-bottom: 1px dashed color-mix(in srgb, var(--border-strong) 58%, transparent);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -2443,19 +2421,27 @@ main[data-rota='ia'] {
   font-size: var(--fs-meta);
   line-height: 1.4;
   cursor: pointer;
-  transition: color var(--dur-micro) ease, border-color var(--dur-micro) ease, transform var(--dur-tap) var(--ease-press);
+  transition: color var(--dur-micro) ease, transform var(--dur-tap) var(--ease-press);
+}
+.origem-btn::before {
+  content: '';
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+  opacity: 0.7;
+  flex: none;
+  align-self: center;
 }
 .origem-btn[aria-pressed='true'] {
   background: transparent;
-  color: var(--change);
-  border-bottom-style: solid;
-  border-bottom-color: var(--change);
+  color: var(--text);
   box-shadow: none;
 }
-.origem-btn[aria-pressed='true'] .origem-campo { color: var(--change); }
+.origem-btn[aria-pressed='true'] .origem-campo { color: var(--text); }
 @media (hover: hover) and (pointer: fine) {
-  .origem-btn:hover { background: transparent; color: var(--change); border-bottom-style: solid; border-bottom-color: var(--change); box-shadow: none; }
-  .origem-btn:hover .origem-campo { color: var(--change); }
+  .origem-btn:hover { background: transparent; color: var(--text); box-shadow: none; }
+  .origem-btn:hover .origem-campo { color: var(--text); }
 }
 
 .tarefa-btn-acao {
@@ -2786,11 +2772,11 @@ main[data-rota='ia'] {
   justify-content: center;
   padding: 0.1875rem 0.5625rem;
   border: 0;
-  border-bottom: 1.5px solid var(--change);
-  border-radius: 2px;
+  border-bottom: 1.5px solid var(--border-strong);
+  border-radius: 0;
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 4px 12px -4px rgba(14, 31, 29, 0.24);
+  box-shadow: none;
   font-size: var(--fs-micro);
   font-weight: 700;
   line-height: 1.3;
@@ -2809,7 +2795,7 @@ main[data-rota='ia'] {
   padding: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--change);
+  color: var(--text2);
   font-size: var(--fs-meta);
   font-weight: 700;
   white-space: nowrap;
@@ -2907,7 +2893,7 @@ main[data-rota='ia'] {
   margin-inline: -0.5rem;
   padding-inline: 0.5rem;
   border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--change-bg) 50%, transparent);
+  background: var(--tint-soft);
   animation: entrar-conteudo 220ms var(--ease-out) both;
 }
 .registro-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.5rem; }
@@ -3102,8 +3088,8 @@ main[data-rota='ia'] {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in srgb, var(--change) 75%, transparent) 42%,
-    color-mix(in srgb, var(--change) 24%, transparent) 78%,
+    color-mix(in srgb, var(--cord) 75%, transparent) 42%,
+    color-mix(in srgb, var(--cord) 24%, transparent) 78%,
     transparent 100%
   );
   animation: genui-brilho-forja 720ms cubic-bezier(0.22, 1, 0.36, 1) calc(60ms + var(--bloco-i, 0) * 85ms) 1 both;
@@ -3113,7 +3099,7 @@ main[data-rota='ia'] {
     90deg,
     transparent 0%,
     color-mix(in srgb, var(--cord) 88%, transparent) 44%,
-    color-mix(in srgb, var(--change) 36%, transparent) 78%,
+    color-mix(in srgb, var(--cord) 36%, transparent) 78%,
     transparent 100%
   );
 }
@@ -3278,7 +3264,7 @@ main[data-rota='ia'] {
   margin: 0 0.125rem;
   padding: 0 0.125rem 0.0625rem;
   border: 0;
-  border-bottom: 1.5px solid color-mix(in srgb, var(--change) 52%, transparent);
+  border-bottom: 1.5px solid color-mix(in srgb, var(--border-strong) 62%, transparent);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -3291,8 +3277,8 @@ main[data-rota='ia'] {
 @media (hover: hover) and (pointer: fine) {
   .citacao-btn:hover {
     background: transparent;
-    color: var(--change);
-    border-bottom-color: var(--change);
+    color: var(--text);
+    border-bottom-color: var(--border-strong);
   }
 }
 .citacao-btn[aria-pressed='true'] {
@@ -3548,8 +3534,6 @@ main[data-rota='ia'] {
   .cel { padding: 0.5rem 0.75rem 0.75rem; }
   .cel-btn { margin: -0.5rem -0.75rem -0.75rem; padding: 0.5rem 0.75rem 0.75rem; }
   .cel::before { content: attr(data-fonte); font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text2); }
-  .rh + .cel { border-inline-start: 0; }
-  .mx[data-muitas-fontes='true'] .cel:nth-child(even) { border-inline-start: 0; }
 
   .modal-backdrop { padding: 0.75rem; }
   .modal-envio-cab, .modal-envio-corpo { padding: 1rem; }
@@ -3586,8 +3570,7 @@ main[data-rota='ia'] {
   .topo .tema button { padding: 0 0.5rem; }
   .topo .tema button span { display: none; }
   .mx-b { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .mx-b .cel:nth-child(even) { border-inline-start: 0; }
-  .mx-b .cel:nth-child(odd) { border-inline-start: 1px solid var(--hairline); }
+  .mx-b .cel:nth-child(odd) { border-inline-end: 1px solid var(--hairline); }
 }
 
 @media (max-width: 350px) {
@@ -3603,10 +3586,8 @@ main[data-rota='ia'] {
   .mx[data-muitas-fontes='true'] .mx-b {
     grid-template-columns: minmax(0, 1fr);
   }
-  .mx-b .cel,
-  .mx-b .cel:nth-child(odd),
-  .mx-b .cel:nth-child(even) {
-    border-inline-start: 0;
+  .mx-b .cel {
+    border-inline-end: 0;
     border-top: 1px solid var(--hairline);
   }
 }
@@ -3755,9 +3736,7 @@ main[data-rota='ia'] {
 }
 
 @media (forced-colors: active) {
-  .slab-mineral::before,
-  .lateral::before,
-  body::before {
+  .slab-mineral::before {
     display: none;
   }
   .cel-focada, .tarefa-focada { outline: 2px solid Highlight; outline-offset: -2px; }
@@ -3804,3 +3783,32 @@ main[data-rota='ia'] {
   .tarefa + .tarefa { border-top: 1px solid CanvasText; }
   .confianca-barra, .mx-medidor-desvio { background: Highlight; }
 }
+
+/* S7: dentro do simulador o envio ("Aplicar") é ação secundária — o primário
+   cheio da página é só o Executar da barra de mandatos. */
+.sim-vivo .cmd-btn-enviar {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+@media (hover: hover) and (pointer: fine) {
+  .sim-vivo .cmd-btn-enviar:not(:disabled):hover { background: var(--tint-hover); }
+}
+
+/* S1/S2: os inputs do simulador herdam 14.5px/500 da camada base injetada
+   (apiOps); aqui entram na escala e na régua de controles. */
+.sim-vivo-input {
+  min-height: var(--ctl-md);
+  font-size: var(--fs-ui);
+  font-weight: 400;
+}
+/* A mesma correção para os controles que só aparecem em drawer/IA: a camada
+   forseti-ops carrega 14.5px/500 e o peso 650 do título do drawer. */
+.drawer-input,
+.drawer-select {
+  font-size: var(--fs-ui);
+  font-weight: 400;
+}
+.drawer-cab h2 { font-weight: 700; }
+.agente-texto { font-size: var(--fs-ui); }
+.agente-texto code { font-size: inherit; }

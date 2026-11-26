@@ -132,4 +132,72 @@ Em 1920px o painel estica a 1408px fluido. Capar max-width confortavel
 
 ## Decisoes da frente
 
-(preencher aqui; a integracao copia para DECISIONS.md)
+- **S1 tipografia**: escala travada em tokens (--fs-micro 12 / --fs-meta 13 /
+  --fs-ui 15 / --fs-card-t 18 / --fs-display 24 / --fs-h1 36) e pesos 400,
+  600 e 700. Mapeamento: ate 500 vira 400; 550/600 viram 600; 650 vira 700
+  so em titulos e valores fortes (resto 600). Titulo de card e valor de
+  celula dividem o degrau 18; o h1 virou fixo 36px (clamp removido) e o KPI
+  fixo 24px. A camada injetada @layer forseti-ops (apiOps.ts) ficou fora do
+  diff por ser .ts; seus tamanhos fora da escala foram cobertos por
+  overrides em styles.css (sim-vivo-input, drawer-input/select,
+  drawer-cab h2, agente-texto).
+- **S2 controles**: duas alturas, --ctl-sm 28px e --ctl-md 36px, aplicadas
+  em chips, toggles, inputs, abas, nav e botoes da barra de vistas e dos
+  headers de card. Alvos coarse seguem em 44px.
+- **S3 marmore**: o feTurbulence saiu de vez. Novo --veio-claro e um SVG
+  autoral de bandas finas de travertino (tracos de 0.5 a 1.7px, alpha ate
+  .3); cada laje recorta uma zona diferente via --veio-x/--veio-y (cards
+  por nth-of-type, faixas do preludio por classe), evitando tile repetido
+  e a ilusao de risco continuo entre lajes. Escuro ficou liso (content:
+  none), grao global do body removido, topo e rail sem textura. Nada de
+  textura em laje aninhada (regra .slab-mineral .slab-mineral ja existia).
+- **S4 interior plano**: dentro de .torre-card-corpo, matriz, grupos de
+  tarefa, nos do domino e pill de regra perdem --shadow-slab e viram
+  regiao de hairline (anel 1px); brilho de simulacao/foco vira so anel,
+  sem drop shadow empilhado.
+- **S5 matriz**: reguas verticais removidas (celulas e cabecalho, com os
+  ajustes mobile correspondentes); ficam so linhas horizontais. Divergencia
+  marcada por celula: tinta mais leve (30%/38%) + diamante no canto
+  superior, acabando com o efeito zebra por coluna.
+- **S6 roxo**: regra adotada: roxo so onde o valor ou o marcador e
+  divergencia real (cel-dv, delta-pilula, medidor de desvio, kpi-vis-dv,
+  rota-doc-no-dv, estado-dv, nos do domino, simulacao) ou contagem de
+  anomalias (badge de sinais do topo). Saiu de: selection (virou tinta do
+  primary), contadores de aba e badges neutras, pressed/hover/foco de
+  chips, trilhos, linhas e celulas, voz ativa (virou --error, convencao de
+  gravacao), citacoes (neutras), item-novo (tint-soft), brilho de forja
+  GenUI (virou --cord), coord pill e rail-badge-coord (azul-aco #a3c4dd).
+- **S7 primario unico**: Executar (.cmd-btn-enviar na barra) segue filled;
+  Aplicar do simulador (.sim-vivo .cmd-btn-enviar), Ancorar
+  (.selo-btn-destaque) e Desfazer do toast (.vistas-toast-acao) viraram
+  contorno. Submits de drawer mantiveram o primario por viverem fora da
+  vista principal.
+- **S8 preludio**: somente CSS: ritmo 22 -> 18px consistente, rota-visual
+  e kpi-hero-item com padding menor. Medido: primeiro card de 620px para
+  578px. A fusao da linha meta na rota visual e o KPI em linha unica ou
+  colapsavel exigem .tsx; fica registrado para a integracao.
+- **S9 largura**: main com max-width 96rem (1536px, dentro da banda
+  pedida) + margin-inline auto; o excedente vira respiro simetrico.
+- **S10 oficio**: escala de raio consolidada em 10/14/18/999 (--r-xs e o
+  --radius orfao removidos); raios literais so restam em marcas menores
+  que 12px (diamantes, dots, cursor), onde raio de escala deformaria a
+  forma. Underline pontilhado ficou so em ev2-alvo (termo com detalhe);
+  origem-btn virou dot prefixado, btn-copiar perdeu o sublinhado.
+  Scrollbar do corpo dos cards some em repouso e aparece no hover.
+  Titulos do rail e do menuwiki clamam em duas linhas.
+- **Excecoes .tsx registradas para a integracao** (nenhum .tsx editado):
+  (a) fusao da linha meta na rota visual e KPI colapsavel (S8);
+  (b) empty state de Sinais com orientacao de acao;
+  (c) stroke de icones 1.5 vs 1.6 no mesmo set;
+  (d) fontSize inline 0.90625rem em SimuladorVivo e fontes nos drawers
+  (fora da escala quando renderizados sob interacao).
+
+### Medidas finais (DOM, viewport 1920px)
+
+- font-size: [12, 13, 15, 18, 24, 36] px (era 15 valores).
+- font-weight: [400, 600, 700] (era 6).
+- Alturas na barra de vistas: [28, 36] px; na faixa de abas: [36] px.
+- Primeiro card: top 578px (era 620px); coluna principal 1536px; grid
+  1472px.
+- Contraste: claro text/surface 11.59, text2/surface 5.89; escuro
+  13.31 e 7.79. Acima de 4.5:1 nos dois temas.

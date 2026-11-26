@@ -101,8 +101,8 @@
 }
 
 .ev2-btn-detalhar {
-  color: var(--change);
-  border-color: color-mix(in srgb, var(--change) 42%, var(--border));
+  color: var(--text);
+  border-color: var(--border-strong);
 }
 
 /* Estados honestos da leitura: progresso, vazio e erro. */
@@ -157,8 +157,8 @@
 }
 
 .ev2-sinal-item[data-foco-ativo='true'] {
-  background: var(--change-bg);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--change) 38%, transparent);
+  background: var(--tint-soft);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
 .ev2-sinal {
@@ -199,7 +199,7 @@
 @media (hover: hover) {
   .ia-mini-campo.ev2-alvo:hover,
   .estado.ev2-alvo:hover {
-    color: var(--change);
+    color: var(--text);
   }
 
   .ev2-btn:hover {
@@ -212,7 +212,7 @@
   }
 
   .ev2-sinal-item[data-foco-ativo='true']:hover {
-    background: var(--change-bg);
+    background: var(--tint-hover);
   }
 }
 
