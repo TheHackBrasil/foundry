@@ -6,7 +6,7 @@
 // gravado antes do envio; envio e expiracao viram eventos no ledger.
 
 import { CANAIS_CONTATO, type Cobranca, type Evento } from '../shared/model.js';
-import { smtpConfigDoEnv, criarRemetente, type Remetente } from './smtp.js';
+import { smtpConfigDoEnv, criarRemetente, type Remetente, type SmtpConfig } from './smtp.js';
 import type { EscopoCobranca, LedgerStore } from './store.js';
 
 export interface ConfigCobranca {
@@ -118,12 +118,15 @@ export interface ResultadoEnvio {
 
 // Envia a cobranca pendente. Sem SMTP configurado, marca pendente_envio sem
 // erro; falha de envio vira erro_envio com o motivo, nunca retry cego.
+// smtp: config injetada (o degrau de e-mail do operador e os testes); ausente,
+// vale o env.
 export async function enviarCobranca(
   store: LedgerStore,
   cobranca: Cobranca,
   remetente?: Remetente | null,
+  smtp?: SmtpConfig | null,
 ): Promise<ResultadoEnvio> {
-  const cfg = smtpConfigDoEnv();
+  const cfg = smtp === undefined ? smtpConfigDoEnv() : smtp;
   const enviar = remetente === undefined ? (cfg ? criarRemetente(cfg) : null) : remetente;
   if (!enviar || !cfg) {
     await store.atualizarCobranca(cobranca.id, {

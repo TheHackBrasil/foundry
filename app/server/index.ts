@@ -52,9 +52,13 @@ import {
   type ResultadoExecucao,
 } from './mandatos.js';
 import { notificarTarefa } from './nvoip.js';
-import { ErroParser, aprovarRevisao, ingerir, responderImap } from './pipeline.js';
+import { ErroParser, aprovarRevisao, ingerir, ouvirSinaisOperador, responderImap } from './pipeline.js';
 import { assuntoECorpo, configCobrancaDoEnv, dentroDaJanela, enviarCobranca } from './cobranca.js';
 import { configPendenciaDoEnv, detectarPendencias, iniciarTickPendencias } from './pendencia.js';
+import { assumirCasosPendentes, registrarOperador, type AlvoOperador } from '../operador/index.js';
+import { criarCanalEmail } from '../operador/canais/email.js';
+import { portasDoServidor } from './portas-operador.js';
+import { registrarRotasOperador } from './rotas-operador.js';
 import { ehProcessoPrincipal } from './processo.js';
 import { ErroRequisicao, GuardaEspaco, JanelaFixa, mensagens } from './protecao.js';
 import { carregarSeed } from './seed.js';
@@ -78,6 +82,9 @@ export interface BuildOpts {
   workspacePadrao?: string;
   // Padrao: configDoEnv(process.env). Testes injetam limites pequenos.
   config?: ConfigServidor;
+  // Modulo do operador ja montado (testes das rotas); sem ele, o servidor
+  // registra o operador do env, desligado sem OPERADOR_ATIVO=1.
+  operador?: AlvoOperador;
 }
 
 function dataIsoParaUtcMs(valor: string): number | null {
@@ -778,6 +785,47 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   // Kill switch do operador (spec 0017, RF10): so com credencial de aprovador.
   registrarRotaControle(app, { store, token: cfg.operadorAprovadorToken });
 
+  // Operador (spec 0017, T724): sobe so com OPERADOR_ATIVO=1, OPERADOR_VERSAO
+  // e DATABASE_URL, e so executa fluxos na instancia lider. Desligado, as
+  // rotas respondem e o acionamento devolve 503. Portas reais: kill switch
+  // lido do banco antes de cada efeito, contadores do ledger, degrau de
+  // e-mail sobre a cobranca da spec 0010 e eventos do fluxo no SSE.
+  const operador: AlvoOperador =
+    opts.operador ??
+    (await registrarOperador(app, {
+      db,
+      seedWs,
+      portas: (base, config) =>
+        portasDoServidor({
+          raiz: store,
+          base,
+          destinosPermitidos: config.politica.destinosPermitidos,
+          canais: {
+            email: criarCanalEmail({
+              raiz: store,
+              expiraHoras: configCobrancaDoEnv().expiraHoras,
+              aoEvento: (ev, ws) => canal.evento(ev, ws),
+            }),
+          },
+          aoEvento: (ev, ws) => canal.evento(ev, ws),
+        }),
+    }));
+  // Declaracao aprovada na revisao acorda o fluxo do pedido (RF18).
+  const pararSinais = ouvirSinaisOperador((aviso) => {
+    void operador.fluxo()?.acordarPedido(aviso.workspaceId, aviso.pedidoId).catch(() => undefined);
+  });
+  app.addHook('onClose', async () => {
+    pararSinais();
+  });
+  registrarRotasOperador(app, {
+    store,
+    canal,
+    seedWs,
+    token: cfg.operadorAprovadorToken,
+    operador,
+    limiteEscrita,
+  });
+
   // Fila de revisao (RF7/T035): docs sem pedido ou extracao incerta. A sessao
   // le a propria fila e a da seed, mas so decide os proprios itens.
   app.get('/api/revisao', async (req) => ({
@@ -1022,7 +1070,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     await db.close();
   });
 
-  return { app, store, canal };
+  return { app, store, canal, operador };
 }
 
 // IMAP: polling so liga quando IMAP_HOST esta configurado; canal do
@@ -1055,7 +1103,7 @@ if (ehProcessoPrincipal(import.meta.url, process.argv[1])) {
   // Depois do dotenv: PORT do .env vale. Na Railway, PORT vem injetada.
   const porta = inteiroDoEnv(process.env, 'PORT', 3000, 1);
   const host = process.env['HOST']?.trim() || '0.0.0.0';
-  const { app, store, canal } = await buildServer();
+  const { app, store, canal, operador } = await buildServer();
   // Seed antes do listen: carregada depois, ela mandaria os eventos da seed a
   // todo stream ja aberto.
   if (process.env['SEED_ON_BOOT'] === '1') {
@@ -1065,7 +1113,9 @@ if (ehProcessoPrincipal(import.meta.url, process.argv[1])) {
   await ligarImap(canal, store);
   // Tick de pendencias (spec 0011): verifica todos os workspaces a cada
   // PENDENCIA_TICK_MS; so abre 'pendencia_aberta' onde ainda nao existe.
-  iniciarTickPendencias(store, canal);
+  // Spec 0017, T740: o caso de pendencia aberto num workspace habilitado
+  // abre o fluxo do operador (so na instancia lider).
+  iniciarTickPendencias(store, canal, (s) => assumirCasosPendentes(operador, s));
   // A hospedagem manda SIGTERM no redeploy: fecha os streams e o pool antes de sair.
   for (const sinal of ['SIGTERM', 'SIGINT'] as const) {
     process.once(sinal, () => {

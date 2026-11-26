@@ -17,11 +17,12 @@
 import pg from 'pg';
 import type { FastifyInstance } from 'fastify';
 import { DBOS } from '@dbos-inc/dbos-sdk';
-import { projetarCasos } from '../shared/casos.js';
+import { projetarCasos, projetarPlanosContato } from '../shared/casos.js';
+import type { Caso, Parte } from '../shared/model.js';
 import type { Db } from '../server/db.js';
 import { LedgerStore } from '../server/store.js';
 import { criarPortaLedger, FonteLedgerDbos, SCHEMA_DBOS_PADRAO } from './db-dbos.js';
-import { registrarFluxoCaso, type FluxoCaso, type PortasFluxo } from './fluxo/caso.js';
+import { registrarFluxoCaso, snapshotPolitica, type EntradaFluxoCaso, type FluxoCaso, type PortasFluxo } from './fluxo/caso.js';
 import { POLITICA_PADRAO, type ConfigPolitica } from './politica.js';
 
 export const NOME_APP_DBOS = 'foundry-operador';
@@ -281,15 +282,73 @@ export function portasPadrao(config: ConfigOperador, db: Db, ledger: PortasFluxo
         declaracao: 'nenhuma',
       };
     },
-    aprovacaoValida: async () => false,
+    async planoContato(workspace, pedidoId, planoId) {
+      const eventos = await new LedgerStore(db, workspace).eventosDoPedido(pedidoId);
+      return projetarPlanosContato(eventos).find((p) => p.planoId === planoId) ?? null;
+    },
+    guardarEvidencia: (workspace, hash, tipo, conteudo) => new LedgerStore(db, workspace).guardarEvidencia(hash, tipo, conteudo),
     agora: () => Date.now(),
   };
 }
 
-export interface ModuloOperador {
+// O que o servidor usa do operador: o fluxo (so no lider), a habilitacao do
+// workspace e a entrada do fluxo de um caso, com o snapshot da politica.
+// Interface estreita para as rotas e o tick aceitarem um modulo falso.
+export interface AlvoOperador {
+  fluxo(): Pick<FluxoCaso, 'abrir' | 'acordar' | 'aprovar' | 'acordarPedido'> | null;
+  habilitado(workspace: string): boolean;
+  entradaDoCaso(workspace: string, caso: Caso, gatilho: EntradaFluxoCaso['gatilho'], parte: Parte): EntradaFluxoCaso;
+}
+
+export interface ModuloOperador extends AlvoOperador {
   operador: Operador;
+  config: ConfigOperador;
   // So existe na instancia lider, depois do launch.
   fluxo(): FluxoCaso | null;
+}
+
+// Habilitacao e entrada a partir da config lida no boot. A seed nunca e
+// trabalhada pelo operador, mesmo listada por engano (RF4, P-010).
+export function alvoDaConfig(config: ConfigOperador, seedWs: string): Pick<AlvoOperador, 'habilitado' | 'entradaDoCaso'> {
+  const habilitado = (workspace: string): boolean =>
+    config.ativo && workspace !== seedWs && config.politica.workspacesHabilitados.includes(workspace);
+  return {
+    habilitado,
+    entradaDoCaso: (workspace, caso, gatilho, parte) => ({
+      workspace,
+      pedidoId: caso.pedidoId,
+      casoId: caso.id,
+      seqOrigem: caso.origemSeq,
+      ciclo: caso.ciclos + 1,
+      parte,
+      gatilho,
+      politica: snapshotPolitica(workspace, config.politica, config.prazos),
+    }),
+  };
+}
+
+// Gatilho da pendencia (RF4, T740): cada caso de pendencia aberto num
+// workspace habilitado, fora da seed, que ainda nao tem operador_assumiu,
+// abre o fluxo. Roda no tick depois de abrir as pendencias, entao um caso
+// que nasceu com o operador fora do ar e assumido no tick seguinte. O id do
+// fluxo leva o caso, e abrir recusa id repetido: cada caso e assumido uma vez.
+export async function assumirCasosPendentes(alvo: AlvoOperador, store: LedgerStore): Promise<number> {
+  const fluxo = alvo.fluxo();
+  if (!fluxo || !alvo.habilitado(store.workspace)) return 0;
+  let abertos = 0;
+  for (const p of await store.listarPedidos()) {
+    if (p.workspaceId !== store.workspace) continue;
+    const eventos = await store.eventosDoPedido(p.pedidoId);
+    const assumidos = new Set(
+      eventos.filter((e) => e.tipo === 'operador_assumiu').map((e) => (e.payload as { casoId?: unknown }).casoId),
+    );
+    for (const caso of projetarCasos(eventos)) {
+      if (caso.origem !== 'pendencia' || caso.status === 'resolvido' || assumidos.has(caso.id)) continue;
+      const r = await fluxo.abrir(alvo.entradaDoCaso(store.workspace, caso, 'pendencia_aberta', 'transportadora'));
+      if (r.aberto) abertos += 1;
+    }
+  }
+  return abertos;
 }
 
 // Liga o operador no Fastify: sobe (se for o caso), expoe o estado em
@@ -297,14 +356,20 @@ export interface ModuloOperador {
 // nem MCP (webhooks.ts e mcp.ts tem o proprio registro).
 export async function registrarOperador(
   app: FastifyInstance,
-  deps: { db: Db; env?: Env; portas?: (base: PortasFluxo) => PortasFluxo; intervaloLiderMs?: number },
+  deps: {
+    db: Db;
+    env?: Env;
+    seedWs?: string;
+    portas?: (base: PortasFluxo, config: ConfigOperador) => PortasFluxo;
+    intervaloLiderMs?: number;
+  },
 ): Promise<ModuloOperador> {
   const config = configOperadorDoEnv(deps.env ?? process.env);
   let fluxo: FluxoCaso | null = null;
   const preparar = (): void => {
     const fonte = new FonteLedgerDbos({ databaseUrl: config.databaseUrl!, schema: config.schemaDbos }).registrar();
     const base = portasPadrao(config, deps.db, criarPortaLedger(fonte, deps.db));
-    fluxo = registrarFluxoCaso(deps.portas ? deps.portas(base) : base);
+    fluxo = registrarFluxoCaso(deps.portas ? deps.portas(base, config) : base);
   };
   const operador = await iniciarOperador({
     config,
@@ -319,5 +384,10 @@ export async function registrarOperador(
     lider: operador.lider,
     versao: config.ativo ? config.versao : null,
   }));
-  return { operador, fluxo: () => (operador.lider ? fluxo : null) };
+  return {
+    operador,
+    config,
+    ...alvoDaConfig(config, deps.seedWs ?? 'seed'),
+    fluxo: () => (operador.lider ? fluxo : null),
+  };
 }

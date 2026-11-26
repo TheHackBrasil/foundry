@@ -119,7 +119,8 @@ describe.skipIf(!URL_TESTE)('fluxo do caso no DBOS (Postgres)', () => {
       contadores: async () => ({ tentativasHojeDestino: 0, gastoCasoBrl: 0, gastoDiaBrl: 0 }),
       destinosPermitidos: async () => [],
       estadoCaso: async () => (presoEm === 'estadoCaso' ? nunca() : estado),
-      aprovacaoValida: async () => false,
+      planoContato: async () => null,
+      guardarEvidencia: async () => undefined,
       agora: () => Date.now(),
     };
     fluxo = registrarFluxoCaso(portas);

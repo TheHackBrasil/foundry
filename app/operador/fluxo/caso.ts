@@ -22,8 +22,10 @@
 
 import { createHash } from 'node:crypto';
 import { DBOS, type WorkflowHandle } from '@dbos-inc/dbos-sdk';
+import { projetarCasos, projetarPlanosContato, type PlanoContatoProjetado } from '../../shared/casos.js';
 import type { Evento, Parte, TipoEvento } from '../../shared/model.js';
 import type { ContatoDaAgenda } from '../../server/store.js';
+import { hashRoteiro, montarRoteiro, serializarRoteiro } from '../roteiro.js';
 import {
   avaliarPolitica,
   CANAIS_COM_APROVACAO,
@@ -55,9 +57,19 @@ export interface EventoNovo {
 // Ledger do caso. `registrar` roda no passo transacional do DBOS (evento e
 // checkpoint juntos); `registrarIntencao` grava com commit proprio e devolve
 // 'ja_existia' quando o indice unico da chave recusa a segunda intencao.
+// Com `revalidar`, a intencao so e gravada sob a trava do pedido (a mesma
+// das rotas de plano) e depois de a funcao, lendo os eventos ja travados,
+// devolver null; um codigo devolvido barra o efeito (T751).
+export type ResultadoIntencao = 'gravado' | 'ja_existia' | { bloqueado: string };
+
 export interface PortaLedger {
   registrar(nome: string, workspace: string, pedidoId: string, eventos: EventoNovo[]): Promise<Evento[]>;
-  registrarIntencao(workspace: string, pedidoId: string, payload: Record<string, unknown>): Promise<'gravado' | 'ja_existia'>;
+  registrarIntencao(
+    workspace: string,
+    pedidoId: string,
+    payload: Record<string, unknown>,
+    revalidar?: (eventos: Evento[]) => string | null,
+  ): Promise<ResultadoIntencao>;
   intencaoExiste(workspace: string, pedidoId: string, chave: string): Promise<boolean>;
 }
 
@@ -106,8 +118,32 @@ export interface PortasFluxo {
   contadores(consulta: { workspace: string; casoId: string; destinoE164: string | null; agoraMs: number }): Promise<ContadoresPolitica>;
   destinosPermitidos(): Promise<readonly string[]>;
   estadoCaso(workspace: string, pedidoId: string, casoId: string): Promise<EstadoCasoFluxo>;
-  aprovacaoValida(workspace: string, pedidoId: string, planoId: string, versao: number): Promise<boolean>;
+  // Plano projetado do ledger (relido a cada vez que o fluxo acorda).
+  planoContato(workspace: string, pedidoId: string, planoId: string): Promise<PlanoContatoProjetado | null>;
+  // Roteiro preenchido e outras evidencias: fora do ledger (RF25).
+  guardarEvidencia(workspace: string, hash: string, tipo: string, conteudo: Buffer): Promise<void>;
+  // Nome da empresa contratante dito no roteiro; null usa o padrao.
+  nomeEmpresa?(workspace: string, pedidoId: string): Promise<string | null>;
   agora(): number;
+}
+
+// Revalidacao sob a trava, antes do efeito (RF11, invariante 2): o caso
+// segue aberto e o plano esta aprovado na versao e no roteiro que o fluxo
+// leu, dentro da validade da aprovacao. Pura; devolve o codigo do bloqueio.
+export function motivoAprovacaoInvalida(
+  eventos: readonly Evento[],
+  alvo: { casoId: string; planoId: string; versao: number; hashRoteiro: string; agoraMs: number; validadeMin: number },
+): string | null {
+  const caso = projetarCasos([...eventos]).find((c) => c.id === alvo.casoId);
+  if (!caso || caso.status === 'resolvido') return 'caso_fechado';
+  const plano = projetarPlanosContato(eventos).find((p) => p.planoId === alvo.planoId);
+  if (!plano) return 'plano_ausente';
+  if (plano.estado !== 'aprovado') return 'plano_nao_aprovado';
+  if (plano.versao !== alvo.versao) return 'versao_antiga';
+  if (plano.hashRoteiro !== alvo.hashRoteiro) return 'roteiro_mudou';
+  const aprovadoEm = Date.parse(plano.atualizadoEm);
+  if (!Number.isFinite(aprovadoEm) || alvo.agoraMs - aprovadoEm > alvo.validadeMin * 60_000) return 'aprovacao_vencida';
+  return null;
 }
 
 // --- Entrada e snapshot -----------------------------------------------------
@@ -199,10 +235,19 @@ export const NOME_FLUXO_CASO = 'fluxoCaso';
 
 export interface FluxoCaso {
   workflow: (entrada: EntradaFluxoCaso) => Promise<FimFluxo>;
-  abrir(entrada: EntradaFluxoCaso): Promise<{ aberto: true; fluxoId: string; handle: WorkflowHandle<FimFluxo> } | { aberto: false; motivo: 'fluxo_ativo'; fluxoId: string }>;
+  abrir(entrada: EntradaFluxoCaso): Promise<ResultadoAbrir>;
   acordar(fluxoId: string): Promise<void>;
+  // Sinal de plano (aprovado, recusado ou ajustado): o fluxo rele o ledger.
   aprovar(fluxoId: string, planoId: string, versao: number): Promise<void>;
+  // Acorda os fluxos ativos do pedido (declaracao aprovada na revisao, RF18).
+  acordarPedido(workspace: string, pedidoId: string): Promise<number>;
 }
+
+// 'fluxo_existente': o mesmo id ja rodou (terminou ou esta rodando); o caso
+// nao ganha segunda escada.
+export type ResultadoAbrir =
+  | { aberto: true; fluxoId: string; handle: WorkflowHandle<FimFluxo> }
+  | { aberto: false; motivo: 'fluxo_ativo' | 'fluxo_existente'; fluxoId: string };
 
 const STATUS_ATIVOS = ['PENDING', 'ENQUEUED', 'DELAYED', 'SUSPENDED'] as const;
 
@@ -240,7 +285,13 @@ export function registrarFluxoCaso(portas: PortasFluxo): FluxoCaso {
   // Passo do efeito, sem retry. Ordem: intencao ja gravada (passo rodando de
   // novo) leva a consulta; senao politica com kill switch lido agora, depois
   // a intencao e so entao o fornecedor.
-  async function efeito(entrada: EntradaFluxoCaso, fluxoId: string, canal: CanalEscada, tentativa: number): Promise<ResultadoEfeito> {
+  async function efeito(
+    entrada: EntradaFluxoCaso,
+    fluxoId: string,
+    canal: CanalEscada,
+    tentativa: number,
+    plano: { planoId: string; versao: number; hashRoteiro: string } | null,
+  ): Promise<ResultadoEfeito> {
     const chave = chaveEfeito(fluxoId, canal, tentativa);
     const adaptador = portas.canais[canal];
     if (!adaptador) return { tipo: 'bloqueado', motivos: ['canal_sem_adaptador'] };
@@ -288,17 +339,37 @@ export function registrarFluxoCaso(portas: PortasFluxo): FluxoCaso {
     motivos.push(...decisao.motivos);
     if (motivos.length) return { tipo: 'bloqueado', motivos };
 
-    const gravou = await portas.ledger.registrarIntencao(entrada.workspace, entrada.pedidoId, {
-      fluxoId,
-      casoId: entrada.casoId,
-      chave,
-      canal,
-      fornecedor: adaptador.fornecedor,
-      contatoId: contato.id,
-      tentativa,
-      custoEstimadoBrl: adaptador.custoEstimadoBrl,
-    });
+    // WhatsApp e ligacao: a aprovacao e revalidada sob a trava do pedido, na
+    // mesma transacao que grava a intencao (T751).
+    const revalidar = plano
+      ? (eventos: Evento[]) =>
+          motivoAprovacaoInvalida(eventos, {
+            casoId: entrada.casoId,
+            planoId: plano.planoId,
+            versao: plano.versao,
+            hashRoteiro: plano.hashRoteiro,
+            agoraMs,
+            validadeMin: p.aprovacaoValidadeMin,
+          })
+      : undefined;
+    const gravou = await portas.ledger.registrarIntencao(
+      entrada.workspace,
+      entrada.pedidoId,
+      {
+        fluxoId,
+        casoId: entrada.casoId,
+        chave,
+        canal,
+        fornecedor: adaptador.fornecedor,
+        contatoId: contato.id,
+        tentativa,
+        custoEstimadoBrl: adaptador.custoEstimadoBrl,
+        ...(plano ? { planoId: plano.planoId, versao: plano.versao, hashRoteiro: plano.hashRoteiro } : {}),
+      },
+      revalidar,
+    );
     if (gravou === 'ja_existia') return consultar('intencao_sem_aceite');
+    if (typeof gravou === 'object') return { tipo: 'bloqueado', motivos: [gravou.bloqueado] };
 
     let resposta: RespostaEnvio;
     try {
@@ -350,7 +421,82 @@ export function registrarFluxoCaso(portas: PortasFluxo): FluxoCaso {
       ]);
     };
 
+    // Plano proposto (roteiro em evidencia, so o hash no ledger) e espera do
+    // OK. Cada vez que acorda, o fluxo rele o plano e o caso no ledger; o
+    // sinal da rota so acelera. Caso fechado ou opt-out cancela o plano que
+    // nao saiu; prazo vencido sem decisao grava contato_expirado.
+    type PlanoAprovado = { planoId: string; versao: number; hashRoteiro: string };
+    const esperarAprovacao = async (
+      canal: 'whatsapp' | 'ligacao',
+      planoId: string,
+      motivo: string,
+    ): Promise<{ plano: PlanoAprovado } | { fim: FimFluxo }> => {
+      const prep = await DBOS.runStep(
+        async () => {
+          const contato = await portas.contato(entrada.workspace, entrada.parte, canal);
+          if (!contato) return null;
+          const empresa = portas.nomeEmpresa ? await portas.nomeEmpresa(entrada.workspace, entrada.pedidoId) : null;
+          const roteiro = montarRoteiro({
+            canal,
+            chaveNota: entrada.pedidoId,
+            motivo,
+            contato: { nome: contato.nome, destino: contato.destino },
+            empresa,
+          });
+          const conteudo = serializarRoteiro(roteiro);
+          const hash = hashRoteiro(conteudo);
+          await portas.guardarEvidencia(entrada.workspace, hash, 'roteiro', conteudo);
+          // So id e hash saem do passo: o telefone nao vai para o checkpoint.
+          return { contatoId: contato.id, hashRoteiro: hash, prazoMs: portas.agora() + entrada.politica.aprovacaoValidadeMin * 60_000 };
+        },
+        { name: 'prepararPlano' },
+      );
+      if (!prep) return { fim: await encerrar(canal, 'politica', { motivos: ['sem_contato'] }) };
+      await registrar('planejar', entrada, [
+        {
+          tipo: 'contato_planejado',
+          payload: {
+            fluxoId,
+            casoId: entrada.casoId,
+            planoId,
+            versao: 1,
+            canal,
+            contatoId: prep.contatoId,
+            hashRoteiro: prep.hashRoteiro,
+            prazo: new Date(prep.prazoMs).toISOString(),
+            custoEstimadoBrl: portas.canais[canal]?.custoEstimadoBrl ?? null,
+            motivo,
+          },
+        },
+      ]);
+      const fechar = (tipo: 'contato_expirado', versao: number): Promise<Evento[]> =>
+        registrar('expirar', entrada, [{ tipo, payload: { fluxoId, casoId: entrada.casoId, planoId, versao } }]);
+      for (;;) {
+        const agora = await DBOS.runStep(async () => portas.agora(), { name: 'agora' });
+        const atual = await DBOS.runStep(() => portas.planoContato(entrada.workspace, entrada.pedidoId, planoId), { name: 'lerPlano' });
+        const caso = await DBOS.runStep(() => portas.estadoCaso(entrada.workspace, entrada.pedidoId, entrada.casoId), {
+          name: 'estadoCaso',
+        });
+        if (caso.casoFechado || caso.optout) {
+          if (atual && (atual.estado === 'proposto' || atual.estado === 'aprovado')) await fechar('contato_expirado', atual.versao);
+          return { fim: await encerrar(caso.casoFechado ? canal : 'analista', caso.casoFechado ? 'caso_fechado' : 'optout') };
+        }
+        if (!atual) return { fim: await encerrar(canal, 'plano_ausente') };
+        if (atual.estado === 'aprovado') return { plano: { planoId, versao: atual.versao, hashRoteiro: atual.hashRoteiro } };
+        if (atual.estado !== 'proposto') {
+          return { fim: await encerrar(canal, atual.estado === 'recusado' ? 'plano_recusado' : `plano_${atual.estado}`) };
+        }
+        const restanteMs = Date.parse(atual.prazo) - agora;
+        if (!(restanteMs > 0)) {
+          await fechar('contato_expirado', atual.versao);
+          return { fim: await encerrar(canal, 'sem_aprovacao') };
+        }
+        await DBOS.recv<unknown>(TOPICO_APROVACAO, { timeoutSeconds: Math.max(1, Math.ceil(restanteMs / 1000)) });
+      }
+    };
+
     let degrau: DegrauEscada = inicial.degrau;
+    let motivoDegrau = entrada.gatilho === 'acionar_operador' ? 'divergencia' : 'pendencia';
     const tentativas: Partial<Record<CanalEscada, number>> = {};
     for (;;) {
       if (degrau === 'analista') return encerrar('analista', 'escada_esgotada');
@@ -358,39 +504,42 @@ export function registrarFluxoCaso(portas: PortasFluxo): FluxoCaso {
       const tentativa = (tentativas[canal] ?? 0) + 1;
       tentativas[canal] = tentativa;
 
-      // WhatsApp e ligacao: plano proposto e espera do OK (o detalhe da
-      // revalidacao sob lock e da T751).
+      // WhatsApp e ligacao: plano proposto e espera do OK (RF7, RF11, T751).
+      let plano: { planoId: string; versao: number; hashRoteiro: string } | null = null;
       if ((CANAIS_COM_APROVACAO as readonly string[]).includes(canal)) {
         const planoId = sha256(`plano:${fluxoId}:${canal}:${tentativa}`);
-        await registrar('planejar', entrada, [
-          {
-            tipo: 'contato_planejado',
-            payload: { fluxoId, casoId: entrada.casoId, planoId, versao: 1, canal, custoEstimadoBrl: portas.canais[canal]?.custoEstimadoBrl ?? null },
-          },
-        ]);
-        const ok = await DBOS.recv<{ planoId: string; versao: number }>(TOPICO_APROVACAO, {
-          timeoutSeconds: Math.max(1, Math.round(entrada.politica.aprovacaoValidadeMin * 60)),
-        });
-        const valida =
-          ok !== null &&
-          ok.planoId === planoId &&
-          (await DBOS.runStep(() => portas.aprovacaoValida(entrada.workspace, entrada.pedidoId, planoId, ok.versao), {
-            name: 'aprovacaoValida',
-          }));
-        if (!valida) {
-          await registrar('expirar', entrada, [{ tipo: 'contato_expirado', payload: { fluxoId, planoId } }]);
-          return encerrar(canal, 'sem_aprovacao');
-        }
+        const r = await esperarAprovacao(canal as 'whatsapp' | 'ligacao', planoId, motivoDegrau);
+        if ('fim' in r) return r.fim;
+        plano = r.plano;
       }
 
-      const r = await DBOS.runStep(() => efeito(entrada, fluxoId, canal, tentativa), { name: `efeito:${canal}`, retriesAllowed: false });
-      if (r.tipo === 'bloqueado') return encerrar(canal, 'politica', { motivos: r.motivos });
+      const r = await DBOS.runStep(() => efeito(entrada, fluxoId, canal, tentativa, plano), {
+        name: `efeito:${canal}`,
+        retriesAllowed: false,
+      });
+      if (r.tipo === 'bloqueado') {
+        // Plano aprovado que nao saiu fecha como falhou, sem chave (a
+        // projecao entende), e o caso volta ao analista.
+        if (plano) {
+          await registrar('barrado', entrada, [
+            {
+              tipo: 'contato_falhou',
+              payload: { fluxoId, casoId: entrada.casoId, planoId: plano.planoId, versao: plano.versao, canal, motivo: r.motivos[0] ?? 'politica' },
+            },
+          ]);
+        }
+        return encerrar(canal, 'politica', { motivos: r.motivos });
+      }
       if (r.tipo === 'incerto') {
-        await registrar('incerto', entrada, [{ tipo: 'contato_incerto', payload: { fluxoId, chave: r.chave, canal, motivo: r.motivo } }]);
+        await registrar('incerto', entrada, [
+          { tipo: 'contato_incerto', payload: { fluxoId, casoId: entrada.casoId, chave: r.chave, canal, motivo: r.motivo } },
+        ]);
         return encerrar(canal, 'contato_incerto');
       }
       if (r.tipo === 'falhou') {
-        await registrar('falhou', entrada, [{ tipo: 'contato_falhou', payload: { fluxoId, chave: r.chave, canal, motivo: r.motivo } }]);
+        await registrar('falhou', entrada, [
+          { tipo: 'contato_falhou', payload: { fluxoId, casoId: entrada.casoId, chave: r.chave, canal, motivo: r.motivo } },
+        ]);
         // Sem retry no mesmo degrau: falha definitiva conta como prazo vencido.
         const passo = proximoPasso(
           { ...canais, degrau: canal, decorridoMs: Number.POSITIVE_INFINITY, declaracao: 'nenhuma', optout: false, casoFechado: false },
@@ -399,10 +548,14 @@ export function registrarFluxoCaso(portas: PortasFluxo): FluxoCaso {
         if (passo.acao !== 'subir') return encerrar('analista', 'contato_falhou');
         await escalar(canal, passo.para, 'contato_falhou', passo.pulos);
         degrau = passo.para;
+        motivoDegrau = 'contato_falhou';
         continue;
       }
       await registrar('aceito', entrada, [
-        { tipo: 'contato_aceito', payload: { fluxoId, chave: r.chave, canal, idExterno: r.idExterno, consultado: r.consultado } },
+        {
+          tipo: 'contato_aceito',
+          payload: { fluxoId, casoId: entrada.casoId, chave: r.chave, canal, idExterno: r.idExterno, consultado: r.consultado },
+        },
       ]);
 
       // Espera no degrau: o sinal so acelera, o fluxo rele o caso ao acordar.
@@ -424,6 +577,7 @@ export function registrarFluxoCaso(portas: PortasFluxo): FluxoCaso {
         if (passo.acao === 'subir') {
           await escalar(canal, passo.para, passo.motivo, passo.pulos);
           degrau = passo.para;
+          motivoDegrau = passo.motivo;
           break;
         }
         if (passo.acao === 'reiniciar') inicioPrazo = agora;
@@ -464,10 +618,20 @@ export function registrarFluxoCaso(portas: PortasFluxo): FluxoCaso {
           return w.workflowID === fluxoId || (e?.workspace === entrada.workspace && e?.pedidoId === entrada.pedidoId && e?.parte === entrada.parte);
         });
         if (outro) return { aberto: false as const, motivo: 'fluxo_ativo' as const, fluxoId: outro.workflowID };
+        if (await DBOS.getWorkflowStatus(fluxoId)) return { aberto: false as const, motivo: 'fluxo_existente' as const, fluxoId };
         const handle = await DBOS.startWorkflow(workflow, { workflowID: fluxoId })(entrada);
         return { aberto: true as const, fluxoId, handle };
       }),
     acordar: (fluxoId) => DBOS.send(fluxoId, 1, TOPICO_ACORDAR),
     aprovar: (fluxoId, planoId, versao) => DBOS.send(fluxoId, { planoId, versao }, TOPICO_APROVACAO),
+    async acordarPedido(workspace, pedidoId) {
+      const ativos = await DBOS.listWorkflows({
+        workflowName: NOME_FLUXO_CASO,
+        workflow_id_prefix: `${workspace}:${pedidoId}:`,
+        status: [...STATUS_ATIVOS],
+      });
+      for (const w of ativos) await DBOS.send(w.workflowID, 1, TOPICO_ACORDAR);
+      return ativos.length;
+    },
   };
 }

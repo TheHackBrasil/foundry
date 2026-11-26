@@ -34,7 +34,7 @@ pela integração em T700. Tasks marcadas "(integração)" rodam na `main`.
 
 - [x] T720 (P0) [P] escada pura: ordem, prazos, pulo de canal, encerramento (RF2, RF3): `app/operador/fluxo/escada.ts`: `app/operador/fluxo/escada.test.ts` (novo) cobre os casos de borda da spec
 - [x] T721 (P0) [P] política pura: workspaces, destinos, contato manual, janela America/Sao_Paulo, tentativas somando workspaces, orçamento com reserva, kill switch (RF7 a RF9): `app/operador/politica.ts`: `app/operador/politica.test.ts` (novo)
-- [ ] T731 (P0) kill switch global e por workspace no banco, rota com credencial de aprovador, lido antes de cada efeito (RF10): `app/server/store.ts`, `app/server/index.ts`, `app/operador/fluxo/caso.ts`: teste: com a chave desligada nenhum efeito sai, inclusive no meio de um fluxo
+- [x] T731 (P0) kill switch global e por workspace no banco, rota com credencial de aprovador, lido antes de cada efeito (RF10): `app/server/store.ts`, `app/server/index.ts`, `app/operador/fluxo/caso.ts`: teste: com a chave desligada nenhum efeito sai, inclusive no meio de um fluxo
 - [x] T722 (P0) [P] projeção do plano de contato, da linha do tempo e do estado de cada tentativa: `app/shared/casos.ts`: `app/shared/casos.test.ts` (novo) com eventos sintéticos
 - [x] T723 (P0) adaptador `Db` sobre o client transacional do DBOS para o append do ledger rodar no passo: `app/operador/db-dbos.ts`: teste grava evento e checkpoint na mesma transação
 - [x] T724 (P0) módulo do operador: lock de líder, `DBOS.launch`, rotas no Fastify, desligado sem `OPERADOR_ATIVO=1`: `app/operador/index.ts`, `app/server/index.ts`: duas instâncias locais, só uma executa fluxos
@@ -49,15 +49,15 @@ pela integração em T700. Tasks marcadas "(integração)" rodam na `main`.
 
 ### US1 e US3: gatilhos e escada
 
-- [ ] T740 (P0) [US1] operador assume ao abrir `pendencia_aberta` fora da seed, em workspace habilitado (RF4): `app/server/pendencia.ts`, `app/operador/index.ts`: teste grava `operador_assumiu` uma vez por caso
-- [ ] T741 (P0) [US3] "Acionar o operador" num caso de divergência, uma vez por divergência; caso nascido de canal do operador não aciona (RF4): `app/server/index.ts`, `app/web/src/operacao/PaginaOperacao.tsx`: teste de rota, seed responde 403, segundo clique responde 409
-- [ ] T742 (P0) [US1] degrau de e-mail no fluxo: `app/operador/canais/email.ts`: teste envia uma vez e sobe de degrau em 4 h
+- [x] T740 (P0) [US1] operador assume ao abrir `pendencia_aberta` fora da seed, em workspace habilitado (RF4): `app/server/pendencia.ts`, `app/operador/index.ts`: teste grava `operador_assumiu` uma vez por caso
+- [x] T741 (P0) [US3] "Acionar o operador" num caso de divergência, uma vez por divergência; caso nascido de canal do operador não aciona (RF4): `app/server/index.ts`, `app/web/src/operacao/PaginaOperacao.tsx`: teste de rota, seed responde 403, segundo clique responde 409
+- [x] T742 (P0) [US1] degrau de e-mail no fluxo: `app/operador/canais/email.ts`: teste envia uma vez e sobe de degrau em 4 h
 - [ ] T743 (P0) [US1] degrau de WhatsApp com o adaptador do T703 e casamento da resposta pelo id da mensagem (RF14): `app/operador/canais/whatsapp.ts`: teste de contrato com fixture rotulada; adaptador recusa destino fora da lista; sem credencial degrada declarado
 
 ### US2: aprovação
 
-- [ ] T750 (P0) [US2] rotas de plano com credencial de aprovador, versão, hash do roteiro e 409 fora do estado (RF11): `app/server/index.ts`: teste de prazo vencido, duplo clique e caso fechado
-- [ ] T751 (P0) [US2] fluxo espera a aprovação relendo o ledger ao acordar e revalida tudo sob lock antes do efeito: `app/operador/fluxo/caso.ts`: teste: aprovação válida sai uma vez; vencida ou de versão antiga não sai
+- [x] T750 (P0) [US2] rotas de plano com credencial de aprovador, versão, hash do roteiro e 409 fora do estado (RF11): `app/server/index.ts`: teste de prazo vencido, duplo clique e caso fechado
+- [x] T751 (P0) [US2] fluxo espera a aprovação relendo o ledger ao acordar e revalida tudo sob lock antes do efeito: `app/operador/fluxo/caso.ts`: teste: aprovação válida sai uma vez; vencida ou de versão antiga não sai
 - [ ] T752 (P0) [US2] painel de aprovação com canal, contato, campos do roteiro, motivo e custo: `app/web/src/operacao/PainelAprovacao.tsx`: teste com `renderToStaticMarkup` e evidência manual do A6
 
 ### US4: ligação
@@ -69,9 +69,9 @@ pela integração em T700. Tasks marcadas "(integração)" rodam na `main`.
 
 ### US5: revisão
 
-- [ ] T770 (P0) [US5] rotas de linha do tempo e de evidência do caso, só para a sessão dona (RF26): `app/server/index.ts`: teste de autorização por workspace
+- [x] T770 (P0) [US5] rotas de linha do tempo e de evidência do caso, só para a sessão dona (RF26): `app/server/index.ts`: teste de autorização por workspace
 - [ ] T771 (P0) [US5] linha do tempo com ações, áudio, transcrição e declaração, recebendo eventos pelo SSE (RF26): `app/web/src/operacao/LinhaTempoCaso.tsx`, `app/web/src/operacao/api.ts`: teste com `renderToStaticMarkup` e evidência manual do A6
-- [ ] T772 (P0) [US5] agenda por canal com fonte e `nao_contatar_ia`: `app/web/src/components/DrawerAgenda.tsx`, `app/server/contatos.ts`: teste da rota de contatos e do componente
+- [x] T772 (P0) [US5] agenda por canal com fonte e `nao_contatar_ia`: `app/web/src/components/DrawerAgenda.tsx`, `app/server/contatos.ts`: teste da rota de contatos e do componente
 
 ### US6: bancada de voz (paralela, fora do caminho crítico)
 

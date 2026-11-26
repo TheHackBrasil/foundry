@@ -921,6 +921,85 @@ export class LedgerStore {
     return rows.length > 0;
   }
 
+  // Pedido de um plano de contato pelo planoId, em qualquer workspace: a rota
+  // de aprovacao usa a credencial de aprovador, nao o cookie (RF11). Quem
+  // chama recusa quando ha mais de um.
+  async pedidosDoPlano(planoId: string): Promise<Array<{ workspaceId: string; pedidoId: string }>> {
+    return this.db.query<{ workspaceId: string; pedidoId: string }>(
+      `SELECT DISTINCT workspace_id AS "workspaceId", pedido_id AS "pedidoId" FROM events
+       WHERE tipo = 'contato_planejado' AND payload->>'planoId' = $1 LIMIT 2`,
+      [planoId],
+    );
+  }
+
+  // Intencao de contato pela chave do efeito (RF12), em qualquer workspace:
+  // o adaptador consulta o proprio envio so pela chave.
+  async intencoesPorChave(chave: string): Promise<Array<{ workspaceId: string; pedidoId: string; casoId: string | null }>> {
+    return this.db.query<{ workspaceId: string; pedidoId: string; casoId: string | null }>(
+      `SELECT workspace_id AS "workspaceId", pedido_id AS "pedidoId", payload->>'casoId' AS "casoId" FROM events
+       WHERE tipo = 'contato_iniciado' AND payload->>'chave' = $1 LIMIT 2`,
+      [chave],
+    );
+  }
+
+  // Intencoes para os contadores da politica (RF9): as de hoje em todos os
+  // workspaces (tentativas por destino e gasto do dia) e todas as do caso.
+  async intencoesParaContadores(
+    desde: string,
+    workspaceId: string,
+    casoId: string,
+  ): Promise<Array<{ workspaceId: string; casoId: string | null; canal: string | null; contatoId: number | null; custo: number; ts: string }>> {
+    const rows = await this.db.query<Record<string, unknown>>(
+      `SELECT workspace_id, payload->>'casoId' AS caso_id, payload->>'canal' AS canal,
+              payload->>'contatoId' AS contato_id, payload->>'custoEstimadoBrl' AS custo, ts
+       FROM events WHERE tipo = 'contato_iniciado'
+       AND (ts >= $1 OR (workspace_id = $2 AND payload->>'casoId' = $3))`,
+      [desde, workspaceId, casoId],
+    );
+    return rows.map((r) => {
+      const custo = Number(r['custo']);
+      const contatoId = Number(r['contato_id']);
+      return {
+        workspaceId: String(r['workspace_id']),
+        casoId: typeof r['caso_id'] === 'string' ? r['caso_id'] : null,
+        canal: typeof r['canal'] === 'string' ? r['canal'] : null,
+        contatoId: Number.isInteger(contatoId) && contatoId > 0 ? contatoId : null,
+        custo: Number.isFinite(custo) ? custo : 0,
+        ts: new Date(r['ts'] as string).toISOString(),
+      };
+    });
+  }
+
+  // Destino de cada contato por id, sem escopo: so os contadores usam, para
+  // somar tentativas por telefone entre workspaces (RF9).
+  async destinosDosContatos(ids: readonly number[]): Promise<Map<number, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.db.query<{ id: number; destino: string }>(
+      `SELECT id, destino FROM contatos WHERE id = ANY($1::bigint[])`,
+      [[...new Set(ids)]],
+    );
+    return new Map(rows.map((r) => [Number(r.id), r.destino]));
+  }
+
+  // Evidencia com o tipo gravado, para a rota servir com o media type certo.
+  async evidenciaComTipo(hash: string): Promise<{ tipo: string; conteudo: Buffer } | null> {
+    const rows = await this.db.query<{ tipo: string; conteudo: Uint8Array }>(
+      `SELECT tipo, conteudo FROM evidencias WHERE hash = $1 AND workspace_id = $2`,
+      [hash, this.workspace],
+    );
+    const r = rows[0];
+    return r ? { tipo: r.tipo, conteudo: Buffer.from(r.conteudo) } : null;
+  }
+
+  // Cobranca mais recente ligada ao caso pelo caso_id (T705), em qualquer status.
+  async cobrancaPorCasoId(pedidoId: string, casoId: string): Promise<Cobranca | null> {
+    const rows = await this.db.query<Record<string, unknown>>(
+      `SELECT * FROM cobrancas WHERE workspace_id = $1 AND pedido_id = $2 AND caso_id = $3 ORDER BY id DESC LIMIT 1`,
+      [this.workspace, pedidoId, casoId],
+    );
+    return rows[0] ? this.cobrancaRow(rows[0]) : null;
+  }
+
   // Resposta de canal sem assinatura ainda na revisao: pausa a escada (RF18).
   async declaracaoEmRevisao(pedidoId: string): Promise<boolean> {
     const rows = await this.db.query(

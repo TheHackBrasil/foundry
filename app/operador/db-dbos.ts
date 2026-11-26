@@ -275,10 +275,22 @@ export function criarPortaLedger(fonte: FonteLedgerDbos, dbApp: Db): PortaLedger
   return {
     registrar: (nome, workspace, pedidoId, eventos) =>
       fonte.noPasso(nome, (db) => new LedgerStore(db, workspace).appendVarios(pedidoId, eventos)),
-    async registrarIntencao(workspace, pedidoId, payload) {
+    async registrarIntencao(workspace, pedidoId, payload, revalidar) {
       try {
-        await new LedgerStore(dbApp, workspace).append(pedidoId, 'contato_iniciado', payload);
-        return 'gravado';
+        if (!revalidar) {
+          await new LedgerStore(dbApp, workspace).append(pedidoId, 'contato_iniciado', payload);
+          return 'gravado';
+        }
+        // Sob a trava do pedido, a mesma das rotas de plano (T751): quem
+        // aprova, recusa ou ajusta espera esta transacao, e vice-versa.
+        return await dbApp.transaction(async (tx) => {
+          const s = new LedgerStore(tx, workspace);
+          await s.travarPedido(pedidoId);
+          const motivo = revalidar(await s.eventosDoPedido(pedidoId));
+          if (motivo) return { bloqueado: motivo };
+          await s.append(pedidoId, 'contato_iniciado', payload);
+          return 'gravado' as const;
+        });
       } catch (e) {
         if (isPGKeyConflictError(e)) return 'ja_existia';
         throw e;

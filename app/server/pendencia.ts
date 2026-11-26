@@ -133,11 +133,18 @@ export async function expirarCobrancasComEvento(store: LedgerStore, agora: Date)
 }
 
 // Uma rodada num workspace: abre pendencia so onde ainda nao existe.
+// Gatilho do operador (spec 0017, RF4; T740): recebe o store do workspace
+// depois das pendencias abertas e abre o fluxo de cada caso ainda nao
+// assumido (operador/index.ts, assumirCasosPendentes). Falha no gatilho
+// nao derruba o tick.
+export type GatilhoOperador = (store: LedgerStore) => Promise<unknown>;
+
 export async function verificarWorkspace(
   store: LedgerStore,
   canal: CanalSSE,
   agora = new Date(),
   config = configPendenciaDoEnv(),
+  gatilho?: GatilhoOperador,
 ): Promise<number> {
   const pedidos = await store.listarPedidos();
   const cobCfg = configCobrancaDoEnv();
@@ -175,6 +182,11 @@ export async function verificarWorkspace(
   // Cobrancas sem resposta expiram: a pendencia segue visivel, o reenvio e
   // manual e respeita a janela (RF5, caso de borda da spec).
   for (const ev of await expirarCobrancasComEvento(store, agora)) canal.evento(ev, store.workspace);
+  if (gatilho) {
+    await gatilho(store).catch((e) =>
+      console.error(`pendencias: gatilho do operador falhou (${e instanceof Error ? e.message : e})`),
+    );
+  }
   return abertas;
 }
 
@@ -183,23 +195,24 @@ export async function verificarPendencias(
   store: LedgerStore,
   canal: CanalSSE,
   agora = new Date(),
+  gatilho?: GatilhoOperador,
 ): Promise<number> {
   const workspaces = await store.workspacesAtivos();
   let total = 0;
   for (const ws of workspaces) {
-    total += await verificarWorkspace(store.paraWorkspace(ws), canal, agora);
+    total += await verificarWorkspace(store.paraWorkspace(ws), canal, agora, configPendenciaDoEnv(), gatilho);
   }
   return total;
 }
 
 // Liga o tick no boot do servidor: primeira rodada imediata, depois a cada
 // PENDENCIA_TICK_MS (default 5 min). Devolve funcao de parada para testes.
-export function iniciarTickPendencias(store: LedgerStore, canal: CanalSSE): () => void {
+export function iniciarTickPendencias(store: LedgerStore, canal: CanalSSE, gatilho?: GatilhoOperador): () => void {
   const tickMs = Number(process.env['PENDENCIA_TICK_MS']) || 5 * 60_000;
   let parado = false;
   const rodar = () => {
     if (parado) return;
-    verificarPendencias(store, canal).catch((e) =>
+    verificarPendencias(store, canal, new Date(), gatilho).catch((e) =>
       console.error(`pendencias: tick falhou (${e instanceof Error ? e.message : e})`),
     );
   };
