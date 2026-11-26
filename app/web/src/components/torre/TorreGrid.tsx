@@ -107,6 +107,7 @@ interface DragAtivo {
   ax: number;
   ay: number;
   ordemAntes: CardId[];
+  ocultosAntes: readonly CardId[];
   moved: boolean;
   capturePerdida: boolean;
   scroller: HTMLElement | null;
@@ -254,6 +255,13 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       if (flushRef.current) cancelAnimationFrame(flushRef.current);
       window.clearTimeout(congelarTimerRef.current);
       limparDragRef.current?.();
+      // Drag ativo no desmonte (navegar no meio do gesto): o user-select:none
+      // não pode vazar para o resto do app.
+      const d = dragRef.current;
+      if (d) {
+        document.documentElement.style.userSelect = d.userSelect;
+        dragRef.current = null;
+      }
     },
     [],
   );
@@ -273,6 +281,10 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
 
   // Packing masonry: skyline com backfill + span elástico à direita (packing.ts).
   const posMap = useMemo(() => {
+    const explicitos = new Set<CardId>();
+    for (const id of ordemVisivel) {
+      if (typeof layout.spans?.[id] === 'number') explicitos.add(id);
+    }
     const mapa = empacotar<CardId>({
       ordem: ordemVisivel,
       spanDe,
@@ -280,10 +292,11 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       cols,
       cardW,
       gap: GAP,
+      explicitos,
     });
     posMapRef.current = mapa;
     return mapa;
-  }, [ordemVisivel, spanDe, heights, cols, cardW]);
+  }, [ordemVisivel, spanDe, heights, cols, cardW, layout.spans]);
 
   // Último posMap commitado — o efeito de reduced-motion e o cálculo de
   // duração do retile medem o "de" do deslocamento aqui (atualizado só em
@@ -449,7 +462,10 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       }
       document.documentElement.style.userSelect = d.userSelect;
       if (reverter && d.moved) {
-        setLayout((prev) => ({ ...prev, ordem: d.ordemAntes }));
+        // Reverte o gesto inteiro: ordem e visibilidade de antes do pointerdown.
+        // Restaurar só a ordem desalinhava com `ocultos` se um preset foi
+        // aplicado no meio do arraste (segundo ponteiro em touch).
+        setLayout((prev) => ({ ...prev, ordem: d.ordemAntes, ocultos: [...d.ocultosAntes] }));
       }
       const { peca, sec } = d;
       // Posição visual atual da peça em relação à section renderizada —
@@ -559,9 +575,11 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       const d = dragRef.current;
       if (!d || pointerId !== d.pointerId) return;
       // Rede de segurança: pointerup perdido (solto fora da janela sem
-      // capture) — o primeiro move com botão zerado encerra como drop.
-      if (d.moved && (buttons & 1) === 0) {
-        encerrarDrag(false);
+      // capture) — o primeiro move com botão zerado encerra. Também antes do
+      // gesto engatilhar: sem isso um hover sem botão ligava o arraste e
+      // commitava reordenação involuntária (phantom drag).
+      if ((buttons & 1) === 0) {
+        encerrarDrag(!d.moved);
         return;
       }
       const now = performance.now();
@@ -639,6 +657,7 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         ax: e.clientX,
         ay: e.clientY,
         ordemAntes: layout.ordem,
+        ocultosAntes: layout.ocultos,
         moved: false,
         capturePerdida: false,
         scroller: acharScroller(sec),
@@ -924,6 +943,12 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
       >
         {ordemDom.map((id, i) => {
           const p = posMap.get(id);
+          // Card removido (oculto/preset) sai do posMap um commit antes de sair
+          // do ordemDom: renderizar sem geometria pintava um frame fantasma em
+          // (0,0) com tamanho natural. Pula — a animação de saída não existe
+          // para remoção (entradas e saídas aplicam na hora, só reordenação
+          // espera o settle).
+          if (!p) return null;
           return (
             <TorreCard
               key={id}

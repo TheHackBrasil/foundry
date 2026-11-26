@@ -41,9 +41,14 @@ export function empacotar<T extends string>(args: {
   cardW: number;
   gap: number;
   elastico?: boolean;
+  // Ids com span explicito (escolha da pessoa) nunca esticam: a intenção é
+  // respeitada literalmente. O preenchimento de coluna morta é polimento do
+  // layout automático, não traição de quem escolheu a largura na mão.
+  explicitos?: ReadonlySet<T>;
 }): Map<T, Posicao> {
   const { ordem, spanDe, alturaDe, cols, cardW, gap } = args;
   const elastico = args.elastico !== false;
+  const explicitos = args.explicitos;
   const mapa = new Map<T, Posicao>();
   if (cols < 1 || cardW <= 0) return mapa;
   const colH = new Array<number>(cols).fill(0);
@@ -141,7 +146,8 @@ export function empacotar<T extends string>(args: {
   // nunca colunas que um card posterior ocupou. Extensões em ordem de packing:
   // a parte esticada de um card bloqueia a do próximo na mesma faixa.
   if (elastico) {
-    for (const p of mapa.values()) {
+    for (const [id, p] of mapa) {
+      if (explicitos?.has(id)) continue;
       let span = p.span;
       for (let c = p.coluna + span; c < cols && colunaLivreNaFaixa(c, p.y, p.h); c += 1) {
         span += 1;
