@@ -249,6 +249,19 @@
   .torre-span:hover { background: var(--tint-hover); color: var(--text); }
 }
 .torre-span-n { font-variant-numeric: tabular-nums; }
+/* Próximo passo do ciclo de largura: affordance persistente e subordinada —
+   lê o destino do clique sem pairar. Subordinação por tamanho e tinta
+   secundária, nunca por opacidade (o número precisa manter contraste). */
+.torre-span-prox {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.1875rem;
+  color: var(--text2);
+  font-size: 0.875em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.torre-span-prox svg { align-self: center; flex: none; }
 
 .torre-toggle svg { transition: transform var(--dur-ui) var(--ease-out); }
 .torre-card[data-recolhido='true'] .torre-toggle svg { transform: rotate(-90deg); }

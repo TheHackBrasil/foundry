@@ -40,3 +40,30 @@ Manter o APG separator com aria-valuetext e as setas funcionando.
 Verificacao obrigatoria: tsc, vitest, build como no brief-toolbar.
 Screenshots do popover filtrando e do hint do splitter. Commit thisux1.
 Sem push.
+
+## Decisões da frente
+
+- Item 41: input type=search acima do listbox, foco nele ao abrir e
+  navegacao por setas com foco no campo (padrao paleta de comandos, sem
+  role=combobox). normalizarConsulta importado de menuwiki/dados.ts,
+  dependencia limpa (modulo puro, sem efeito colateral). O texto de busca
+  cobre emitente, codigo curto exibido, id completo e o status textual
+  renderizado ("2 conflitos", "Consistente"). indiceAtivo indexa a lista
+  filtrada; ao digitar volta a 0 e um efeito trava no ultimo indice
+  valido. Opcao ativa faz scrollIntoView nearest para nao sumir da area
+  rolada. Filtro reseta no fechar (setConsulta dentro de fechar cobre
+  Escape, clique fora, selecao e Tab). Empty state e option desabilitada
+  dentro do listbox para o leitor de tela nao encontrar uma lista muda.
+- Item 42: hint persistente dentro da propria pilula, "->Nx" ao lado do
+  "Nx" atual (forma compacta do "proximo passo"; as palavras completas
+  ficam no title e no aria-label, que agora diz para onde o clique leva).
+  Subordinacao por tamanho 0.875em, peso 400 e tinta var(--text2), sem
+  opacidade, para o numero manter contraste (A6). Calculo identico ao
+  ciclo de aoAjustarSpan na grade (span >= spanMax ? 1 : span + 1).
+- Foco da busca: o efeito depende de presenca.montado e nao de aberto,
+  porque montado vira um commit depois; focar no flip de aberto pegava o
+  input ainda desmontado e o foco ficava no gatilho.
+- Testes novos destes arquivos existem e passam (12 casos), mas
+  speckit/frentes.json nao lista *.test.* para esta frente: o pre-commit
+  os recusaria. Ficam fora do commit, untracked no worktree, para a
+  integracao incluir ou ampliar os paths da frente.
