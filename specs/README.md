@@ -24,7 +24,9 @@ imutável (A9).
 | [0015](0015-polimento-torre/spec.md) | Polimento da Torre guiado por auditoria multi-persona: motion, layout, performance, vistas e superficie | em execucao | 2026-11-25 |
 | [0016](0016-entrada-insights/spec.md) | Entrada de insights: primeira impressao em segundos com stories computados dos dados reais | em especificacao | 2026-11-26 |
 
-**Próximo número livre:** `0017`
+| [0017](0017-chrome-simples/spec.md) | Chrome simples: toolbar enxuta, menu compacto, seletor com filtro e resize descobrivel | em execucao | 2026-11-26 |
+
+**Próximo número livre:** `0018`
 
 ## Lacunas conhecidas
 

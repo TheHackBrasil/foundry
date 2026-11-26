@@ -1,247 +1,273 @@
 {
-  "_leia": "Paths que cada frente pode escrever (D-019 e D-021, specs/0005). Lido por scripts/frente-check.mjs no pre-commit. Path terminado em / vale para a pasta inteira; um * vale dentro de um nome de arquivo e não atravessa a barra. Tudo que não está aqui é da integração, na main.",
-  "frentes": {
-    "app-core": {
-      "brief": "specs/0004-mvp-atraso-propagado/brief-core.md",
-      "paths": [
-        "app/shared/",
-        "app/server/ingest/",
-        "specs/0004-mvp-atraso-propagado/brief-core.md"
-      ]
-    },
-    "app-infra": {
-      "brief": "specs/0004-mvp-atraso-propagado/brief-infra.md",
-      "paths": [
-        "app/server/*.ts",
-        "app/server/db/",
-        "app/contracts/",
-        "app/package.json",
-        "app/package-lock.json",
-        "app/tsconfig*.json",
-        "app/docker-compose.yml",
-        "app/Procfile",
-        "app/app.json",
-        "app/.env.example",
-        "app/deploy/",
-        "specs/0004-mvp-atraso-propagado/brief-infra.md"
-      ]
-    },
-    "site-forseti": {
-      "brief": "specs/0006-identidade-forseti-v4/brief-site-forseti.md",
-      "paths": [
-        "site/",
-        "lp/",
-        "specs/0006-identidade-forseti-v4/brief-site-forseti.md"
-      ]
-    },
-    "app-brand": {
-      "brief": "specs/0006-identidade-forseti-v4/brief-app-brand.md",
-      "paths": [
-        "app/web/",
-        "specs/0006-identidade-forseti-v4/brief-app-brand.md"
-      ]
-    },
-    "escopo-produto": {
-      "brief": "specs/0004-mvp-atraso-propagado/brief-produto.md",
-      "paths": [
-        "app/seed/",
-        "app/README.md",
-        "docs/",
-        "DECISIONS.md",
-        "BACKLOG.md",
-        "RULES.md",
-        "README.md",
-        "specs/0004-mvp-atraso-propagado/roteiro*.md",
-        "specs/0004-mvp-atraso-propagado/brief-produto.md"
-      ]
-    },
-    "hardening": {
-      "brief": "specs/0008-blindagem-publica/brief-hardening.md",
-      "paths": [
-        "app/server/",
-        "app/shared/",
-        "app/web/",
-        "app/contracts/",
-        "app/package.json",
-        "app/package-lock.json",
-        "app/tsconfig.json",
-        "app/vitest.config.ts",
-        "site/src/components/domino/",
-        "site/src/components/stickers/",
-        "site/public/assets/",
-        "specs/0008-blindagem-publica/brief-hardening.md"
-      ]
-    },
-    "ai-ingest": {
-      "brief": "specs/0007-camada-ai-operacional/brief-ai-ingest.md",
-      "paths": [
-        "app/server/ingest/",
-        "app/server/pipeline.ts",
-        "app/server/seed.ts",
-        "app/server/fixtures/",
-        "app/package.json",
-        "app/package-lock.json",
-        "specs/0007-camada-ai-operacional/brief-ai-ingest.md"
-      ]
-    },
-    "ai-mandatos": {
-      "brief": "specs/0007-camada-ai-operacional/brief-ai-mandatos.md",
-      "paths": [
-        "app/server/llm.ts",
-        "app/server/mandatos.ts",
-        "app/server/contatos.ts",
-        "app/server/nvoip.ts",
-        "app/server/sinal.ts",
-        "app/server/viewspec.ts",
-        "app/server/mapeamento.ts",
-        "app/server/index.ts",
-        "app/server/store.ts",
-        "app/server/config.ts",
-        "app/server/protecao.ts",
-        "app/shared/",
-        "app/.env.example",
-        "specs/0007-camada-ai-operacional/brief-ai-mandatos.md"
-      ]
-    },
-    "ai-web": {
-      "brief": "specs/0007-camada-ai-operacional/brief-ai-web.md",
-      "paths": [
-        "app/web/",
-        "specs/0007-camada-ai-operacional/brief-ai-web.md"
-      ]
-    },
-    "app-operacao": {
-      "brief": "specs/0011-modelo-excecao/brief-operacao.md",
-      "paths": [
-        "app/shared/",
-        "app/server/",
-        "app/contracts/",
-        "app/web/src/operacao/",
-        "app/web/src/App.tsx",
-        "app/web/src/useTorre.ts",
-        "app/web/src/format.ts",
-        "app/package.json",
-        "app/package-lock.json",
-        "app/.env.example",
-        "specs/0011-modelo-excecao/"
-      ]
-    },
-    "v2-torre": {
-      "brief": "specs/0014-ux-v2/brief-torre.md",
-      "paths": [
-        "app/web/src/components/PainelPedido.tsx",
-        "app/web/src/components/GrafoDomino.tsx",
-        "app/web/src/components/MatrizFontes.tsx",
-        "app/web/src/components/StatusCadeia.tsx",
-        "app/web/src/components/TarefasPorParte.tsx",
-        "app/web/src/components/SinaisEAvisos.tsx",
-        "app/web/src/components/SimuladorVivo.tsx",
-        "app/web/src/components/torre/",
-        "app/web/src/useTorre.ts",
-        "app/web/src/matriz.ts",
-        "app/web/src/matriz.test.ts",
-        "app/web/src/torre-v2.css",
-        "app/web/src/lenteCache.ts",
-        "specs/0014-ux-v2/brief-torre.md"
-      ]
-    },
-    "v2-painel": {
-      "brief": "specs/0014-ux-v2/brief-painel.md",
-      "paths": [
-        "app/web/src/components/EvidenciaLateralIA.tsx",
-        "app/web/src/components/PaginaAssistenteIA.tsx",
-        "app/web/src/components/assistente/",
-        "app/web/src/components/evidencia/",
-        "app/web/src/apiOps.ts",
-        "app/web/src/assistenteContrato.ts",
-        "app/web/src/ai-camada.test.ts",
-        "app/web/src/painel-v2.css",
-        "specs/0014-ux-v2/brief-painel.md"
-      ]
-    },
-    "v2-menu": {
-      "brief": "specs/0014-ux-v2/brief-menu.md",
-      "paths": [
-        "app/web/src/components/PedidoLista.tsx",
-        "app/web/src/components/menuwiki/",
-        "app/web/src/icones.tsx",
-        "app/web/src/menuwiki.css",
-        "specs/0014-ux-v2/brief-menu.md"
-      ]
-    },
-    "polish-motor": {
-      "brief": "specs/0015-polimento-torre/brief-motor.md",
-      "paths": [
-        "app/web/src/components/torre/TorreGrid.tsx",
-        "app/web/src/components/torre/TorreCard.tsx",
-        "app/web/src/components/torre/packing.ts",
-        "app/web/src/components/torre/packing.test.ts",
-        "app/web/src/torre-v2.css",
-        "specs/0015-polimento-torre/brief-motor.md"
-      ]
-    },
-    "polish-vistas": {
-      "brief": "specs/0015-polimento-torre/brief-vistas.md",
-      "paths": [
-        "app/web/src/components/torre/layout.ts",
-        "app/web/src/components/torre/layout.test.ts",
-        "app/web/src/components/torre/TorreVistas.tsx",
-        "app/web/src/vistas.css",
-        "specs/0015-polimento-torre/brief-vistas.md"
-      ]
-    },
-    "polish-fluxo": {
-      "brief": "specs/0015-polimento-torre/brief-fluxo.md",
-      "paths": [
-        "app/web/src/components/PainelPedido.tsx",
-        "app/web/src/components/PedidoLista.tsx",
-        "app/web/src/useTorre.ts",
-        "app/web/src/useStream.ts",
-        "app/web/src/components/menuwiki/",
-        "app/web/src/format.ts",
-        "app/web/src/format.test.ts",
-        "app/web/src/components/GrafoDomino.tsx",
-        "app/web/src/components/StatusCadeia.tsx",
-        "app/web/src/components/TarefasPorParte.tsx",
-        "app/web/src/components/MatrizFontes.tsx",
-        "app/web/src/components/torre/Card*.tsx",
-        "app/web/src/fluxo.css",
-        "specs/0015-polimento-torre/brief-fluxo.md"
-      ]
-    },
-    "polish-superficie": {
-      "brief": "specs/0015-polimento-torre/brief-superficie.md",
-      "paths": [
-        "app/web/src/styles.css",
-        "app/web/src/tokens.css",
-        "app/web/src/torre-v2.css",
-        "app/web/src/painel-v2.css",
-        "app/web/src/menuwiki.css",
-        "app/web/src/vistas.css",
-        "app/web/src/fluxo.css",
-        "specs/0015-polimento-torre/brief-superficie.md"
-      ]
-    },
-    "motion-fisica": {
-      "brief": "specs/0015-polimento-torre/brief-motion.md",
-      "paths": [
-        "app/web/src/components/torre/TorreGrid.tsx",
-        "app/web/src/components/torre/TorreCard.tsx",
-        "app/web/src/components/torre/packing.ts",
-        "app/web/src/components/torre/packing.test.ts",
-        "app/web/src/torre-v2.css",
-        "specs/0015-polimento-torre/brief-motion.md"
-      ]
-    },
-    "adapt-generica": {
-      "brief": "specs/0015-polimento-torre/brief-adapt.md",
-      "paths": [
-        "app/web/src/styles.css",
-        "app/web/src/adaptacao.css",
-        "app/web/src/components/GrafoDomino.tsx",
-        "app/web/src/main.tsx",
-        "specs/0015-polimento-torre/brief-adapt.md"
-      ]
-    }
+ "_leia": "Paths que cada frente pode escrever (D-019 e D-021, specs/0005). Lido por scripts/frente-check.mjs no pre-commit. Path terminado em / vale para a pasta inteira; um * vale dentro de um nome de arquivo e não atravessa a barra. Tudo que não está aqui é da integração, na main.",
+ "frentes": {
+  "app-core": {
+   "brief": "specs/0004-mvp-atraso-propagado/brief-core.md",
+   "paths": [
+    "app/shared/",
+    "app/server/ingest/",
+    "specs/0004-mvp-atraso-propagado/brief-core.md"
+   ]
+  },
+  "app-infra": {
+   "brief": "specs/0004-mvp-atraso-propagado/brief-infra.md",
+   "paths": [
+    "app/server/*.ts",
+    "app/server/db/",
+    "app/contracts/",
+    "app/package.json",
+    "app/package-lock.json",
+    "app/tsconfig*.json",
+    "app/docker-compose.yml",
+    "app/Procfile",
+    "app/app.json",
+    "app/.env.example",
+    "app/deploy/",
+    "specs/0004-mvp-atraso-propagado/brief-infra.md"
+   ]
+  },
+  "site-forseti": {
+   "brief": "specs/0006-identidade-forseti-v4/brief-site-forseti.md",
+   "paths": [
+    "site/",
+    "lp/",
+    "specs/0006-identidade-forseti-v4/brief-site-forseti.md"
+   ]
+  },
+  "app-brand": {
+   "brief": "specs/0006-identidade-forseti-v4/brief-app-brand.md",
+   "paths": [
+    "app/web/",
+    "specs/0006-identidade-forseti-v4/brief-app-brand.md"
+   ]
+  },
+  "escopo-produto": {
+   "brief": "specs/0004-mvp-atraso-propagado/brief-produto.md",
+   "paths": [
+    "app/seed/",
+    "app/README.md",
+    "docs/",
+    "DECISIONS.md",
+    "BACKLOG.md",
+    "RULES.md",
+    "README.md",
+    "specs/0004-mvp-atraso-propagado/roteiro*.md",
+    "specs/0004-mvp-atraso-propagado/brief-produto.md"
+   ]
+  },
+  "hardening": {
+   "brief": "specs/0008-blindagem-publica/brief-hardening.md",
+   "paths": [
+    "app/server/",
+    "app/shared/",
+    "app/web/",
+    "app/contracts/",
+    "app/package.json",
+    "app/package-lock.json",
+    "app/tsconfig.json",
+    "app/vitest.config.ts",
+    "site/src/components/domino/",
+    "site/src/components/stickers/",
+    "site/public/assets/",
+    "specs/0008-blindagem-publica/brief-hardening.md"
+   ]
+  },
+  "ai-ingest": {
+   "brief": "specs/0007-camada-ai-operacional/brief-ai-ingest.md",
+   "paths": [
+    "app/server/ingest/",
+    "app/server/pipeline.ts",
+    "app/server/seed.ts",
+    "app/server/fixtures/",
+    "app/package.json",
+    "app/package-lock.json",
+    "specs/0007-camada-ai-operacional/brief-ai-ingest.md"
+   ]
+  },
+  "ai-mandatos": {
+   "brief": "specs/0007-camada-ai-operacional/brief-ai-mandatos.md",
+   "paths": [
+    "app/server/llm.ts",
+    "app/server/mandatos.ts",
+    "app/server/contatos.ts",
+    "app/server/nvoip.ts",
+    "app/server/sinal.ts",
+    "app/server/viewspec.ts",
+    "app/server/mapeamento.ts",
+    "app/server/index.ts",
+    "app/server/store.ts",
+    "app/server/config.ts",
+    "app/server/protecao.ts",
+    "app/shared/",
+    "app/.env.example",
+    "specs/0007-camada-ai-operacional/brief-ai-mandatos.md"
+   ]
+  },
+  "ai-web": {
+   "brief": "specs/0007-camada-ai-operacional/brief-ai-web.md",
+   "paths": [
+    "app/web/",
+    "specs/0007-camada-ai-operacional/brief-ai-web.md"
+   ]
+  },
+  "app-operacao": {
+   "brief": "specs/0011-modelo-excecao/brief-operacao.md",
+   "paths": [
+    "app/shared/",
+    "app/server/",
+    "app/contracts/",
+    "app/web/src/operacao/",
+    "app/web/src/App.tsx",
+    "app/web/src/useTorre.ts",
+    "app/web/src/format.ts",
+    "app/package.json",
+    "app/package-lock.json",
+    "app/.env.example",
+    "specs/0011-modelo-excecao/"
+   ]
+  },
+  "v2-torre": {
+   "brief": "specs/0014-ux-v2/brief-torre.md",
+   "paths": [
+    "app/web/src/components/PainelPedido.tsx",
+    "app/web/src/components/GrafoDomino.tsx",
+    "app/web/src/components/MatrizFontes.tsx",
+    "app/web/src/components/StatusCadeia.tsx",
+    "app/web/src/components/TarefasPorParte.tsx",
+    "app/web/src/components/SinaisEAvisos.tsx",
+    "app/web/src/components/SimuladorVivo.tsx",
+    "app/web/src/components/torre/",
+    "app/web/src/useTorre.ts",
+    "app/web/src/matriz.ts",
+    "app/web/src/matriz.test.ts",
+    "app/web/src/torre-v2.css",
+    "app/web/src/lenteCache.ts",
+    "specs/0014-ux-v2/brief-torre.md"
+   ]
+  },
+  "v2-painel": {
+   "brief": "specs/0014-ux-v2/brief-painel.md",
+   "paths": [
+    "app/web/src/components/EvidenciaLateralIA.tsx",
+    "app/web/src/components/PaginaAssistenteIA.tsx",
+    "app/web/src/components/assistente/",
+    "app/web/src/components/evidencia/",
+    "app/web/src/apiOps.ts",
+    "app/web/src/assistenteContrato.ts",
+    "app/web/src/ai-camada.test.ts",
+    "app/web/src/painel-v2.css",
+    "specs/0014-ux-v2/brief-painel.md"
+   ]
+  },
+  "v2-menu": {
+   "brief": "specs/0014-ux-v2/brief-menu.md",
+   "paths": [
+    "app/web/src/components/PedidoLista.tsx",
+    "app/web/src/components/menuwiki/",
+    "app/web/src/icones.tsx",
+    "app/web/src/menuwiki.css",
+    "specs/0014-ux-v2/brief-menu.md"
+   ]
+  },
+  "polish-motor": {
+   "brief": "specs/0015-polimento-torre/brief-motor.md",
+   "paths": [
+    "app/web/src/components/torre/TorreGrid.tsx",
+    "app/web/src/components/torre/TorreCard.tsx",
+    "app/web/src/components/torre/packing.ts",
+    "app/web/src/components/torre/packing.test.ts",
+    "app/web/src/torre-v2.css",
+    "specs/0015-polimento-torre/brief-motor.md"
+   ]
+  },
+  "polish-vistas": {
+   "brief": "specs/0015-polimento-torre/brief-vistas.md",
+   "paths": [
+    "app/web/src/components/torre/layout.ts",
+    "app/web/src/components/torre/layout.test.ts",
+    "app/web/src/components/torre/TorreVistas.tsx",
+    "app/web/src/vistas.css",
+    "specs/0015-polimento-torre/brief-vistas.md"
+   ]
+  },
+  "polish-fluxo": {
+   "brief": "specs/0015-polimento-torre/brief-fluxo.md",
+   "paths": [
+    "app/web/src/components/PainelPedido.tsx",
+    "app/web/src/components/PedidoLista.tsx",
+    "app/web/src/useTorre.ts",
+    "app/web/src/useStream.ts",
+    "app/web/src/components/menuwiki/",
+    "app/web/src/format.ts",
+    "app/web/src/format.test.ts",
+    "app/web/src/components/GrafoDomino.tsx",
+    "app/web/src/components/StatusCadeia.tsx",
+    "app/web/src/components/TarefasPorParte.tsx",
+    "app/web/src/components/MatrizFontes.tsx",
+    "app/web/src/components/torre/Card*.tsx",
+    "app/web/src/fluxo.css",
+    "specs/0015-polimento-torre/brief-fluxo.md"
+   ]
+  },
+  "polish-superficie": {
+   "brief": "specs/0015-polimento-torre/brief-superficie.md",
+   "paths": [
+    "app/web/src/styles.css",
+    "app/web/src/tokens.css",
+    "app/web/src/torre-v2.css",
+    "app/web/src/painel-v2.css",
+    "app/web/src/menuwiki.css",
+    "app/web/src/vistas.css",
+    "app/web/src/fluxo.css",
+    "specs/0015-polimento-torre/brief-superficie.md"
+   ]
+  },
+  "motion-fisica": {
+   "brief": "specs/0015-polimento-torre/brief-motion.md",
+   "paths": [
+    "app/web/src/components/torre/TorreGrid.tsx",
+    "app/web/src/components/torre/TorreCard.tsx",
+    "app/web/src/components/torre/packing.ts",
+    "app/web/src/components/torre/packing.test.ts",
+    "app/web/src/torre-v2.css",
+    "specs/0015-polimento-torre/brief-motion.md"
+   ]
+  },
+  "adapt-generica": {
+   "brief": "specs/0015-polimento-torre/brief-adapt.md",
+   "paths": [
+    "app/web/src/styles.css",
+    "app/web/src/adaptacao.css",
+    "app/web/src/components/GrafoDomino.tsx",
+    "app/web/src/main.tsx",
+    "specs/0015-polimento-torre/brief-adapt.md"
+   ]
+  },
+  "chrome-toolbar": {
+   "brief": "specs/0017-chrome-simples/brief-toolbar.md",
+   "paths": [
+    "app/web/src/components/torre/TorreVistas.tsx",
+    "app/web/src/vistas.css",
+    "specs/0017-chrome-simples/brief-toolbar.md"
+   ]
+  },
+  "chrome-controles": {
+   "brief": "specs/0017-chrome-simples/brief-controles.md",
+   "paths": [
+    "app/web/src/components/assistente/SeletorPedidoPopover.tsx",
+    "app/web/src/assistente.css",
+    "app/web/src/components/torre/TorreCard.tsx",
+    "app/web/src/torre-v2.css",
+    "specs/0017-chrome-simples/brief-controles.md"
+   ]
+  },
+  "chrome-menu": {
+   "brief": "specs/0017-chrome-simples/brief-menu.md",
+   "paths": [
+    "app/web/src/components/menuwiki/",
+    "app/web/src/menuwiki.css",
+    "specs/0017-chrome-simples/brief-menu.md"
+   ]
   }
+ }
 }
