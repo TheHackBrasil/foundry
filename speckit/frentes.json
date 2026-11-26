@@ -208,6 +208,19 @@
         "app/web/src/fluxo.css",
         "specs/0015-polimento-torre/brief-fluxo.md"
       ]
+    },
+    "polish-superficie": {
+      "brief": "specs/0015-polimento-torre/brief-superficie.md",
+      "paths": [
+        "app/web/src/styles.css",
+        "app/web/src/tokens.css",
+        "app/web/src/torre-v2.css",
+        "app/web/src/painel-v2.css",
+        "app/web/src/menuwiki.css",
+        "app/web/src/vistas.css",
+        "app/web/src/fluxo.css",
+        "specs/0015-polimento-torre/brief-superficie.md"
+      ]
     }
   }
 }
