@@ -102,3 +102,66 @@ Decisões tomadas sem perguntar, para registrar na spec:
 5. Feito em 26/11 para os registros: item 37 movido para "Feito" do BACKLOG; Turso separado na D-064 (`decidido`); sessão renomeada para `## Sessão 24`. Falta o estilo do achado 21 no `plan.md` e no `tasks.md`, junto com a revisão do passo 4.
 6. Commit na `main` só quando o usuário pedir: pelo `AGENTS.md`, decisão do dia entra no mesmo commit, com `FOUNDRY_INTEGRA=1`, mensagem `spec: ...` e a saída do guard colada.
 7. Depois do commit: T700 (frentes), spikes T701 a T703 e contas (Anthropic, Fluke, Telnyx, Meta).
+
+## 6. Estado da implementação e como continuar (26/11, noite)
+
+### Onde está
+
+Branch `feat/0017-harness` (nada na `main`, a pedido do usuário). Commits:
+
+| Commit | Conteúdo |
+|---|---|
+| `ed00fd8` | spec 0017 aprovada, plano, tasks, checklist, D-063 e D-064 |
+| `cc81892` | T700: frentes antigas encerradas, frente `harness` aberta (D-065) |
+| `37ee8ec` | T710 e T711: pendência só por documento, cobrança sem renascer |
+| `8050f05` | T704, T707, T708, T720, T721: tipos, envs, escada e política puras |
+| `c9f9ad4` | T706: `@dbos-inc/dbos-sdk`, `@anthropic-ai/sdk`, `@modelcontextprotocol/sdk` |
+
+Tasks feitas e marcadas em `tasks.md`: T700, T704, T706, T707, T708, T710, T711, T720, T721. Decisões tomadas no caminho: DF-1 a DF-5 em `brief-harness.md`.
+
+### Em andamento, sem commit
+
+Três agentes estavam trabalhando em paralelo quando a sessão parou. O trabalho deles pode estar completo, parcial ou ausente na árvore de trabalho. Os grupos não compartilham arquivo:
+
+| Grupo | Tasks | Arquivos |
+|---|---|---|
+| Núcleo do servidor | T705, T712, T713, T714, T715, T716 | `app/server/store.ts`, `contatos.ts`, `cobranca.ts`, `nvoip.ts`, `pipeline.ts`, `pendencia.ts`, `index.ts`, `agente/toolsEscrita.ts`, `agente/toolsLeitura.ts`, `app/shared/model.ts`, `comprovante.ts`, `casos.ts` e testes |
+| Agente Claude | T726, T727 | `app/operador/agente/claude.ts`, `extracao.ts` e testes |
+| Borda do operador | T728, T729, T730 | `app/operador/mcp.ts`, `webhooks.ts`, `evidencia.ts`, testes e `app/deploy/limpar-workspaces.mjs` |
+
+Nomes combinados entre os grupos, que precisam bater:
+
+- `evidencias` com chave `(workspace_id, hash)` e coluna `apagar_em TIMESTAMPTZ`;
+- `cobrancas.caso_id`;
+- índice único parcial `(workspace_id, pedido_id, (payload->>'chave')) WHERE tipo = 'contato_iniciado'`;
+- `contatos` único por `(workspace_id, parte, canal)` e coluna `nao_contatar_ia`;
+- `Contato.naoContatarIa` em `model.ts`, já usado por `app/operador/politica.ts`;
+- `caso_resolvido` com `resolvidoPor: 'motor'`.
+
+### Como retomar, passo a passo
+
+1. `git switch feat/0017-harness` e `git status --short`, para ver o que os agentes deixaram.
+2. Rodar o gate em `app/`: `npm test`, `npm run typecheck`, `npm --prefix web run typecheck`; na raiz, `node scripts/repo-guard.mjs` e `node scripts/prose-evals.mjs`.
+3. Para cada grupo da tabela, conferir a verificação de cada task em `tasks.md`.
+   - Task completa e gate verde: marcar `[x]` e fazer um commit atômico por grupo, com a saída do gate no corpo e sem trailers. Exemplos de mensagem: `feat: agenda por canal, eventos de cobrança, IMAP por Message-ID e fechamento do caso (T705, T712 a T716)`, `feat: cliente Claude e extração de declarações (T726, T727)`, `feat: MCP só de leitura, webhooks verificados e evidência com retenção (T728 a T730)`.
+   - Task parcial: terminar seguindo a task e os RF citados nela, ou descartar os arquivos do grupo com `git checkout --` (e apagar os novos) e refazer.
+4. Regras do cliente Claude (T726, T727): ids `claude-opus-5-5` e `claude-haiku-5-5`; no Opus 5.5 não dá para desligar o thinking (usar `output_config.effort`); `tool_choice` forçado dá 400 (usar saída estruturada); checar `stop_reason === 'refusal'`; sem prefill e sem `temperature`; testes nunca chamam a API real; sem telefone nem nome no que vai para a API.
+5. Regras do MCP (T728): só leitura, projeção em lista fechada (chave da nota, datas, status, pergunta pendente), token HMAC por workspace, caso e tentativa com expiração; nunca devolver o token do caso, telefone, e-mail ou `.eml`.
+
+### Próximas tasks, na ordem
+
+1. T722: projeção do plano e da linha do tempo em `app/shared/casos.ts`, depois que o núcleo estiver commitado.
+2. T699, T701, T702, T703 e T709, que dependem do usuário: consentimento das pessoas do time, acesso ao Railway, Postgres local (`docker compose up -d` em `app/`), número para o teste de WhatsApp e contas na Anthropic, Fluke e Telnyx.
+3. T723, T724, T725 e T731: adaptador do DBOS, módulo com lock de líder, fluxo por caso com queda em três pontos e kill switch. Dependem dos spikes T701 e T702.
+4. T740 a T743: gatilhos e degraus de e-mail e WhatsApp.
+5. T750 a T752: aprovação com credencial, versão e 409.
+6. T760 a T763: discador, roteiro e fim da ligação. Dependem das contas de voz.
+7. T770 a T772: linha do tempo, evidência na tela e agenda por canal.
+8. T780 a T784: bancada de voz, em paralelo e fora do caminho crítico.
+9. T791 a T799: polimento, Dockerfile, README, A6, fatia fina manual e gate final.
+
+Cuidados que já apareceram:
+
+- Os testes com PGlite e socket real são lentos; o `testTimeout` foi para 20 s (DF-5). Se `stream.test.ts` ou `endurecimento.test.ts` falharem só por tempo, rode isolados antes de concluir que é regressão.
+- O hook de pre-commit roda guard e prose-evals. No branch `feat/0017-harness` ele não aplica a checagem de frente.
+- Commit na `main` só na integração, com `FOUNDRY_INTEGRA=1` e quando o usuário pedir.
