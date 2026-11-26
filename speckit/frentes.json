@@ -313,6 +313,22 @@
     "app/web/src/components/torre/packing.ts",
     "specs/0017-chrome-simples/brief-resize-borda.md"
    ]
+  },
+  "superficie2": {
+   "brief": "specs/0017-chrome-simples/brief-superficie2.md",
+   "paths": [
+    "app/web/src/painel-v2.css",
+    "app/web/src/components/torre/CardCadeia.tsx",
+    "app/web/src/components/torre/CardDomino.tsx",
+    "app/web/src/components/torre/CardMatriz.tsx",
+    "app/web/src/components/torre/CardSimulador.tsx",
+    "app/web/src/components/torre/CardSinais.tsx",
+    "app/web/src/components/torre/CardTarefas.tsx",
+    "app/web/src/components/torre/CardVersoes.tsx",
+    "app/web/src/components/TarefasPorParte.tsx",
+    "app/web/src/components/menuwiki/dados.ts",
+    "specs/0017-chrome-simples/brief-superficie2.md"
+   ]
   }
  }
 }
