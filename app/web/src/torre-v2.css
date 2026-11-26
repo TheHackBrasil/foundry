@@ -91,6 +91,12 @@
    independente e a transição do container só custava frames. */
 .torre-grid {
   position: relative;
+  /* Curva do retile com velocidade inicial zero (material-standard): cada
+     retarget de transição recomeça acelerando do repouso em vez de estourar
+     velocidade — é o que elimina o solavanco visível quando o packing
+     rebaseia em sequência durante o arraste. A duração vem por card via
+     --retile-dur (proporcional ao deslocamento, calculada no packing). */
+  --ease-retile: cubic-bezier(0.4, 0, 0.2, 1);
 }
 /* Antes da primeira medição o grid não tem altura calculada: coluna estática. */
 .torre-grid[data-sem-posicao='true'] .torre-card {
@@ -119,9 +125,21 @@
      pseudo-elemento (a da peça levantada). Repintar sombra em superfície
      grande a cada frame era custo puro. */
   transition:
-    transform 300ms var(--ease-out),
-    width 300ms var(--ease-out),
-    height 300ms var(--ease-out),
+    transform var(--retile-dur, 420ms) var(--ease-retile, cubic-bezier(0.4, 0, 0.2, 1)),
+    width var(--retile-dur, 420ms) var(--ease-retile, cubic-bezier(0.4, 0, 0.2, 1)),
+    height var(--retile-dur, 420ms) var(--ease-retile, cubic-bezier(0.4, 0, 0.2, 1)),
+    background-color var(--dur-micro) ease,
+    outline-color var(--dur-micro) ease;
+}
+/* Refluo durante o arraste: os siblings têm piso de 380ms na duração — um
+   retile curto (card vizinho cedendo lugar) não vira tremida seca quando o
+   pointer atravessa o grid. O slot do arrastado mantém a duração
+   proporcional: o tracejado desliza atrás do gesto sem piso extra. */
+.torre-grid[data-arraste-ativo='true'] > .torre-card:not([data-arrastando='true']) {
+  transition:
+    transform max(var(--retile-dur, 420ms), 380ms) var(--ease-retile, cubic-bezier(0.4, 0, 0.2, 1)),
+    width max(var(--retile-dur, 420ms), 380ms) var(--ease-retile, cubic-bezier(0.4, 0, 0.2, 1)),
+    height max(var(--retile-dur, 420ms), 380ms) var(--ease-retile, cubic-bezier(0.4, 0, 0.2, 1)),
     background-color var(--dur-micro) ease,
     outline-color var(--dur-micro) ease;
 }
@@ -388,7 +406,10 @@
    e mantém fades de opacity ≤140ms (Tier 2/3) para preservar causa-efeito —
    nada de teleporte seco. Os pulses de retile em si vêm de WAAPI no JS. */
 @media (prefers-reduced-motion: reduce) {
-  .torre-grid > .torre-card {
+  /* O seletor de arraste tem especificidade maior que .torre-grid>.torre-card
+     e precisa ser repetido aqui para o reduced-motion vencer também no drag. */
+  .torre-grid > .torre-card,
+  .torre-grid[data-arraste-ativo='true'] > .torre-card:not([data-arrastando='true']) {
     transition: opacity 130ms ease, outline-color var(--dur-micro) ease;
   }
   .torre-card-peca,

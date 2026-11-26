@@ -26,7 +26,9 @@ import {
   type VistaTemplate,
 } from './layout.ts';
 import {
+  RETILE_BASE_MS,
   destinoArraste,
+  duracaoRetile,
   empacotar,
   ordenarVisual,
   spanEscalonado,
@@ -69,8 +71,9 @@ const GAP = 20;
 // Altura assumida antes da primeira medição via ResizeObserver.
 const ALTURA_ESTIMADA = 170;
 // Janela de congelamento do ResizeObserver de medidas durante um retile
-// (transição geométrica ~300ms + folga): medidas intermediárias não repackam.
-const RETILE_MS = 400;
+// (teto da transição geométrica ~680ms + folga): medidas intermediárias não
+// repackam.
+const RETILE_MS = 800;
 // Auto-scroll do arraste: faixa de ativação nas bordas da viewport e velocidade
 // máxima por frame (proporcional à proximidade).
 const ZONA_SCROLL = 72;
@@ -282,6 +285,24 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     return mapa;
   }, [ordemVisivel, spanDe, heights, cols, cardW]);
 
+  // Último posMap commitado — o efeito de reduced-motion e o cálculo de
+  // duração do retile medem o "de" do deslocamento aqui (atualizado só em
+  // effect, abaixo).
+  const prevPosRef = useRef<Map<CardId, Posicao> | null>(null);
+
+  // Duração do retile por card: deslocamento medido contra o último mapa
+  // COMMITADO (prevPosRef só avança em effect, depois do render — o double
+  // invoke do useMemo sob StrictMode não zera a distância). Viaja ao card
+  // como --retile-dur e a transição CSS usa essa duração no retarget.
+  const durMap = useMemo(() => {
+    const anterior = prevPosRef.current;
+    const durs = new Map<CardId, number>();
+    for (const [id, p] of posMap) {
+      durs.set(id, duracaoRetile(anterior?.get(id), p));
+    }
+    return durs;
+  }, [posMap]);
+
   const semPosicao = gridW <= 0;
 
   // Retile em curso: congela as medidas do RO e fixa a largura de cada medida
@@ -310,18 +331,51 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
     return fundo;
   }, [posMap]);
 
-  // Ordem DOM = ordem visual (linha por y arredondado, x dentro da linha):
-  // o foco de teclado segue o que se vê, sem ping-pong do backfill.
+  // Ordem visual alvo (linha por y arredondado, x dentro da linha): guia a
+  // ordem de tab/leitura e os anúncios — WCAG 2.4.3 / 1.3.2.
   const ordemRender = useMemo(
     () => (posMap.size > 0 ? ordenarVisual(ordemVisivel, posMap) : ordemVisivel),
     [ordemVisivel, posMap],
   );
   ordemVisualRef.current = ordemRender;
 
+  // Ordem DOM segue a ordem visual MAS atrasa a reordenação de nós vivos até
+  // a torre assentar: um elemento movido entre irmãos tem as transições CSS
+  // suprimidas pelo browser (re-insert conta como "elemento novo" para o
+  // before-change style) e teleportaria — causa raiz do flicker em retiles
+  // que trocam a ordem visual (drag, span). Remoções e entradas já aplicam
+  // na hora (nó removido não tem transição a preservar; nó novo nasce sem).
+  const [ordemDom, setOrdemDom] = useState<CardId[]>(ordemRender);
+  useEffect(() => {
+    setOrdemDom((dom) => {
+      const vivos = new Set(ordemRender);
+      const prox = dom.filter((id) => vivos.has(id));
+      for (const id of ordemRender) if (!prox.includes(id)) prox.push(id);
+      return prox;
+    });
+    let t = 0;
+    const tentar = () => {
+      // Espera extra enquanto houver transição geométrica em curso: mover o
+      // nó no meio dela também a suprimiria (salto para o valor final).
+      for (const el of elsRef.current.values()) {
+        const animando = el.getAnimations().some((a) => {
+          const p = (a as CSSTransition).transitionProperty;
+          return p === 'transform' || p === 'width' || p === 'height';
+        });
+        if (animando) {
+          t = window.setTimeout(tentar, 120);
+          return;
+        }
+      }
+      setOrdemDom(ordemRender);
+    };
+    t = window.setTimeout(tentar, RETILE_MS + 80);
+    return () => window.clearTimeout(t);
+  }, [ordemRender]);
+
   // Reduced motion: retile sem deslocamento, mas com fade curto — cada card
   // que mudou de posição/tamanho recebe um pulse de opacity (Tier 2), para
   // preservar causa e efeito em vez de teleportar sem orientação.
-  const prevPosRef = useRef<Map<CardId, Posicao> | null>(null);
   useEffect(() => {
     const prev = prevPosRef.current;
     prevPosRef.current = posMap;
@@ -861,13 +915,14 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
         className="torre-grid"
         ref={gridElRef}
         data-sem-posicao={semPosicao ? 'true' : undefined}
+        data-arraste-ativo={voandoIds.size > 0 ? 'true' : undefined}
         style={
           semPosicao
             ? undefined
             : { height: gridH, '--teto-corpo': `${TETO_CORPO[densidade]}px` } as CSSPropertiesSemTeto
         }
       >
-        {ordemRender.map((id, i) => {
+        {ordemDom.map((id, i) => {
           const p = posMap.get(id);
           return (
             <TorreCard
@@ -894,11 +949,12 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
               spanMax={cols}
               estilo={
                 p
-                  ? {
+                  ? ({
                       transform: `translate3d(${p.x}px, ${p.y}px, 0)`,
                       width: p.w,
                       height: p.h,
-                    }
+                      '--retile-dur': `${durMap.get(id) ?? RETILE_BASE_MS}ms`,
+                    } as CSSPropertiesComRetile)
                   : undefined
               }
             >
@@ -912,3 +968,4 @@ export function TorreGrid({ pedidoId, cards, titulosCard, aoAnunciar }: TorreGri
 }
 
 type CSSPropertiesSemTeto = CSSProperties & { '--teto-corpo'?: string };
+type CSSPropertiesComRetile = CSSProperties & { '--retile-dur'?: string };
