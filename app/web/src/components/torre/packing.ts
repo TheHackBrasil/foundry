@@ -303,6 +303,31 @@ export function inserirEmLista<T>(lista: readonly T[], id: T, idx: number): T[] 
   return [...lista.slice(0, limite), id, ...lista.slice(limite)];
 }
 
+// ---------- duração do retile (motion-fisica, spec 0015) ----------
+// A transição de transform/width/height é proporcional ao deslocamento real:
+// a base cobre o arranque, cada px soma tempo e o teto evita travessias
+// longas demais — velocidade percebida aproximadamente constante, como num
+// corpo com massa. O resize (span, recolhido) entra com peso menor na
+// distância efetiva e tem piso próprio: um stretch de largura sem
+// deslocamento continua legível.
+export const RETILE_BASE_MS = 340;
+export const RETILE_TETO_MS = 680;
+export const RETILE_PX_MS = 0.35;
+export const RETILE_RESIZE_PESO = 0.45;
+export const RETILE_RESIZE_MIN_MS = 420;
+
+// `antes` é o alvo do retile anterior (o mapa é atualizado junto com o
+// commit, então a posição interpolada não está disponível — alvo a alvo é
+// determinístico e suficiente). Cards novos recebem a base.
+export function duracaoRetile(antes: Posicao | undefined, depois: Posicao): number {
+  if (!antes) return RETILE_BASE_MS;
+  const desloc = Math.hypot(depois.x - antes.x, depois.y - antes.y);
+  const resize = Math.hypot(depois.w - antes.w, depois.h - antes.h);
+  let ms = RETILE_BASE_MS + RETILE_PX_MS * (desloc + resize * RETILE_RESIZE_PESO);
+  if (resize >= 1) ms = Math.max(ms, RETILE_RESIZE_MIN_MS);
+  return Math.round(Math.min(RETILE_TETO_MS, ms));
+}
+
 function mesmaOrdem<T>(a: readonly T[], b: readonly T[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }

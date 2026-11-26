@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   HIST_ARRASTE_PX,
+  RETILE_BASE_MS,
+  RETILE_PX_MS,
+  RETILE_RESIZE_MIN_MS,
+  RETILE_TETO_MS,
   destinoArraste,
+  duracaoRetile,
   empacotar,
   ordenarVisual,
   spanEscalonado,
@@ -252,5 +257,49 @@ describe('destinoArraste', () => {
       ancoraX: 0, ancoraY: 0,
     });
     expect(r).toBeNull();
+  });
+});
+
+describe('duracaoRetile', () => {
+  const pos = (x: number, y: number, w = 300, h = 100): Posicao => ({
+    x, y, w, h, coluna: 0, span: 1,
+  });
+
+  it('sem posição anterior usa a base (card novo)', () => {
+    expect(duracaoRetile(undefined, pos(0, 0))).toBe(RETILE_BASE_MS);
+  });
+
+  it('cresce linearmente com a distância euclidiana', () => {
+    expect(duracaoRetile(pos(0, 0), pos(100, 0))).toBe(
+      Math.round(RETILE_BASE_MS + 100 * RETILE_PX_MS),
+    );
+    // diagonal conta os dois eixos: hypot(300,400)=500
+    expect(duracaoRetile(pos(0, 0), pos(300, 400))).toBe(
+      Math.round(RETILE_BASE_MS + 500 * RETILE_PX_MS),
+    );
+  });
+
+  it('respeita o teto em deslocamentos enormes', () => {
+    expect(duracaoRetile(pos(0, 0), pos(5000, 0))).toBe(RETILE_TETO_MS);
+    expect(duracaoRetile(pos(0, 0), pos(0, 3000))).toBe(RETILE_TETO_MS);
+  });
+
+  it('stretch de largura tem piso de ~420ms mesmo sem deslocamento', () => {
+    // span 1→2 em grid de 3 colunas: Δw ~420px, distância de x/y ~0.
+    const d = duracaoRetile(pos(0, 0, 400), pos(0, 0, 820));
+    expect(d).toBeGreaterThanOrEqual(RETILE_RESIZE_MIN_MS);
+    // recolhido/altura também passa pelo piso quando o resize é pequeno
+    // (Δh 120 * 0.45 = 54px eq → 359ms sem o piso)
+    expect(duracaoRetile(pos(0, 0, 400, 600), pos(0, 0, 400, 480))).toBe(
+      RETILE_RESIZE_MIN_MS,
+    );
+  });
+
+  it('resize soma na distância efetiva com peso menor que o deslocamento', () => {
+    // Δw 420 * 0.45 = 189px equivalentes: só resize fica abaixo do piso,
+    // resize + deslocamento ultrapassa.
+    const soResize = duracaoRetile(pos(0, 0, 400), pos(0, 0, 820));
+    const comDesloc = duracaoRetile(pos(0, 0, 400), pos(600, 0, 820));
+    expect(comDesloc).toBeGreaterThan(soResize);
   });
 });
