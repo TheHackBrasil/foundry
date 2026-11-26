@@ -1,11 +1,18 @@
 // Store append-only (spec 0004): `events` e o ledger; triggers rejeitam
 // UPDATE/DELETE/TRUNCATE e /audit reconta a cadeia.
 
+import { randomBytes } from 'node:crypto';
 import { GENESIS_HASH, hashEvento, verificarCadeia, type VerificacaoCadeia } from '../shared/chain.js';
 import { TIPOS_DOCUMENTO } from '../shared/model.js';
-import type { Cobranca, Contato, Evento, ItemRevisao, Parte, PropostaMapeamento } from '../shared/model.js';
+import type { CanalContato, Cobranca, Contato, Evento, ItemRevisao, Parte, PropostaMapeamento } from '../shared/model.js';
 import { CONTATOS_SEED } from './contatos.js';
 import type { Db } from './db.js';
+
+// Contato da agenda com id e dono, como contatoDaParte devolve.
+export type ContatoDaAgenda = Contato & { id: number; workspaceId: string; naoContatarIa: boolean };
+
+// 'workspace': so as cobrancas do store; 'todos': a caixa IMAP do sistema.
+export type EscopoCobranca = 'workspace' | 'todos';
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS events (
@@ -40,8 +47,8 @@ ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEF
 -- Fila e uso por sessao filtram por workspace a cada envio.
 CREATE INDEX IF NOT EXISTS review_queue_ws ON review_queue (workspace_id);
 
--- Agenda de contatos por workspace (spec 0007, RF7). Um contato por parte por
--- workspace; a fonte diz se veio manual, de documento ou da seed.
+-- Agenda de contatos por workspace (spec 0007, RF7). A fonte diz se veio
+-- manual, de documento ou da seed.
 CREATE TABLE IF NOT EXISTS contatos (
   id           BIGSERIAL PRIMARY KEY,
   workspace_id TEXT NOT NULL DEFAULT 'seed',
@@ -50,10 +57,16 @@ CREATE TABLE IF NOT EXISTS contatos (
   canal        TEXT NOT NULL,
   destino      TEXT NOT NULL,
   fonte        TEXT NOT NULL DEFAULT 'manual',
-  ts           TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (workspace_id, parte)
+  ts           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS contatos_ws ON contatos (workspace_id);
+-- Spec 0017, T705: um contato por parte e canal (o operador precisa do
+-- e-mail, do WhatsApp e do telefone da mesma transportadora). A base antiga
+-- tinha no maximo um por parte, entao cabe na chave nova sem perder linha.
+-- nao_contatar_ia marca quem pediu para nao falar com a IA (RF8).
+ALTER TABLE contatos DROP CONSTRAINT IF EXISTS contatos_workspace_id_parte_key;
+CREATE UNIQUE INDEX IF NOT EXISTS contatos_ws_parte_canal ON contatos (workspace_id, parte, canal);
+ALTER TABLE contatos ADD COLUMN IF NOT EXISTS nao_contatar_ia BOOLEAN NOT NULL DEFAULT false;
 
 -- Templates de mapeamento aprovados (spec 0007, RF11): coluna -> campo
 -- canonico por (workspace, remetente); nao vaza entre workspaces.
@@ -100,17 +113,46 @@ CREATE TABLE IF NOT EXISTS cobrancas (
 );
 CREATE INDEX IF NOT EXISTS cobrancas_ws ON cobrancas (workspace_id, pedido_id);
 CREATE INDEX IF NOT EXISTS cobrancas_msgid ON cobrancas (workspace_id, message_id);
+-- Spec 0017: caso_id liga a cobranca ao caso de pendencia que a pediu (T705)
+-- e segredo_msgid torna o Message-ID derivado impossivel de adivinhar (T712).
+-- A resposta IMAP casa por Message-ID em qualquer workspace (RF27).
+ALTER TABLE cobrancas ADD COLUMN IF NOT EXISTS caso_id TEXT NULL;
+ALTER TABLE cobrancas ADD COLUMN IF NOT EXISTS segredo_msgid TEXT NULL;
+CREATE INDEX IF NOT EXISTS cobrancas_msgid_global ON cobrancas (message_id);
 
 -- Evidencias (spec 0010): o .eml bruto que gerou um status_declarado fica
 -- enderecado pelo proprio hash (emlHash do claim). Nao entra em rota publica
--- nem no comprovante — so o hash circula fora.
+-- nem no comprovante: so o hash circula fora.
 CREATE TABLE IF NOT EXISTS evidencias (
-  hash         TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL DEFAULT 'seed',
+  hash         TEXT NOT NULL,
   tipo         TEXT NOT NULL,
   conteudo     BYTEA NOT NULL,
-  ts           TIMESTAMPTZ NOT NULL DEFAULT now()
+  ts           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (workspace_id, hash)
 );
+-- Spec 0017, T705: a chave passa de hash a (workspace, hash). Dois visitantes
+-- com o mesmo arquivo guardam cada um a sua copia. A base antiga tem o hash
+-- unico, entao cabe na chave nova sem perder linha. apagar_em e o prazo de
+-- retencao (RF25): o job apaga WHERE apagar_em < now(); NULL fica.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'evidencias'::regclass AND conname = 'evidencias_pkey' AND array_length(conkey, 1) = 1
+  ) THEN
+    ALTER TABLE evidencias DROP CONSTRAINT evidencias_pkey;
+    ALTER TABLE evidencias ADD PRIMARY KEY (workspace_id, hash);
+  END IF;
+END $$;
+ALTER TABLE evidencias ADD COLUMN IF NOT EXISTS apagar_em TIMESTAMPTZ NULL;
+CREATE INDEX IF NOT EXISTS evidencias_apagar_em ON evidencias (apagar_em) WHERE apagar_em IS NOT NULL;
+
+-- Spec 0017, RF12: um contato_iniciado por chave de efeito no pedido. O
+-- segundo append com a mesma chave falha; os eventos seguintes (aceito,
+-- incerto, falhou) repetem a chave sem colidir.
+CREATE UNIQUE INDEX IF NOT EXISTS events_contato_iniciado_chave
+  ON events (workspace_id, pedido_id, (payload->>'chave')) WHERE tipo = 'contato_iniciado';
 
 CREATE OR REPLACE FUNCTION rejeita_mutacao_events() RETURNS trigger AS $$
 BEGIN
@@ -191,7 +233,7 @@ export class LedgerStore {
     for (const c of CONTATOS_SEED) {
       await this.db.query(
         `INSERT INTO contatos (workspace_id, parte, nome, canal, destino, fonte)
-         VALUES ($1, $2, $3, $4, $5, 'seed') ON CONFLICT (workspace_id, parte) DO NOTHING`,
+         VALUES ($1, $2, $3, $4, $5, 'seed') ON CONFLICT (workspace_id, parte, canal) DO NOTHING`,
         [this.seedWorkspace, c.parte, c.nome, c.canal, c.destino],
       );
     }
@@ -450,6 +492,7 @@ export class LedgerStore {
       workspaceId: r['workspace_id'] as string,
       canal: r['canal'] as Cobranca['canal'],
       contatoId: r['contato_id'] === null || r['contato_id'] === undefined ? null : Number(r['contato_id']),
+      casoId: (r['caso_id'] as string | null) ?? undefined,
       destinatario: (r['destinatario'] as string | null) ?? undefined,
       status: r['status'] as Cobranca['status'],
       messageId: (r['message_id'] as string | null) ?? undefined,
@@ -463,32 +506,45 @@ export class LedgerStore {
 
   // Cria cobranca pendente para o pedido; idempotente: cobranca aberta para
   // o mesmo pedido devolve a existente, nunca duplica. criada_em sai do
-  // relogio do app, o mesmo do ts dos eventos: o verificador compara com a
-  // abertura do caso (spec 0017, RF13) sem depender do relogio do banco.
+  // relogio do app, o mesmo do ts dos eventos. casoId liga a cobranca ao
+  // caso de pendencia que a pediu (spec 0017, T705). O segredo entra no
+  // Message-ID derivado (T712) e nunca sai da tabela.
   async criarCobrancaPendente(
     pedidoId: string,
     contatoId: number | null,
     destinatario: string | null,
     expiraEm: Date,
+    casoId: string | null = null,
   ): Promise<{ cobranca: Cobranca; criada: boolean }> {
     const aberta = await this.cobrancaAbertaDoPedido(pedidoId);
     if (aberta) return { cobranca: aberta, criada: false };
     const rows = await this.db.query<Record<string, unknown>>(
-      `INSERT INTO cobrancas (workspace_id, pedido_id, contato_id, destinatario, expira_em, criada_em)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [this.workspace, pedidoId, contatoId, destinatario, expiraEm.toISOString(), new Date().toISOString()],
+      `INSERT INTO cobrancas (workspace_id, pedido_id, contato_id, destinatario, expira_em, criada_em, caso_id, segredo_msgid)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [
+        this.workspace,
+        pedidoId,
+        contatoId,
+        destinatario,
+        expiraEm.toISOString(),
+        new Date().toISOString(),
+        casoId,
+        randomBytes(8).toString('hex'),
+      ],
     );
     return { cobranca: this.cobrancaRow(rows[0]!), criada: true };
   }
 
-  // Spec 0017, RF13: alguma cobranca do pedido nasceu em `desde` ou depois,
-  // em qualquer status. Sem caso_id (T705), e assim que o verificador sabe
-  // se o caso aberto em `desde` ja teve a sua cobranca.
-  async cobrancaCriadaDesde(pedidoId: string, desde: string): Promise<boolean> {
+  // Spec 0017, RF13: o caso ja teve a sua cobranca, em qualquer status. O
+  // vinculo e o caso_id (T705). Cobranca anterior a coluna (caso_id nulo)
+  // segue a regra antiga por tempo: nascida na abertura do caso ou depois.
+  // Sem esse recuo, cada caso aberto de uma base antiga ganharia uma
+  // cobranca nova no primeiro tick depois do deploy.
+  async cobrancaDoCaso(pedidoId: string, casoId: string, abertoEm: string): Promise<boolean> {
     const rows = await this.db.query(
       `SELECT 1 AS n FROM cobrancas WHERE workspace_id = $1 AND pedido_id = $2
-       AND criada_em >= $3 LIMIT 1`,
-      [this.workspace, pedidoId, desde],
+       AND (caso_id = $3 OR (caso_id IS NULL AND criada_em >= $4)) LIMIT 1`,
+      [this.workspace, pedidoId, casoId, abertoEm],
     );
     return rows.length > 0;
   }
@@ -520,13 +576,51 @@ export class LedgerStore {
 
   // Matching resposta -> cobranca (spec 0010, RF7): o Message-Id gravado no
   // envio volta no In-Reply-To/References do e-mail da transportadora.
-  async cobrancaPorMessageId(messageId: string): Promise<Cobranca | null> {
+  // escopo 'todos' e a caixa IMAP do sistema (spec 0017, RF27): casa em
+  // qualquer workspace, inclusive depois da expiracao. 'workspace' e o
+  // upload da sessao, que so enxerga as proprias cobrancas. Respondida nao
+  // casa de novo: a segunda resposta nao duplica o claim.
+  async cobrancaPorMessageId(messageId: string, escopo: EscopoCobranca = 'workspace'): Promise<Cobranca | null> {
     const rows = await this.db.query<Record<string, unknown>>(
-      `SELECT * FROM cobrancas WHERE workspace_id = $1 AND message_id = $2
-       AND status = 'enviada' ORDER BY id DESC LIMIT 1`,
-      [this.workspace, messageId],
+      `SELECT * FROM cobrancas WHERE message_id = $1 AND status <> 'respondida'
+       AND ($2::text IS NULL OR workspace_id = $2) ORDER BY id DESC LIMIT 1`,
+      [messageId, escopo === 'todos' ? null : this.workspace],
     );
     return rows[0] ? this.cobrancaRow(rows[0]) : null;
+  }
+
+  // Message-ID derivado de tentativa anterior (spec 0017, T712): a coluna
+  // message_id guarda so o ultimo envio, entao a resposta ao primeiro e-mail
+  // casa pelo id e pelo segredo lidos do proprio Message-ID.
+  async cobrancaPorSegredo(id: number, segredo: string, escopo: EscopoCobranca = 'workspace'): Promise<Cobranca | null> {
+    const rows = await this.db.query<Record<string, unknown>>(
+      `SELECT * FROM cobrancas WHERE id = $1 AND segredo_msgid = $2 AND status <> 'respondida'
+       AND ($3::text IS NULL OR workspace_id = $3)`,
+      [id, segredo, escopo === 'todos' ? null : this.workspace],
+    );
+    return rows[0] ? this.cobrancaRow(rows[0]) : null;
+  }
+
+  // Segredo do Message-ID da cobranca; a cobranca anterior a coluna ganha o
+  // seu no primeiro envio e o mantem nos seguintes.
+  async segredoDaCobranca(id: number): Promise<string | null> {
+    const rows = await this.db.query<{ segredo_msgid: string }>(
+      `UPDATE cobrancas SET segredo_msgid = COALESCE(segredo_msgid, $3)
+       WHERE workspace_id = $1 AND id = $2 RETURNING segredo_msgid`,
+      [this.workspace, id, randomBytes(8).toString('hex')],
+    );
+    return rows[0]?.segredo_msgid ?? null;
+  }
+
+  // Envios confirmados da cobranca, contados no ledger (cobranca_enviada).
+  // A proxima tentativa e esse numero mais um.
+  async enviosDaCobranca(cobranca: Pick<Cobranca, 'id' | 'pedidoId'>): Promise<number> {
+    const rows = await this.db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM events WHERE workspace_id = $1 AND pedido_id = $2
+       AND tipo = 'cobranca_enviada' AND payload->>'cobrancaId' = $3`,
+      [this.workspace, cobranca.pedidoId, String(cobranca.id)],
+    );
+    return rows[0]?.n ?? 0;
   }
 
   async atualizarCobranca(
@@ -574,73 +668,92 @@ export class LedgerStore {
   }
 
   // Expira cobrancas enviadas/pendentes sem resposta (COBRANCA_EXPIRA_HORAS).
-  async expirarCobrancas(agora: Date): Promise<number> {
-    const rows = await this.db.query<{ id: number }>(
+  // Devolve as expiradas: quem chama grava cobranca_expirada no pedido de
+  // cada uma (spec 0017, T712).
+  async expirarCobrancas(agora: Date): Promise<Cobranca[]> {
+    const rows = await this.db.query<Record<string, unknown>>(
       `UPDATE cobrancas SET status = 'expirada'
        WHERE workspace_id = $1 AND status IN ('pendente','pendente_envio','enviada') AND expira_em < $2
-       RETURNING id`,
+       RETURNING *`,
       [this.workspace, agora.toISOString()],
     );
-    return rows.length;
+    return rows.map((r) => this.cobrancaRow(r)).sort((a, b) => a.pedidoId.localeCompare(b.pedidoId) || a.id - b.id);
   }
 
-  // Evidencia enderecada por hash (spec 0010): o .eml bruto fica aqui; fora
-  // circula so o hash.
-  async guardarEvidencia(hash: string, tipo: string, conteudo: Buffer): Promise<void> {
+  // Evidencia enderecada por (workspace, hash) (spec 0010; T705 da 0017): o
+  // .eml bruto fica aqui e fora circula so o hash. apagarEm e o prazo de
+  // retencao (RF25); sem ele a evidencia fica.
+  async guardarEvidencia(hash: string, tipo: string, conteudo: Buffer, apagarEm: Date | null = null): Promise<void> {
     await this.db.query(
-      `INSERT INTO evidencias (hash, workspace_id, tipo, conteudo) VALUES ($1, $2, $3, $4)
-       ON CONFLICT (hash) DO NOTHING`,
-      [hash, this.workspace, tipo, conteudo],
+      `INSERT INTO evidencias (hash, workspace_id, tipo, conteudo, apagar_em) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (workspace_id, hash) DO NOTHING`,
+      [hash, this.workspace, tipo, conteudo, apagarEm ? apagarEm.toISOString() : null],
     );
   }
 
   async evidencia(hash: string): Promise<Buffer | null> {
-    const rows = await this.db.query<{ conteudo: Buffer }>(
+    const rows = await this.db.query<{ conteudo: Uint8Array }>(
       `SELECT conteudo FROM evidencias WHERE hash = $1 AND workspace_id = $2`,
       [hash, this.workspace],
     );
-    return rows[0]?.conteudo ?? null;
+    // pg devolve BYTEA como Buffer; PGlite, como Uint8Array.
+    const conteudo = rows[0]?.conteudo;
+    return conteudo ? Buffer.from(conteudo) : null;
   }
 
-  // Contato resolvido de uma parte com id: o da propria sessao vale sobre o
-  // da seed (mesma regra da agenda visivel). Usado pela cobranca de status.
-  async contatoDaParte(parte: Parte): Promise<(Contato & { id: number; workspaceId: string }) | null> {
-    const rows = await this.db.query<Contato & { id: number; workspaceId: string }>(
-      `SELECT id, workspace_id AS "workspaceId", parte, nome, canal, destino, fonte
-       FROM contatos WHERE workspace_id = ANY($1) AND parte = $2
-       ORDER BY CASE WHEN workspace_id = $3 THEN 0 ELSE 1 END, id LIMIT 1`,
-      [this.visiveis(), parte, this.workspace],
+  // Contato de uma parte num canal (spec 0017, T705), com id. A sessao que
+  // tem algum contato da parte e dona dela: a seed so responde quando a
+  // sessao nao tem nenhum (mesma regra da agenda visivel). Com mais de um
+  // canal aceito vale o contato salvo por ultimo, que e o que a agenda de
+  // um contato por parte mostrava antes da chave por canal.
+  async contatoDaParte(parte: Parte, canais: CanalContato | readonly CanalContato[]): Promise<ContatoDaAgenda | null> {
+    const lista = typeof canais === 'string' ? [canais] : [...canais];
+    const rows = await this.db.query<ContatoDaAgenda>(
+      `SELECT id, workspace_id AS "workspaceId", parte, nome, canal, destino, fonte, nao_contatar_ia AS "naoContatarIa"
+       FROM contatos c WHERE workspace_id = ANY($1) AND parte = $2 AND canal = ANY($3)
+       AND (workspace_id = $4 OR NOT EXISTS (
+         SELECT 1 FROM contatos s WHERE s.workspace_id = $4 AND s.parte = $2))
+       ORDER BY ts DESC, id DESC LIMIT 1`,
+      [this.visiveis(), parte, lista, this.workspace],
     );
-    return rows[0] ?? null;
+    const r = rows[0];
+    return r ? { ...r, id: Number(r.id) } : null;
   }
 
-  // Agenda visivel (sessao + seed) com o dono: quem monta a agenda decide a
-  // precedencia por workspace (listarAgenda em contatos.ts).
-  async listarContatos(): Promise<Array<Contato & { workspaceId: string }>> {
-    return this.db.query(
-      `SELECT workspace_id AS "workspaceId", parte, nome, canal, destino, fonte
+  // Agenda visivel (sessao + seed) com o dono e o instante do ultimo save:
+  // quem monta a agenda decide a precedencia (listarAgenda em contatos.ts).
+  async listarContatos(): Promise<Array<Contato & { workspaceId: string; ts: string }>> {
+    const rows = await this.db.query<Contato & { workspaceId: string; ts: Date | string }>(
+      `SELECT workspace_id AS "workspaceId", parte, nome, canal, destino, fonte,
+              nao_contatar_ia AS "naoContatarIa", ts
        FROM contatos WHERE workspace_id = ANY($1) ORDER BY id`,
       [this.visiveis()],
-    ) as Promise<Array<Contato & { workspaceId: string }>>;
+    );
+    return rows.map((r) => ({ ...r, ts: r.ts instanceof Date ? r.ts.toISOString() : String(r.ts) }));
   }
 
-  // Upsert do PUT /api/contatos: sempre fonte 'manual' na sessao do chamador.
+  // Upsert do PUT /api/contatos por (parte, canal): sempre fonte 'manual' na
+  // sessao do chamador; o save renova o ts. naoContatarIa ausente mantem o
+  // valor gravado (novo contato nasce com false).
   async upsertContato(c: Contato): Promise<void> {
     await this.db.query(
-      `INSERT INTO contatos (workspace_id, parte, nome, canal, destino, fonte)
-       VALUES ($1, $2, $3, $4, $5, 'manual')
-       ON CONFLICT (workspace_id, parte)
-       DO UPDATE SET nome = EXCLUDED.nome, canal = EXCLUDED.canal, destino = EXCLUDED.destino, fonte = 'manual'`,
-      [this.workspace, c.parte, c.nome, c.canal, c.destino],
+      `INSERT INTO contatos (workspace_id, parte, nome, canal, destino, fonte, nao_contatar_ia)
+       VALUES ($1, $2, $3, $4, $5, 'manual', COALESCE($6::boolean, false))
+       ON CONFLICT (workspace_id, parte, canal)
+       DO UPDATE SET nome = EXCLUDED.nome, destino = EXCLUDED.destino, fonte = 'manual', ts = now(),
+         nao_contatar_ia = COALESCE($6::boolean, contatos.nao_contatar_ia)`,
+      [this.workspace, c.parte, c.nome, c.canal, c.destino, c.naoContatarIa ?? null],
     );
   }
 
-  // Bootstrap por documento: so insere quando a parte ainda nao tem contato;
-  // um manual cadastrado a mao nunca e tocado (RF7).
+  // Bootstrap por documento: so insere quando a parte ainda nao tem contato
+  // em nenhum canal; um manual cadastrado a mao nunca e tocado (RF7).
   async inserirContatoSeAusente(c: Contato): Promise<boolean> {
     const rows = await this.db.query<{ id: number }>(
       `INSERT INTO contatos (workspace_id, parte, nome, canal, destino, fonte)
-       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (workspace_id, parte) DO NOTHING RETURNING id`,
+       SELECT $1, $2, $3, $4, $5, $6
+       WHERE NOT EXISTS (SELECT 1 FROM contatos WHERE workspace_id = $1 AND parte = $2)
+       ON CONFLICT (workspace_id, parte, canal) DO NOTHING RETURNING id`,
       [this.workspace, c.parte, c.nome, c.canal, c.destino, c.fonte],
     );
     return rows.length > 0;

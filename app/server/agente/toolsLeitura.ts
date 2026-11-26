@@ -7,6 +7,7 @@ import { simularHipotese } from '../../shared/divergence.js';
 import { raizMerkle } from '../../shared/merkle.js';
 import {
   CAMPOS_VIGIADOS,
+  CANAIS_CONTATO,
   type CamposObservados,
   type CampoVigiado,
   type Parte,
@@ -240,7 +241,8 @@ export const TOOLS_LEITURA: ToolAgente[] = [
       const { pedidoId, projecao: proj } = r.resolvido;
       const setores = [];
       for (const parte of args.partes) {
-        const contato = await ctx.sessao.contatoDaParte(parte);
+        // O contato que receberia o aviso da tarefa (notificarTarefa).
+        const contato = await ctx.sessao.contatoDaParte(parte, CANAIS_CONTATO);
         setores.push({
           parte,
           tarefas: proj.tarefas

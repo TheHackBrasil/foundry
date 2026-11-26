@@ -7,12 +7,24 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import Papa from 'papaparse';
+import { fechamentosDoMotor } from '../shared/casos.js';
 import { divergenciasDaNovaFonte, mudancasDaFonte } from '../shared/divergence.js';
 import { propagarTodas } from '../shared/rules.js';
-import { TIPOS_DOCUMENTO, type CamposObservados, type DocData, type Evento, type PropostaMapeamento, type Sinal } from '../shared/model.js';
+import {
+  CANAIS_CONTATO,
+  TIPOS_DOCUMENTO,
+  type CamposObservados,
+  type Cobranca,
+  type DocData,
+  type Evento,
+  type PropostaMapeamento,
+  type Sinal,
+} from '../shared/model.js';
 import { camposPorFonte, docDataParaPayload } from '../shared/projection.js';
+import { cobrancaDaReferencia } from './cobranca.js';
 import type { Limites } from './config.js';
 import { bootstrapContatos } from './contatos.js';
+import { operadorAtivoNoWorkspace } from './pendencia.js';
 import { aplicarMapeamento, aplicarTemplate, proporMapeamento, registrarTemplate } from './mapeamento.js';
 import { notificarEmTarefaDoEnv, notificarTarefa } from './nvoip.js';
 import { ErroRequisicao, mensagens } from './protecao.js';
@@ -114,19 +126,41 @@ async function registrarDoc(tx: LedgerStore, doc: DocData): Promise<Evento[]> {
     // token por divergencia = link de resposta do parceiro do caso aberto.
     inseridos.push(await tx.append(doc.pedidoId, 'divergencia', { ...d, token: randomUUID() }));
   }
-  const avisar = notificarEmTarefaDoEnv();
+  // Spec 0017, RF20: com o operador ativo no workspace, NVOIP_NOTIFY_ON_TASK
+  // nao envia nada em paralelo; o operador e o unico que contata.
+  // O contato webhook tambem cala: nenhum canal avisa em paralelo.
+  const operador = operadorAtivoNoWorkspace(tx.workspace);
+  const avisar = notificarEmTarefaDoEnv() && !operador;
   for (const t of propagarTodas(divs)) {
     inseridos.push(await tx.append(doc.pedidoId, 'tarefa', { ...t }));
     // T141: a Nvoip so avisa com NVOIP_NOTIFY_ON_TASK ligado. Contato
     // webhook (spec 0012) dispara sempre: a URL foi cadastrada pela
-    // propria sessao para receber a tarefa e nao depende da provedora.
-    const contato = await tx.contatoDaParte(t.parte);
-    if (avisar || contato?.canal === 'webhook') {
+    // propria sessao para receber a tarefa e nao depende da provedora. E o
+    // mesmo contato que notificarTarefa escolhe (o salvo por ultimo).
+    const contato = await tx.contatoDaParte(t.parte, CANAIS_CONTATO);
+    if (!operador && (avisar || contato?.canal === 'webhook')) {
       const n = await notificarTarefa(tx, doc.pedidoId, t);
       if (n) inseridos.push(n);
     }
   }
+  inseridos.push(...(await fecharPeloMotor(tx, doc.pedidoId)));
   return inseridos;
+}
+
+// Spec 0017, RF5: depois de cada documento gravado, o app fecha pela regra
+// deterministica os casos de pendencia que ele resolveu. Roda na tx do
+// chamador, com o pedido travado; caso ja resolvido nao volta, entao gravar
+// o mesmo documento de novo nao duplica o fechamento.
+async function fecharPeloMotor(tx: LedgerStore, pedidoId: string): Promise<Evento[]> {
+  const fechamentos = fechamentosDoMotor(await tx.eventosDoPedido(pedidoId));
+  if (fechamentos.length === 0) return [];
+  return tx.appendVarios(
+    pedidoId,
+    fechamentos.map((f) => ({
+      tipo: 'caso_resolvido' as const,
+      payload: { casoId: f.casoId, resolvidoPor: 'motor', regra: f.regra, seqDocumento: f.seqDocumento },
+    })),
+  );
 }
 
 // Doc + divergencias + tarefas numa unica tx. Antes grava a identidade:
@@ -256,33 +290,51 @@ async function extrairCamposDeclarados(corpo: string): Promise<ExtracaoDeclarada
 export interface DepsResposta {
   extrator?: (corpo: string) => Promise<ExtracaoDeclarada | null>;
   resolverDkim?: ResolverDns;
+  // Caixa IMAP do sistema (spec 0017, RF27): casa cobranca de qualquer
+  // workspace, so pelo Message-ID, e grava no workspace dono da cobranca.
+  // Ausente: upload da sessao, que so casa as proprias cobrancas.
+  global?: boolean;
+}
+
+// Cobranca e workspace da resposta. Pelo Message-ID do In-Reply-To ou do
+// References, no escopo pedido. A chave de 44 digitos no assunto ou no corpo
+// so vale dentro do proprio workspace (upload da sessao): na caixa global,
+// dois visitantes com o mesmo XML da seed teriam a mesma chave.
+async function cobrancaDaResposta(
+  store: LedgerStore,
+  lido: EmlLido,
+  global: boolean,
+): Promise<{ alvo: LedgerStore; cobranca: Cobranca | null; pedidoId: string } | null> {
+  const cab = lido.cabecalho;
+  for (const ref of [cab.inReplyTo, ...cab.references].filter((s): s is string => !!s)) {
+    const cobranca = await cobrancaDaReferencia(store, ref, global ? 'todos' : 'workspace');
+    if (cobranca) {
+      const alvo = cobranca.workspaceId === store.workspace ? store : store.paraWorkspace(cobranca.workspaceId);
+      return { alvo, cobranca, pedidoId: cobranca.pedidoId };
+    }
+  }
+  if (global) return null;
+  const chave = RE_CHAVE_44.exec(`${cab.assunto ?? ''}\n${lido.corpo}`)?.[0];
+  if (!chave || !(await store.pedidoExiste(chave))) return null;
+  const cobranca = await store.cobrancaAbertaDoPedido(chave);
+  return cobranca ? { alvo: store, cobranca, pedidoId: chave } : null;
 }
 
 // Devolve true quando o .eml e resposta de cobranca nossa (claim gravado ou
 // revisao aberta); false libera o fluxo IMAP generico. Obrigatoriamente sem
 // lancar: falha vira revisao ou false, nunca quebra o ingest.
 export async function processarRespostaEml(
-  store: LedgerStore,
+  storeEntrada: LedgerStore,
   canal: CanalSSE,
   raw: Buffer,
   lido: EmlLido,
   deps: DepsResposta = {},
 ): Promise<boolean> {
   const cab = lido.cabecalho;
-  let cobranca: Awaited<ReturnType<LedgerStore['cobrancaPorMessageId']>> = null;
-  for (const ref of [cab.inReplyTo, ...cab.references].filter((s): s is string => !!s)) {
-    cobranca = await store.cobrancaPorMessageId(ref.trim());
-    if (cobranca) break;
-  }
-  let pedidoId = cobranca?.pedidoId ?? null;
-  if (!pedidoId) {
-    const chave = `${cab.assunto ?? ''}\n${lido.corpo}`.match(RE_CHAVE_44)?.[0];
-    if (chave && (await store.pedidoExiste(chave))) {
-      cobranca = await store.cobrancaAbertaDoPedido(chave);
-      if (cobranca) pedidoId = chave;
-    }
-  }
-  if (!pedidoId) return false;
+  const achada = await cobrancaDaResposta(storeEntrada, lido, deps.global === true);
+  if (!achada) return false;
+  // Daqui em diante tudo grava no workspace dono da cobranca.
+  const { alvo: store, cobranca, pedidoId } = achada;
 
   const emlHash = createHash('sha256').update(raw).digest('hex');
   await store.guardarEvidencia(emlHash, 'eml', raw);
@@ -331,6 +383,34 @@ export async function processarRespostaEml(
   }
   await processarDoc(store, canal, doc);
   return true;
+}
+
+// Resposta sem anexo que chega na caixa IMAP do sistema (spec 0017, RF27):
+// casa cobranca de qualquer workspace so pelo Message-ID, inclusive depois
+// da expiracao. Nunca lanca: falha vai para o log e devolve false, e a
+// mensagem fica nao lida. O log leva so o tipo do erro e a mensagem sem
+// endereco de e-mail, nunca o corpo nem o cabecalho da resposta.
+export async function responderImap(
+  store: LedgerStore,
+  canal: CanalSSE,
+  raw: Buffer,
+  deps: Omit<DepsResposta, 'global'> = {},
+): Promise<boolean> {
+  try {
+    return await processarRespostaEml(store, canal, raw, await extrairEml(raw), { ...deps, global: true });
+  } catch (e) {
+    console.error(`imap: resposta de cobranca falhou (${descreverErroSemContato(e)})`);
+    return false;
+  }
+}
+
+const RE_EMAIL_LOG = /[^\s@<>"',;:()]+@[^\s@<>"',;:()]+/g;
+
+function descreverErroSemContato(e: unknown): string {
+  const nome = e instanceof Error ? e.name : typeof e;
+  const msg = e instanceof Error ? e.message : '';
+  const limpa = msg.replace(RE_EMAIL_LOG, '[email]').replace(/\s+/g, ' ').slice(0, 200);
+  return limpa ? `${nome}: ${limpa}` : nome;
 }
 
 // Linhas de um CSV texto em objetos coluna -> valor: entrada de

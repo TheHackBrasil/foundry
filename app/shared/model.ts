@@ -67,6 +67,26 @@ export type TipoEvento =
 // mandato, sinal e notificacao sao derivados como divergencia e tarefa (RF6).
 export const TIPOS_DOCUMENTO = ['nfe', 'cte', 'cce', 'cancelamento', 'planilha', 'pdf', 'status_declarado'] as const;
 
+// Eventos do operador (spec 0017, RF24): o comprovante publico nunca mostra
+// o payload deles (RF25), mesmo que ali so circulem ids e hashes.
+export const TIPOS_OPERADOR = [
+  'operador_assumiu',
+  'contato_planejado',
+  'contato_aprovado',
+  'contato_recusado',
+  'contato_expirado',
+  'contato_iniciado',
+  'contato_aceito',
+  'contato_incerto',
+  'contato_falhou',
+  'ligacao_concluida',
+  'contato_optout',
+  'cobranca_enviada',
+  'cobranca_expirada',
+  'operador_escalou',
+  'operador_encerrou',
+] as const satisfies readonly TipoEvento[];
+
 // Todas as fontes que um pedido pode declarar ('manual' so aparece como
 // fonteB de hipotese no simulate; 'email_transportadora' e o claim da
 // resposta de cobranca, spec 0010; 'whatsapp_transportadora' e
@@ -198,6 +218,9 @@ export interface Caso {
   assumidoEm?: string;
   resolvidoEm?: string;
   resolucao?: string;
+  // Spec 0017, RF5: 'motor' quando o app fechou o caso pela regra
+  // deterministica; ausente quando quem fechou foi o analista ou o parceiro.
+  resolvidoPor?: 'motor';
   ciclos: number; // reaberturas
   ultimaRespostaParceiro?: { acao: 'confirmar' | 'contestar'; texto?: string; em: string };
   workspaceId?: string; // preenchido pela rota, nao vem do payload
@@ -230,6 +253,9 @@ export interface Cobranca {
   workspaceId: string;
   canal: 'email';
   contatoId: number | null;
+  // Caso de pendencia que pediu a cobranca (spec 0017, T705); ausente nas
+  // cobrancas anteriores a coluna caso_id.
+  casoId?: string;
   destinatario?: string;
   status: StatusCobranca;
   messageId?: string;
@@ -276,12 +302,15 @@ export const CANAIS_CONTATO = ['whatsapp', 'sms', 'ligacao', 'email', 'webhook']
 
 // Contato de uma parte num workspace (spec 0007, RF7). fonte: 'manual' (PUT),
 // 'documento' (bootstrap por fone de NF-e/CT-e) ou 'seed' (ficticio da demo).
+// A agenda guarda um contato por parte e canal (spec 0017, T705).
 export interface Contato {
   parte: Parte;
   nome: string;
   canal: CanalContato;
   destino: string;
   fonte: 'manual' | 'documento' | 'seed';
+  // true: a pessoa pediu para nao ser contatada pela IA (spec 0017, RF8).
+  naoContatarIa?: boolean;
 }
 
 // Plano de contato do operador (spec 0017, RF7 e RF11): so WhatsApp e

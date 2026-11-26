@@ -5,7 +5,7 @@
 // modelo explica o bloqueio sem quebrar o loop.
 
 import { divergenciasDaNovaFonte } from '../../shared/divergence.js';
-import { type CampoVigiado, type Divergencia, type Evento, type Notificacao, type Parte } from '../../shared/model.js';
+import { CANAIS_CONTATO, type CampoVigiado, type Divergencia, type Evento, type Notificacao, type Parte } from '../../shared/model.js';
 import { camposPorFonte } from '../../shared/projection.js';
 import { propagarTodas } from '../../shared/rules.js';
 import { canalEntrega, notificarTarefa } from '../nvoip.js';
@@ -43,7 +43,8 @@ export const TOOLS_ESCRITA: ToolAgente[] = [
       if ('falha' in r) return r.falha;
       const { pedidoId, projecao: proj } = r.resolvido;
       const tarefa = [...proj.tarefas].reverse().find((t) => t.parte === args.parte) ?? null;
-      const contato = await ctx.sessao.contatoDaParte(args.parte);
+      // Mesmo contato que enviar_notificacao usaria (notificarTarefa).
+      const contato = await ctx.sessao.contatoDaParte(args.parte, CANAIS_CONTATO);
       const canalOk = contato !== null && canalEntrega(contato.canal);
       const podeEnviar = tarefa !== null && canalOk;
       const motivoBloqueio = tarefa === null ? 'sem_tarefa' : contato === null ? 'sem_contato' : !canalOk ? 'canal_incompativel' : undefined;

@@ -51,8 +51,7 @@ import {
   type ResultadoExecucao,
 } from './mandatos.js';
 import { notificarTarefa } from './nvoip.js';
-import { ErroParser, aprovarRevisao, ingerir, processarRespostaEml } from './pipeline.js';
-import { extrairEml } from './ingest/eml.js';
+import { ErroParser, aprovarRevisao, ingerir, responderImap } from './pipeline.js';
 import { assuntoECorpo, configCobrancaDoEnv, dentroDaJanela, enviarCobranca } from './cobranca.js';
 import { configPendenciaDoEnv, detectarPendencias, iniciarTickPendencias } from './pendencia.js';
 import { ehProcessoPrincipal } from './processo.js';
@@ -504,12 +503,9 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
         }
         r['pendencias'] = novas;
         if (novas.length > 0) {
-          const contato = await s.contatoDaParte('transportadora');
+          const email = await s.contatoDaParte('transportadora', 'email');
           const { assunto } = assuntoECorpo(pedidoId);
-          r['cobrancaSugerida'] = {
-            assunto,
-            destinatario: contato?.canal === 'email' ? contato.destino : null,
-          };
+          r['cobrancaSugerida'] = { assunto, destinatario: email?.destino ?? null };
         }
       }
       return r;
@@ -708,7 +704,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   // Agenda de contatos (RF7): a sessao le a sua com a seed como fallback.
   app.get('/api/contatos', async (req) => listarAgenda(store.paraWorkspace(req.workspace)));
 
-  app.put<{ Body: { parte?: string; nome?: string; canal?: string; destino?: string } }>(
+  app.put<{ Body: { parte?: string; nome?: string; canal?: string; destino?: string; naoContatarIa?: boolean } }>(
     '/api/contatos',
     { config: limiteEscrita },
     async (req, reply) => {
@@ -956,6 +952,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     }
     const dono = store.paraWorkspace(cobranca.workspaceId);
     const r = await enviarCobranca(dono, cobranca);
+    if (r.evento) canal.evento(r.evento, dono.workspace);
     const atual = await dono.cobrancaPorId(cobranca.id);
     return r.ok ? { ok: true, cobranca: atual } : reply.code(503).send({ erro: r.motivo, cobranca: atual });
   });
@@ -1025,7 +1022,8 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
 }
 
 // IMAP: polling so liga quando IMAP_HOST esta configurado; canal do
-// operador, grava no WORKSPACE_SEED compartilhado (store da seed).
+// operador. Anexo grava no WORKSPACE_SEED compartilhado (store da seed);
+// resposta de cobranca grava no workspace dono da cobranca.
 async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
   const cfg = imapConfigDoEnv();
   if (!cfg) return;
@@ -1037,15 +1035,10 @@ async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
       }),
     (nome, erro) => store.enfileirarRevisao('imap', 'anexo_rejeitado', { nome, erro }),
     (msg) => console.log(msg),
-    // spec 0010: mensagem sem anexo elegivel pode ser resposta de cobranca;
-    // o matching (In-Reply-To ou chave de 44) decide e fecha a cobranca.
-    async (raw: Buffer) => {
-      try {
-        return await processarRespostaEml(store, canal, raw, await extrairEml(raw));
-      } catch {
-        return false;
-      }
-    },
+    // spec 0010: mensagem sem anexo elegivel pode ser resposta de cobranca.
+    // Spec 0017, RF27: casa cobranca de qualquer workspace so pelo
+    // Message-ID (In-Reply-To ou References) e grava no workspace dono.
+    (raw: Buffer) => responderImap(store, canal, raw),
   );
   console.log(`imap: polling em ${cfg.host}:${cfg.port} a cada ${cfg.intervaloMs}ms`);
 }

@@ -1,6 +1,7 @@
 // Agenda de contatos por workspace (spec 0007, RF7): a sessao le os seus mais
-// os 4 ficticios da seed. PUT faz upsert por (workspace, parte); o bootstrap
-// por documento so insere contato novo e nunca sobrescreve o manual.
+// os 4 ficticios da seed. PUT faz upsert por (workspace, parte, canal) desde a
+// spec 0017 (T705); o bootstrap por documento so insere contato novo e nunca
+// sobrescreve o manual.
 
 import { CANAIS_CONTATO, PARTES, type CanalContato, type Contato, type DocData, type Parte } from '../shared/model.js';
 import { canalPadraoDoEnv } from './nvoip.js';
@@ -17,19 +18,26 @@ export const CONTATOS_SEED: Contato[] = [
   { parte: 'financeiro', nome: 'Financeiro Ficticio (seed)', canal: 'email', destino: 'financeiro@ficticio.dev', fonte: 'seed' },
 ];
 
-// Agenda visivel: a sessao e a seed somadas; numa parte repetida, o contato
-// da sessao e o que vale (ela e quem edita a propria agenda).
+// Agenda visivel: a sessao e a seed somadas; numa parte repetida, os
+// contatos da sessao sao os que valem (ela e quem edita a propria agenda) e
+// os da seed somem daquela parte. Uma linha por canal (spec 0017, T705):
+// as partes saem na ordem em que apareceram e, dentro da parte, o contato
+// salvo por ultimo fica no fim. Quem le um contato por parte (a gaveta da
+// agenda) segue vendo o ultimo salvo, como antes da chave por canal.
 export async function listarAgenda(store: LedgerStore): Promise<Contato[]> {
-  const linhas = await store.listarContatos();
-  const porParte = new Map<Parte, Contato>();
-  for (const l of linhas) {
-    const atual = porParte.get(l.parte);
-    if (!atual || l.workspaceId === store.workspace) {
-      const { workspaceId: _ws, ...contato } = l;
-      porParte.set(l.parte, contato);
-    }
+  const porParte = new Map<Parte, Array<Contato & { workspaceId: string; ts: string }>>();
+  for (const l of await store.listarContatos()) {
+    const grupo = porParte.get(l.parte) ?? [];
+    grupo.push(l);
+    porParte.set(l.parte, grupo);
   }
-  return [...porParte.values()];
+  const agenda: Contato[] = [];
+  for (const grupo of porParte.values()) {
+    const daSessao = grupo.filter((l) => l.workspaceId === store.workspace);
+    const visiveis = (daSessao.length > 0 ? daSessao : grupo).sort((a, b) => a.ts.localeCompare(b.ts));
+    for (const { workspaceId: _ws, ts: _ts, ...contato } of visiveis) agenda.push(contato);
+  }
+  return agenda;
 }
 
 const MAX_TEXTO_CONTATO = 120;
@@ -56,12 +64,19 @@ export function validarContato(body: unknown): Contato {
   if (canal === 'webhook' && !destinoWebhookValido(destino)) {
     throw new ErroRequisicao(400, 'destino webhook deve ser uma URL http(s) de host público');
   }
+  // Spec 0017 (T705): naoContatarIa opcional; ausente, o upsert mantem o
+  // valor gravado. So aceita booleano.
+  const naoContatarIa = b['naoContatarIa'];
+  if (naoContatarIa !== undefined && typeof naoContatarIa !== 'boolean') {
+    throw new ErroRequisicao(400, 'naoContatarIa deve ser true ou false');
+  }
   return {
     parte: parte as Parte,
     nome: textoCurto(b['nome'], 'nome'),
     canal: canal as CanalContato,
     destino,
     fonte: 'manual',
+    ...(naoContatarIa === undefined ? {} : { naoContatarIa }),
   };
 }
 

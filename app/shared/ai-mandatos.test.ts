@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { verificarCadeia } from './chain.js';
 import { simularHipotese } from './divergence.js';
-import type { BlocoGenUI, Contato, Evento, EventoStreamMandato, ResumoPedidoLista, Tarefa, ViewSpecV2 } from './model.js';
+import { CANAIS_CONTATO, type BlocoGenUI, type Contato, type Evento, type EventoStreamMandato, type ResumoPedidoLista, type Tarefa, type ViewSpecV2 } from './model.js';
 import { camposPorFonte, docDataParaPayload, projetar } from './projection.js';
 import { bootstrapContatos, listarAgenda, validarContato } from '../server/contatos.js';
 import { createLiteDb } from '../server/db.js';
@@ -639,14 +639,14 @@ describe('camada ai com PGlite', () => {
     const doc = parseNFe(ler('nfe-ok.xml'));
     (doc.dados['emitente'] as { fone?: string }).fone = '+55 11 91234-0000';
     expect(await bootstrapContatos(sessao, doc)).toBe(1);
-    let contato = await sessao.contatoDaParte('fornecedor');
+    let contato = await sessao.contatoDaParte('fornecedor', CANAIS_CONTATO);
     expect(contato).toMatchObject({ fonte: 'documento', destino: '+55 11 91234-0000' });
 
     // Documento repetido nao duplica nem sobrescreve.
     expect(await bootstrapContatos(sessao, doc)).toBe(0);
     await sessao.upsertContato({ parte: 'fornecedor', nome: 'Meu Fornecedor', canal: 'whatsapp', destino: '+55 11 90000-9999', fonte: 'manual' });
     expect(await bootstrapContatos(sessao, doc)).toBe(0);
-    contato = await sessao.contatoDaParte('fornecedor');
+    contato = await sessao.contatoDaParte('fornecedor', CANAIS_CONTATO);
     expect(contato).toMatchObject({ fonte: 'manual', nome: 'Meu Fornecedor' });
   });
 

@@ -3,7 +3,7 @@
 // o resultado vira evento 'notificacao' por pedido com o que saiu de verdade
 // ou o motivo da falha (A7). Nunca lanca: falha registrada, fluxo intacto.
 
-import type { CanalContato, Contato, Evento, Notificacao, Parte, Tarefa } from '../shared/model.js';
+import { CANAIS_CONTATO, type CanalContato, type Contato, type Evento, type Notificacao, type Parte, type Tarefa } from '../shared/model.js';
 import { enviarWebhook, payloadWebhook } from './webhook.js';
 import { llmConfigDoEnv, chatJson } from './llm.js';
 import type { LedgerStore } from './store.js';
@@ -139,7 +139,9 @@ export async function notificarTarefa(
     return registrar({ parte: null, canal: null, destino: null, mensagem: '', status: 'nao_entregue', motivo: 'sem_parte' });
   }
 
-  const contato: Contato | null = await store.contatoDaParte(parte);
+  // Qualquer canal da agenda: vale o contato salvo por ultimo, o mesmo que a
+  // agenda de um contato por parte usava antes da chave por canal (T705).
+  const contato: Contato | null = await store.contatoDaParte(parte, CANAIS_CONTATO);
   // Webhook sai por POST direto na URL do contato e independe da Nvoip
   // (spec 0012): quem cadastrou a URL escolheu receber a tarefa ali.
   if (contato?.canal === 'webhook') {

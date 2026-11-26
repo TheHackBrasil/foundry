@@ -19,6 +19,19 @@ export function configPendenciaDoEnv(): ConfigPendencia {
   return { horasSemAtualizacao: Number.isFinite(h) && h > 0 ? h : 24 };
 }
 
+// Spec 0017, RF20: com OPERADOR_ATIVO=1 e o workspace em OPERADOR_WORKSPACES
+// (lista separada por virgula), o operador e o unico que contata a
+// transportadora; COBRANCA_AUTO e NVOIP_NOTIFY_ON_TASK nao enviam nada em
+// paralelo nesse workspace.
+export function operadorAtivoNoWorkspace(
+  workspace: string,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  if (env['OPERADOR_ATIVO']?.trim() !== '1') return false;
+  const lista = (env['OPERADOR_WORKSPACES'] ?? '').split(',').map((w) => w.trim());
+  return lista.includes(workspace);
+}
+
 interface PendenciaDetectada {
   motivo: string;
   detalhe: string;
@@ -84,11 +97,10 @@ export function detectarPendencias(
 }
 
 // Spec 0017, RF13: a cobranca so nasce com caso de pendencia aberto (status
-// diferente de 'resolvido' na projecao) e uma vez por caso. Sem caso_id na
-// tabela (T705), o vinculo sai do tempo: cobranca criada na abertura do caso
-// ou depois e dele, em qualquer status. Caso que ja teve a sua (respondida,
-// expirada, erro_envio ou ainda aberta) nao ganha outra; caso novo ganha a
-// primeira. Pedido entregue ou cancelado nao pede status.
+// diferente de 'resolvido' na projecao) e uma vez por caso, ligada a ele
+// pelo caso_id (T705). Caso que ja teve a sua (respondida, expirada,
+// erro_envio ou ainda aberta) nao ganha outra; caso novo ganha a primeira.
+// Pedido entregue ou cancelado nao pede status.
 export async function casoSemCobranca(
   store: LedgerStore,
   pedidoId: string,
@@ -97,9 +109,27 @@ export async function casoSemCobranca(
   if (pedidoEncerrado(eventos)) return null;
   const abertos = projetarCasos(eventos).filter((c) => c.origem === 'pendencia' && c.status !== 'resolvido');
   for (const caso of abertos) {
-    if (!(await store.cobrancaCriadaDesde(pedidoId, caso.abertoEm))) return caso;
+    if (!(await store.cobrancaDoCaso(pedidoId, caso.id, caso.abertoEm))) return caso;
   }
   return null;
+}
+
+// Expira as cobrancas vencidas e grava cobranca_expirada no pedido de cada
+// uma (spec 0017, T712), na mesma transacao: o status e o evento mudam
+// juntos. Payload so com ids.
+export async function expirarCobrancasComEvento(store: LedgerStore, agora: Date): Promise<Evento[]> {
+  return store.transaction(async (tx) => {
+    const eventos: Evento[] = [];
+    for (const c of await tx.expirarCobrancas(agora)) {
+      eventos.push(
+        await tx.append(c.pedidoId, 'cobranca_expirada', {
+          cobrancaId: c.id,
+          ...(c.casoId ? { casoId: c.casoId } : {}),
+        }),
+      );
+    }
+    return eventos;
+  });
 }
 
 // Uma rodada num workspace: abre pendencia so onde ainda nao existe.
@@ -111,6 +141,7 @@ export async function verificarWorkspace(
 ): Promise<number> {
   const pedidos = await store.listarPedidos();
   const cobCfg = configCobrancaDoEnv();
+  const enviarSozinho = cobCfg.auto && !operadorAtivoNoWorkspace(store.workspace);
   let abertas = 0;
   for (const p of pedidos) {
     if (p.workspaceId !== store.workspace) continue;
@@ -130,17 +161,20 @@ export async function verificarWorkspace(
     // spec 0010: caso de pendencia aberto tambem sugere cobranca de status a
     // transportadora, uma por caso (RF13 da 0017). Com COBRANCA_AUTO=1 o
     // envio sai sem aprovacao humana; default deixa pendente para o operador.
+    // Com o operador ativo no workspace, a cobranca nasce mas nao sai (RF20).
     // `novos` entra na projecao porque `eventos` foi lida antes dos appends.
-    if (await casoSemCobranca(store, p.pedidoId, [...eventos, ...novos])) {
-      const { cobranca, criada } = await criarCobrancaParaPendencia(store, p.pedidoId, cobCfg.expiraHoras);
-      if (criada && cobCfg.auto && cobranca.status === 'pendente') {
-        await enviarCobranca(store, cobranca);
+    const caso = await casoSemCobranca(store, p.pedidoId, [...eventos, ...novos]);
+    if (caso) {
+      const { cobranca, criada } = await criarCobrancaParaPendencia(store, p.pedidoId, cobCfg.expiraHoras, caso.id);
+      if (criada && enviarSozinho && cobranca.status === 'pendente') {
+        const r = await enviarCobranca(store, cobranca);
+        if (r.evento) canal.evento(r.evento, store.workspace);
       }
     }
   }
   // Cobrancas sem resposta expiram: a pendencia segue visivel, o reenvio e
   // manual e respeita a janela (RF5, caso de borda da spec).
-  await store.expirarCobrancas(agora);
+  for (const ev of await expirarCobrancasComEvento(store, agora)) canal.evento(ev, store.workspace);
   return abertas;
 }
 
