@@ -2,6 +2,9 @@
 // cada secao a partir de dados reais (pedidos, agenda, versoes e fila de
 // revisao), aplica o filtro local e le/grava o colapso das secoes. Resumo e
 // selo saem de campos do contrato; quando o campo falta, a linha nao sai (A7).
+// O modo de leitura (spec 0017, item 40) tambem mora aqui: compacto e o
+// padrao, com uma linha por item; o resumo sai da tela e continua acessivel
+// via title/aria-label compostos por dicaItem e nomeAcessivelItem.
 import {
   FONTES_DOCUMENTO,
   PARTES,
@@ -245,6 +248,9 @@ export function lerColapso(bruto: string | null | undefined): Colapso {
       const v = (salvas as Record<string, unknown>)[id];
       if (typeof v === 'boolean') base[id] = v;
     }
+    // Pedidos nunca nasce fechada (spec 0017, item 40): o erro e o retry da
+    // carga moram dentro dela, escondidos pelo [hidden] se viesse fechada.
+    base.pedidos = true;
     return base;
   } catch {
     return base;
@@ -253,4 +259,47 @@ export function lerColapso(bruto: string | null | undefined): Colapso {
 
 export function serializarColapso(abertas: Colapso): string {
   return JSON.stringify({ v: 1, abertas });
+}
+
+// Modo de leitura do indice persistido em chave propria versionada, com o
+// mesmo schema {v, ...} do colapso. Compacto e o padrao: qualquer valor que
+// nao leia 'expandido' cai no compacto.
+export const CHAVE_MODO = 'forseti:menuwiki:modo:v1';
+
+export type ModoLista = 'compacto' | 'expandido';
+
+export function lerModo(bruto: string | null | undefined): ModoLista {
+  if (!bruto) return 'compacto';
+  try {
+    const dado: unknown = JSON.parse(bruto);
+    if (typeof dado !== 'object' || dado === null) return 'compacto';
+    return (dado as Record<string, unknown>)['modo'] === 'expandido'
+      ? 'expandido'
+      : 'compacto';
+  } catch {
+    return 'compacto';
+  }
+}
+
+export function serializarModo(modo: ModoLista): string {
+  return JSON.stringify({ v: 1, modo });
+}
+
+// Rotulos do item no modo compacto: a linha .mw-item-sub sai da tela, mas a
+// informacao nao se perde (A6). dicaItem alimenta o title (tooltip e, com
+// aria-label presente, descricao acessivel); nomeAcessivelItem compoe o
+// aria-label dos itens navegaveis na mesma ordem em que o conteudo expandido
+// e lido: titulo, selo, resumo. No expandido nada muda.
+export function dicaItem(item: ItemWiki, compacto: boolean): string | undefined {
+  if (!compacto) return item.tituloCompleto;
+  return [item.tituloCompleto ?? item.titulo, item.resumo]
+    .filter((t): t is string => Boolean(t))
+    .join(' · ');
+}
+
+export function nomeAcessivelItem(item: ItemWiki, compacto: boolean): string | undefined {
+  if (!compacto) return undefined;
+  return [item.titulo, item.selo?.texto, item.resumo]
+    .filter((t): t is string => Boolean(t))
+    .join(' · ');
 }

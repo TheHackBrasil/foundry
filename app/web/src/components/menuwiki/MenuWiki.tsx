@@ -2,7 +2,9 @@
 // pedidos, parceiros (agenda), documentos (versoes dos pedidos) e regras
 // (propostas de mapeamento da fila de revisao). Mantem o contrato do antigo
 // PedidoLista: href por rota, aria-current no selecionado, retry no erro e
-// aoSelecionarMobile em todo item navegavel.
+// aoSelecionarMobile em todo item navegavel. O modo compacto (spec 0017,
+// item 40) e o padrao: uma linha por item, com o resumo acessivel via
+// title/aria-label; o toggle ao lado da busca persiste em CHAVE_MODO.
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Contato, ItemRevisao } from '../../../../shared/model.ts';
 import type { PedidoResumo } from '../../api.ts';
@@ -12,17 +14,23 @@ import { buscarContatos, buscarRevisao, buscarVersoesPedido } from './rede.ts';
 import '../../menuwiki.css';
 import {
   CHAVE_COLAPSO,
+  CHAVE_MODO,
+  dicaItem,
   filtrarSecoes,
   itemPedido,
   itensContatos,
   itensDocumentos,
   itensRegras,
   lerColapso,
+  lerModo,
+  nomeAcessivelItem,
   normalizarConsulta,
   serializarColapso,
+  serializarModo,
   TITULO_SECAO,
   type Colapso,
   type ItemWiki,
+  type ModoLista,
   type SecaoId,
   type SecaoWiki,
   type SeloWiki,
@@ -64,6 +72,30 @@ function carregarColapso(): Colapso {
   }
 }
 
+function carregarModo(): ModoLista {
+  try {
+    return lerModo(window.localStorage.getItem(CHAVE_MODO));
+  } catch {
+    return lerModo(null);
+  }
+}
+
+// Glifo do modo compacto: quatro tracos densos, uma linha por item. Mesma
+// materia da familia de icones (stroke currentColor sobre grade 16x16).
+function IconeCompacto() {
+  return (
+    <svg viewBox="0 0 16 16" width={16} height={16} aria-hidden="true" focusable={false}>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        d="M3 3.5h10M3 6.5h10M3 9.5h10M3 12.5h10"
+      />
+    </svg>
+  );
+}
+
 export function MenuWiki({
   pedidos,
   selecionado,
@@ -76,6 +108,7 @@ export function MenuWiki({
   const baseId = useId();
   const [consulta, setConsulta] = useState('');
   const [abertas, setAbertas] = useState<Colapso>(carregarColapso);
+  const [modo, setModo] = useState<ModoLista>(carregarModo);
   const [contatos, setContatos] = useState<Carga<Contato[]>>({ estado: 'carregando' });
   const [revisao, setRevisao] = useState<Carga<ItemRevisao[]>>({ estado: 'carregando' });
   const [docs, setDocs] = useState<Carga<ItemWiki[]>>({ estado: 'carregando' });
@@ -89,6 +122,16 @@ export function MenuWiki({
       // Modo privado ou cota cheia: o colapso vira so estado de memoria.
     }
   }, [abertas]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CHAVE_MODO, serializarModo(modo));
+    } catch {
+      // Mesmo caso do colapso: sem storage, o modo vira so memoria.
+    }
+  }, [modo]);
+
+  const compacto = modo === 'compacto';
 
   // Agenda e fila mudam por ingest e por decisao na revisao: a rebusta segue
   // o mesmo ciclo da lista de pedidos (SSE ja a atualiza). Os GETs passam pelo
@@ -230,20 +273,32 @@ export function MenuWiki({
           </span>
         )}
       </span>
-      {item.resumo && <span className="mw-item-sub">{item.resumo}</span>}
+      {/* No compacto o resumo some da tela mas fica no DOM como .so-leitor:
+          garante a informacao tambem no item estatico (div sem papel), onde
+          aria-label nao e honrado. Nos itens navegaveis o aria-label vence
+          e o span nao duplica o nome acessivel. */}
+      {item.resumo &&
+        (compacto ? (
+          <span className="so-leitor">{item.resumo}</span>
+        ) : (
+          <span className="mw-item-sub">{item.resumo}</span>
+        ))}
     </>
   );
 
   const renderItem = (sec: SecaoWiki, item: ItemWiki) => {
     const aoAbrirExtra =
       sec.id === 'parceiros' ? aoAbrirAgenda : sec.id === 'regras' ? aoAbrirRevisao : undefined;
+    const dica = dicaItem(item, compacto);
+    const nome = nomeAcessivelItem(item, compacto);
     return (
       <li key={item.id}>
         {item.href ? (
           <a
             className="mw-item mw-item-link"
             href={item.href}
-            title={item.tituloCompleto}
+            title={dica}
+            aria-label={nome}
             // aria-current so na secao Pedidos: um documento aponta para o
             // mesmo pedido, mas a pagina corrente e o pedido, nao o documento.
             aria-current={
@@ -257,13 +312,14 @@ export function MenuWiki({
           <button
             type="button"
             className="mw-item mw-item-link"
-            title={item.tituloCompleto}
+            title={dica}
+            aria-label={nome}
             onClick={aoAbrirExtra}
           >
             {corpoItem(item)}
           </button>
         ) : (
-          <div className="mw-item" title={item.tituloCompleto}>
+          <div className="mw-item" title={dica}>
             {corpoItem(item)}
           </div>
         )}
@@ -277,19 +333,31 @@ export function MenuWiki({
   };
 
   return (
-    <section className="mw" aria-labelledby={`${baseId}-titulo`}>
+    <section className={compacto ? 'mw mw-compacto' : 'mw'} aria-labelledby={`${baseId}-titulo`}>
       <div className="mw-cab">
         <h2 id={`${baseId}-titulo`}>Índice</h2>
-        <div className="mw-busca">
-          <IconeLupa />
-          <input
-            type="search"
-            value={consulta}
-            onChange={(e) => setConsulta(e.target.value)}
-            placeholder="Filtrar o índice"
-            aria-label="Filtrar o índice"
-            autoComplete="off"
-          />
+        <div className="mw-cab-linha">
+          <div className="mw-busca">
+            <IconeLupa />
+            <input
+              type="search"
+              value={consulta}
+              onChange={(e) => setConsulta(e.target.value)}
+              placeholder="Filtrar o índice"
+              aria-label="Filtrar o índice"
+              autoComplete="off"
+            />
+          </div>
+          <button
+            type="button"
+            className="mw-modo"
+            aria-pressed={compacto}
+            aria-label="Lista compacta"
+            title={compacto ? 'Mostrar resumo dos itens' : 'Ocultar resumo dos itens'}
+            onClick={() => setModo(compacto ? 'expandido' : 'compacto')}
+          >
+            <IconeCompacto />
+          </button>
         </div>
       </div>
 
@@ -299,8 +367,12 @@ export function MenuWiki({
           const headingId = `${baseId}-h-${sec.id}`;
           const contentId = `${baseId}-c-${sec.id}`;
           // Durante a busca as secoes abrem para mostrar os resultados; o
-          // colapso gravado volta a valer quando o campo esvazia.
-          const aberta = consultaAtiva ? true : abertas[sec.id];
+          // colapso gravado volta a valer quando o campo esvazia. Pedidos
+          // tambem abre a forca enquanto o erro/retry precisa ficar a vista.
+          const aberta =
+            consultaAtiva ||
+            abertas[sec.id] ||
+            (sec.id === 'pedidos' && carga.estado === 'erro');
 
           return (
             <section key={sec.id} className="mw-secao" aria-labelledby={headingId}>
