@@ -35,6 +35,10 @@ spec futura.
   persistente do proximo estado (ex.: "2/3 colunas; proximo clique volta
   a 1") ou menu com opcoes explicitas. Manter o padrao APG separator com
   aria-valuetext.
+- chrome-operacao: adaptacao da PaginaOperacao ao estilo da casa
+  (brandbook v4), adicionada por outro dev fora do sistema visual.
+  Pasta app/web/src/operacao/ inteira, autocontida. Sem mudanca de
+  comportamento.
 - chrome-menu: item 40. menuwiki/dados.ts, MenuWiki.tsx, menuwiki.css.
   Modo compacto: itens de uma linha sem a linha .mw-item-sub. Decisao de
   implementacao livre entre: compacto como padrao novo, ou toggle
