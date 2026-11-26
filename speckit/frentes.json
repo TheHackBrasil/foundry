@@ -293,6 +293,16 @@
     "app/web/src/App.tsx",
     "specs/0017-chrome-simples/brief-topo.md"
    ]
+  },
+  "consolida": {
+   "brief": "specs/0017-chrome-simples/brief-consolida.md",
+   "paths": [
+    "app/web/src/components/PainelPedido.tsx",
+    "app/web/src/painel-v2.css",
+    "app/web/src/components/torre/TorreVistas.tsx",
+    "app/web/src/vistas.css",
+    "specs/0017-chrome-simples/brief-consolida.md"
+   ]
   }
  }
 }
