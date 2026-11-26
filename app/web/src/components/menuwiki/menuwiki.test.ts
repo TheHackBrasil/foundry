@@ -3,7 +3,9 @@ import type { Contato, ItemRevisao, VersaoPedido } from '../../../../shared/mode
 import type { PedidoResumo } from '../../api.ts';
 import {
   CHAVE_COLAPSO,
+  CHAVE_MODO,
   colapsoInicial,
+  dicaItem,
   filtrarSecoes,
   hrefPedido,
   itemPedido,
@@ -11,8 +13,12 @@ import {
   itensDocumentos,
   itensRegras,
   lerColapso,
+  lerModo,
+  nomeAcessivelItem,
   normalizarConsulta,
   serializarColapso,
+  serializarModo,
+  type ItemWiki,
 } from './dados.ts';
 
 const pedido = (extra: Partial<PedidoResumo>): PedidoResumo => ({
@@ -199,5 +205,51 @@ describe('colapso das secoes', () => {
     const abertas = { ...colapsoInicial(), documentos: false };
     expect(lerColapso(serializarColapso(abertas))).toEqual(abertas);
     expect(CHAVE_COLAPSO).toBe('forseti:menuwiki:v1');
+  });
+
+  it('Pedidos nunca nasce fechada mesmo se o gravado diz isso', () => {
+    const lido = lerColapso(JSON.stringify({ v: 1, abertas: { pedidos: false, regras: false } }));
+    expect(lido.pedidos).toBe(true);
+    expect(lido.regras).toBe(false);
+  });
+});
+
+describe('modo do indice', () => {
+  it('nasce compacto sem chave ou com valor invalido', () => {
+    expect(lerModo(null)).toBe('compacto');
+    expect(lerModo('')).toBe('compacto');
+    expect(lerModo('nao-json')).toBe('compacto');
+    expect(lerModo('{"modo":"ampliado"}')).toBe('compacto');
+    expect(lerModo('42')).toBe('compacto');
+  });
+
+  it('le o modo gravado e serializa na chave versionada', () => {
+    expect(lerModo(serializarModo('expandido'))).toBe('expandido');
+    expect(lerModo(serializarModo('compacto'))).toBe('compacto');
+    expect(CHAVE_MODO).toBe('forseti:menuwiki:modo:v1');
+  });
+});
+
+describe('rotulos do modo compacto', () => {
+  const item = itemPedido(pedido({ destinatario: 'Packsul', divergencias: 2 }), 'torre');
+
+  it('no expandido o title e o titulo completo e nao ha aria-label', () => {
+    expect(dicaItem(item, false)).toBe(item.tituloCompleto);
+    expect(nomeAcessivelItem(item, false)).toBeUndefined();
+  });
+
+  it('no compacto o resumo vai para o title e para o nome acessivel', () => {
+    expect(dicaItem(item, true)).toContain(item.tituloCompleto);
+    expect(dicaItem(item, true)).toContain('→ Packsul');
+    const nome = nomeAcessivelItem(item, true);
+    expect(nome).toContain('Krona Eletrônicos');
+    expect(nome).toContain('2 desvios');
+    expect(nome).toContain('→ Packsul');
+  });
+
+  it('cai no titulo quando o titulo completo falta', () => {
+    const item: ItemWiki = { id: 'x', titulo: 'Só título' };
+    expect(dicaItem(item, true)).toBe('Só título');
+    expect(nomeAcessivelItem(item, true)).toBe('Só título');
   });
 });
