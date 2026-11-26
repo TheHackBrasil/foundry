@@ -460,6 +460,15 @@ export const GrafoDomino = memo(function GrafoDomino({
   if (hoverCampo) camposRevelados.add(hoverCampo);
   if (focoCampo) camposRevelados.add(focoCampo);
   if (isolamentoEfetivo) camposRevelados.add(isolamentoEfetivo);
+  // Ativação pelo lado do setor (direita) revela as arestas de toda divergência
+  // que impacta aquele setor — antes só o nó tingia de roxo e as linhas
+  // continuavam ocultas, porque a revelação era exclusiva do lado do campo.
+  const parteReveladora = hoverParte ?? focoParte ?? parteIsoladaEfetiva;
+  if (parteReveladora) {
+    for (const a of arestas) {
+      if (a.parte === parteReveladora) camposRevelados.add(a.campo);
+    }
+  }
 
   const arestaClasse = (a: ArestaCausal): 'oculta' | 'ativa' | 'enfase' => {
     if (!camposRevelados.has(a.campo)) return 'oculta';
