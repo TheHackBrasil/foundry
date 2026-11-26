@@ -221,6 +221,27 @@
         "app/web/src/fluxo.css",
         "specs/0015-polimento-torre/brief-superficie.md"
       ]
+    },
+    "motion-fisica": {
+      "brief": "specs/0015-polimento-torre/brief-motion.md",
+      "paths": [
+        "app/web/src/components/torre/TorreGrid.tsx",
+        "app/web/src/components/torre/TorreCard.tsx",
+        "app/web/src/components/torre/packing.ts",
+        "app/web/src/components/torre/packing.test.ts",
+        "app/web/src/torre-v2.css",
+        "specs/0015-polimento-torre/brief-motion.md"
+      ]
+    },
+    "adapt-generica": {
+      "brief": "specs/0015-polimento-torre/brief-adapt.md",
+      "paths": [
+        "app/web/src/styles.css",
+        "app/web/src/adaptacao.css",
+        "app/web/src/components/GrafoDomino.tsx",
+        "app/web/src/main.tsx",
+        "specs/0015-polimento-torre/brief-adapt.md"
+      ]
     }
   }
 }

@@ -70,3 +70,9 @@ empty states. Detalhada apos a integracao da wave A.
 - Movimento respeita prefers-reduced-motion (A6) mesmo com fluido sempre.
 - Gates por frente: tsc, vitest, build, repo-guard, prose-evals.
 - Testes novos para assinatura de vistas e para o que for logica pura.
+
+## Adendo wave C (sessao 12)
+- motion-fisica: duracao proporcional a distancia, curva sem velocidade
+  inicial nos retargets (anti-flicker do arraste), stretch de span mais lento
+- adapt-generica: camada de adaptacao estrutural por formato (nao por
+  componente), contrato documentado para cards futuros
