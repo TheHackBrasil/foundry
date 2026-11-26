@@ -30,3 +30,16 @@ Implementar:
 
 Verificacao: tsc, vitest (230 baseline), build. Screenshot do menu
 compacto nos dois temas. Commit thisux1, sem push.
+
+## Decisoes da frente
+
+- No compacto o corpoItem nao renderiza selo nem linha de resumo: so o
+  titulo sai na tela. O texto do selo e o resumo viram spans .so-leitor
+  dentro do item, porque o item estatico (div sem papel, contato ou regra
+  sem fiacao) nao honra aria-label; nos itens navegaveis o aria-label
+  composto vence e nada duplica.
+- Alvo de toque da faixa: min-height --ctl-sm (28px) com padding-block
+  0.25rem e titulo em line-height 1.35, medido em 28.25px no browser.
+- Secoes nascem minimizadas por padrao; Pedidos fica aberta pelo
+  lerColapso (erro e retry moram dentro dela). O estado gravado do usuario
+  continua respeitado por secao.
