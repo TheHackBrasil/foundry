@@ -3823,3 +3823,31 @@ main[data-rota='ia'] {
 .drawer-cab h2 { font-weight: 700; }
 .agente-texto { font-size: var(--fs-ui); }
 .agente-texto code { font-size: inherit; }
+
+/* Scrollbars da casa: finas, trilho transparente, polegar em tinta suave
+   que so ganha presenca no hover. Sem setas nem trilho moldurado. */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text2) 26%, transparent) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text2) 22%, transparent);
+  border-radius: 999px;
+  border: 2.5px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text2) 38%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
