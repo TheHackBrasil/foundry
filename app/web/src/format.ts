@@ -20,6 +20,8 @@ const ROTULO_FONTE = new Map<string, string>(
     imap: 'E-mail',
     manual: 'Manual',
     email_transportadora: 'Resposta da transportadora',
+    whatsapp_transportadora: 'Resposta da transportadora por WhatsApp',
+    ligacao_transportadora: 'Ligação com a transportadora',
   } satisfies Record<FonteDocumento, string>),
 );
 

@@ -8,22 +8,22 @@ pela integração em T700. Tasks marcadas "(integração)" rodam na `main`.
 
 ## Fase 0: Contrato, spikes e contas
 
-- [ ] T700 (P0) (integração) encerrar `app-core`, `app-infra`, `hardening`, `ai-ingest`, `ai-mandatos`, `app-brand`, `ai-web`, `app-operacao`, as `v2-*`, as `polish-*`, `motion-fisica` e `adapt-generica`, conferindo antes que estão integradas, e os worktrees; abrir a `harness` com os paths do plano e o brief; atualizar `AGENTS.md` e `speckit/frentes.md`; registrar numa decisão: `speckit/frentes.json`, `specs/0017-harness-operador/brief-harness.md`: `frente-check` aceita commit em `wt/harness` só nos paths listados
+- [x] T700 (P0) (integração) encerrar `app-core`, `app-infra`, `hardening`, `ai-ingest`, `ai-mandatos`, `app-brand`, `ai-web`, `app-operacao`, as `v2-*`, as `polish-*`, `motion-fisica` e `adapt-generica`, conferindo antes que estão integradas, e os worktrees; abrir a `harness` com os paths do plano e o brief; atualizar `AGENTS.md` e `speckit/frentes.md`; registrar numa decisão: `speckit/frentes.json`, `specs/0017-harness-operador/brief-harness.md`: `frente-check` aceita commit em `wt/harness` só nos paths listados
 - [ ] T699 (P0) (integração) consentimento das pessoas do time que vão receber mensagem e ligação de teste, antes do T703: `docs/fontes-e-contatos.md`: registro sem telefone, guard verde
 - [ ] T701 (P0) spike do estado do DBOS: banco `foundry_dbos` ou schema próprio, local e no Railway; recuperação de fluxo depois de um deploy de versão nova: `specs/0017-harness-operador/brief-harness.md`: resultado e comando registrados no brief
 - [ ] T702 (P0) spike do DBOS sobre PGlite; sem suporte, os testes de fluxo usam o Postgres do `app/docker-compose.yml`: `specs/0017-harness-operador/brief-harness.md`: decisão e comando de teste registrados
 - [ ] T703 (P0) spike de WhatsApp: a Nvoip entrega resposta recebida por webhook? Sem isso, Cloud API da Meta com modelo aprovado: `specs/0017-harness-operador/brief-harness.md`: fonte citada e uma mensagem de ida e volta com contato do time
-- [ ] T704 (P0) tipos: eventos novos, fontes `whatsapp_transportadora` e `ligacao_transportadora`, `FONTES_DOCUMENTO`, rótulos e plano de contato: `app/shared/model.ts`, `app/shared/formato.ts`, `app/shared/formato.test.ts`, `app/web/src/format.ts`: `npm --prefix app test`, `npm --prefix app run typecheck` e `npm --prefix app/web run typecheck` limpos
+- [x] T704 (P0) tipos: eventos novos, fontes `whatsapp_transportadora` e `ligacao_transportadora`, `FONTES_DOCUMENTO`, rótulos e plano de contato: `app/shared/model.ts`, `app/shared/formato.ts`, `app/shared/formato.test.ts`, `app/web/src/format.ts`: `npm --prefix app test`, `npm --prefix app run typecheck` e `npm --prefix app/web run typecheck` limpos
 - [ ] T705 (P0) DDL idempotente: contatos por canal com `nao_contatar_ia`; `evidencias` por workspace e hash com `apagar_em`; índice único da chave em `events`; `caso_id` em `cobrancas`; `contatoDaParte`, `listarAgenda` e os sete chamadores ajustados: `app/server/store.ts`, `app/server/contatos.ts`, `app/server/cobranca.ts`, `app/server/nvoip.ts`, `app/server/pipeline.ts`, `app/server/index.ts`, `app/server/agente/toolsEscrita.ts`, `app/server/agente/toolsLeitura.ts`: teste com PGlite sobe base nova e base existente sem perder contato
 - [ ] T706 (P0) dependências `@dbos-inc/dbos-sdk`, `@anthropic-ai/sdk` e `@modelcontextprotocol/sdk`: `app/package.json`, `app/package-lock.json`: `npm --prefix app install` e typecheck limpos
-- [ ] T707 (P0) envs novas com padrão seguro (`OPERADOR_ATIVO=0`): `app/.env.example`: guard verde
-- [ ] T708 (P0) incluir `operador/` no typecheck e nos testes: `app/tsconfig.json`, `app/vitest.config.ts`, `app/package.json`: `npm --prefix app test` lista arquivos de `operador/`
+- [x] T707 (P0) envs novas com padrão seguro (`OPERADOR_ATIVO=0`): `app/.env.example`: guard verde
+- [x] T708 (P0) incluir `operador/` no typecheck e nos testes: `app/tsconfig.json`, `app/vitest.config.ts`, `app/package.json`: `npm --prefix app test` lista arquivos de `operador/`
 - [ ] T709 (P0) contas: Anthropic, Fluke (plano Início com número), Telnyx (CNPJ e comprovante) e Meta se o T703 pedir; credenciais só em env: `specs/0017-harness-operador/brief-harness.md`: checklist de contas no brief, check `secrets` do guard verde
 
 ## Fase 1: Correções que a escada pressupõe
 
-- [ ] T710 (P0) pendência considera só eventos de documento (RF6): `app/server/pendencia.ts`: teste com evento do operador não renova a última atualização
-- [ ] T711 (P0) cobrança só nasce com caso aberto e não renasce depois de `respondida`, `expirada` ou `erro_envio` (RF13): `app/server/pendencia.ts`, `app/server/store.ts`: teste com três ticks seguidos para cada status não cria segunda cobrança
+- [x] T710 (P0) pendência considera só eventos de documento (RF6): `app/server/pendencia.ts`: teste com evento do operador não renova a última atualização
+- [x] T711 (P0) cobrança só nasce com caso aberto e não renasce depois de `respondida`, `expirada` ou `erro_envio` (RF13): `app/server/pendencia.ts`, `app/server/store.ts`: teste com três ticks seguidos para cada status não cria segunda cobrança
 - [ ] T712 (P0) eventos `cobranca_enviada` e `cobranca_expirada`, Message-ID derivado de `cobrancaId` e da tentativa e gravado antes do envio (RF13): `app/server/cobranca.ts`, `app/server/store.ts`, `app/server/pendencia.ts`: teste confere os eventos e o Message-ID
 - [ ] T713 (P0) IMAP casa cobrança de qualquer workspace só por Message-ID, inclusive depois da expiração (RF27): `app/server/index.ts`, `app/server/store.ts`, `app/server/pipeline.ts`: teste com resposta tardia de workspace de sessão
 - [ ] T714 (P0) `NVOIP_NOTIFY_ON_TASK` e `COBRANCA_AUTO` não disparam com operador ativo no workspace (RF20): `app/server/pipeline.ts`, `app/server/pendencia.ts`: teste com os dois ligados e o operador ativo não envia nada em paralelo
@@ -32,8 +32,8 @@ pela integração em T700. Tasks marcadas "(integração)" rodam na `main`.
 
 ## Fase 2: Fundação do operador
 
-- [ ] T720 (P0) [P] escada pura: ordem, prazos, pulo de canal, encerramento (RF2, RF3): `app/operador/fluxo/escada.ts`: `app/operador/fluxo/escada.test.ts` (novo) cobre os casos de borda da spec
-- [ ] T721 (P0) [P] política pura: workspaces, destinos, contato manual, janela America/Sao_Paulo, tentativas somando workspaces, orçamento com reserva, kill switch (RF7 a RF9): `app/operador/politica.ts`: `app/operador/politica.test.ts` (novo)
+- [x] T720 (P0) [P] escada pura: ordem, prazos, pulo de canal, encerramento (RF2, RF3): `app/operador/fluxo/escada.ts`: `app/operador/fluxo/escada.test.ts` (novo) cobre os casos de borda da spec
+- [x] T721 (P0) [P] política pura: workspaces, destinos, contato manual, janela America/Sao_Paulo, tentativas somando workspaces, orçamento com reserva, kill switch (RF7 a RF9): `app/operador/politica.ts`: `app/operador/politica.test.ts` (novo)
 - [ ] T731 (P0) kill switch global e por workspace no banco, rota com credencial de aprovador, lido antes de cada efeito (RF10): `app/server/store.ts`, `app/server/index.ts`, `app/operador/fluxo/caso.ts`: teste: com a chave desligada nenhum efeito sai, inclusive no meio de um fluxo
 - [ ] T722 (P0) [P] projeção do plano de contato, da linha do tempo e do estado de cada tentativa: `app/shared/casos.ts`: `app/shared/casos.test.ts` (novo) com eventos sintéticos
 - [ ] T723 (P0) adaptador `Db` sobre o client transacional do DBOS para o append do ledger rodar no passo: `app/operador/db-dbos.ts`: teste grava evento e checkpoint na mesma transação

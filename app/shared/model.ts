@@ -11,7 +11,17 @@ export const PARTES: readonly Parte[] = [
 ] as const;
 
 // Origem do documento que entrou na camada (o que cada parceiro ja produz).
-export type FonteDocumento = 'nfe' | 'cte' | 'cce' | 'planilha' | 'pdf' | 'imap' | 'manual' | 'email_transportadora';
+export type FonteDocumento =
+  | 'nfe'
+  | 'cte'
+  | 'cce'
+  | 'planilha'
+  | 'pdf'
+  | 'imap'
+  | 'manual'
+  | 'email_transportadora'
+  | 'whatsapp_transportadora'
+  | 'ligacao_transportadora';
 
 export type TipoEvento =
   | 'nfe'
@@ -33,7 +43,24 @@ export type TipoEvento =
   | 'caso_reaberto'
   | 'caso_resposta_parceiro'
   | 'pendencia_aberta'
-  | 'documento_vinculado';
+  | 'documento_vinculado'
+  // Operador (spec 0017): gravados antes do efeito externo, com payload so
+  // de ids, contatoId e hashes (RF24, RF25). Nao contam como documento.
+  | 'operador_assumiu'
+  | 'contato_planejado'
+  | 'contato_aprovado'
+  | 'contato_recusado'
+  | 'contato_expirado'
+  | 'contato_iniciado'
+  | 'contato_aceito'
+  | 'contato_incerto'
+  | 'contato_falhou'
+  | 'ligacao_concluida'
+  | 'contato_optout'
+  | 'cobranca_enviada'
+  | 'cobranca_expirada'
+  | 'operador_escalou'
+  | 'operador_encerrou';
 
 // Tipos que representam um documento recebido (o resto e evento derivado):
 // usados para contar documentos por workspace e para ler o fold da projecao.
@@ -42,8 +69,21 @@ export const TIPOS_DOCUMENTO = ['nfe', 'cte', 'cce', 'cancelamento', 'planilha',
 
 // Todas as fontes que um pedido pode declarar ('manual' so aparece como
 // fonteB de hipotese no simulate; 'email_transportadora' e o claim da
-// resposta de cobranca, spec 0010). Enum completo para validar ViewSpec.
-export const FONTES_DOCUMENTO = ['nfe', 'cte', 'cce', 'planilha', 'pdf', 'imap', 'manual', 'email_transportadora'] as const;
+// resposta de cobranca, spec 0010; 'whatsapp_transportadora' e
+// 'ligacao_transportadora' vem do operador e passam pela revisao, spec 0017
+// RF18). Enum completo para validar ViewSpec.
+export const FONTES_DOCUMENTO = [
+  'nfe',
+  'cte',
+  'cce',
+  'planilha',
+  'pdf',
+  'imap',
+  'manual',
+  'email_transportadora',
+  'whatsapp_transportadora',
+  'ligacao_transportadora',
+] as const satisfies readonly FonteDocumento[];
 
 // Campos que a camada vigia entre fontes (RF10). Ausente = a fonte nao declara.
 export interface CamposObservados {
@@ -242,6 +282,36 @@ export interface Contato {
   canal: CanalContato;
   destino: string;
   fonte: 'manual' | 'documento' | 'seed';
+}
+
+// Plano de contato do operador (spec 0017, RF7 e RF11): so WhatsApp e
+// ligacao pedem plano, e nenhum sai sem o OK do analista na versao atual.
+export type CanalPlanoContato = Extract<CanalContato, 'whatsapp' | 'ligacao'>;
+
+export const ESTADOS_PLANO_CONTATO = [
+  'proposto',
+  'aprovado',
+  'recusado',
+  'expirado',
+  'iniciado',
+  'aceito',
+  'incerto',
+  'falhou',
+] as const;
+
+export type EstadoPlanoContato = (typeof ESTADOS_PLANO_CONTATO)[number];
+
+// Projecao dos eventos contato_*: o roteiro preenchido e o telefone ficam em
+// evidencias; aqui entram so o contatoId e o hash do roteiro (RF25).
+export interface PlanoContato {
+  planoId: string;
+  versao: number; // ajustar o roteiro cria versao nova (RF11)
+  canal: CanalPlanoContato;
+  contatoId: number;
+  hashRoteiro: string; // sha256 do roteiro preenchido
+  prazo: string; // ISO 8601, limite da decisao do analista
+  custoEstimadoBrl: number; // estimativa, nao custo medido (A7)
+  estado: EstadoPlanoContato;
 }
 
 // Sinal consultivo lido de texto livre por LLM (RF3): trilha informativa,

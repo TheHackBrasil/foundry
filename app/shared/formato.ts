@@ -14,6 +14,8 @@ const ROTULO_FONTE = {
   imap: 'e-mail',
   manual: 'entrada manual',
   email_transportadora: 'resposta da transportadora',
+  whatsapp_transportadora: 'resposta da transportadora por WhatsApp',
+  ligacao_transportadora: 'ligação com a transportadora',
 } satisfies Record<FonteDocumento, string>;
 
 // Map, nao objeto: o status da planilha e texto livre e 'constructor' nao

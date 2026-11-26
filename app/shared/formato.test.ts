@@ -60,6 +60,8 @@ describe('rotuloFonte', () => {
       imap: 'e-mail',
       manual: 'entrada manual',
       email_transportadora: 'resposta da transportadora',
+      whatsapp_transportadora: 'resposta da transportadora por WhatsApp',
+      ligacao_transportadora: 'ligação com a transportadora',
     };
     for (const [fonte, rotulo] of Object.entries(esperado)) {
       expect(rotuloFonte(fonte as FonteDocumento)).toBe(rotulo);

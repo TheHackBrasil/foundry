@@ -34,3 +34,9 @@ comando usado.
 - [ ] Meta, Cloud API de WhatsApp, só se o T703 pedir
 
 ## Decisões da frente
+
+- DF-1 (26/11, T707): `OPERADOR_APROVACAO_VALIDADE_MIN=30` e janela no formato `OPERADOR_JANELA=8-18`; a spec não fixava os valores.
+- DF-2 (26/11, T720): a declaração tem três estados na escada: `em_revisao` pausa a escada (RF18); `aceita` sem fechar o caso reinicia o prazo do degrau; o prazo da ligação conta a partir do fim da chamada (`decorridoMs: null` enquanto o contato não saiu).
+- DF-3 (26/11, T721): as regras de contato (`manual` e `naoContatarIa`) valem também para o e-mail (RF8, invariante 4); lista de destinos, janela e tentativas valem só para WhatsApp e ligação; orçamento para os três canais; sem feriados, dia útil é de segunda a sexta; a janela inclui o início e exclui o fim; chegar no teto exato é permitido.
+- DF-4 (26/11, T711): sem `caso_id` (T705), cada caso de pendência aberto tem direito a uma cobrança, vinculada por tempo (nascida em `abertoEm` ou depois); por isso `criada_em` passou a vir do relógio do app. Pedido entregue ou cancelado não gera cobrança até a T716 fechar o caso pela regra do RF5.
+- DF-5 (26/11, T708): `testTimeout` de 20 s no `vitest.config.ts`. Testes com PGlite e socket real já rodavam perto dos 5 s isolados e estouravam por tempo com a suíte inteira em paralelo; isolados, passam antes e depois das mudanças.
