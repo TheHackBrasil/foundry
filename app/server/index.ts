@@ -3,12 +3,12 @@
 // WORKSPACE_SEED e o conteudo compartilhado, gravado so por seed.ts e IMAP. Pela
 // API a seed e somente leitura (P-010).
 
-import { randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { OutgoingHttpHeaders } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Fastify, { type FastifyError, type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyError, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
@@ -31,6 +31,10 @@ import {
   type ViewSpecV2,
 } from '../shared/model.js';
 import { projetar } from '../shared/projection.js';
+import { metricasDosCasos, projetarCasos, tokenDoCaso } from '../shared/casos.js';
+import { estimarCusto } from '../shared/custo.js';
+import { montarComprovante } from '../shared/comprovante.js';
+import type { Caso } from '../shared/model.js';
 import { executarAgente } from './agente/motor.js';
 import { ancorar, configAncoraDoEnv } from './anchor.js';
 import { configDoEnv, inteiroDoEnv, type ConfigServidor } from './config.js';
@@ -47,7 +51,10 @@ import {
   type ResultadoExecucao,
 } from './mandatos.js';
 import { notificarTarefa } from './nvoip.js';
-import { ErroParser, aprovarRevisao, ingerir } from './pipeline.js';
+import { ErroParser, aprovarRevisao, ingerir, processarRespostaEml } from './pipeline.js';
+import { extrairEml } from './ingest/eml.js';
+import { assuntoECorpo, configCobrancaDoEnv, dentroDaJanela, enviarCobranca } from './cobranca.js';
+import { configPendenciaDoEnv, detectarPendencias, iniciarTickPendencias } from './pendencia.js';
 import { ehProcessoPrincipal } from './processo.js';
 import { ErroRequisicao, GuardaEspaco, JanelaFixa, mensagens } from './protecao.js';
 import { carregarSeed } from './seed.js';
@@ -463,18 +470,49 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   // "E se?" deterministico: nada e gravado (RF12). A comparacao e a mesma de
   // divergence.ts, com tolerancia de peso; fonteA e a fonte real do valor
   // atual (a ultima que declarou o campo) e fonteB e 'manual' (spec 0007).
-  app.post<{ Body: { pedidoId?: string; campos?: CamposObservados } }>(
+  // pendenciaHoras (spec 0010, T431) adianta o relogio da deteccao de
+  // pendencia: mostra o caso + a cobranca que o verificador abriria.
+  app.post<{ Body: { pedidoId?: string; campos?: CamposObservados; pendenciaHoras?: number } }>(
     '/api/simulate',
     async (req, reply) => {
-      const { pedidoId, campos } = req.body ?? {};
-      if (!pedidoId || !campos || Object.keys(campos).length === 0) {
-        return reply.code(400).send({ erro: 'pedidoId e campos obrigatórios' });
+      const { pedidoId, campos, pendenciaHoras } = req.body ?? {};
+      const temCampos = !!campos && Object.keys(campos).length > 0;
+      const temPendencia =
+        typeof pendenciaHoras === 'number' && Number.isFinite(pendenciaHoras) && pendenciaHoras > 0;
+      if (!pedidoId || (!temCampos && !temPendencia)) {
+        return reply.code(400).send({ erro: 'pedidoId e campos ou pendenciaHoras obrigatórios' });
+      }
+      if (pendenciaHoras !== undefined && !temPendencia) {
+        return reply.code(400).send({ erro: 'pendenciaHoras deve ser um número positivo' });
       }
       const s = await storeDoPedido(store.paraWorkspace(req.workspace), pedidoId);
       if (!s) return reply.code(404).send({ erro: 'pedido não encontrado' });
-      const proj = projetar(await s.eventosDoPedido(pedidoId));
-      const divs = simularHipotese(proj.versoes, campos);
-      return { divergencias: divs, tarefas: propagarTodas(divs), simulacao: true };
+      const eventos = await s.eventosDoPedido(pedidoId);
+      const proj = projetar(eventos);
+      const divs = temCampos ? simularHipotese(proj.versoes, campos!) : [];
+      const r: Record<string, unknown> = { divergencias: divs, tarefas: propagarTodas(divs), simulacao: true };
+      if (temPendencia) {
+        const agoraFuturo = new Date(Date.now() + pendenciaHoras! * 3_600_000);
+        const detectadas = detectarPendencias(
+          eventos,
+          agoraFuturo,
+          configPendenciaDoEnv().horasSemAtualizacao,
+        );
+        const novas: Array<{ motivo: string; detalhe: string }> = [];
+        for (const p of detectadas) {
+          if (!(await s.pendenciaExiste(pedidoId, p.motivo))) novas.push(p);
+        }
+        r['pendencias'] = novas;
+        if (novas.length > 0) {
+          const contato = await s.contatoDaParte('transportadora');
+          const { assunto } = assuntoECorpo(pedidoId);
+          r['cobrancaSugerida'] = {
+            assunto,
+            destinatario: contato?.canal === 'email' ? contato.destino : null,
+          };
+        }
+      }
+      return r;
     },
   );
 
@@ -774,6 +812,200 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     },
   );
 
+  // --- Casos de excecao e metricas (spec 0011) ---
+
+  // Casos de todos os pedidos visiveis (sessao + seed), marcados pelo dono.
+  async function casosDaSessao(sessao: LedgerStore): Promise<Caso[]> {
+    const out: Caso[] = [];
+    for (const p of await sessao.listarPedidos()) {
+      const evs = await store.paraWorkspace(p.workspaceId).eventosDoPedido(p.pedidoId);
+      for (const c of projetarCasos(evs)) out.push({ ...c, workspaceId: p.workspaceId });
+    }
+    return out;
+  }
+
+  // Resolve o dono do pedido a partir do casoId "pedidoId:seq".
+  async function storeDoCaso(sessao: LedgerStore, casoId: string) {
+    const pedidoId = casoId.split(':')[0] ?? '';
+    if (!pedidoId) return null;
+    return storeDoPedido(sessao, pedidoId);
+  }
+
+  app.get('/api/casos', async (req) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const casos = await casosDaSessao(sessao);
+    return {
+      casos: casos.map((c) => ({ ...c, daSessao: c.workspaceId === req.workspace })),
+    };
+  });
+
+  app.get<{ Params: { id: string } }>('/api/casos/:id', async (req, reply) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const s = await storeDoCaso(sessao, req.params.id);
+    if (!s) return reply.code(404).send({ erro: 'caso não encontrado' });
+    const eventos = await s.eventosDoPedido(req.params.id.split(':')[0]!);
+    const caso = projetarCasos(eventos).find((c) => c.id === req.params.id);
+    if (!caso) return reply.code(404).send({ erro: 'caso não encontrado' });
+    // O link do parceiro so aparece para a sessao dona: visitante nao ve.
+    const daSessao = s.workspace === req.workspace;
+    return {
+      caso: {
+        ...caso,
+        workspaceId: s.workspace,
+        daSessao,
+        ...(daSessao ? { tokenParceiro: tokenDoCaso(eventos, caso) } : {}),
+      },
+      custo: estimarCusto(caso),
+      documentos: await s.referenciasDoPedido(caso.pedidoId),
+    };
+  });
+
+  // Transicoes da sessao dona: assumir, resolver e reabrir gravam caso_*.
+  const transicaoCaso = (tipo: 'caso_atribuido' | 'caso_resolvido' | 'caso_reaberto') =>
+    async (req: FastifyRequest<{ Params: { id: string }; Body: { parte?: string; texto?: string } }>, reply: FastifyReply) => {
+      const sessao = store.paraWorkspace(req.workspace);
+      const s = await storeDoCaso(sessao, req.params.id);
+      if (!s) return reply.code(404).send({ erro: 'caso não encontrado' });
+      exigirGravavel(s.workspace, 'alterar caso de exemplo');
+      const eventos = await s.eventosDoPedido(req.params.id.split(':')[0]!);
+      const caso = projetarCasos(eventos).find((c) => c.id === req.params.id);
+      if (!caso) return reply.code(404).send({ erro: 'caso não encontrado' });
+      if (tipo === 'caso_atribuido') {
+        const parte = req.body?.parte;
+        if (!parte || !PARTES.includes(parte as Parte)) {
+          return reply.code(422).send({ erro: 'parte inválida', partes: PARTES });
+        }
+        if (caso.status === 'resolvido') {
+          return reply.code(409).send({ erro: 'caso resolvido: reabra antes de atribuir' });
+        }
+        const ev = await s.append(caso.pedidoId, tipo, { casoId: caso.id, parte });
+        canal.evento(ev, s.workspace);
+      } else if (tipo === 'caso_resolvido') {
+        if (caso.status === 'resolvido') return reply.code(409).send({ erro: 'caso já resolvido' });
+        const texto = typeof req.body?.texto === 'string' ? req.body.texto.slice(0, 2000) : undefined;
+        const ev = await s.append(caso.pedidoId, tipo, { casoId: caso.id, ...(texto ? { texto } : {}) });
+        canal.evento(ev, s.workspace);
+      } else {
+        if (caso.status !== 'resolvido' && caso.status !== 'contestado') {
+          return reply.code(409).send({ erro: 'só se reabre caso resolvido ou contestado' });
+        }
+        const ev = await s.append(caso.pedidoId, tipo, { casoId: caso.id });
+        canal.evento(ev, s.workspace);
+      }
+      return { ok: true };
+    };
+
+  app.post('/api/casos/:id/assumir', transicaoCaso('caso_atribuido'));
+  app.post('/api/casos/:id/resolver', transicaoCaso('caso_resolvido'));
+  app.post('/api/casos/:id/reabrir', transicaoCaso('caso_reaberto'));
+
+  // Resposta do parceiro pelo link opaco (spec 0011): sem sessao e sem 403
+  // de seed — o token do evento de origem e a credencial. So o hash dele
+  // vai para a trilha.
+  app.post<{ Params: { id: string }; Body: { token?: string; acao?: string; texto?: string } }>(
+    '/api/casos/:id/resposta',
+    async (req, reply) => {
+      const sessao = store.paraWorkspace(req.workspace);
+      const s = await storeDoCaso(sessao, req.params.id);
+      if (!s) return reply.code(404).send({ erro: 'caso não encontrado' });
+      const acao = req.body?.acao;
+      if (acao !== 'confirmar' && acao !== 'contestar') {
+        return reply.code(422).send({ erro: 'acao deve ser confirmar ou contestar' });
+      }
+      const eventos = await s.eventosDoPedido(req.params.id.split(':')[0]!);
+      const caso = projetarCasos(eventos).find((c) => c.id === req.params.id);
+      if (!caso) return reply.code(404).send({ erro: 'caso não encontrado' });
+      const token = tokenDoCaso(eventos, caso);
+      if (!token || req.body?.token !== token) {
+        return reply.code(403).send({ erro: 'token inválido' });
+      }
+      const texto = typeof req.body?.texto === 'string' ? req.body.texto.slice(0, 2000) : undefined;
+      const tokenHash = createHash('sha256').update(token).digest('hex').slice(0, 16);
+      const ev = await s.append(caso.pedidoId, 'caso_resposta_parceiro', {
+        casoId: caso.id,
+        acao,
+        ...(texto ? { texto } : {}),
+        tokenHash,
+      });
+      canal.evento(ev, s.workspace);
+      return { ok: true };
+    },
+  );
+
+  // Cobrancas de status (spec 0010): a fila visivel mostra sessao + seed;
+  // o envio e so da sessao dona, com janela anti-spam (RF5).
+  app.get('/api/cobrancas', async (req) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const cobrancas = await sessao.listarCobrancas();
+    return { cobrancas: cobrancas.map((c) => ({ ...c, daSessao: c.workspaceId === req.workspace })) };
+  });
+
+  app.post<{ Params: { id: string } }>('/api/cobrancas/:id/enviar', async (req, reply) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const id = Number(req.params.id);
+    const cobranca = (await sessao.listarCobrancas()).find((c) => c.id === id);
+    if (!cobranca) return reply.code(404).send({ erro: 'cobrança não encontrada' });
+    // Cobranca de pedido seed: visitante le, nao envia (P-010).
+    exigirGravavel(cobranca.workspaceId, 'enviar cobrança de exemplo');
+    if (cobranca.status === 'respondida') {
+      return reply.code(409).send({ erro: 'cobrança já respondida' });
+    }
+    const cobCfg = configCobrancaDoEnv();
+    if (cobranca.status === 'enviada' && dentroDaJanela(cobranca, cobCfg.intervaloHoras)) {
+      return reply.code(409).send({ erro: 'janela anti-spam: aguarde antes de reenviar' });
+    }
+    const dono = store.paraWorkspace(cobranca.workspaceId);
+    const r = await enviarCobranca(dono, cobranca);
+    const atual = await dono.cobrancaPorId(cobranca.id);
+    return r.ok ? { ok: true, cobranca: atual } : reply.code(503).send({ erro: r.motivo, cobranca: atual });
+  });
+
+  // Metricas da operacao (spec 0011): derivadas so de eventos do escopo.
+  app.get('/api/metricas', async (req) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const casos = await casosDaSessao(sessao);
+    const totalPedidos = (await sessao.listarPedidos()).length;
+    return { metricas: metricasDosCasos(casos, totalPedidos) };
+  });
+
+  // Comprovante verificavel (spec 0011): link-capacidade por pedido. A
+  // assinatura HMAC(workspace|pedidoId) impede enumeracao e forja — sem
+  // tabela, rotaciona com COMPROVANTE_SECRET. Sem env, um segredo efemero
+  // por processo serve a demo (links morrem no restart).
+  const segredoComprovante = process.env['COMPROVANTE_SECRET'] ?? randomBytes(32).toString('hex');
+  const assinarComprovante = (workspace: string, pedidoId: string): string =>
+    createHmac('sha256', segredoComprovante)
+      .update(`${workspace}\n${pedidoId}`)
+      .digest('base64url');
+
+  // A sessao dona emite o link; o front monta a URL absoluta.
+  app.get<{ Params: { id: string } }>('/api/pedidos/:id/comprovante', async (req, reply) => {
+    const sessao = store.paraWorkspace(req.workspace);
+    const dono = await sessao.wsDoPedido(req.params.id);
+    if (dono === null) return reply.code(404).send({ erro: 'pedido não encontrado' });
+    const url =
+      `/api/comprovante/${encodeURIComponent(dono)}/${encodeURIComponent(req.params.id)}/` +
+      assinarComprovante(dono, req.params.id);
+    return { url };
+  });
+
+  // O link e a credencial: prova completa, sem sessao, para a terceira parte
+  // refazer a cadeia e conferir a raiz ancorada on-chain. Os 3 segmentos
+  // ficam abaixo do limite de parametro do roteador.
+  app.get<{ Params: { workspace: string; pedidoId: string; assinatura: string } }>(
+    '/api/comprovante/:workspace/:pedidoId/:assinatura',
+    async (req, reply) => {
+      const { workspace, pedidoId, assinatura } = req.params;
+      if (assinatura !== assinarComprovante(workspace, pedidoId)) {
+        return reply.code(404).send({ erro: 'comprovante inválido' });
+      }
+      const s = store.paraWorkspace(workspace);
+      const eventos = await s.eventosDoPedido(pedidoId);
+      if (eventos.length === 0) return reply.code(404).send({ erro: 'comprovante inválido' });
+      return montarComprovante(pedidoId, eventos, await s.ultimoAncora(pedidoId));
+    },
+  );
+
   // Producao: o mesmo processo serve o build da web e a API na mesma origem.
   const webDist = cfg.webDist ?? join(AQUI, '..', 'web', 'dist');
   if (existsSync(webDist)) {
@@ -805,6 +1037,15 @@ async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
       }),
     (nome, erro) => store.enfileirarRevisao('imap', 'anexo_rejeitado', { nome, erro }),
     (msg) => console.log(msg),
+    // spec 0010: mensagem sem anexo elegivel pode ser resposta de cobranca;
+    // o matching (In-Reply-To ou chave de 44) decide e fecha a cobranca.
+    async (raw: Buffer) => {
+      try {
+        return await processarRespostaEml(store, canal, raw, await extrairEml(raw));
+      } catch {
+        return false;
+      }
+    },
   );
   console.log(`imap: polling em ${cfg.host}:${cfg.port} a cada ${cfg.intervaloMs}ms`);
 }
@@ -825,6 +1066,9 @@ if (ehProcessoPrincipal(import.meta.url, process.argv[1])) {
     app.log.info(`seed: ${r.ingeridos} doc(s) processados, ${r.pulados} arquivo(s) sem efeito`);
   }
   await ligarImap(canal, store);
+  // Tick de pendencias (spec 0011): verifica todos os workspaces a cada
+  // PENDENCIA_TICK_MS; so abre 'pendencia_aberta' onde ainda nao existe.
+  iniciarTickPendencias(store, canal);
   // A hospedagem manda SIGTERM no redeploy: fecha os streams e o pool antes de sair.
   for (const sinal of ['SIGTERM', 'SIGINT'] as const) {
     process.once(sinal, () => {

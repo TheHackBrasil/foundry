@@ -11,7 +11,7 @@ export const PARTES: readonly Parte[] = [
 ] as const;
 
 // Origem do documento que entrou na camada (o que cada parceiro ja produz).
-export type FonteDocumento = 'nfe' | 'cte' | 'cce' | 'planilha' | 'pdf' | 'imap' | 'manual';
+export type FonteDocumento = 'nfe' | 'cte' | 'cce' | 'planilha' | 'pdf' | 'imap' | 'manual' | 'email_transportadora';
 
 export type TipoEvento =
   | 'nfe'
@@ -20,22 +20,30 @@ export type TipoEvento =
   | 'cancelamento'
   | 'planilha'
   | 'pdf'
+  | 'status_declarado'
   | 'divergencia'
   | 'tarefa'
   | 'ancora'
   | 'revisao'
   | 'mandato'
   | 'sinal'
-  | 'notificacao';
+  | 'notificacao'
+  | 'caso_atribuido'
+  | 'caso_resolvido'
+  | 'caso_reaberto'
+  | 'caso_resposta_parceiro'
+  | 'pendencia_aberta'
+  | 'documento_vinculado';
 
 // Tipos que representam um documento recebido (o resto e evento derivado):
 // usados para contar documentos por workspace e para ler o fold da projecao.
 // mandato, sinal e notificacao sao derivados como divergencia e tarefa (RF6).
-export const TIPOS_DOCUMENTO = ['nfe', 'cte', 'cce', 'cancelamento', 'planilha', 'pdf'] as const;
+export const TIPOS_DOCUMENTO = ['nfe', 'cte', 'cce', 'cancelamento', 'planilha', 'pdf', 'status_declarado'] as const;
 
 // Todas as fontes que um pedido pode declarar ('manual' so aparece como
-// fonteB de hipotese no simulate). Enum completo para validar ViewSpec.
-export const FONTES_DOCUMENTO = ['nfe', 'cte', 'cce', 'planilha', 'pdf', 'imap', 'manual'] as const;
+// fonteB de hipotese no simulate; 'email_transportadora' e o claim da
+// resposta de cobranca, spec 0010). Enum completo para validar ViewSpec.
+export const FONTES_DOCUMENTO = ['nfe', 'cte', 'cce', 'planilha', 'pdf', 'imap', 'manual', 'email_transportadora'] as const;
 
 // Campos que a camada vigia entre fontes (RF10). Ausente = a fonte nao declara.
 export interface CamposObservados {
@@ -116,6 +124,101 @@ export interface Divergencia {
   fonteB: FonteDocumento;
   valorA: unknown;
   valorB: unknown;
+  // spec 0011: 'contradicao' (default, fontes diferentes) ou 'mudanca'
+  // (a mesma fonte mudou de versao; fonteA === fonteB nesse caso).
+  tipo?: 'contradicao' | 'mudanca';
+}
+
+// Afirmacao com origem (spec 0011): cada campo vigiado declarado por um
+// documento vira um claim em payload.claims — quem disse, o que e quando.
+export interface Claim {
+  campo: CampoVigiado;
+  valor: unknown;
+  fonte: FonteDocumento;
+  afirmadoEm: string; // ISO 8601, ts do evento
+}
+
+// Caso de excecao (spec 0011): projecao de eventos, nunca estado mutavel.
+// Abre com 'divergencia' ou 'pendencia_aberta' (id = pedidoId:seqDaOrigem);
+// transicoes sao os eventos caso_*.
+export type StatusCaso = 'aberto' | 'atribuido' | 'resolvido' | 'contestado';
+
+export const STATUS_CASO = ['aberto', 'atribuido', 'resolvido', 'contestado'] as const;
+
+export interface Caso {
+  id: string;
+  pedidoId: string;
+  origem: 'divergencia' | 'pendencia';
+  origemSeq: number;
+  status: StatusCaso;
+  divergencia?: Divergencia;
+  pendencia?: { motivo: string; detalhe?: string };
+  donoPapel?: Parte;
+  abertoEm: string;
+  assumidoEm?: string;
+  resolvidoEm?: string;
+  resolucao?: string;
+  ciclos: number; // reaberturas
+  ultimaRespostaParceiro?: { acao: 'confirmar' | 'contestar'; texto?: string; em: string };
+  workspaceId?: string; // preenchido pela rota, nao vem do payload
+}
+
+// Cobranca de status (spec 0010): pendencia por tempo vira pedido de status
+// a transportadora pelo canal que ela ja usa (e-mail). 'pendente' espera
+// aprovacao humana; 'pendente_envio' marca SMTP ausente; 'expirada' fecha
+// sem resposta em COBRANCA_EXPIRA_HORAS.
+export type StatusCobranca =
+  | 'pendente'
+  | 'pendente_envio'
+  | 'enviada'
+  | 'respondida'
+  | 'expirada'
+  | 'erro_envio';
+
+export const STATUS_COBRANCA = [
+  'pendente',
+  'pendente_envio',
+  'enviada',
+  'respondida',
+  'expirada',
+  'erro_envio',
+] as const;
+
+export interface Cobranca {
+  id: number;
+  pedidoId: string;
+  workspaceId: string;
+  canal: 'email';
+  contatoId: number | null;
+  destinatario?: string;
+  status: StatusCobranca;
+  messageId?: string;
+  motivo?: string;
+  criadaEm: string;
+  enviadaEm?: string;
+  respondidaEm?: string;
+  expiraEm: string;
+}
+
+// Resposta do parceiro pelo link opaco (spec 0011): sem login, quem tem o
+// token do caso responde; o token viaja no payload da divergencia/pendencia
+// de origem e so o hash fica no evento de resposta.
+export interface RespostaParceiroBody {
+  token: string;
+  acao: 'confirmar' | 'contestar';
+  texto?: string;
+}
+
+// Metricas da operacao (spec 0011): derivadas so de eventos.
+export interface Metricas {
+  totalPedidos: number;
+  pedidosComExcecao: number;
+  taxaExcecao: number; // 0..1
+  casosAbertos: number;
+  casosResolvidos: number;
+  casosContestados: number;
+  tempoMedioAteDonoMs: number | null;
+  tempoMedioAteResolverMs: number | null;
 }
 
 export interface Tarefa {

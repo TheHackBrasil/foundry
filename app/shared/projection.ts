@@ -113,7 +113,10 @@ export function projetar(eventos: Evento[]): ProjecaoPedido {
       continue;
     }
     if (ev.tipo === 'divergencia') {
-      divergencias.push(ev.payload as unknown as Divergencia);
+      // spec 0011: 'token' e a credencial do link do parceiro — fica so no
+      // evento cru, nunca na projecao que as rotas devolvem.
+      const { token: _token, ...divergencia } = ev.payload;
+      divergencias.push(divergencia as unknown as Divergencia);
       continue;
     }
     if (ev.tipo === 'tarefa') {

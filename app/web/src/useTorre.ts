@@ -227,13 +227,8 @@ export function useTorre() {
   }, [recarregarLista]);
 
   useEffect(() => {
-    if (pedidos.estado === 'ok' && !selecionado && pedidos.dados[0]) {
-      const primeiroId = pedidos.dados[0].pedidoId;
-      if (rota === 'ia') {
-        setSelecionado(primeiroId);
-      } else {
-        window.location.replace(`#/pedido/${encodeURIComponent(primeiroId)}`);
-      }
+    if (rota === 'ia' && pedidos.estado === 'ok' && !selecionado && pedidos.dados[0]) {
+      setSelecionado(pedidos.dados[0].pedidoId);
     }
   }, [pedidos, selecionado, rota]);
 

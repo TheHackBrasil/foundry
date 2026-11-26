@@ -3,7 +3,7 @@
 
 import { GENESIS_HASH, hashEvento, verificarCadeia, type VerificacaoCadeia } from '../shared/chain.js';
 import { TIPOS_DOCUMENTO } from '../shared/model.js';
-import type { Contato, Evento, ItemRevisao, Parte, PropostaMapeamento } from '../shared/model.js';
+import type { Cobranca, Contato, Evento, ItemRevisao, Parte, PropostaMapeamento } from '../shared/model.js';
 import { CONTATOS_SEED } from './contatos.js';
 import type { Db } from './db.js';
 
@@ -64,6 +64,52 @@ CREATE TABLE IF NOT EXISTS templates (
   mapeamento   JSONB NOT NULL,
   ts           TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (workspace_id, remetente)
+);
+
+-- Identidade muitos-para-muitos (spec 0011): cada referencia extraida de um
+-- documento (chave NF-e, xPed, chave CT-e, CNPJ+serie+numero) liga ao pedido
+-- dono no workspace. Conflito de referencias nunca resolve em merge — o
+-- documento vai para a fila de revisao.
+CREATE TABLE IF NOT EXISTS pedido_documentos (
+  id           BIGSERIAL PRIMARY KEY,
+  workspace_id TEXT NOT NULL DEFAULT 'seed',
+  pedido_id    TEXT NOT NULL,
+  tipo_doc     TEXT NOT NULL,
+  referencia   TEXT NOT NULL,
+  ts           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, referencia)
+);
+CREATE INDEX IF NOT EXISTS pedido_documentos_ws ON pedido_documentos (workspace_id, pedido_id);
+
+-- Cobrancas de status (spec 0010): pendencia por tempo gera pedido de status
+-- a transportadora; message_id e a ponte de volta para a resposta IMAP.
+CREATE TABLE IF NOT EXISTS cobrancas (
+  id           BIGSERIAL PRIMARY KEY,
+  workspace_id TEXT NOT NULL DEFAULT 'seed',
+  pedido_id    TEXT NOT NULL,
+  canal        TEXT NOT NULL DEFAULT 'email',
+  contato_id   BIGINT,
+  destinatario TEXT,
+  status       TEXT NOT NULL DEFAULT 'pendente',
+  message_id   TEXT,
+  motivo       TEXT,
+  criada_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  enviada_em   TIMESTAMPTZ,
+  respondida_em TIMESTAMPTZ,
+  expira_em    TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS cobrancas_ws ON cobrancas (workspace_id, pedido_id);
+CREATE INDEX IF NOT EXISTS cobrancas_msgid ON cobrancas (workspace_id, message_id);
+
+-- Evidencias (spec 0010): o .eml bruto que gerou um status_declarado fica
+-- enderecado pelo proprio hash (emlHash do claim). Nao entra em rota publica
+-- nem no comprovante — so o hash circula fora.
+CREATE TABLE IF NOT EXISTS evidencias (
+  hash         TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL DEFAULT 'seed',
+  tipo         TEXT NOT NULL,
+  conteudo     BYTEA NOT NULL,
+  ts           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE OR REPLACE FUNCTION rejeita_mutacao_events() RETURNS trigger AS $$
@@ -220,11 +266,20 @@ export class LedgerStore {
     return rows.map(paraEvento);
   }
 
-  // Idempotencia: = em jsonb ignora ordem de chaves do payload.
-  async eventoExiste(pedidoId: string, tipo: Evento['tipo'], payload: Record<string, unknown>): Promise<boolean> {
+  // Idempotencia: = em jsonb ignora ordem de chaves do payload. Chaves
+  // volateis (claims com afirmadoEm do ingest, token de resposta do caso)
+  // ficam fora da comparacao: mesmo documento ingerido de novo e no-op
+  // mesmo quando essas chaves mudam de valor (spec 0011).
+  async eventoExiste(
+    pedidoId: string,
+    tipo: Evento['tipo'],
+    payload: Record<string, unknown>,
+    volateis: string[] = ['claims', 'token'],
+  ): Promise<boolean> {
+    const coluna = volateis.reduce((col, k) => `${col} - '${k}'`, 'payload');
     const rows = await this.db.query(
-      `SELECT 1 AS n FROM events WHERE workspace_id = $1 AND pedido_id = $2 AND tipo = $3 AND payload = $4::jsonb LIMIT 1`,
-      [this.workspace, pedidoId, tipo, JSON.stringify(payload)],
+      `SELECT 1 AS n FROM events WHERE workspace_id = $1 AND pedido_id = $2 AND tipo = $3 AND ${coluna} = $4::jsonb LIMIT 1`,
+      [this.workspace, pedidoId, tipo, JSON.stringify(volateis.reduce((p, k) => ({ ...p, [k]: undefined }), payload))],
     );
     return rows.length > 0;
   }
@@ -328,12 +383,221 @@ export class LedgerStore {
     return rows[0]?.n ?? 0;
   }
 
+  // Identidade (spec 0011): referencias extraidas do documento ->
+  // pedidos conhecidos. Mais de um pedido distinto = conflito (revisao).
+  async pedidosPorReferencias(
+    referencias: string[],
+  ): Promise<Array<{ referencia: string; pedidoId: string }>> {
+    if (referencias.length === 0) return [];
+    const rows = await this.db.query<{ referencia: string; pedido_id: string }>(
+      `SELECT referencia, pedido_id FROM pedido_documentos
+       WHERE workspace_id = $1 AND referencia = ANY($2)`,
+      [this.workspace, referencias],
+    );
+    return rows.map((r) => ({ referencia: r.referencia, pedidoId: r.pedido_id }));
+  }
+
+  async vincularDocumento(pedidoId: string, tipoDoc: string, referencias: string[]): Promise<void> {
+    for (const ref of referencias) {
+      await this.db.query(
+        `INSERT INTO pedido_documentos (workspace_id, pedido_id, tipo_doc, referencia)
+         VALUES ($1, $2, $3, $4) ON CONFLICT (workspace_id, referencia) DO NOTHING`,
+        [this.workspace, pedidoId, tipoDoc, ref],
+      );
+    }
+  }
+
+  async referenciasDoPedido(pedidoId: string): Promise<string[]> {
+    const rows = await this.db.query<{ referencia: string }>(
+      `SELECT referencia FROM pedido_documentos WHERE workspace_id = $1 AND pedido_id = $2 ORDER BY id`,
+      [this.workspace, pedidoId],
+    );
+    return rows.map((r) => r.referencia);
+  }
+
+  // Pendencias (spec 0011): workspaces que ja gravaram evento — o tick do
+  // servidor itera sobre eles sem conhecer sessoes.
+  async workspacesAtivos(): Promise<string[]> {
+    const rows = await this.db.query<{ workspace_id: string }>(
+      `SELECT DISTINCT workspace_id FROM events`,
+    );
+    return rows.map((r) => r.workspace_id);
+  }
+
+  async pendenciaExiste(pedidoId: string, motivo: string): Promise<boolean> {
+    const rows = await this.db.query(
+      `SELECT 1 AS n FROM events WHERE workspace_id = $1 AND pedido_id = $2
+       AND tipo = 'pendencia_aberta' AND payload->>'motivo' = $3 LIMIT 1`,
+      [this.workspace, pedidoId, motivo],
+    );
+    return rows.length > 0;
+  }
+
   async ultimoAncora(pedidoId: string): Promise<Record<string, unknown> | null> {
     const rows = await this.db.query<{ payload: Record<string, unknown> }>(
       `SELECT payload FROM events WHERE workspace_id = $1 AND pedido_id = $2 AND tipo = 'ancora' ORDER BY seq DESC LIMIT 1`,
       [this.workspace, pedidoId],
     );
     return rows[0]?.payload ?? null;
+  }
+
+  // Cobrancas (spec 0010). 'Aberta' = pendente/pendente_envio/enviada: a que
+  // ainda aguarda acao ou resposta. Expiradas e respondidas sao historico.
+  private cobrancaRow(r: Record<string, unknown>): Cobranca {
+    return {
+      id: r['id'] as number,
+      pedidoId: r['pedido_id'] as string,
+      workspaceId: r['workspace_id'] as string,
+      canal: r['canal'] as Cobranca['canal'],
+      contatoId: r['contato_id'] === null || r['contato_id'] === undefined ? null : Number(r['contato_id']),
+      destinatario: (r['destinatario'] as string | null) ?? undefined,
+      status: r['status'] as Cobranca['status'],
+      messageId: (r['message_id'] as string | null) ?? undefined,
+      motivo: (r['motivo'] as string | null) ?? undefined,
+      criadaEm: new Date(r['criada_em'] as string).toISOString(),
+      enviadaEm: r['enviada_em'] ? new Date(r['enviada_em'] as string).toISOString() : undefined,
+      respondidaEm: r['respondida_em'] ? new Date(r['respondida_em'] as string).toISOString() : undefined,
+      expiraEm: new Date(r['expira_em'] as string).toISOString(),
+    };
+  }
+
+  // Cria cobranca pendente para o pedido; idempotente: cobranca aberta para
+  // o mesmo pedido devolve a existente, nunca duplica.
+  async criarCobrancaPendente(
+    pedidoId: string,
+    contatoId: number | null,
+    destinatario: string | null,
+    expiraEm: Date,
+  ): Promise<{ cobranca: Cobranca; criada: boolean }> {
+    const aberta = await this.cobrancaAbertaDoPedido(pedidoId);
+    if (aberta) return { cobranca: aberta, criada: false };
+    const rows = await this.db.query<Record<string, unknown>>(
+      `INSERT INTO cobrancas (workspace_id, pedido_id, contato_id, destinatario, expira_em)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [this.workspace, pedidoId, contatoId, destinatario, expiraEm.toISOString()],
+    );
+    return { cobranca: this.cobrancaRow(rows[0]!), criada: true };
+  }
+
+  async cobrancaAbertaDoPedido(pedidoId: string): Promise<Cobranca | null> {
+    const rows = await this.db.query<Record<string, unknown>>(
+      `SELECT * FROM cobrancas WHERE workspace_id = $1 AND pedido_id = $2
+       AND status IN ('pendente','pendente_envio','enviada') ORDER BY id DESC LIMIT 1`,
+      [this.workspace, pedidoId],
+    );
+    return rows[0] ? this.cobrancaRow(rows[0]) : null;
+  }
+
+  async listarCobrancas(): Promise<Cobranca[]> {
+    const rows = await this.db.query<Record<string, unknown>>(
+      `SELECT * FROM cobrancas WHERE workspace_id = ANY($1) ORDER BY id DESC`,
+      [this.visiveis()],
+    );
+    return rows.map((r) => this.cobrancaRow(r));
+  }
+
+  async cobrancaPorId(id: number): Promise<Cobranca | null> {
+    const rows = await this.db.query<Record<string, unknown>>(
+      `SELECT * FROM cobrancas WHERE workspace_id = $1 AND id = $2`,
+      [this.workspace, id],
+    );
+    return rows[0] ? this.cobrancaRow(rows[0]) : null;
+  }
+
+  // Matching resposta -> cobranca (spec 0010, RF7): o Message-Id gravado no
+  // envio volta no In-Reply-To/References do e-mail da transportadora.
+  async cobrancaPorMessageId(messageId: string): Promise<Cobranca | null> {
+    const rows = await this.db.query<Record<string, unknown>>(
+      `SELECT * FROM cobrancas WHERE workspace_id = $1 AND message_id = $2
+       AND status = 'enviada' ORDER BY id DESC LIMIT 1`,
+      [this.workspace, messageId],
+    );
+    return rows[0] ? this.cobrancaRow(rows[0]) : null;
+  }
+
+  async atualizarCobranca(
+    id: number,
+    campos: {
+      status?: Cobranca['status'];
+      messageId?: string;
+      motivo?: string;
+      respondida?: boolean;
+      contatoId?: number | null;
+      destinatario?: string | null;
+    },
+  ): Promise<boolean> {
+    const sets: string[] = [];
+    const vals: unknown[] = [this.workspace, id];
+    let i = 3;
+    if (campos.status !== undefined) {
+      sets.push(`status = $${i++}`);
+      vals.push(campos.status);
+    }
+    if (campos.messageId !== undefined) {
+      sets.push(`message_id = $${i++}`);
+      vals.push(campos.messageId);
+    }
+    if (campos.motivo !== undefined) {
+      sets.push(`motivo = $${i++}`);
+      vals.push(campos.motivo);
+    }
+    if (campos.contatoId !== undefined) {
+      sets.push(`contato_id = $${i++}`);
+      vals.push(campos.contatoId);
+    }
+    if (campos.destinatario !== undefined) {
+      sets.push(`destinatario = $${i++}`);
+      vals.push(campos.destinatario);
+    }
+    if (campos.status === 'enviada') sets.push('enviada_em = now()');
+    if (campos.respondida === true) sets.push(`status = 'respondida', respondida_em = now()`);
+    if (sets.length === 0) return false;
+    const n = await this.db.query<{ n: number }>(
+      `UPDATE cobrancas SET ${sets.join(', ')} WHERE workspace_id = $1 AND id = $2 RETURNING id AS n`,
+      vals,
+    );
+    return n.length > 0;
+  }
+
+  // Expira cobrancas enviadas/pendentes sem resposta (COBRANCA_EXPIRA_HORAS).
+  async expirarCobrancas(agora: Date): Promise<number> {
+    const rows = await this.db.query<{ id: number }>(
+      `UPDATE cobrancas SET status = 'expirada'
+       WHERE workspace_id = $1 AND status IN ('pendente','pendente_envio','enviada') AND expira_em < $2
+       RETURNING id`,
+      [this.workspace, agora.toISOString()],
+    );
+    return rows.length;
+  }
+
+  // Evidencia enderecada por hash (spec 0010): o .eml bruto fica aqui; fora
+  // circula so o hash.
+  async guardarEvidencia(hash: string, tipo: string, conteudo: Buffer): Promise<void> {
+    await this.db.query(
+      `INSERT INTO evidencias (hash, workspace_id, tipo, conteudo) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (hash) DO NOTHING`,
+      [hash, this.workspace, tipo, conteudo],
+    );
+  }
+
+  async evidencia(hash: string): Promise<Buffer | null> {
+    const rows = await this.db.query<{ conteudo: Buffer }>(
+      `SELECT conteudo FROM evidencias WHERE hash = $1 AND workspace_id = $2`,
+      [hash, this.workspace],
+    );
+    return rows[0]?.conteudo ?? null;
+  }
+
+  // Contato resolvido de uma parte com id: o da propria sessao vale sobre o
+  // da seed (mesma regra da agenda visivel). Usado pela cobranca de status.
+  async contatoDaParte(parte: Parte): Promise<(Contato & { id: number; workspaceId: string }) | null> {
+    const rows = await this.db.query<Contato & { id: number; workspaceId: string }>(
+      `SELECT id, workspace_id AS "workspaceId", parte, nome, canal, destino, fonte
+       FROM contatos WHERE workspace_id = ANY($1) AND parte = $2
+       ORDER BY CASE WHEN workspace_id = $3 THEN 0 ELSE 1 END, id LIMIT 1`,
+      [this.visiveis(), parte, this.workspace],
+    );
+    return rows[0] ?? null;
   }
 
   // Agenda visivel (sessao + seed) com o dono: quem monta a agenda decide a
@@ -344,18 +608,6 @@ export class LedgerStore {
        FROM contatos WHERE workspace_id = ANY($1) ORDER BY id`,
       [this.visiveis()],
     ) as Promise<Array<Contato & { workspaceId: string }>>;
-  }
-
-  // Um contato por parte por workspace: a sessao resolve pelo proprio, a seed
-  // so entra quando a sessao nao cadastrou a parte.
-  async contatoDaParte(parte: Parte): Promise<Contato | null> {
-    const rows = await this.db.query<Contato>(
-      `SELECT parte, nome, canal, destino, fonte FROM contatos
-       WHERE workspace_id = ANY($1) AND parte = $2
-       ORDER BY (workspace_id = $3) DESC, id LIMIT 1`,
-      [this.visiveis(), parte, this.workspace],
-    );
-    return rows[0] ?? null;
   }
 
   // Upsert do PUT /api/contatos: sempre fonte 'manual' na sessao do chamador.
