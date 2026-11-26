@@ -379,9 +379,12 @@ export function App() {
           <Cabecalho
             rota={torre.rota}
             pedidoId={torre.selecionado}
+            pedidos={listaPedidos}
+            contatos={torre.contatos}
             revisaoPendentes={torre.revisaoPendentes}
             aoAbrirRevisao={abrirRevisao}
             aoAbrirAgenda={() => abrirAgenda()}
+            aoAbrirAssistente={abrirAssistente}
             aoAbrirMenuMobile={() => setMenuMobileAberto((a) => !a)}
             menuMobileAberto={menuMobileAberto}
             menuBtnRef={menuBtnRef}
