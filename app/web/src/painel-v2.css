@@ -63,13 +63,13 @@
 }
 
 .ev2-prova-rotulo {
-  font-size: 0.78125rem;
-  font-weight: 650;
+  font-size: var(--fs-meta);
+  font-weight: 700;
   color: var(--text2);
 }
 
 .ev2-prova-detalhe {
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   line-height: 1.45;
   color: var(--text);
   overflow-wrap: break-word;
@@ -82,13 +82,13 @@
   justify-content: center;
   gap: 0.375rem;
   width: fit-content;
-  min-height: 2rem;
+  min-height: var(--ctl-sm);
   padding: 0 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--ia-r-pill);
   background: var(--bg);
   color: var(--text);
-  font-size: 0.78125rem;
+  font-size: var(--fs-meta);
   font-weight: 600;
   cursor: pointer;
   transition: background-color 160ms ease, border-color 160ms ease;
@@ -110,12 +110,12 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   color: var(--text2);
 }
 
 .ev2-vazio {
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   line-height: 1.5;
   color: var(--text2);
 }
@@ -130,7 +130,7 @@
 }
 
 .ev2-erro-msg {
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   line-height: 1.45;
   color: var(--error);
 }
@@ -180,18 +180,18 @@
 }
 
 .ev2-sinal-tipo {
-  font-size: 0.84375rem;
-  font-weight: 650;
+  font-size: var(--fs-ui);
+  font-weight: 700;
   color: var(--text);
 }
 
 .ev2-sinal-meta {
-  font-size: 0.78125rem;
+  font-size: var(--fs-meta);
   color: var(--text2);
 }
 
 .ev2-sinal-resumo {
-  font-size: 0.84375rem;
+  font-size: var(--fs-ui);
   line-height: 1.45;
   color: var(--text2);
 }

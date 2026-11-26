@@ -14,7 +14,7 @@
   min-width: 0;
 }
 .vistas-rotulo {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -34,14 +34,14 @@
   background: var(--surface);
 }
 .vistas-densidade > button {
-  min-height: 1.6875rem;
+  min-height: 1.75rem;
   padding: 0 0.625rem;
   border: 0;
   border-radius: var(--r-pill);
   background: transparent;
   color: var(--text2);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: var(--fs-micro);
   font-weight: 600;
   cursor: pointer;
   transition:
@@ -65,8 +65,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.375rem;
-  height: 1.375rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border: 0;
   border-radius: var(--r-pill);
   background: transparent;
@@ -90,7 +90,7 @@
   border-radius: var(--r-pill);
   background: var(--change-bg);
   color: var(--change);
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -112,7 +112,7 @@
   border-radius: var(--r-md);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--fs-meta);
   box-shadow: var(--shadow-slab);
 }
 .vistas-toast-texto { min-width: 0; }
@@ -125,7 +125,7 @@
   background: var(--primary);
   color: var(--on-primary);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: var(--fs-micro);
   font-weight: 700;
   cursor: pointer;
 }
@@ -134,13 +134,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border: 0;
   border-radius: var(--r-pill);
   background: transparent;
   color: var(--text2);
-  font-size: 1rem;
+  font-size: var(--fs-ui);
   line-height: 1;
   cursor: pointer;
 }
