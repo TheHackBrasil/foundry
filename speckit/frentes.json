@@ -275,6 +275,24 @@
     "app/web/src/operacao/",
     "specs/0017-chrome-simples/brief-operacao.md"
    ]
+  },
+  "menu-strip": {
+   "brief": "specs/0017-chrome-simples/brief-menu-strip.md",
+   "paths": [
+    "app/web/src/components/menuwiki/",
+    "app/web/src/menuwiki.css",
+    "specs/0017-chrome-simples/brief-menu-strip.md"
+   ]
+  },
+  "topo": {
+   "brief": "specs/0017-chrome-simples/brief-topo.md",
+   "paths": [
+    "app/web/src/components/Cabecalho.tsx",
+    "app/web/src/components/BuscaUniversal.tsx",
+    "app/web/src/busca.css",
+    "app/web/src/App.tsx",
+    "specs/0017-chrome-simples/brief-topo.md"
+   ]
   }
  }
 }
