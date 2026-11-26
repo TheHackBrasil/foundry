@@ -462,7 +462,9 @@ export class LedgerStore {
   }
 
   // Cria cobranca pendente para o pedido; idempotente: cobranca aberta para
-  // o mesmo pedido devolve a existente, nunca duplica.
+  // o mesmo pedido devolve a existente, nunca duplica. criada_em sai do
+  // relogio do app, o mesmo do ts dos eventos: o verificador compara com a
+  // abertura do caso (spec 0017, RF13) sem depender do relogio do banco.
   async criarCobrancaPendente(
     pedidoId: string,
     contatoId: number | null,
@@ -472,11 +474,23 @@ export class LedgerStore {
     const aberta = await this.cobrancaAbertaDoPedido(pedidoId);
     if (aberta) return { cobranca: aberta, criada: false };
     const rows = await this.db.query<Record<string, unknown>>(
-      `INSERT INTO cobrancas (workspace_id, pedido_id, contato_id, destinatario, expira_em)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [this.workspace, pedidoId, contatoId, destinatario, expiraEm.toISOString()],
+      `INSERT INTO cobrancas (workspace_id, pedido_id, contato_id, destinatario, expira_em, criada_em)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [this.workspace, pedidoId, contatoId, destinatario, expiraEm.toISOString(), new Date().toISOString()],
     );
     return { cobranca: this.cobrancaRow(rows[0]!), criada: true };
+  }
+
+  // Spec 0017, RF13: alguma cobranca do pedido nasceu em `desde` ou depois,
+  // em qualquer status. Sem caso_id (T705), e assim que o verificador sabe
+  // se o caso aberto em `desde` ja teve a sua cobranca.
+  async cobrancaCriadaDesde(pedidoId: string, desde: string): Promise<boolean> {
+    const rows = await this.db.query(
+      `SELECT 1 AS n FROM cobrancas WHERE workspace_id = $1 AND pedido_id = $2
+       AND criada_em >= $3 LIMIT 1`,
+      [this.workspace, pedidoId, desde],
+    );
+    return rows.length > 0;
   }
 
   async cobrancaAbertaDoPedido(pedidoId: string): Promise<Cobranca | null> {

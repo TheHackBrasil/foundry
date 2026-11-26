@@ -3,8 +3,9 @@
 // caso como qualquer divergencia. Idempotente por (pedido, motivo).
 
 import { randomUUID } from 'node:crypto';
+import { projetarCasos } from '../shared/casos.js';
 import { consolidarCampos, camposPorFonte } from '../shared/projection.js';
-import type { Evento } from '../shared/model.js';
+import { TIPOS_DOCUMENTO, type Caso, type Evento } from '../shared/model.js';
 import { configCobrancaDoEnv, criarCobrancaParaPendencia, enviarCobranca } from './cobranca.js';
 import type { LedgerStore } from './store.js';
 import type { CanalSSE } from './sse.js';
@@ -23,8 +24,25 @@ interface PendenciaDetectada {
   detalhe: string;
 }
 
+const TIPOS_DOC = new Set<string>(TIPOS_DOCUMENTO);
+
+// Spec 0017, RF6: atualizacao do pedido e so documento recebido. Evento
+// derivado (mandato, notificacao, caso_*, pendencia_aberta) e evento do
+// operador nao renovam a ultima atualizacao.
+export function eventosDeDocumento(eventos: Evento[]): Evento[] {
+  return eventos.filter((e) => TIPOS_DOC.has(e.tipo));
+}
+
+// Pedido entregue ou cancelado por alguma fonte: nao abre pendencia por
+// tempo nem pede status a transportadora.
+const STATUS_ENCERRADO = new Set<string | undefined>(['entregue', 'cancelada']);
+
+function pedidoEncerrado(eventos: Evento[]): boolean {
+  return STATUS_ENCERRADO.has(consolidarCampos(camposPorFonte(eventos)).status);
+}
+
 // Regras de pendencia por pedido (spec 0011, RF9):
-// - sem_atualizacao: ultimo evento mais velho que o limite
+// - sem_atualizacao: ultimo documento mais velho que o limite
 // - cte_sem_nfe: CT-e presente sem NF-e alem do limite
 // - entrega_sem_confirmacao: previsao passou e nenhuma fonte disse 'entregue'
 export function detectarPendencias(
@@ -32,14 +50,15 @@ export function detectarPendencias(
   agora: Date,
   limiteHoras: number,
 ): PendenciaDetectada[] {
-  if (eventos.length === 0) return [];
+  const docs = eventosDeDocumento(eventos);
+  if (docs.length === 0) return [];
   const limiteMs = limiteHoras * 3_600_000;
-  const primeiro = new Date(eventos[0]!.ts);
-  const ultimo = new Date(eventos[eventos.length - 1]!.ts);
-  const tipos = new Set(eventos.map((e) => e.tipo));
-  const campos = consolidarCampos(camposPorFonte(eventos));
+  const primeiro = new Date(docs[0]!.ts);
+  const ultimo = new Date(docs[docs.length - 1]!.ts);
+  const tipos = new Set(docs.map((e) => e.tipo));
+  const campos = consolidarCampos(camposPorFonte(docs));
   const idade = (d: Date) => agora.getTime() - d.getTime() > limiteMs;
-  const encerrado = campos.status === 'entregue' || campos.status === 'cancelada';
+  const encerrado = STATUS_ENCERRADO.has(campos.status);
 
   const out: PendenciaDetectada[] = [];
   if (!encerrado && idade(ultimo)) {
@@ -64,6 +83,25 @@ export function detectarPendencias(
   return out;
 }
 
+// Spec 0017, RF13: a cobranca so nasce com caso de pendencia aberto (status
+// diferente de 'resolvido' na projecao) e uma vez por caso. Sem caso_id na
+// tabela (T705), o vinculo sai do tempo: cobranca criada na abertura do caso
+// ou depois e dele, em qualquer status. Caso que ja teve a sua (respondida,
+// expirada, erro_envio ou ainda aberta) nao ganha outra; caso novo ganha a
+// primeira. Pedido entregue ou cancelado nao pede status.
+export async function casoSemCobranca(
+  store: LedgerStore,
+  pedidoId: string,
+  eventos: Evento[],
+): Promise<Caso | null> {
+  if (pedidoEncerrado(eventos)) return null;
+  const abertos = projetarCasos(eventos).filter((c) => c.origem === 'pendencia' && c.status !== 'resolvido');
+  for (const caso of abertos) {
+    if (!(await store.cobrancaCriadaDesde(pedidoId, caso.abertoEm))) return caso;
+  }
+  return null;
+}
+
 // Uma rodada num workspace: abre pendencia so onde ainda nao existe.
 export async function verificarWorkspace(
   store: LedgerStore,
@@ -77,7 +115,7 @@ export async function verificarWorkspace(
   for (const p of pedidos) {
     if (p.workspaceId !== store.workspace) continue;
     const eventos = await store.eventosDoPedido(p.pedidoId);
-    let abriuNeste = false;
+    const novos: Evento[] = [];
     for (const pend of detectarPendencias(eventos, agora, config.horasSemAtualizacao)) {
       if (await store.pendenciaExiste(p.pedidoId, pend.motivo)) continue;
       const ev = await store.append(p.pedidoId, 'pendencia_aberta', {
@@ -87,14 +125,13 @@ export async function verificarWorkspace(
       });
       canal.evento(ev, store.workspace);
       abertas += 1;
-      abriuNeste = true;
+      novos.push(ev);
     }
-    // spec 0010: pedido pendente tambem sugere cobranca de status a
-    // transportadora (idempotente por pedido). Com COBRANCA_AUTO=1 o envio
-    // sai sem aprovacao humana; default deixa pendente para o operador.
-    // `abriuNeste` cobre a rodada que acabou de abrir a pendencia: a lista
-    // `eventos` foi lida antes dos appends e nao os contem.
-    if (abriuNeste || eventos.some((e) => e.tipo === 'pendencia_aberta')) {
+    // spec 0010: caso de pendencia aberto tambem sugere cobranca de status a
+    // transportadora, uma por caso (RF13 da 0017). Com COBRANCA_AUTO=1 o
+    // envio sai sem aprovacao humana; default deixa pendente para o operador.
+    // `novos` entra na projecao porque `eventos` foi lida antes dos appends.
+    if (await casoSemCobranca(store, p.pedidoId, [...eventos, ...novos])) {
       const { cobranca, criada } = await criarCobrancaParaPendencia(store, p.pedidoId, cobCfg.expiraHoras);
       if (criada && cobCfg.auto && cobranca.status === 'pendente') {
         await enviarCobranca(store, cobranca);
