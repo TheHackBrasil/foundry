@@ -1,3 +1,7 @@
+// Agenda de contatos (spec 0007; spec 0017, T772): um contato por parte e
+// canal, com a fonte de cada um (manual, NF-e/CT-e, exemplo) e a marca
+// "não contatar pela IA" (RF8), que o operador respeita antes de qualquer envio.
+
 import {
   useCallback,
   useEffect,
@@ -45,6 +49,83 @@ function focoElementos(container: HTMLElement): HTMLElement[] {
   );
 }
 
+// Agrupa a agenda por parte mantendo a ordem do servidor dentro do grupo.
+export function contatosPorParte(lista: readonly Contato[]): Map<Parte, Contato[]> {
+  const mapa = new Map<Parte, Contato[]>();
+  for (const c of lista) {
+    const grupo = mapa.get(c.parte) ?? [];
+    grupo.push(c);
+    mapa.set(c.parte, grupo);
+  }
+  return mapa;
+}
+
+// Upsert local por (parte, canal), igual à chave do servidor (T705).
+export function substituirContato(lista: readonly Contato[], salvo: Contato): Contato[] {
+  return [...lista.filter((c) => !(c.parte === salvo.parte && c.canal === salvo.canal)), salvo];
+}
+
+const classeFonte = (fonte: Contato['fonte']): string =>
+  fonte === 'manual' ? 'pilula-ok' : fonte === 'documento' ? 'pilula-neutra' : 'pilula-sutil';
+
+export function BotaoParte({
+  parte,
+  contatos,
+  selecionado,
+  aoSelecionar,
+}: {
+  parte: Parte;
+  contatos: readonly Contato[];
+  selecionado: boolean;
+  aoSelecionar: () => void;
+}) {
+  return (
+    <button type="button" className="agenda-papel-btn" aria-pressed={selecionado} onClick={aoSelecionar}>
+      <span className="domino-no-topo">
+        <strong>{rotuloParte(parte)}</strong>
+        {contatos.length === 0 ? (
+          <span className="pilula-warn">
+            <IconeErro />
+            Sem contato
+          </span>
+        ) : (
+          <span className="meta num">
+            {contatos.length} {contatos.length === 1 ? 'canal' : 'canais'}
+          </span>
+        )}
+      </span>
+      {contatos.length === 0 ? (
+        <span className="meta">Sem canal configurado</span>
+      ) : (
+        <span style={{ display: 'grid', gap: '0.25rem' }}>
+          {contatos.map((c) => (
+            <span key={c.canal} className="palco-cab-linha" style={{ flexWrap: 'wrap' }}>
+              {c.canal === 'email' ? (
+                <span className="pilula-warn">
+                  <IconeAviso />
+                  E-mail · envio direto indisponível
+                </span>
+              ) : (
+                <span className="pilula-ok">
+                  <IconeOk />
+                  {rotuloCanalContato(c.canal)}
+                </span>
+              )}
+              <span className={classeFonte(c.fonte)}>
+                Fonte: {ROTULO_FONTE_CONTATO.get(c.fonte) ?? c.fonte}
+              </span>
+              {c.naoContatarIa && <span className="pilula-erro">Não contatar pela IA</span>}
+              <span className="meta">
+                {c.nome} · <span className="mono">{c.destino}</span>
+              </span>
+            </span>
+          ))}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export function DrawerAgenda({
   aberto,
   parteInicial,
@@ -58,6 +139,8 @@ export function DrawerAgenda({
   const canalId = useId();
   const destinoId = useId();
   const destinoErroId = useId();
+  const naoIaId = useId();
+  const naoIaAjudaId = useId();
 
   const painelRef = useRef<HTMLDivElement>(null);
   const fecharBtnRef = useRef<HTMLButtonElement>(null);
@@ -75,6 +158,7 @@ export function DrawerAgenda({
   const [nome, setNome] = useState('');
   const [canal, setCanal] = useState<CanalContato>('whatsapp');
   const [destino, setDestino] = useState('');
+  const [naoContatarIa, setNaoContatarIa] = useState(false);
   const [errosCampo, setErrosCampo] = useState<{ nome?: string; destino?: string }>({});
   const [salvando, setSalvando] = useState(false);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
@@ -85,19 +169,23 @@ export function DrawerAgenda({
     garantirEstilosOps();
   }, []);
 
-  const mapaContatos = useMemo(
-    () => new Map<Parte, Contato>(contatos.map((c) => [c.parte, c])),
-    [contatos],
-  );
+  const mapaContatos = useMemo(() => contatosPorParte(contatos), [contatos]);
 
-  const preencherFormulario = useCallback((parte: Parte, lista: readonly Contato[]) => {
-    const existente = lista.find((c) => c.parte === parte);
-    setNome(existente?.nome ?? '');
-    setCanal(existente?.canal ?? 'whatsapp');
-    setDestino(existente?.destino ?? '');
-    setErrosCampo({});
-    setErroSalvar(null);
-  }, []);
+  // Sem canal pedido, abre o último contato salvo da parte (o servidor
+  // devolve o mais recente no fim do grupo).
+  const preencherFormulario = useCallback(
+    (parte: Parte, lista: readonly Contato[], canalAlvo?: CanalContato) => {
+      const daParte = lista.filter((c) => c.parte === parte);
+      const existente = canalAlvo ? daParte.find((c) => c.canal === canalAlvo) : daParte.at(-1);
+      setNome(existente?.nome ?? daParte.at(-1)?.nome ?? '');
+      setCanal(existente?.canal ?? canalAlvo ?? 'whatsapp');
+      setDestino(existente?.destino ?? '');
+      setNaoContatarIa(existente?.naoContatarIa === true);
+      setErrosCampo({});
+      setErroSalvar(null);
+    },
+    [],
+  );
 
   const carregar = useCallback(
     async (parteAlvo: Parte) => {
@@ -212,12 +300,12 @@ export function DrawerAgenda({
         nome: nomeLimpo,
         canal,
         destino: destinoLimpo,
+        naoContatarIa,
       });
-      setContatos((prev) => {
-        const semAntigo = prev.filter((c) => c.parte !== salvo.parte);
-        return [...semAntigo, salvo];
-      });
-      const msg = `Contato de ${rotuloParte(salvo.parte)} salvo (${rotuloCanalContato(salvo.canal)}).`;
+      setContatos((prev) => substituirContato(prev, salvo));
+      const msg = `Contato de ${rotuloParte(salvo.parte)} salvo (${rotuloCanalContato(salvo.canal)})${
+        salvo.naoContatarIa ? ', sem contato pela IA' : ''
+      }.`;
       setSalvoMsg(msg);
       aoSalvar?.(salvo);
       aoAnunciar?.(msg);
@@ -289,59 +377,16 @@ export function DrawerAgenda({
             </div>
           )}
 
-          <section aria-label="Contatos por papel" style={{ display: 'grid', gap: '0.5rem' }}>
-            {PARTES.map((parte) => {
-              const c = mapaContatos.get(parte);
-              const selecionado = parteAtiva === parte;
-              const emailAlerta = c?.canal === 'email';
-              const origem = c ? (ROTULO_FONTE_CONTATO.get(c.fonte) ?? c.fonte) : null;
-              const classeOrigem =
-                c?.fonte === 'manual'
-                  ? 'pilula-ok'
-                  : c?.fonte === 'documento'
-                    ? 'pilula-neutra'
-                    : 'pilula-sutil';
-
-              return (
-                <button
-                  key={parte}
-                  type="button"
-                  className="agenda-papel-btn"
-                  aria-pressed={selecionado}
-                  onClick={() => selecionarParte(parte)}
-                >
-                  <div className="domino-no-topo">
-                    <strong>{rotuloParte(parte)}</strong>
-                    <div className="palco-cab-linha">
-                      {origem && <span className={classeOrigem}>{origem}</span>}
-                      {!c ? (
-                        <span className="pilula-warn">
-                          <IconeErro />
-                          Sem contato
-                        </span>
-                      ) : emailAlerta ? (
-                        <span className="pilula-warn">
-                          <IconeAviso />
-                          E-mail · envio direto indisponível
-                        </span>
-                      ) : (
-                        <span className="pilula-ok">
-                          <IconeOk />
-                          {rotuloCanalContato(c.canal)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {c ? (
-                    <span className="meta">
-                      {c.nome} · <span className="mono">{c.destino}</span>
-                    </span>
-                  ) : (
-                    <span className="meta">Sem canal configurado</span>
-                  )}
-                </button>
-              );
-            })}
+          <section aria-label="Contatos por papel e canal" style={{ display: 'grid', gap: '0.5rem' }}>
+            {PARTES.map((parte) => (
+              <BotaoParte
+                key={parte}
+                parte={parte}
+                contatos={mapaContatos.get(parte) ?? []}
+                selecionado={parteAtiva === parte}
+                aoSelecionar={() => selecionarParte(parte)}
+              />
+            ))}
           </section>
 
           <section className="drawer-card" aria-label={`Editar contato de ${rotuloParte(parteAtiva)}`}>
@@ -349,7 +394,7 @@ export function DrawerAgenda({
               <strong style={{ fontSize: '0.9375rem' }}>
                 Editar {rotuloParte(parteAtiva)}
               </strong>
-              <span className="meta">Salva como contato Manual</span>
+              <span className="meta">Salva como contato Manual, um por canal</span>
             </div>
 
             <form className="drawer-form" onSubmit={(e) => void enviarFormulario(e)} noValidate>
@@ -388,7 +433,13 @@ export function DrawerAgenda({
                   value={canal}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => {
                     const valor = e.target.value as CanalContato;
+                    const existente = contatos.find((c) => c.parte === parteAtiva && c.canal === valor);
                     setCanal(valor);
+                    // Cada canal é um contato próprio: troca o destino junto.
+                    setDestino(existente?.destino ?? '');
+                    setNaoContatarIa(existente?.naoContatarIa === true);
+                    if (existente) setNome(existente.nome);
+                    setSalvoMsg(null);
                   }}
                 >
                   {CANAIS_CONTATO.map((op) => (
@@ -454,6 +505,25 @@ export function DrawerAgenda({
                     {errosCampo.destino}
                   </span>
                 )}
+              </div>
+
+              <div className="drawer-field">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minHeight: '44px' }}>
+                  <input
+                    id={naoIaId}
+                    name="naoContatarIa"
+                    type="checkbox"
+                    checked={naoContatarIa}
+                    aria-describedby={naoIaAjudaId}
+                    style={{ width: '1.25rem', height: '1.25rem' }}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNaoContatarIa(e.target.checked)}
+                  />
+                  <label htmlFor={naoIaId}>Não contatar pela IA</label>
+                </div>
+                <p id={naoIaAjudaId} className="meta">
+                  Marcado, o operador não envia WhatsApp nem liga para este contato. Avisos
+                  operacionais comuns continuam saindo.
+                </p>
               </div>
 
               {erroSalvar && (

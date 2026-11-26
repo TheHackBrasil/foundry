@@ -2,6 +2,9 @@
 // com ações do ciclo de vida, detalhe com token do parceiro e comprovante
 // verificável, cobranças de status e o painel de métricas. Casos e
 // cobranças da seed aparecem somente leitura para o visitante.
+// Spec 0017 (T752, T771): o detalhe ganha os planos de contato do operador
+// com o painel de aprovação, a linha do tempo do caso e o botão "Acionar o
+// operador" nos casos de divergência.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PARTES, type Parte } from '../../../shared/model.ts';
@@ -15,8 +18,11 @@ import {
 } from '../format.ts';
 import type { Carga } from '../useTorre.ts';
 import {
+  acionarOperador,
   assumirCaso,
   enviarCobranca,
+  listarPlanos,
+  obterLinhaTempo,
   listarCasos,
   listarCobrancas,
   listarMetricas,
@@ -26,7 +32,11 @@ import {
   resolverCaso,
   responderComoParceiro,
   type CasoDetalhe,
+  type PlanoContatoProjetado,
 } from './api.ts';
+import { LinhaTempoCaso, type CargaLinha } from './LinhaTempoCaso.tsx';
+import { PainelAprovacao } from './PainelAprovacao.tsx';
+import { motivoDoPlano, ordenarPlanos } from './operador.ts';
 import {
   cartoesMetricas,
   classeStatusCaso,
@@ -64,7 +74,14 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   const [textoParceiro, setTextoParceiro] = useState('');
   const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
   const [enviandoId, setEnviandoId] = useState<number | null>(null);
+  const [planos, setPlanos] = useState<Carga<PlanoContatoProjetado[]>>({ estado: 'carregando' });
+  const [linha, setLinha] = useState<CargaLinha>({ estado: 'carregando' });
+  // Credencial de aprovador (RF11): só em memória, nunca no armazenamento
+  // do navegador. Some ao recarregar a página.
+  const [tokenAprovador, setTokenAprovador] = useState('');
+  const [acionando, setAcionando] = useState(false);
   const detalheSeq = useRef(0);
+  const operadorSeq = useRef(0);
   const selRef = useRef<string | null>(null);
   selRef.current = sel;
 
@@ -106,13 +123,43 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
     }
   }, []);
 
+  // Planos e linha do tempo do operador. Silencioso: recarga vinda do SSE
+  // mantém o que está na tela até a resposta chegar (sem piscar).
+  const carregarOperador = useCallback(async (id: string, silencioso: boolean) => {
+    const seq = ++operadorSeq.current;
+    if (!silencioso) {
+      setPlanos({ estado: 'carregando' });
+      setLinha({ estado: 'carregando' });
+    }
+    const [rPlanos, rLinha] = await Promise.allSettled([listarPlanos(id), obterLinhaTempo(id)]);
+    if (seq !== operadorSeq.current) return;
+    setPlanos(
+      rPlanos.status === 'fulfilled'
+        ? { estado: 'ok', dados: rPlanos.value }
+        : { estado: 'erro', mensagem: mensagemDe(rPlanos.reason) },
+    );
+    setLinha(
+      rLinha.status === 'fulfilled'
+        ? { estado: 'ok', itens: rLinha.value }
+        : { estado: 'erro', mensagem: mensagemDe(rLinha.reason) },
+    );
+  }, []);
+
   useEffect(() => {
     void recarregar();
   }, [recarregar, pulsoEventoSeq]);
 
   useEffect(() => {
-    if (sel) void carregarDetalhe(sel);
-  }, [sel, carregarDetalhe]);
+    if (sel) {
+      void carregarDetalhe(sel);
+      void carregarOperador(sel, false);
+    }
+  }, [sel, carregarDetalhe, carregarOperador]);
+
+  // Eventos do operador chegam pelo SSE (RF26): cada pulso relê o caso aberto.
+  useEffect(() => {
+    if (pulsoEventoSeq > 0 && selRef.current) void carregarOperador(selRef.current, true);
+  }, [pulsoEventoSeq, carregarOperador]);
 
   const fila = useMemo(
     () => (casos.estado === 'ok' ? ordenarCasos(casos.dados) : []),
@@ -168,6 +215,37 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   );
 
   const casoAtual = detalhe.estado === 'ok' ? detalhe.dados.caso : null;
+
+  const recarregarOperador = useCallback(() => {
+    if (selRef.current) void carregarOperador(selRef.current, true);
+  }, [carregarOperador]);
+
+  const acionar = useCallback(
+    async (casoId: string) => {
+      setAcionando(true);
+      try {
+        await acionarOperador(casoId);
+        aoAnunciar('Operador acionado. A escada de contato começa pela parte responsável.');
+      } catch (e) {
+        aoAnunciar(
+          e instanceof ErroApi && e.status === 409
+            ? 'O operador já foi acionado neste caso.'
+            : e instanceof ErroApi && e.status === 403
+              ? 'Casos de exemplo são somente leitura. Envie documentos na sua sessão para operar.'
+              : `Não foi possível acionar o operador: ${mensagemDe(e)}`,
+        );
+      } finally {
+        setAcionando(false);
+      }
+      void carregarOperador(casoId, true);
+    },
+    [aoAnunciar, carregarOperador],
+  );
+
+  const operadorJaAcionado =
+    linha.estado === 'ok' && linha.itens.some((i) => i.tipo === 'operador_assumiu');
+  const planosOrdenados = planos.estado === 'ok' ? ordenarPlanos(planos.dados) : [];
+  const itensLinha = linha.estado === 'ok' ? linha.itens : [];
 
   return (
     <section className="op" aria-labelledby="op-titulo">
@@ -313,7 +391,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
           </ol>
         </section>
 
-        <section className="op-col op-detalhe" aria-labelledby="op-detalhe-t" aria-live="polite">
+        <section className="op-col op-detalhe" aria-labelledby="op-detalhe-t">
           <h2 id="op-detalhe-t" className="op-col-t">
             Caso em detalhe
           </h2>
@@ -419,6 +497,54 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                   </ul>
                 </div>
               )}
+
+              <section className="op-operador" aria-labelledby="op-operador-t">
+                <h3 id="op-operador-t" className="op-aprovacao-t">
+                  Operador
+                </h3>
+                {casoAtual.origem === 'divergencia' && casoAtual.daSessao && casoAtual.status !== 'resolvido' && (
+                  operadorJaAcionado ? (
+                    <p className="meta">O operador já está trabalhando este caso.</p>
+                  ) : (
+                    <div className="op-acao">
+                      <button
+                        type="button"
+                        className="botao"
+                        disabled={acionando || linha.estado === 'carregando'}
+                        aria-describedby="op-acionar-ajuda"
+                        onClick={() => void acionar(casoAtual.id)}
+                      >
+                        Acionar o operador
+                      </button>
+                      <p id="op-acionar-ajuda" className="meta">
+                        O operador abre a escada de contato para confirmar o valor divergente com a parte
+                        responsável. WhatsApp e ligação só saem depois da sua aprovação.
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {planos.estado === 'carregando' && <p className="meta">Carregando planos de contato…</p>}
+                {planos.estado === 'erro' && <p className="meta">{planos.mensagem}</p>}
+                {planos.estado === 'ok' && planosOrdenados.length === 0 && (
+                  <p className="meta">Nenhum plano de WhatsApp ou ligação para decidir.</p>
+                )}
+                {planosOrdenados.map((pl) => (
+                  <PainelAprovacao
+                    key={`${pl.planoId}-${pl.versao}`}
+                    casoId={casoAtual.id}
+                    plano={pl}
+                    motivo={motivoDoPlano(pl, itensLinha)}
+                    token={tokenAprovador}
+                    aoMudarToken={setTokenAprovador}
+                    somenteLeitura={!casoAtual.daSessao}
+                    aoRecarregar={recarregarOperador}
+                    aoAnunciar={aoAnunciar}
+                  />
+                ))}
+
+                <LinhaTempoCaso casoId={casoAtual.id} carga={linha} />
+              </section>
 
               {!casoAtual.daSessao && (
                 <p className="meta">

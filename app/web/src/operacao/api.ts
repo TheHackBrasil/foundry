@@ -8,6 +8,7 @@ import type {
   Parte,
   RespostaParceiroBody,
 } from '../../../shared/model.ts';
+import type { ItemLinhaTempo, PlanoContatoProjetado } from '../../../shared/casos.ts';
 import type { EstimativaCusto } from '../../../shared/custo.ts';
 import { ErroApi } from '../api.ts';
 import type { CasoLista, CobrancaLista } from './dominio.ts';
@@ -83,3 +84,96 @@ export const enviarCobranca = (id: number): Promise<RespostaEnvioCobranca> =>
 
 export const obterLinkComprovante = (pedidoId: string): Promise<{ url: string }> =>
   pedirJson(`/api/pedidos/${encodeURIComponent(pedidoId)}/comprovante`);
+
+// ---------------------------------------------------------------------------
+// Operador (spec 0017, T752 e T771): planos de contato, linha do tempo do
+// caso, evidência por hash e as decisões do analista. Aprovar, ajustar e
+// recusar levam a credencial de aprovador no cabeçalho Authorization; o
+// cookie da sessão não basta (RF11). O token chega por parâmetro e nunca é
+// gravado em armazenamento do navegador.
+
+export type { ItemLinhaTempo, PlanoContatoProjetado };
+
+// A rota pode devolver o array puro ou embrulhado; aceita os dois.
+function listaDe<T>(corpo: unknown, chaves: readonly string[]): T[] {
+  if (Array.isArray(corpo)) return corpo as T[];
+  if (corpo && typeof corpo === 'object') {
+    for (const k of chaves) {
+      const v = (corpo as Record<string, unknown>)[k];
+      if (Array.isArray(v)) return v as T[];
+    }
+  }
+  return [];
+}
+
+const rotaCaso = (casoId: string): string => `/api/casos/${encodeURIComponent(casoId)}`;
+
+export async function listarPlanos(casoId: string): Promise<PlanoContatoProjetado[]> {
+  const corpo = await pedirJson<unknown>(`${rotaCaso(casoId)}/planos`);
+  return listaDe<PlanoContatoProjetado>(corpo, ['planos']);
+}
+
+export async function obterLinhaTempo(casoId: string): Promise<ItemLinhaTempo[]> {
+  const corpo = await pedirJson<unknown>(`${rotaCaso(casoId)}/linha-tempo`);
+  return listaDe<ItemLinhaTempo>(corpo, ['itens', 'linhaTempo', 'linha']);
+}
+
+export const urlEvidencia = (casoId: string, hash: string): string =>
+  `${rotaCaso(casoId)}/evidencias/${encodeURIComponent(hash)}`;
+
+export interface EvidenciaBaixada {
+  tipoConteudo: string; // media type sem parâmetros, em minúsculas
+  blob: Blob;
+}
+
+export async function obterEvidencia(casoId: string, hash: string): Promise<EvidenciaBaixada> {
+  let resposta: Response;
+  try {
+    resposta = await fetch(urlEvidencia(casoId, hash));
+  } catch {
+    throw new ErroApi('Sem conexão com o servidor.', 0);
+  }
+  if (!resposta.ok) {
+    throw new ErroApi(
+      resposta.status === 404
+        ? 'Evidência não encontrada. Ela pode ter passado do prazo de retenção.'
+        : `O servidor respondeu ${resposta.status}.`,
+      resposta.status,
+    );
+  }
+  const tipoConteudo = (resposta.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
+  return { tipoConteudo, blob: await resposta.blob() };
+}
+
+function postAprovador<T>(caminho: string, token: string, corpo: unknown): Promise<T> {
+  return pedirJson<T>(caminho, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify(corpo),
+  });
+}
+
+const rotaPlano = (planoId: string): string => `/api/planos/${encodeURIComponent(planoId)}`;
+
+export type CamposRoteiro = Record<string, string | number | boolean>;
+
+export const aprovarPlano = (
+  planoId: string,
+  token: string,
+  corpo: { versao: number; hashRoteiro: string },
+): Promise<unknown> => postAprovador(`${rotaPlano(planoId)}/aprovar`, token, corpo);
+
+export const recusarPlano = (
+  planoId: string,
+  token: string,
+  corpo: { versao: number; motivo: string },
+): Promise<unknown> => postAprovador(`${rotaPlano(planoId)}/recusar`, token, corpo);
+
+export const ajustarPlano = (
+  planoId: string,
+  token: string,
+  corpo: { versao: number; campos: CamposRoteiro },
+): Promise<unknown> => postAprovador(`${rotaPlano(planoId)}/ajustar`, token, corpo);
+
+// US3: abre a escada do operador num caso de divergência. 409 = já acionado.
+export const acionarOperador = (casoId: string): Promise<unknown> => post(`${rotaCaso(casoId)}/acionar`);
