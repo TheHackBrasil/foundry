@@ -233,3 +233,94 @@ export function nasceuDoOperador(c: Pick<Caso, 'divergencia'>): boolean {
   const d = c.divergencia;
   return !!d && (FONTES_DO_OPERADOR.has(d.fonteA) || FONTES_DO_OPERADOR.has(d.fonteB));
 }
+
+// --- Próximo passo do caso ---
+// Uma resposta só para "o que faço agora?": título, o porquê em uma frase e,
+// quando há, a ação principal. A tela mostra isto no topo do caso.
+
+export type AcaoPasso = 'acionar' | 'ver_plano' | 'resolver' | 'reabrir' | 'nenhuma';
+
+export interface PassoCaso {
+  titulo: string;
+  texto: string;
+  acao: AcaoPasso;
+  rotuloAcao?: string;
+  tom: 'acao' | 'espera' | 'neutro' | 'feito';
+}
+
+export interface ContextoPasso {
+  operadorAcionado: boolean;
+  // Plano de WhatsApp ou ligação esperando a decisão do analista.
+  planoPendente: { canal: string } | null;
+  // Rótulo do último registro do operador na linha do tempo, se houver.
+  ultimoRegistro: string | null;
+}
+
+const ROTULO_CANAL_PASSO: Record<string, string> = { whatsapp: 'mandar WhatsApp', ligacao: 'ligar' };
+
+export function proximoPassoCaso(c: CasoLista, ctx: ContextoPasso): PassoCaso {
+  if (!c.daSessao) {
+    return {
+      titulo: 'Exemplo da demonstração',
+      texto: 'Só leitura. Para testar as ações, abra um caso na aba Sua sessão.',
+      acao: 'nenhuma',
+      tom: 'neutro',
+    };
+  }
+  if (c.status === 'resolvido') {
+    return {
+      titulo: 'Caso resolvido',
+      texto: c.resolucao ? `Nota: ${c.resolucao}` : 'Reabra se o problema voltar.',
+      acao: 'reabrir',
+      rotuloAcao: 'Reabrir caso',
+      tom: 'feito',
+    };
+  }
+  if (ctx.planoPendente) {
+    const verbo = ROTULO_CANAL_PASSO[ctx.planoPendente.canal] ?? 'contatar';
+    return {
+      titulo: 'Sua aprovação é necessária',
+      texto: `O operador quer ${verbo} para a transportadora. Confira o roteiro e aprove ou recuse.`,
+      acao: 'ver_plano',
+      rotuloAcao: 'Ver o plano',
+      tom: 'acao',
+    };
+  }
+  if (ctx.operadorAcionado) {
+    return {
+      titulo: 'O operador está cuidando',
+      texto: ctx.ultimoRegistro
+        ? `Último passo: ${ctx.ultimoRegistro}. Você é avisado aqui quando precisar decidir algo.`
+        : 'Você é avisado aqui quando precisar decidir algo.',
+      acao: 'nenhuma',
+      tom: 'espera',
+    };
+  }
+  if (nasceuDoOperador(c)) {
+    return {
+      titulo: 'Confira a resposta e resolva',
+      texto:
+        'Este caso nasceu da resposta da transportadora. O operador não cobra de novo o que ela acabou de declarar: compare os valores e resolva com uma nota.',
+      acao: 'resolver',
+      rotuloAcao: 'Resolver com nota',
+      tom: 'acao',
+    };
+  }
+  if (c.origem !== 'divergencia') {
+    return {
+      titulo: 'Cobre o status ou resolva',
+      texto: 'É uma pendência de prazo. Use a cobrança por e-mail na lista à esquerda ou resolva com uma nota.',
+      acao: 'resolver',
+      rotuloAcao: 'Resolver com nota',
+      tom: 'acao',
+    };
+  }
+  return {
+    titulo: 'Acione o operador',
+    texto:
+      'Ele manda e-mail para quem é responsável pelo valor. Sem resposta no prazo, propõe WhatsApp ou ligação, que só saem com a sua aprovação.',
+    acao: 'acionar',
+    rotuloAcao: 'Acionar o operador',
+    tom: 'acao',
+  };
+}

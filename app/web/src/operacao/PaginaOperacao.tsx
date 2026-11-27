@@ -37,17 +37,17 @@ import {
 } from './api.ts';
 import { LinhaTempoCaso, type CargaLinha } from './LinhaTempoCaso.tsx';
 import { PainelAprovacao } from './PainelAprovacao.tsx';
-import { motivoDoPlano, ordenarPlanos } from './operador.ts';
+import { motivoDoPlano, ordenarPlanos, planoPedeDecisao, rotuloItemLinha } from './operador.ts';
 import {
   cartoesMetricas,
   classeStatusCaso,
   classeStatusCobranca,
   contarOrigens,
   montarFila,
-  nasceuDoOperador,
   ordenarCasos,
   origemInicial,
   podeEnviarCobranca,
+  proximoPassoCaso,
   rotuloStatusCaso,
   rotuloStatusCobranca,
   tituloCaso,
@@ -90,7 +90,13 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   const [aprovacaoAberta, setAprovacaoAberta] = useState(false);
   // Recusa do acionamento: aparece embaixo do botão, não só para leitor de tela.
   const [erroAcionar, setErroAcionar] = useState<string | null>(null);
-  useEffect(() => setErroAcionar(null), [sel]);
+  // Retorno de toda ação, visível no topo do caso (e anunciado ao leitor).
+  const [retorno, setRetorno] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const outrasRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    setErroAcionar(null);
+    setRetorno(null);
+  }, [sel]);
   const detalheSeq = useRef(0);
   const operadorSeq = useRef(0);
   const selRef = useRef<string | null>(null);
@@ -230,13 +236,15 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
       setOcupada(true);
       try {
         await acao();
+        setRetorno({ tipo: 'ok', texto: aviso });
         aoAnunciar(aviso);
       } catch (e) {
-        aoAnunciar(
+        const msg =
           e instanceof ErroApi && e.status === 403
             ? 'Casos de exemplo são somente leitura. Envie documentos na sua sessão para operar.'
-            : `Não foi possível concluir: ${mensagemDe(e)}`,
-        );
+            : `Não foi possível concluir: ${mensagemDe(e)}`;
+        setRetorno({ tipo: 'erro', texto: msg });
+        aoAnunciar(msg);
         return;
       } finally {
         setOcupada(false);
@@ -252,7 +260,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
       executar(async () => {
         const r = await obterLinkComprovante(pedidoId);
         setComprovanteUrl(`${window.location.origin}${r.url}`);
-      }, 'Comprovante verificável emitido.'),
+      }, 'Comprovante gerado. O link aparece embaixo do botão, em Outras ações.'),
     [executar],
   );
 
@@ -260,9 +268,11 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
     async (token: string) => {
       try {
         await navigator.clipboard.writeText(token);
-        aoAnunciar('Token do parceiro copiado.');
+        setRetorno({ tipo: 'ok', texto: 'Código do link copiado. Mande para a transportadora responder.' });
+        aoAnunciar('Código do link copiado.');
       } catch {
-        aoAnunciar('Não foi possível copiar; selecione o token manualmente.');
+        setRetorno({ tipo: 'erro', texto: 'Não foi possível copiar. Selecione o código e copie à mão.' });
+        aoAnunciar('Não foi possível copiar.');
       }
     },
     [aoAnunciar],
@@ -280,7 +290,9 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
       setErroAcionar(null);
       try {
         await acionarOperador(casoId);
-        aoAnunciar('Operador acionado. A escada de contato começa pela parte responsável.');
+        const ok = 'Operador acionado. Ele começa pelo e-mail; acompanhe na linha do tempo abaixo.';
+        setRetorno({ tipo: 'ok', texto: ok });
+        aoAnunciar(ok);
       } catch (e) {
         const msg = `Não foi possível acionar o operador: ${mensagemDe(e)}`;
         setErroAcionar(msg);
@@ -297,6 +309,27 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
     linha.estado === 'ok' && linha.itens.some((i) => i.tipo === 'operador_assumiu');
   const planosOrdenados = planos.estado === 'ok' ? ordenarPlanos(planos.dados) : [];
   const itensLinha = linha.estado === 'ok' ? linha.itens : [];
+  const casoDoPasso = detalhe.estado === 'ok' ? detalhe.dados.caso : null;
+  const planoPendente = planosOrdenados.find((pl) => planoPedeDecisao(pl)) ?? null;
+  const ultimoOperador = [...itensLinha].reverse().find((i) => i.categoria !== 'caso');
+  const passo = casoDoPasso
+    ? proximoPassoCaso(casoDoPasso, {
+        operadorAcionado: operadorJaAcionado,
+        planoPendente: planoPendente ? { canal: planoPendente.canal } : null,
+        ultimoRegistro: ultimoOperador ? rotuloItemLinha(ultimoOperador) : null,
+      })
+    : null;
+
+  const executarPasso = (): void => {
+    if (!casoDoPasso || !passo) return;
+    if (passo.acao === 'acionar') void acionar(casoDoPasso.id);
+    else if (passo.acao === 'ver_plano') {
+      document.getElementById('op-planos')?.scrollIntoView({ block: 'start' });
+    } else if (passo.acao === 'resolver') {
+      if (outrasRef.current) outrasRef.current.open = true;
+      requestAnimationFrame(() => document.getElementById('op-resolucao')?.focus());
+    } else if (passo.acao === 'reabrir') void executar(() => reabrirCaso(casoDoPasso.id), 'Caso reaberto.');
+  };
 
   return (
     <section className="op" aria-labelledby="op-titulo">
@@ -548,6 +581,40 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
               )}
               {casoAtual.pendencia?.detalhe && <p className="meta">{casoAtual.pendencia.detalhe}</p>}
 
+              {retorno && (
+                <div className="op-retorno" data-tipo={retorno.tipo} role={retorno.tipo === 'erro' ? 'alert' : 'status'}>
+                  <span>{retorno.texto}</span>
+                  <button type="button" className="botao-sutil" onClick={() => setRetorno(null)} aria-label="Fechar aviso">
+                    Fechar
+                  </button>
+                </div>
+              )}
+
+              {passo && (
+                <section className="op-passo" data-tom={passo.tom} aria-labelledby="op-passo-t">
+                  <span className="meta">Próximo passo</span>
+                  <h4 id="op-passo-t" className="op-passo-t">
+                    {passo.titulo}
+                  </h4>
+                  <p className="meta">{passo.texto}</p>
+                  {passo.acao !== 'nenhuma' && passo.rotuloAcao && (
+                    <button
+                      type="button"
+                      className={passo.tom === 'feito' ? 'botao-sutil' : 'botao'}
+                      disabled={acionando || ocupada || (passo.acao === 'acionar' && linha.estado === 'carregando')}
+                      onClick={executarPasso}
+                    >
+                      {acionando && passo.acao === 'acionar' ? 'Acionando…' : passo.rotuloAcao}
+                    </button>
+                  )}
+                  {erroAcionar && (
+                    <p className="aviso-erro" role="alert">
+                      {erroAcionar}
+                    </p>
+                  )}
+                </section>
+              )}
+
               <dl className="op-fat-lista">
                 <div>
                   <dt className="meta">Aberto</dt>
@@ -617,44 +684,13 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                 <h3 id="op-operador-t" className="op-aprovacao-t">
                   Operador
                 </h3>
-                {casoAtual.origem === 'divergencia' && casoAtual.daSessao && casoAtual.status !== 'resolvido' && (
-                  operadorJaAcionado ? (
-                    <p className="meta">O operador já está trabalhando este caso.</p>
-                  ) : nasceuDoOperador(casoAtual) ? (
-                    <p className="meta">
-                      Este caso nasceu da resposta da transportadora a um contato do operador. Para não repetir a
-                      cobrança sobre o que ela acabou de declarar, o operador não abre escada nova aqui: confira a
-                      declaração e resolva com nota, ou acione o operador no caso de origem.
-                    </p>
-                  ) : (
-                    <div className="op-acao">
-                      <button
-                        type="button"
-                        className="botao"
-                        disabled={acionando || linha.estado === 'carregando'}
-                        aria-describedby="op-acionar-ajuda"
-                        onClick={() => void acionar(casoAtual.id)}
-                      >
-                        Acionar o operador
-                      </button>
-                      <p id="op-acionar-ajuda" className="meta">
-                        O operador abre a escada de contato para confirmar o valor divergente com a parte
-                        responsável. WhatsApp e ligação só saem depois da sua aprovação.
-                      </p>
-                      {erroAcionar && (
-                        <p className="aviso-erro" role="alert">
-                          {erroAcionar}
-                        </p>
-                      )}
-                    </div>
-                  )
-                )}
-
+                <p className="meta">Os planos de WhatsApp e ligação aparecem aqui para a sua decisão, e tudo o que ele fez fica na linha do tempo.</p>
                 {planos.estado === 'carregando' && <p className="meta">Carregando planos de contato…</p>}
                 {planos.estado === 'erro' && <p className="meta">{planos.mensagem}</p>}
                 {planos.estado === 'ok' && planosOrdenados.length === 0 && (
                   <p className="meta">Nenhum plano de WhatsApp ou ligação para decidir.</p>
                 )}
+                <div id="op-planos" />
                 {planosOrdenados.map((pl) => (
                   <PainelAprovacao
                     key={`${pl.planoId}-${pl.versao}`}
@@ -681,13 +717,17 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                 </p>
               )}
 
-              {casoAtual.daSessao && casoAtual.status !== 'resolvido' && (
+              {casoAtual.daSessao && (
+              <details className="op-outras" ref={outrasRef}>
+                <summary className="op-aprovacao-t">Outras ações</summary>
+              {casoAtual.status !== 'resolvido' && (
                 <div className="op-acoes">
                   {casoAtual.status !== 'atribuido' && (
                     <div className="op-acao">
-                      <label className="meta" htmlFor="op-parte">
-                        Assumir como
+                      <label className="op-acao-t" htmlFor="op-parte">
+                        Marcar responsável
                       </label>
+                      <p className="meta">Registra qual área cuida deste caso. Não contata ninguém.</p>
                       <div className="op-acao-linha">
                         <select
                           id="op-parte"
@@ -707,19 +747,20 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                           onClick={() =>
                             void executar(
                               () => assumirCaso(casoAtual.id, parteSel),
-                              `Caso assumido por ${rotuloParte(parteSel)}.`,
+                              `Responsável marcado: ${rotuloParte(parteSel)}.`,
                             )
                           }
                         >
-                          Assumir
+                          Marcar
                         </button>
                       </div>
                     </div>
                   )}
                   <div className="op-acao">
-                    <label className="meta" htmlFor="op-resolucao">
+                    <label className="op-acao-t" htmlFor="op-resolucao">
                       Resolver com nota
                     </label>
+                    <p className="meta">Fecha o caso com o que foi combinado. Dá para reabrir depois.</p>
                     <div className="op-acao-linha op-acao-linha-texto">
                       <input
                         id="op-resolucao"
@@ -737,7 +778,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                           void executar(async () => {
                             await resolverCaso(casoAtual.id, textoResolucao.trim());
                             setTextoResolucao('');
-                          }, 'Caso resolvido.')
+                          }, 'Caso resolvido. Ele saiu da fila de abertos.')
                         }
                       >
                         Resolver
@@ -746,7 +787,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                   </div>
                 </div>
               )}
-              {casoAtual.daSessao && (casoAtual.status === 'resolvido' || casoAtual.status === 'contestado') && (
+              {casoAtual.status === 'contestado' && (
                 <button
                   type="button"
                   className="botao-sutil"
@@ -759,9 +800,10 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
 
               {casoAtual.daSessao && casoAtual.tokenParceiro && casoAtual.status !== 'resolvido' && (
                 <div className="op-parceiro">
-                  <span className="meta">
-                    Link do parceiro (token opaco — quem o tem responde sem login)
-                  </span>
+                  <span className="op-acao-t">Pedir resposta da transportadora por link</span>
+                  <p className="meta">
+                    Quem recebe este código confirma ou contesta o caso sem login. Copie e mande para a transportadora.
+                  </p>
                   <div className="op-acao-linha">
                     <code className="mono op-token">{casoAtual.tokenParceiro}</code>
                     <button
@@ -773,7 +815,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                     </button>
                   </div>
                   <details className="op-parceiro-demo">
-                    <summary className="meta">Responder como parceiro (demonstração do link)</summary>
+                    <summary className="meta">Simular a resposta da transportadora (demonstração)</summary>
                     <div className="op-acao op-parceiro-form">
                       <input
                         type="text"
@@ -825,6 +867,10 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
               )}
 
               <div className="op-comprovante">
+                <span className="op-acao-t">Comprovante do pedido</span>
+                <p className="meta">
+                  Gera uma página pública com o histórico do pedido e as declarações, que qualquer pessoa confere sem login.
+                </p>
                 <button
                   type="button"
                   className="botao-sutil"
@@ -832,7 +878,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                   onClick={() => void emitirComprovante(casoAtual.pedidoId)}
                 >
                   <IconeComprovante />
-                  <span>Emitir comprovante verificável</span>
+                  <span>Gerar comprovante</span>
                 </button>
                 {comprovanteUrl && (
                   <p className="meta">
@@ -843,6 +889,8 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                   </p>
                 )}
               </div>
+              </details>
+              )}
             </article>
           )}
           {detalhe.estado === 'ok' && !casoAtual && fila.length === 0 && (

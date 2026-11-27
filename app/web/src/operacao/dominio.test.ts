@@ -12,6 +12,7 @@ import {
   ordenarCasos,
   pct,
   podeEnviarCobranca,
+  proximoPassoCaso,
   tituloCaso,
   type CasoLista,
   type CobrancaLista,
@@ -146,5 +147,30 @@ describe('nasceuDoOperador', () => {
     expect(nasceuDoOperador(d('email_transportadora'))).toBe(true);
     expect(nasceuDoOperador(d('cte'))).toBe(false);
     expect(nasceuDoOperador({} as never)).toBe(false);
+  });
+});
+
+describe('proximoPassoCaso', () => {
+  const base = { ...caso('c1', 'aberto', '2026-11-26T10:00:00Z'), daSessao: true, divergencia: { tipo: 'contradicao', campo: 'previsaoEntrega', fonteA: 'nfe', fonteB: 'planilha' } } as unknown as CasoLista;
+  const ctx = { operadorAcionado: false, planoPendente: null, ultimoRegistro: null };
+
+  it('divergência livre pede para acionar', () => {
+    expect(proximoPassoCaso(base, ctx)).toMatchObject({ acao: 'acionar', tom: 'acao' });
+  });
+  it('plano pendente vem antes de tudo e diz o canal', () => {
+    const p = proximoPassoCaso(base, { ...ctx, operadorAcionado: true, planoPendente: { canal: 'ligacao' } });
+    expect(p.acao).toBe('ver_plano');
+    expect(p.texto).toContain('ligar');
+  });
+  it('operador trabalhando mostra o último passo e não oferece ação', () => {
+    const p = proximoPassoCaso(base, { ...ctx, operadorAcionado: true, ultimoRegistro: 'Cobrança por e-mail enviada' });
+    expect(p).toMatchObject({ acao: 'nenhuma', tom: 'espera' });
+    expect(p.texto).toContain('Cobrança por e-mail enviada');
+  });
+  it('exemplo, resolvido e nascido da resposta', () => {
+    expect(proximoPassoCaso({ ...base, daSessao: false }, ctx).acao).toBe('nenhuma');
+    expect(proximoPassoCaso({ ...base, status: 'resolvido' } as CasoLista, ctx).acao).toBe('reabrir');
+    const resposta = { ...base, divergencia: { ...base.divergencia!, fonteB: 'email_transportadora' } } as CasoLista;
+    expect(proximoPassoCaso(resposta, ctx).acao).toBe('resolver');
   });
 });
