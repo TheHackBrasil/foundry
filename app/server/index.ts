@@ -55,7 +55,7 @@ import { notificarTarefa } from './nvoip.js';
 import { ErroParser, aprovarRevisao, ingerir, ouvirSinaisOperador, responderImap } from './pipeline.js';
 import { assuntoECorpo, configCobrancaDoEnv, dentroDaJanela, enviarCobranca } from './cobranca.js';
 import { configPendenciaDoEnv, detectarPendencias, iniciarTickPendencias } from './pendencia.js';
-import { assumirCasosPendentes, registrarOperador, type AlvoOperador } from '../operador/index.js';
+import { assumirCasosPendentes, configOperadorDoEnv, registrarOperador, type AlvoOperador } from '../operador/index.js';
 import { criarCanalEmail } from '../operador/canais/email.js';
 import { criarClienteClaude, MODELO_EXTRACAO_PADRAO } from '../operador/agente/claude.js';
 import { extrairDeclaracaoEmail } from '../operador/agente/extracao.js';
@@ -279,9 +279,21 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   await store.init();
   // Backoffice (/#/admin): numeros liberados e aprovacao sem senha, no banco
   // e por cima do env. Le uma vez no boot; muda pela rota de admin.
+  const opEnv = configOperadorDoEnv();
   const backoffice = new ConfigBackoffice(
     (process.env['OPERADOR_DESTINOS_PERMITIDOS'] ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     process.env['OPERADOR_APROVACAO_ABERTA']?.trim() === '1',
+    {
+      prazoEmailMin: Math.round(opEnv.prazos.emailH * 60),
+      prazoWhatsappMin: Math.round(opEnv.prazos.whatsappH * 60),
+      validadeAprovacaoMin: opEnv.prazos.aprovacaoValidadeMin,
+      tentativasDia: opEnv.politica.tentativasPorDestinoDia,
+      tetoCasoBrl: opEnv.politica.tetoCasoBrl,
+      tetoDiaBrl: opEnv.politica.tetoDiaBrl,
+      janelaInicio: opEnv.politica.janela.inicioHora,
+      janelaFim: opEnv.politica.janela.fimHora,
+      janelaTodosDias: false,
+    },
   );
   await backoffice.carregar(store);
   const canal = new CanalSSE(seedWs, cfg.sse);
@@ -832,7 +844,21 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       portas: (base, config) => {
         // A foto da politica de cada caso (destinosHash) sai da mesma lista
         // que o efeito confere: a do backoffice.
-        backoffice.aoMudar((e) => Object.assign(config.politica, { destinosPermitidos: e.destinos }));
+        backoffice.aoMudar((e) => {
+          const a = e.ajustes;
+          Object.assign(config.politica, {
+            destinosPermitidos: e.destinos,
+            tentativasPorDestinoDia: a.tentativasDia,
+            tetoCasoBrl: a.tetoCasoBrl,
+            tetoDiaBrl: a.tetoDiaBrl,
+            janela: { inicioHora: a.janelaInicio, fimHora: a.janelaFim, todosOsDias: a.janelaTodosDias },
+          });
+          Object.assign(config.prazos, {
+            emailH: a.prazoEmailMin / 60,
+            whatsappH: a.prazoWhatsappMin / 60,
+            aprovacaoValidadeMin: a.validadeAprovacaoMin,
+          });
+        });
         return portasDoServidor({
           raiz: store,
           base,

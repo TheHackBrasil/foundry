@@ -91,7 +91,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   // Recusa do acionamento: aparece embaixo do botão, não só para leitor de tela.
   const [erroAcionar, setErroAcionar] = useState<string | null>(null);
   // Retorno de toda ação, visível no topo do caso (e anunciado ao leitor).
-  const [retorno, setRetorno] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [retorno, setRetorno] = useState<{ tipo: 'ok' | 'erro'; texto: string; link?: string } | null>(null);
   const outrasRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     setErroAcionar(null);
@@ -125,10 +125,14 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
     );
   }, []);
 
-  const carregarDetalhe = useCallback(async (id: string) => {
+  // silencioso: recarrega o mesmo caso depois de uma ação sem piscar o
+  // painel, sem fechar acordeões e sem apagar o link do comprovante.
+  const carregarDetalhe = useCallback(async (id: string, silencioso = false) => {
     const seq = ++detalheSeq.current;
-    setDetalhe({ estado: 'carregando' });
-    setComprovanteUrl(null);
+    if (!silencioso) {
+      setDetalhe({ estado: 'carregando' });
+      setComprovanteUrl(null);
+    }
     try {
       const d = await obterCaso(id);
       if (seq !== detalheSeq.current) return;
@@ -232,11 +236,12 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   );
 
   const executar = useCallback(
-    async (acao: () => Promise<unknown>, aviso: string) => {
+    async (acao: () => Promise<unknown>, aviso: string, linkDoRetorno?: () => string | undefined) => {
       setOcupada(true);
       try {
         await acao();
-        setRetorno({ tipo: 'ok', texto: aviso });
+        const link = linkDoRetorno?.();
+        setRetorno({ tipo: 'ok', texto: aviso, ...(link ? { link } : {}) });
         aoAnunciar(aviso);
       } catch (e) {
         const msg =
@@ -250,17 +255,26 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
         setOcupada(false);
       }
       await recarregar();
-      if (selRef.current) await carregarDetalhe(selRef.current);
+      if (selRef.current) await carregarDetalhe(selRef.current, true);
     },
     [aoAnunciar, recarregar, carregarDetalhe],
   );
 
   const emitirComprovante = useCallback(
     (pedidoId: string) =>
-      executar(async () => {
-        const r = await obterLinkComprovante(pedidoId);
-        setComprovanteUrl(`${window.location.origin}${r.url}`);
-      }, 'Comprovante gerado. O link aparece embaixo do botão, em Outras ações.'),
+    {
+      // A faixa de retorno já traz o link: ninguém precisa procurar.
+      let url: string | undefined;
+      return executar(
+        async () => {
+          const r = await obterLinkComprovante(pedidoId);
+          url = `${window.location.origin}${r.url}`;
+          setComprovanteUrl(url);
+        },
+        'Comprovante gerado.',
+        () => url,
+      );
+    },
     [executar],
   );
 
@@ -601,7 +615,14 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
 
               {retorno && (
                 <div className="op-retorno" data-tipo={retorno.tipo} role={retorno.tipo === 'erro' ? 'alert' : 'status'}>
-                  <span>{retorno.texto}</span>
+                  <span>
+                    {retorno.texto}{' '}
+                    {retorno.link && (
+                      <a href={retorno.link} target="_blank" rel="noreferrer" className="op-retorno-link">
+                        Abrir comprovante em nova aba
+                      </a>
+                    )}
+                  </span>
                   <button type="button" className="botao-sutil" onClick={() => setRetorno(null)} aria-label="Fechar aviso">
                     Fechar
                   </button>

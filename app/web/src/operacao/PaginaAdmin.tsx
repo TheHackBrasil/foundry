@@ -5,7 +5,77 @@
 
 import { useId, useState, type FormEvent } from 'react';
 import { ErroApi } from '../api.ts';
-import { lerConfigAdmin, salvarConfigAdmin, type ConfigAdmin } from './api.ts';
+import { lerConfigAdmin, salvarConfigAdmin, type AjustesAdmin, type ConfigAdmin } from './api.ts';
+
+type CampoNumero = Exclude<keyof AjustesAdmin, 'janelaTodosDias'>;
+
+// Cada ajuste com rótulo, unidade, limites e o que muda na prática.
+const CAMPOS_AJUSTE: Array<{ chave: CampoNumero; rotulo: string; unidade: string; min: number; max: number; ajuda: string }> = [
+  {
+    chave: 'prazoEmailMin',
+    rotulo: 'Espera pela resposta do e-mail',
+    unidade: 'minutos',
+    min: 1,
+    max: 4320,
+    ajuda: 'Depois de mandar o e-mail, o operador espera este tempo. Sem resposta, ele passa para o WhatsApp ou a ligação. Para testar rápido, use 1 ou 2.',
+  },
+  {
+    chave: 'prazoWhatsappMin',
+    rotulo: 'Espera pela resposta do WhatsApp',
+    unidade: 'minutos',
+    min: 1,
+    max: 2880,
+    ajuda: 'Mesmo papel para o WhatsApp: sem resposta neste tempo, o operador propõe a ligação.',
+  },
+  {
+    chave: 'validadeAprovacaoMin',
+    rotulo: 'Validade da aprovação',
+    unidade: 'minutos',
+    min: 1,
+    max: 1440,
+    ajuda: 'Depois que você aprova um plano de WhatsApp ou ligação, ele precisa sair dentro deste tempo. Passou disso, o operador pede aprovação de novo.',
+  },
+  {
+    chave: 'tentativasDia',
+    rotulo: 'Contatos por número por dia',
+    unidade: 'vezes',
+    min: 1,
+    max: 10,
+    ajuda: 'Quantas vezes a IA pode ligar ou mandar WhatsApp para o mesmo número no mesmo dia, somando todos os casos.',
+  },
+  {
+    chave: 'tetoCasoBrl',
+    rotulo: 'Gasto máximo por caso',
+    unidade: 'R$',
+    min: 0,
+    max: 1000,
+    ajuda: 'Custo estimado de WhatsApp e ligação permitido em um caso. Ao atingir, o operador para e passa o caso para você.',
+  },
+  {
+    chave: 'tetoDiaBrl',
+    rotulo: 'Gasto máximo por dia',
+    unidade: 'R$',
+    min: 0,
+    max: 10000,
+    ajuda: 'O mesmo limite, somando todos os casos do dia.',
+  },
+  {
+    chave: 'janelaInicio',
+    rotulo: 'Horário: começa às',
+    unidade: 'h',
+    min: 0,
+    max: 23,
+    ajuda: 'WhatsApp e ligação só saem dentro deste horário, no fuso de Brasília. O e-mail sai a qualquer hora.',
+  },
+  {
+    chave: 'janelaFim',
+    rotulo: 'Horário: termina às',
+    unidade: 'h',
+    min: 1,
+    max: 24,
+    ajuda: 'Use 0 e 24 para liberar o dia inteiro durante os testes.',
+  },
+];
 import './operacao.css';
 
 const mensagemDe = (e: unknown): string => (e instanceof ErroApi || e instanceof Error ? e.message : 'Erro inesperado.');
@@ -15,6 +85,7 @@ export function PaginaAdmin() {
   const [config, setConfig] = useState<ConfigAdmin | null>(null);
   const [rascunho, setRascunho] = useState<string[]>([]);
   const [novo, setNovo] = useState('');
+  const [ajustes, setAjustes] = useState<AjustesAdmin | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const senhaId = useId();
@@ -42,6 +113,19 @@ export function PaginaAdmin() {
     if (r) {
       setConfig(r);
       setRascunho(r.destinos);
+      setAjustes(r.ajustes);
+    }
+  }
+
+  async function salvarAjustes() {
+    if (!ajustes) return;
+    const r = await executar(
+      () => salvarConfigAdmin(senha.trim(), { ajustes }),
+      () => 'Prazos e limites salvos. Valem para os casos acionados a partir de agora.',
+    );
+    if (r) {
+      setConfig(r);
+      setAjustes(r.ajustes);
     }
   }
 
@@ -73,6 +157,7 @@ export function PaginaAdmin() {
   }
 
   const mudou = config !== null && JSON.stringify(rascunho) !== JSON.stringify(config.destinos);
+  const ajustesMudaram = config !== null && ajustes !== null && JSON.stringify(ajustes) !== JSON.stringify(config.ajustes);
 
   return (
     <section className="op op-admin" aria-labelledby="admin-titulo">
@@ -84,9 +169,12 @@ export function PaginaAdmin() {
       </header>
 
       {aviso && (
-        <p className={aviso.tipo === 'erro' ? 'aviso-erro' : 'meta'} role={aviso.tipo === 'erro' ? 'alert' : 'status'}>
-          {aviso.texto}
-        </p>
+        <div className="op-retorno op-admin-aviso" data-tipo={aviso.tipo} role={aviso.tipo === 'erro' ? 'alert' : 'status'}>
+          <span>{aviso.texto}</span>
+          <button type="button" className="botao-sutil" onClick={() => setAviso(null)} aria-label="Fechar aviso">
+            Fechar
+          </button>
+        </div>
       )}
 
       {!config ? (
@@ -170,6 +258,59 @@ export function PaginaAdmin() {
             </div>
             <p className="meta">Casos em andamento que já iam ligar voltam para o analista se a lista mudar no meio.</p>
           </section>
+
+          {ajustes && (
+            <section className="op-admin-cartao" aria-labelledby="admin-ajustes-t">
+              <h2 id="admin-ajustes-t" className="op-col-t">
+                Prazos e limites
+              </h2>
+              <p className="meta">
+                Valem para os casos acionados depois de salvar. Um caso já em andamento segue com os valores do momento
+                em que começou.
+              </p>
+              <div className="op-admin-ajustes">
+                {CAMPOS_AJUSTE.map((c) => (
+                  <div key={c.chave} className="op-admin-ajuste">
+                    <label htmlFor={`aj-${c.chave}`} className="op-acao-t">
+                      {c.rotulo}
+                    </label>
+                    <div className="op-admin-linha">
+                      <input
+                        id={`aj-${c.chave}`}
+                        type="number"
+                        inputMode="numeric"
+                        className="op-busca op-admin-numero"
+                        min={c.min}
+                        max={c.max}
+                        step={1}
+                        value={ajustes[c.chave]}
+                        aria-describedby={`aj-${c.chave}-ajuda`}
+                        onChange={(e) => setAjustes({ ...ajustes, [c.chave]: Number(e.target.value) })}
+                      />
+                      <span className="meta">{c.unidade}</span>
+                    </div>
+                    <p id={`aj-${c.chave}-ajuda`} className="meta">
+                      {c.ajuda}
+                    </p>
+                  </div>
+                ))}
+                <label className="op-check">
+                  <input
+                    type="checkbox"
+                    checked={ajustes.janelaTodosDias}
+                    onChange={(e) => setAjustes({ ...ajustes, janelaTodosDias: e.target.checked })}
+                  />
+                  Contatar também sábado e domingo (para a demo)
+                </label>
+              </div>
+              <div className="op-admin-linha">
+                <button type="button" className="botao" disabled={ocupado || !ajustesMudaram} onClick={() => void salvarAjustes()}>
+                  Salvar prazos e limites
+                </button>
+                {ajustesMudaram && <span className="meta">Alterações não salvas.</span>}
+              </div>
+            </section>
+          )}
 
           <section className="op-admin-cartao" aria-labelledby="admin-aprovacao-t">
             <h2 id="admin-aprovacao-t" className="op-col-t">

@@ -180,10 +180,23 @@ export const acionarOperador = (casoId: string): Promise<unknown> => post(`${rot
 
 // --- Backoffice (/#/admin, spec 0017) ---
 
+export interface AjustesAdmin {
+  prazoEmailMin: number;
+  prazoWhatsappMin: number;
+  validadeAprovacaoMin: number;
+  tentativasDia: number;
+  tetoCasoBrl: number;
+  tetoDiaBrl: number;
+  janelaInicio: number;
+  janelaFim: number;
+  janelaTodosDias: boolean;
+}
+
 export interface ConfigAdmin {
   destinos: string[];
   origemDestinos: 'banco' | 'env';
   aprovacaoAberta: boolean;
+  ajustes: AjustesAdmin;
 }
 
 const comSenha = (senha: string): Record<string, string> => ({ authorization: `Bearer ${senha}` });
@@ -193,7 +206,7 @@ export const lerConfigAdmin = (senha: string): Promise<ConfigAdmin> =>
 
 export const salvarConfigAdmin = (
   senha: string,
-  mudanca: { destinos?: string[]; aprovacaoAberta?: boolean },
+  mudanca: { destinos?: string[]; aprovacaoAberta?: boolean; ajustes?: Partial<AjustesAdmin> },
 ): Promise<ConfigAdmin> =>
   pedirJson('/api/admin/config', {
     method: 'PUT',

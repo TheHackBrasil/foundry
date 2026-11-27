@@ -573,7 +573,7 @@
 }
 
 /* Backoffice (/#/admin): mesma régua da Operação, uma coluna estreita. */
-.op-admin { max-width: 40rem; }
+.op-admin { max-width: 52rem; }
 
 .op-admin-cartao {
   display: grid;
@@ -741,4 +741,39 @@
       block-size 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
       content-visibility 260ms allow-discrete;
   }
+}
+
+.op-retorno-link {
+  color: var(--text);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* Backoffice: aviso preso no topo para quem salvou lá embaixo, e ajustes
+   em grade de duas colunas quando cabe. */
+.op-admin-aviso {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 2;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.op-admin-ajustes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem 1.5rem;
+}
+
+.op-admin-ajuste {
+  display: grid;
+  gap: 0.375rem;
+  align-content: start;
+}
+
+.op-admin-ajuste p { margin: 0; }
+
+.op-admin-numero {
+  flex: 0 0 7rem;
+  font-variant-numeric: tabular-nums;
 }

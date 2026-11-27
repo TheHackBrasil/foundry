@@ -408,3 +408,12 @@ describe('curinga de workspaces (demo publica)', () => {
     expect(workspaceNaLista(['ws-a'], 'ws-a')).toBe(true);
   });
 });
+
+describe('janela todos os dias (demo)', () => {
+  it('sábado fica fora da janela padrão e dentro com todosOsDias', () => {
+    const sabadoMeioDia = Date.parse('2026-11-28T15:00:00Z'); // 12h em São Paulo
+    expect(dentroDaJanela(sabadoMeioDia, { inicioHora: 8, fimHora: 18 })).toBe(false);
+    expect(dentroDaJanela(sabadoMeioDia, { inicioHora: 8, fimHora: 18, todosOsDias: true })).toBe(true);
+    expect(dentroDaJanela(Date.parse('2026-11-28T03:30:00Z'), { inicioHora: 0, fimHora: 24, todosOsDias: true })).toBe(true);
+  });
+});

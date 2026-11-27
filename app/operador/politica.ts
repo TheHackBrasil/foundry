@@ -50,6 +50,8 @@ export type MotivoPolitica = (typeof MOTIVOS_POLITICA)[number];
 export interface JanelaPolitica {
   inicioHora: number;
   fimHora: number;
+  // Demo: vale também sábado e domingo (backoffice). Padrão: só dia útil.
+  todosOsDias?: boolean;
 }
 
 // Valores vindos de env (RF9), lidos uma vez e gravados no snapshot do
@@ -211,7 +213,7 @@ function janelaValida(j: JanelaPolitica): boolean {
 export function dentroDaJanela(agoraMs: number, janela: JanelaPolitica): boolean {
   if (!Number.isFinite(agoraMs) || !janelaValida(janela)) return false;
   const { diaSemana, hora, minuto } = horarioLocal(agoraMs);
-  if (!(diaSemana >= 1 && diaSemana <= 5)) return false;
+  if (!janela.todosOsDias && !(diaSemana >= 1 && diaSemana <= 5)) return false;
   const minutos = hora * 60 + minuto;
   return minutos >= janela.inicioHora * 60 && minutos < janela.fimHora * 60;
 }

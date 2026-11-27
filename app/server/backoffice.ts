@@ -18,21 +18,70 @@ import type { LedgerStore } from './store.js';
 export const MAX_DESTINOS = 20;
 const CHAVE_DESTINOS = 'destinos';
 const CHAVE_APROVACAO_ABERTA = 'aprovacao_aberta';
+const CHAVE_AJUSTES = 'ajustes';
+
+// Prazos e limites do operador, editáveis no backoffice. Valem para casos
+// acionados depois de salvar: cada caso guarda a foto da política no início.
+export interface AjustesOperador {
+  prazoEmailMin: number; // espera da resposta do e-mail antes de subir de degrau
+  prazoWhatsappMin: number; // espera da resposta do WhatsApp antes da ligação
+  validadeAprovacaoMin: number; // quanto tempo um plano aprovado pode sair
+  tentativasDia: number; // WhatsApp e ligação por número por dia
+  tetoCasoBrl: number; // custo estimado máximo por caso
+  tetoDiaBrl: number; // custo estimado máximo por dia, somando todos os casos
+  janelaInicio: number; // hora em que contatos por telefone podem começar
+  janelaFim: number; // hora em que param
+  janelaTodosDias: boolean; // também sábado e domingo
+}
+
+// [mínimo, máximo] de cada número; fora disso a rota recusa com o motivo.
+export const LIMITES_AJUSTES: Record<Exclude<keyof AjustesOperador, 'janelaTodosDias'>, [number, number]> = {
+  prazoEmailMin: [1, 4320],
+  prazoWhatsappMin: [1, 2880],
+  validadeAprovacaoMin: [1, 1440],
+  tentativasDia: [1, 10],
+  tetoCasoBrl: [0, 1000],
+  tetoDiaBrl: [0, 10000],
+  janelaInicio: [0, 23],
+  janelaFim: [1, 24],
+};
+
+export function validarAjustes(atual: AjustesOperador, parcial: Record<string, unknown>): { ok: true; ajustes: AjustesOperador } | { ok: false; erro: string } {
+  const novo: AjustesOperador = { ...atual };
+  for (const [chave, valor] of Object.entries(parcial)) {
+    if (chave === 'janelaTodosDias') {
+      if (typeof valor !== 'boolean') return { ok: false, erro: 'janelaTodosDias deve ser verdadeiro ou falso.' };
+      novo.janelaTodosDias = valor;
+      continue;
+    }
+    const limite = LIMITES_AJUSTES[chave as keyof typeof LIMITES_AJUSTES];
+    if (!limite) return { ok: false, erro: `Ajuste desconhecido: ${chave.slice(0, 40)}.` };
+    if (typeof valor !== 'number' || !Number.isFinite(valor) || valor < limite[0] || valor > limite[1]) {
+      return { ok: false, erro: `${chave} deve ser um número entre ${limite[0]} e ${limite[1]}.` };
+    }
+    (novo as unknown as Record<string, number>)[chave] = valor;
+  }
+  if (novo.janelaInicio >= novo.janelaFim) return { ok: false, erro: 'O horário de início precisa ser antes do fim.' };
+  return { ok: true, ajustes: novo };
+}
 
 export interface EstadoBackoffice {
   destinos: string[];
   origemDestinos: 'banco' | 'env';
   aprovacaoAberta: boolean;
+  ajustes: AjustesOperador;
 }
 
 export class ConfigBackoffice {
   private destinosBanco: string[] | null = null;
   private aprovacaoBanco: boolean | null = null;
+  private ajustesBanco: AjustesOperador | null = null;
   private readonly ouvintes = new Set<(e: EstadoBackoffice) => void>();
 
   constructor(
     private readonly destinosEnv: readonly string[],
     private readonly aprovacaoAbertaEnv: boolean,
+    private readonly ajustesEnv: AjustesOperador,
   ) {}
 
   async carregar(store: LedgerStore): Promise<void> {
@@ -40,6 +89,11 @@ export class ConfigBackoffice {
     this.destinosBanco = Array.isArray(d) ? normalizarLista(d.filter((x): x is string => typeof x === 'string')).validos : null;
     const a = await store.lerConfigOperador(CHAVE_APROVACAO_ABERTA);
     this.aprovacaoBanco = typeof a === 'boolean' ? a : null;
+    const aj = await store.lerConfigOperador(CHAVE_AJUSTES);
+    if (aj && typeof aj === 'object') {
+      const v = validarAjustes(this.ajustesEnv, aj as Record<string, unknown>);
+      this.ajustesBanco = v.ok ? v.ajustes : null;
+    }
     this.avisar();
   }
 
@@ -51,15 +105,27 @@ export class ConfigBackoffice {
     return this.aprovacaoBanco ?? this.aprovacaoAbertaEnv;
   }
 
+  ajustes(): AjustesOperador {
+    return this.ajustesBanco ?? this.ajustesEnv;
+  }
+
   estado(): EstadoBackoffice {
     return {
       destinos: this.destinos(),
       origemDestinos: this.destinosBanco ? 'banco' : 'env',
       aprovacaoAberta: this.aprovacaoAberta(),
+      ajustes: this.ajustes(),
     };
   }
 
-  async definir(store: LedgerStore, mudanca: { destinos?: string[]; aprovacaoAberta?: boolean }): Promise<EstadoBackoffice> {
+  async definir(
+    store: LedgerStore,
+    mudanca: { destinos?: string[]; aprovacaoAberta?: boolean; ajustes?: AjustesOperador },
+  ): Promise<EstadoBackoffice> {
+    if (mudanca.ajustes) {
+      await store.gravarConfigOperador(CHAVE_AJUSTES, mudanca.ajustes);
+      this.ajustesBanco = mudanca.ajustes;
+    }
     if (mudanca.destinos) {
       await store.gravarConfigOperador(CHAVE_DESTINOS, mudanca.destinos);
       this.destinosBanco = mudanca.destinos;
@@ -125,13 +191,21 @@ export function registrarRotasBackoffice(app: FastifyInstance, o: OpcoesBackoffi
     return o.config.estado();
   });
 
-  app.put<{ Body: { destinos?: unknown; aprovacaoAberta?: unknown } }>(
+  app.put<{ Body: { destinos?: unknown; aprovacaoAberta?: unknown; ajustes?: unknown } }>(
     '/api/admin/config',
     { config: o.limiteEscrita ?? {} },
     async (req, reply) => {
       if (!exigir(req, reply)) return reply;
       const b = req.body ?? {};
-      const mudanca: { destinos?: string[]; aprovacaoAberta?: boolean } = {};
+      const mudanca: { destinos?: string[]; aprovacaoAberta?: boolean; ajustes?: AjustesOperador } = {};
+      if (b.ajustes !== undefined) {
+        if (!b.ajustes || typeof b.ajustes !== 'object' || Array.isArray(b.ajustes)) {
+          return reply.code(400).send({ erro: 'ajustes deve ser um objeto.' });
+        }
+        const v = validarAjustes(o.config.ajustes(), b.ajustes as Record<string, unknown>);
+        if (!v.ok) return reply.code(400).send({ erro: v.erro });
+        mudanca.ajustes = v.ajustes;
+      }
       if (b.destinos !== undefined) {
         if (!Array.isArray(b.destinos)) return reply.code(400).send({ erro: 'destinos deve ser uma lista de telefones.' });
         const { validos, invalidos } = normalizarLista(b.destinos.map(String));
