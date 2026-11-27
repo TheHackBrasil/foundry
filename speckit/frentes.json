@@ -373,6 +373,19 @@
         "app/web/",
         "specs/0016-entrada-insights/brief-insights.md"
       ]
+    },
+    "spec-adendo": {
+      "brief": "specs/0018-harness-loop-agentico/brief-spec-adendo.md",
+      "paths": [
+        "specs/0018-harness-loop-agentico/"
+      ]
+    },
+    "harness-transp": {
+      "brief": "specs/0018-harness-operador/brief-harness-transp.md",
+      "paths": [
+        "app/harness/",
+        "specs/0018-harness-operador/brief-harness-transp.md"
+      ]
     }
   }
 }
