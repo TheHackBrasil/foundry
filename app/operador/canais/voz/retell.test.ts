@@ -14,6 +14,7 @@ import {
   configWebhookRetell,
   criarCanalLigacaoRetell,
   falasDaLigacao,
+  pareceAudio,
   pediuOptout,
   sincronizarWebhookRetell,
 } from './retell.js';
@@ -237,7 +238,7 @@ describe('fim da ligacao: evidencia, ledger e revisao', () => {
       },
       cliente: criarClienteClaude({ apiKey: 'sk-teste', porta }, MODELO_EXTRACAO_PADRAO),
       config: { hostsGravacao: ['gravacoes.teste'] },
-      fetch: async () => new Response(Buffer.from('RIFF-teste'), { status: 200, headers: { 'content-type': 'audio/wav' } }),
+      fetch: async () => new Response(Buffer.from('RIFF-teste'), { status: 200, headers: { 'content-type': 'binary/octet-stream' } }),
       agora: () => 1_800_000_000_000,
       hoje: () => '2026-11-26',
       acordarPedido: async (_ws, p) => {
@@ -306,5 +307,13 @@ describe('endereco do webhook', () => {
       ok: false,
       motivo: 'url_sem_https',
     });
+  });
+});
+
+describe('pareceAudio', () => {
+  it('reconhece WAV e MP3 e recusa HTML', () => {
+    expect(pareceAudio(Buffer.from('RIFF....WAVE'))).toBe(true);
+    expect(pareceAudio(Buffer.from('ID3...'))).toBe(true);
+    expect(pareceAudio(Buffer.from('<html>'))).toBe(false);
   });
 });

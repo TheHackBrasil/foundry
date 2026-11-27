@@ -403,6 +403,7 @@ export function App() {
                 <PaginaOperacao
                   aoAnunciar={torre.anunciar}
                   aoAbrirNaTorre={torre.irParaTorre}
+                  aoAbrirRevisao={abrirRevisao}
                   pulsoEventoSeq={torre.pulsoEventoSeq}
                 />
               ) : torre.rota === 'ia' ? (

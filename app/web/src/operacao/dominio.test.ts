@@ -167,6 +167,10 @@ describe('proximoPassoCaso', () => {
     expect(p).toMatchObject({ acao: 'nenhuma', tom: 'espera' });
     expect(p.texto).toContain('Cobrança por e-mail enviada');
   });
+  it('declaração esperando revisão pede para abrir a revisão', () => {
+    const p = proximoPassoCaso(base, { ...ctx, operadorAcionado: true, revisaoPendente: true });
+    expect(p).toMatchObject({ acao: 'abrir_revisao', tom: 'acao' });
+  });
   it('exemplo, resolvido e nascido da resposta', () => {
     expect(proximoPassoCaso({ ...base, daSessao: false }, ctx).acao).toBe('nenhuma');
     expect(proximoPassoCaso({ ...base, status: 'resolvido' } as CasoLista, ctx).acao).toBe('reabrir');

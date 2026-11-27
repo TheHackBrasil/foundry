@@ -24,8 +24,9 @@ import { enfileirarDeclaracaoOperador } from '../../../server/pipeline.js';
 import type { ClienteClaude } from '../../agente/claude.js';
 import { extrairDeclaracao } from '../../agente/extracao.js';
 import {
-  baixarESalvarEvidencia,
+  baixarEvidencia,
   exigirPayloadSemDadoPessoal,
+  TIPOS_CONTEUDO_PADRAO,
   salvarEvidencia,
   type FetchEvidencia,
   type PortaEvidencias,
@@ -229,6 +230,12 @@ export function pediuOptout(falas: readonly Fala[]): boolean {
 
 const RE_CODIGO = /^[a-z0-9_]{1,64}$/;
 
+// WAV, MP3 (com ou sem ID3), OGG ou FLAC pelos primeiros bytes.
+export function pareceAudio(c: Buffer): boolean {
+  const cab = c.subarray(0, 4).toString('latin1');
+  return cab === 'RIFF' || cab === 'OggS' || cab === 'fLaC' || cab.startsWith('ID3') || (c[0] === 0xff && ((c[1] ?? 0) & 0xe0) === 0xe0);
+}
+
 export interface DepsFimLigacao {
   raiz: LedgerStore;
   evidencias: PortaEvidencias;
@@ -272,13 +279,25 @@ export function aoFimDaLigacaoRetell(deps: DepsFimLigacao): (ev: WebhookAceito) 
     }
     let hashAudio: string | undefined;
     if (typeof call['recording_url'] === 'string') {
-      const r = await baixarESalvarEvidencia(
-        deps.evidencias,
-        { url: call['recording_url'], tipo: 'audio', workspaceId, agoraMs, ...(deps.retencaoDias ? { retencaoDias: deps.retencaoDias } : {}) },
-        { hostsPermitidos: deps.config.hostsGravacao, fetch: deps.fetch ?? ((u, i) => fetch(u, i)) },
-      );
-      if (r.ok) hashAudio = r.hash;
-      else deps.log?.(`retell: gravacao nao baixada (${r.motivo})`);
+      // O CDN da Retell serve a gravação como octet-stream: o tipo aceito
+      // inclui isso, e os primeiros bytes confirmam que é áudio de verdade.
+      const r = await baixarEvidencia(call['recording_url'], 'audio', {
+        hostsPermitidos: deps.config.hostsGravacao,
+        fetch: deps.fetch ?? ((u, i) => fetch(u, i)),
+        tiposConteudo: [...TIPOS_CONTEUDO_PADRAO.audio, 'binary/octet-stream', 'application/octet-stream'],
+      });
+      if (r.ok && pareceAudio(r.conteudo)) {
+        const salva = await salvarEvidencia(deps.evidencias, {
+          workspaceId,
+          tipo: 'audio',
+          conteudo: r.conteudo,
+          agoraMs,
+          ...(deps.retencaoDias ? { retencaoDias: deps.retencaoDias } : {}),
+        });
+        hashAudio = salva.hash;
+      } else {
+        deps.log?.(`retell: gravacao nao baixada (${r.ok ? 'nao_e_audio' : r.motivo})`);
+      }
     }
 
     const motivoFim = typeof call['disconnection_reason'] === 'string' ? call['disconnection_reason'].toLowerCase() : '';

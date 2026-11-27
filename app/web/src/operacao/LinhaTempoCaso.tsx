@@ -304,11 +304,11 @@ export function LinhaTempoCaso({ casoId, carga, aoVivo }: LinhaTempoCasoProps) {
           <p className="meta" role="status">
             {carga.itens.length === 0
               ? 'O operador ainda não agiu neste caso.'
-              : `${carga.itens.length} ${carga.itens.length === 1 ? 'registro' : 'registros'}, do mais antigo ao mais recente.`}
+              : `${carga.itens.length} ${carga.itens.length === 1 ? 'registro' : 'registros'}, do mais recente ao mais antigo.`}
           </p>
           {carga.itens.length > 0 && (
             <ol className="op-linha-lista">
-              {carga.itens.map((item) => (
+              {[...carga.itens].reverse().map((item) => (
                 <ItemLinha key={`${item.seq}-${item.tipo}`} casoId={casoId} item={item} />
               ))}
             </ol>

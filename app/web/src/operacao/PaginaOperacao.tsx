@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { PARTES, type Parte } from '../../../shared/model.ts';
 import { ErroApi } from '../api.ts';
+import { listarRevisao } from '../apiOps.ts';
 import {
   chaveCurta,
   formatarMomento,
@@ -62,13 +63,15 @@ import './operacao.css';
 export interface PaginaOperacaoProps {
   aoAnunciar: (texto: string) => void;
   aoAbrirNaTorre: (pedidoId: string) => void;
+  // Abre a gaveta da Fila de revisão (declaração da transportadora).
+  aoAbrirRevisao?: () => void;
   // Sobe a cada evento SSE: a fila recarrega junto com o resto da torre.
   pulsoEventoSeq?: number;
 }
 
 const mensagemDe = (e: unknown): string => (e instanceof Error ? e.message : 'Erro inesperado.');
 
-export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 }: PaginaOperacaoProps) {
+export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, aoAbrirRevisao, pulsoEventoSeq = 0 }: PaginaOperacaoProps) {
   const [casos, setCasos] = useState<Carga<CasoLista[]>>({ estado: 'carregando' });
   const [metricas, setMetricas] = useState<Carga<Metricas>>({ estado: 'carregando' });
   const [cobrancas, setCobrancas] = useState<Carga<CobrancaLista[]>>({ estado: 'carregando' });
@@ -88,6 +91,8 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   const [acionando, setAcionando] = useState(false);
   // Backoffice: aprovação sem senha (demo). Relido a cada recarga da página.
   const [aprovacaoAberta, setAprovacaoAberta] = useState(false);
+  // Pedidos com declaração esperando a Revisão: o próximo passo aponta para lá.
+  const [pedidosEmRevisao, setPedidosEmRevisao] = useState<ReadonlySet<string>>(new Set());
   // Recusa do acionamento: aparece embaixo do botão, não só para leitor de tela.
   const [erroAcionar, setErroAcionar] = useState<string | null>(null);
   // Retorno de toda ação, visível no topo do caso (e anunciado ao leitor).
@@ -169,6 +174,20 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   useEffect(() => {
     void recarregar();
   }, [recarregar, pulsoEventoSeq]);
+
+  useEffect(() => {
+    void listarRevisao()
+      .then((r) =>
+        setPedidosEmRevisao(
+          new Set(
+            r.itens
+              .filter((i) => i.status === 'pendente' && typeof i.payload['pedidoId'] === 'string')
+              .map((i) => String(i.payload['pedidoId'])),
+          ),
+        ),
+      )
+      .catch(() => setPedidosEmRevisao(new Set()));
+  }, [pulsoEventoSeq, sel]);
 
   useEffect(() => {
     void lerAprovacaoAberta()
@@ -331,6 +350,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
         operadorAcionado: operadorJaAcionado,
         planoPendente: planoPendente ? { canal: planoPendente.canal } : null,
         ultimoRegistro: ultimoOperador ? rotuloItemLinha(ultimoOperador) : null,
+        revisaoPendente: pedidosEmRevisao.has(casoDoPasso.pedidoId),
       })
     : null;
 
@@ -344,6 +364,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   const executarPasso = (): void => {
     if (!casoDoPasso || !passo) return;
     if (passo.acao === 'acionar') void acionar(casoDoPasso.id);
+    else if (passo.acao === 'abrir_revisao') aoAbrirRevisao?.();
     else if (passo.acao === 'ver_plano') {
       rolarAte(document.getElementById('op-planos'));
     } else if (passo.acao === 'resolver') {
@@ -654,6 +675,35 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                 </section>
               )}
 
+              <section className="op-operador" aria-labelledby="op-operador-t">
+                <h3 id="op-operador-t" className="op-aprovacao-t">
+                  Operador
+                </h3>
+                <p className="meta">Os planos de WhatsApp e ligação aparecem aqui para a sua decisão, e tudo o que ele fez fica na linha do tempo.</p>
+                {planos.estado === 'carregando' && <p className="meta">Carregando planos de contato…</p>}
+                {planos.estado === 'erro' && <p className="meta">{planos.mensagem}</p>}
+                {planos.estado === 'ok' && planosOrdenados.length === 0 && (
+                  <p className="meta">Nenhum plano de WhatsApp ou ligação para decidir.</p>
+                )}
+                <div id="op-planos" />
+                {planosOrdenados.map((pl) => (
+                  <PainelAprovacao
+                    key={`${pl.planoId}-${pl.versao}`}
+                    casoId={casoAtual.id}
+                    plano={pl}
+                    motivo={motivoDoPlano(pl, itensLinha)}
+                    token={tokenAprovador}
+                    aoMudarToken={setTokenAprovador}
+                    semSenha={aprovacaoAberta}
+                    somenteLeitura={!casoAtual.daSessao}
+                    aoRecarregar={recarregarOperador}
+                    aoAnunciar={aoAnunciar}
+                  />
+                ))}
+
+                <LinhaTempoCaso casoId={casoAtual.id} carga={linha} />
+              </section>
+
               <dl className="op-fat-lista">
                 <div>
                   <dt className="meta">Aberto</dt>
@@ -719,34 +769,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                 </div>
               )}
 
-              <section className="op-operador" aria-labelledby="op-operador-t">
-                <h3 id="op-operador-t" className="op-aprovacao-t">
-                  Operador
-                </h3>
-                <p className="meta">Os planos de WhatsApp e ligação aparecem aqui para a sua decisão, e tudo o que ele fez fica na linha do tempo.</p>
-                {planos.estado === 'carregando' && <p className="meta">Carregando planos de contato…</p>}
-                {planos.estado === 'erro' && <p className="meta">{planos.mensagem}</p>}
-                {planos.estado === 'ok' && planosOrdenados.length === 0 && (
-                  <p className="meta">Nenhum plano de WhatsApp ou ligação para decidir.</p>
-                )}
-                <div id="op-planos" />
-                {planosOrdenados.map((pl) => (
-                  <PainelAprovacao
-                    key={`${pl.planoId}-${pl.versao}`}
-                    casoId={casoAtual.id}
-                    plano={pl}
-                    motivo={motivoDoPlano(pl, itensLinha)}
-                    token={tokenAprovador}
-                    aoMudarToken={setTokenAprovador}
-                    semSenha={aprovacaoAberta}
-                    somenteLeitura={!casoAtual.daSessao}
-                    aoRecarregar={recarregarOperador}
-                    aoAnunciar={aoAnunciar}
-                  />
-                ))}
 
-                <LinhaTempoCaso casoId={casoAtual.id} carga={linha} />
-              </section>
 
               {!casoAtual.daSessao && (
                 <p className="meta">

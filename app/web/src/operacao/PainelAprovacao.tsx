@@ -110,7 +110,7 @@ function CampoRoteiro({
     const mostrado =
       typeof valor === 'boolean' ? (valor ? 'sim' : 'não') : chave === 'pergunta' ? rotuloPergunta(String(valor)) : String(valor);
     return (
-      <div className="op-roteiro-campo">
+      <div className="op-roteiro-campo" data-campo={chave}>
         <dt className="meta">{rotulo}</dt>
         <dd className={chave === 'pergunta' ? undefined : 'mono'}>{mostrado}</dd>
       </div>

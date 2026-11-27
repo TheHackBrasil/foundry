@@ -331,7 +331,10 @@
   margin: 0;
 }
 
-.op-roteiro-campo { display: grid; gap: 0.25rem; }
+.op-roteiro-campo { display: grid; gap: 0.25rem; min-width: 0; }
+.op-roteiro-campo dd { overflow-wrap: anywhere; line-height: 1.4; }
+/* A chave de 44 dígitos ocupa a linha toda em vez de invadir a coluna vizinha. */
+.op-roteiro-campo[data-campo='chaveNota'] { grid-column: 1 / -1; }
 .op-roteiro-campo dt, .op-roteiro-campo dd { margin: 0; }
 
 .op-roteiro-check {

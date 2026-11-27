@@ -238,7 +238,7 @@ export function nasceuDoOperador(c: Pick<Caso, 'divergencia'>): boolean {
 // Uma resposta só para "o que faço agora?": título, o porquê em uma frase e,
 // quando há, a ação principal. A tela mostra isto no topo do caso.
 
-export type AcaoPasso = 'acionar' | 'ver_plano' | 'resolver' | 'reabrir' | 'nenhuma';
+export type AcaoPasso = 'acionar' | 'ver_plano' | 'abrir_revisao' | 'resolver' | 'reabrir' | 'nenhuma';
 
 export interface PassoCaso {
   titulo: string;
@@ -254,6 +254,8 @@ export interface ContextoPasso {
   planoPendente: { canal: string } | null;
   // Rótulo do último registro do operador na linha do tempo, se houver.
   ultimoRegistro: string | null;
+  // Declaração da transportadora deste pedido esperando a Revisão.
+  revisaoPendente?: boolean;
 }
 
 const ROTULO_CANAL_PASSO: Record<string, string> = { whatsapp: 'mandar WhatsApp', ligacao: 'ligar' };
@@ -283,6 +285,15 @@ export function proximoPassoCaso(c: CasoLista, ctx: ContextoPasso): PassoCaso {
       texto: `O operador quer ${verbo} para a transportadora. Confira o roteiro e aprove ou recuse.`,
       acao: 'ver_plano',
       rotuloAcao: 'Ver o plano',
+      tom: 'acao',
+    };
+  }
+  if (ctx.revisaoPendente) {
+    return {
+      titulo: 'A transportadora respondeu',
+      texto: 'O que ela disse já foi lido e está na Revisão. Confira os campos e aprove para gravar no pedido.',
+      acao: 'abrir_revisao',
+      rotuloAcao: 'Abrir a revisão',
       tom: 'acao',
     };
   }
