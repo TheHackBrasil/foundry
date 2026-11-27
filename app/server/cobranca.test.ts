@@ -55,14 +55,21 @@ async function assinarDkim(eml: Buffer): Promise<Buffer> {
 }
 
 // Resposta .eml da transportadora: texto puro, sem anexo.
-function emlResposta(opts: { inReplyTo?: string; corpo?: string; assunto?: string }): Buffer {
+function emlResposta(opts: {
+  inReplyTo?: string;
+  corpo?: string;
+  assunto?: string;
+  de?: string;
+  cabecalhos?: string[];
+}): Buffer {
   return Buffer.from(
     [
-      `From: Ops Transportadora <${EMAIL_TRANSP}>`,
+      `From: ${opts.de ?? `Ops Transportadora <${EMAIL_TRANSP}>`}`,
       'To: sistema@foundry.dev',
       `Subject: ${opts.assunto ?? 'Re: Status de entrega'}`,
       'Message-ID: <resp-1@transp.dev>',
       ...(opts.inReplyTo ? [`In-Reply-To: ${opts.inReplyTo}`] : []),
+      ...(opts.cabecalhos ?? []),
       '',
       opts.corpo ?? 'entrega prevista para 30/01, em transito',
     ].join(CRLF),
@@ -254,6 +261,52 @@ describe('spec 0010: resposta vira claim verificavel', () => {
     const raw = emlResposta({ inReplyTo: '<ninguem@outro.dev>', corpo: 'bom dia, segue tabela' });
     const lido = await extrairEml(raw);
     expect(await processarRespostaEml(store, new CanalSSE(), raw, lido)).toBe(false);
+  });
+
+  it('out-of-office automatico nao fecha a cobranca nem vira claim ou revisao', async () => {
+    const store4 = await storeNova('ws-cob-ooo');
+    await contatoEmail(store4);
+    const r = await criarCobrancaParaPendencia(store4, CHAVE, 72);
+    await store4.atualizarCobranca(r.cobranca.id, { status: 'enviada', messageId: '<c4@foundry.dev>' });
+
+    const raw = emlResposta({
+      inReplyTo: '<c4@foundry.dev>',
+      cabecalhos: ['Auto-Submitted: auto-replied'],
+      corpo: 'estou fora do escritorio ate dia 10',
+    });
+    const lido = await extrairEml(raw);
+    const ok = await processarRespostaEml(store4, new CanalSSE(), raw, lido, {
+      extrator: extratorAlto,
+      resolverDkim,
+    });
+    expect(ok).toBe(true);
+    const eventos = await store4.eventosDoPedido(CHAVE);
+    expect(eventos.every((e) => e.tipo !== 'status_declarado')).toBe(true);
+    expect(await store4.listarRevisao()).toHaveLength(0);
+    // A cobranca segue aberta: resposta automatica nao e resposta.
+    expect((await store4.cobrancaPorId(r.cobranca.id))!.status).toBe('enviada');
+  });
+
+  it('bounce do mailer-daemon nao fecha a cobranca', async () => {
+    const store5 = await storeNova('ws-cob-bounce');
+    await contatoEmail(store5);
+    const r = await criarCobrancaParaPendencia(store5, CHAVE, 72);
+    await store5.atualizarCobranca(r.cobranca.id, { status: 'enviada', messageId: '<c5@foundry.dev>' });
+
+    const raw = emlResposta({
+      inReplyTo: '<c5@foundry.dev>',
+      de: 'Mail Delivery System <mailer-daemon@transp.dev>',
+      cabecalhos: ['Auto-Submitted: auto-generated', 'Return-Path: <>'],
+      corpo: 'delivery failed: mailbox unavailable',
+    });
+    const lido = await extrairEml(raw);
+    const ok = await processarRespostaEml(store5, new CanalSSE(), raw, lido, {
+      extrator: extratorAlto,
+      resolverDkim,
+    });
+    expect(ok).toBe(true);
+    expect((await store5.cobrancaPorId(r.cobranca.id))!.status).toBe('enviada');
+    expect(await store5.listarRevisao()).toHaveLength(0);
   });
 });
 

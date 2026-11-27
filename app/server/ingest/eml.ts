@@ -23,6 +23,10 @@ export interface CabecalhoEml {
   inReplyTo?: string;
   references: string[];
   assunto?: string;
+  // Resposta automatica (RFC 3834 e derivados): out-of-office, bounce do
+  // mailer-daemon, auto-resposta de helpdesk. Nao e resposta da
+  // transportadora: nao fecha cobranca, nao vira claim nem revisao.
+  automatica?: boolean;
 }
 
 export interface EmlLido {
@@ -48,6 +52,7 @@ export async function extrairEml(conteudo: Buffer): Promise<EmlLido> {
     inReplyTo: parsed.inReplyTo ?? undefined,
     references: Array.isArray(refs) ? refs : refs ? [refs] : [],
     assunto: parsed.subject ?? undefined,
+    automatica: respostaAutomatica(parsed),
   };
   const corpo = typeof parsed.text === 'string' ? parsed.text.trim() : '';
   return {
@@ -57,4 +62,31 @@ export async function extrairEml(conteudo: Buffer): Promise<EmlLido> {
     corpo,
     cabecalho,
   };
+}
+
+// Sinais mecanicos de resposta automatica (RFC 3834): Auto-Submitted com
+// valor diferente de 'no', cabecalhos X-Autoreply/X-Autorespond, Precedence
+// de maquina, remetente mailer-daemon/postmaster ou Return-Path vazio de
+// bounce. Qualquer um basta; humano nao emite nenhum deles.
+function respostaAutomatica(parsed: {
+  headers?: { get(nome: string): unknown } | null;
+  from?: { value?: Array<{ address?: string }> };
+}): boolean {
+  const h = parsed.headers;
+  const texto = (v: unknown): string => {
+    if (typeof v === 'string') return v.toLowerCase();
+    if (v && typeof v === 'object' && 'text' in v) return String((v as { text: unknown }).text).toLowerCase();
+    if (v && typeof v === 'object' && 'value' in v) return JSON.stringify((v as { value: unknown }).value).toLowerCase();
+    return v == null ? '' : String(v).toLowerCase();
+  };
+  const auto = h ? texto(h.get('auto-submitted')) : '';
+  if (auto && auto !== 'no') return true;
+  if (h?.get('x-autoreply') != null || h?.get('x-autorespond') != null) return true;
+  const prec = h ? texto(h.get('precedence') ?? h.get('x-precedence')) : '';
+  if (['auto_reply', 'bulk', 'junk'].includes(prec.trim())) return true;
+  const de = parsed.from?.value?.[0]?.address?.toLowerCase() ?? '';
+  if (/^(mailer-daemon|postmaster)@/.test(de)) return true;
+  // Return-Path vazio e a marca canonica de bounce (RFC 3464).
+  if (h && texto(h.get('return-path')) === '<>') return true;
+  return false;
 }

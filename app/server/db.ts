@@ -12,6 +12,24 @@ export interface Db {
   close(): Promise<void>;
 }
 
+// int8 (BIGSERIAL/BIGINT) volta do pg real como string, mas PGlite devolve
+// number — comparacao estrita com Number(param) de rota falhava so em
+// producao (cobranca nao encontrada). O parser por pool alinha o driver ao
+// comportamento dos testes: vira number quando cabe em inteiro seguro e fica
+// string acima disso, para nao perder precisao. Por pool e nao global para
+// nao mudar o parsing de outros usuarios do pg no processo (DBOS).
+const OID_INT8 = 20;
+const tiposComInt8Numerico = {
+  getTypeParser(oid: number, formato: unknown) {
+    if (oid !== OID_INT8) return pg.types.getTypeParser(oid, formato as never);
+    return (valor: string | null) => {
+      if (valor === null) return null;
+      const n = Number(valor);
+      return Number.isSafeInteger(n) ? n : valor;
+    };
+  },
+};
+
 class PgDb implements Db {
   private pool: pg.Pool;
   private client: pg.PoolClient | null = null;
@@ -31,6 +49,7 @@ class PgDb implements Db {
         statement_timeout: 15_000,
         idle_in_transaction_session_timeout: 30_000,
         application_name: 'forseti',
+        types: tiposComInt8Numerico,
       });
       // Erro em conexao ociosa (Postgres reiniciou) sem ouvinte derruba o processo.
       this.pool.on('error', (e) => console.error(`pg: conexao ociosa caiu (${e.message})`));

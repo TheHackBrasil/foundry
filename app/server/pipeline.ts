@@ -337,6 +337,10 @@ export async function processarRespostaEml(
   const cab = lido.cabecalho;
   const achada = await cobrancaDaResposta(storeEntrada, lido, deps.global === true);
   if (!achada) return false;
+  // Resposta automatica (out-of-office, bounce) nao e resposta da
+  // transportadora: casa na thread, mas nao fecha a cobranca, nao vira
+  // claim nem revisao. A escada segue pelo timeout normal.
+  if (cab.automatica) return true;
   // Daqui em diante tudo grava no workspace dono da cobranca.
   const { alvo: store, cobranca, pedidoId } = achada;
 
