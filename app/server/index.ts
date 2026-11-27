@@ -82,11 +82,23 @@ const REGEX_WS = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
 export interface BuildOpts {
   // Testes fixam o workspace sem precisar de cookie; producao nunca usa.
   workspacePadrao?: string;
+  // Modo local (WORKSPACE_LOCAL no .env): todo navegador da propria maquina
+  // cai no mesmo workspace, para quem testa sozinho. So vale para conexao de
+  // loopback sem cabecalho de proxy: quem chega pelo tunel (cloudflared manda
+  // cf-connecting-ip) ou por outro host continua com o workspace do cookie.
+  workspaceLocal?: string;
   // Padrao: configDoEnv(process.env). Testes injetam limites pequenos.
   config?: ConfigServidor;
   // Modulo do operador ja montado (testes das rotas); sem ele, o servidor
   // registra o operador do env, desligado sem OPERADOR_ATIVO=1.
   operador?: AlvoOperador;
+}
+
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+const CABECALHOS_PROXY = ['cf-connecting-ip', 'x-forwarded-for', 'x-real-ip', 'forwarded'];
+
+export function ehLocalDireto(req: { socket: { remoteAddress?: string | undefined }; headers: Record<string, unknown> }): boolean {
+  return LOOPBACK.has(req.socket.remoteAddress ?? '') && CABECALHOS_PROXY.every((h) => req.headers[h] === undefined);
 }
 
 function dataIsoParaUtcMs(valor: string): number | null {
@@ -276,7 +288,8 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     if (req.url === '/api/health') return; // healthcheck da hospedagem: sem sessao
     const cookie = req.headers.cookie?.match(new RegExp(`(?:^|;\\s*)${COOKIE_WS}=([^;]+)`))?.[1];
     const valido = cookie !== undefined && REGEX_WS.test(cookie) && cookie !== seedWs;
-    const ws = valido ? cookie : (opts.workspacePadrao ?? randomUUID());
+    const local = opts.workspaceLocal && ehLocalDireto(req) ? opts.workspaceLocal : undefined;
+    const ws = local ?? (valido ? cookie : (opts.workspacePadrao ?? randomUUID()));
     req.workspace = ws;
     if (cookie !== ws) {
       const https = String(req.headers['x-forwarded-proto'] ?? req.protocol).split(',')[0]?.trim() === 'https';
@@ -1118,7 +1131,9 @@ if (ehProcessoPrincipal(import.meta.url, process.argv[1])) {
   // Depois do dotenv: PORT do .env vale. Na Railway, PORT vem injetada.
   const porta = inteiroDoEnv(process.env, 'PORT', 3000, 1);
   const host = process.env['HOST']?.trim() || '0.0.0.0';
-  const { app, store, canal, operador } = await buildServer();
+  const wsLocal = process.env['WORKSPACE_LOCAL']?.trim();
+  if (wsLocal && !REGEX_WS.test(wsLocal)) throw new Error('WORKSPACE_LOCAL precisa ser um UUID');
+  const { app, store, canal, operador } = await buildServer(undefined, wsLocal ? { workspaceLocal: wsLocal } : {});
   // Seed antes do listen: carregada depois, ela mandaria os eventos da seed a
   // todo stream ja aberto.
   if (process.env['SEED_ON_BOOT'] === '1') {

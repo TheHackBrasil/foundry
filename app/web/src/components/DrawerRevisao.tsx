@@ -20,6 +20,7 @@ import {
   chaveCurta,
   formatarConfianca,
   formatarMomento,
+  formatarValor,
   rotuloCampo,
   rotuloFonte,
 } from '../format.ts';
@@ -66,6 +67,31 @@ function rotuloOrigem(origem: string): string {
 function lerString(obj: Record<string, unknown>, chave: string): string | null {
   const v = obj[chave];
   return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+// Declaracao extraida de resposta (e-mail, WhatsApp, ligacao): os campos
+// vigiados que o extrator leu e o que mais ele anotou nos dados. E o que o
+// analista confere antes de aprovar.
+interface Declarada {
+  campos: Array<[CampoVigiado, unknown]>;
+  observacao: string | null;
+  local: string | null;
+  alertaInstrucao: boolean;
+}
+
+export function lerDeclarada(p: Record<string, unknown>): Declarada | null {
+  if (p['docTipo'] !== 'status_declarado') return null;
+  const brutos = p['campos'] && typeof p['campos'] === 'object' ? (p['campos'] as Record<string, unknown>) : {};
+  const dados = p['dados'] && typeof p['dados'] === 'object' ? (p['dados'] as Record<string, unknown>) : {};
+  const campos = CAMPOS_VIGIADOS.filter((k) => brutos[k] !== undefined && brutos[k] !== null).map(
+    (k) => [k, brutos[k]] as [CampoVigiado, unknown],
+  );
+  return {
+    campos,
+    observacao: lerString(dados, 'observacao'),
+    local: lerString(dados, 'local'),
+    alertaInstrucao: dados['alertaInstrucao'] === true,
+  };
 }
 
 function dividirLinhaCsv(linha: string, delim: string): string[] {
@@ -252,6 +278,7 @@ export function DrawerRevisao({
     const planilha = lerString(p, 'planilha');
     const pedidoId = lerString(p, 'pedidoId');
     const textoPreview = lerString(p, 'textoPreview');
+    const declarada = lerDeclarada(p);
     const amostraCsv = lerString(p, 'amostraCsv');
     const detalhe = lerString(p, 'detalhe') ?? lerString(p, 'erro');
     const confiancaPayload =
@@ -420,6 +447,40 @@ export function DrawerRevisao({
                   </span>
                   <span className="mono num">{formatarConfianca(confiancaPayload)}</span>
                 </span>
+              </div>
+            )}
+            {declarada && (
+              <div style={{ display: 'grid', gap: '0.3125rem' }}>
+                <span className="meta">O que a transportadora declarou</span>
+                {declarada.campos.length === 0 ? (
+                  <p className="meta">Nenhum campo foi extraído. Confira a evidência antes de decidir.</p>
+                ) : (
+                  <dl style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', margin: 0 }}>
+                    {declarada.campos.map(([k, v]) => (
+                      <div key={k}>
+                        <dt className="meta" style={{ margin: 0 }}>{rotuloCampo(k)}</dt>
+                        <dd className="mono" style={{ margin: 0 }}>{formatarValor(k, v)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {declarada.local && (
+                  <p style={{ margin: 0 }}>
+                    <span className="meta">Local: </span>
+                    {declarada.local}
+                  </p>
+                )}
+                {declarada.observacao && (
+                  <p style={{ margin: 0 }}>
+                    <span className="meta">Observação: </span>
+                    {declarada.observacao}
+                  </p>
+                )}
+                {declarada.alertaInstrucao && (
+                  <p className="aviso-erro" role="note">
+                    A mensagem tenta dar ordens ao sistema. Leia com cuidado antes de aprovar.
+                  </p>
+                )}
               </div>
             )}
             {textoPreview && (
