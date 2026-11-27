@@ -215,18 +215,6 @@ export function normalizarConsulta(texto: string): string {
     .trim();
 }
 
-export function filtrarSecoes(secoes: readonly SecaoWiki[], consulta: string): SecaoWiki[] {
-  const q = normalizarConsulta(consulta);
-  if (!q) return [...secoes];
-  return secoes
-    .map((sec) => ({
-      ...sec,
-      itens: sec.itens.filter((item) =>
-        normalizarConsulta(`${item.titulo} ${item.resumo ?? ''} ${item.selo?.texto ?? ''}`).includes(q),
-      ),
-    }))
-    .filter((sec) => sec.itens.length > 0);
-}
 
 // Colapso por secao persistido em chave versionada (D-M6).
 export const CHAVE_COLAPSO = 'forseti:menuwiki:v1';

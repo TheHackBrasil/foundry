@@ -9,7 +9,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Contato, ItemRevisao } from '../../../../shared/model.ts';
 import type { PedidoResumo } from '../../api.ts';
-import { IconeChevron, IconeLupa } from '../icones.tsx';
+import { IconeChevron } from '../icones.tsx';
 import type { Carga, RotaTorre } from '../../useTorre.ts';
 import { buscarContatos, buscarRevisao, buscarVersoesPedido } from './rede.ts';
 import '../../menuwiki.css';
@@ -17,7 +17,6 @@ import {
   CHAVE_COLAPSO,
   CHAVE_MODO,
   dicaItem,
-  filtrarSecoes,
   itemPedido,
   itensContatos,
   itensDocumentos,
@@ -25,7 +24,6 @@ import {
   lerColapso,
   lerModo,
   nomeAcessivelItem,
-  normalizarConsulta,
   serializarColapso,
   serializarModo,
   TITULO_SECAO,
@@ -107,7 +105,6 @@ export function MenuWiki({
   aoAbrirRevisao,
 }: MenuWikiProps) {
   const baseId = useId();
-  const [consulta, setConsulta] = useState('');
   const [abertas, setAbertas] = useState<Colapso>(carregarColapso);
   const [modo, setModo] = useState<ModoLista>(carregarModo);
   const [contatos, setContatos] = useState<Carga<Contato[]>>({ estado: 'carregando' });
@@ -184,25 +181,22 @@ export function MenuWiki({
     [listaCompleta, rota, contatos, docs, revisao],
   );
 
-  const consultaAtiva = normalizarConsulta(consulta) !== '';
   const secoesVisiveis = useMemo(() => {
-    const filtradas = consultaAtiva ? filtrarSecoes(secoesBase, consulta) : secoesBase;
-    const visiveis = filtradas.filter((sec) => {
+    const visiveis = secoesBase.filter((sec) => {
       if (sec.id === 'pedidos') return true;
       const carga = sec.id === 'parceiros' ? contatos : sec.id === 'documentos' ? docs : revisao;
       // Carregando ou com erro a secao aparece (a linha de status vem dentro);
       // vazia de verdade ela some do indice.
-      return consultaAtiva ? sec.itens.length > 0 : carga.estado !== 'ok' || sec.itens.length > 0;
+      return carga.estado !== 'ok' || sec.itens.length > 0;
     });
-    // Mesmo filtrada a secao Pedidos fica: e onde moram o erro e o retry.
     if (pedidos.estado !== 'ok' && !visiveis.some((s) => s.id === 'pedidos')) {
       const base = secoesBase.find((s) => s.id === 'pedidos');
       if (base) visiveis.unshift(base);
     }
     return visiveis;
-  }, [secoesBase, consulta, consultaAtiva, contatos, docs, revisao, pedidos.estado]);
+  }, [secoesBase, contatos, docs, revisao, pedidos.estado]);
 
-  const abertaDocumentos = consultaAtiva || abertas.documentos;
+  const abertaDocumentos = abertas.documentos;
   const secaoDocumentosRef = useRef<HTMLDivElement | null>(null);
   const [documentosVisiveis, setDocumentosVisiveis] = useState(false);
 
@@ -345,17 +339,6 @@ export function MenuWiki({
       <div className="mw-cab">
         <h2 id={`${baseId}-titulo`}>Índice</h2>
         <div className="mw-cab-linha">
-          <div className="mw-busca">
-            <IconeLupa />
-            <input
-              type="search"
-              value={consulta}
-              onChange={(e) => setConsulta(e.target.value)}
-              placeholder="Filtrar o índice"
-              aria-label="Filtrar o índice"
-              autoComplete="off"
-            />
-          </div>
           <button
             type="button"
             className="mw-modo"
@@ -374,13 +357,8 @@ export function MenuWiki({
           const carga = statusDaSecao(sec);
           const headingId = `${baseId}-h-${sec.id}`;
           const contentId = `${baseId}-c-${sec.id}`;
-          // Durante a busca as secoes abrem para mostrar os resultados; o
-          // colapso gravado volta a valer quando o campo esvazia. Pedidos
-          // tambem abre a forca enquanto o erro/retry precisa ficar a vista.
-          const aberta =
-            consultaAtiva ||
-            abertas[sec.id] ||
-            (sec.id === 'pedidos' && carga.estado === 'erro');
+          // Pedidos abre a forca enquanto o erro/retry precisa ficar a vista.
+          const aberta = abertas[sec.id] || (sec.id === 'pedidos' && carga.estado === 'erro');
 
           return (
             <section key={sec.id} className="mw-secao" aria-labelledby={headingId}>
@@ -419,8 +397,7 @@ export function MenuWiki({
 
                 {sec.id === 'pedidos' &&
                   carga.estado === 'ok' &&
-                  listaCompleta.length === 0 &&
-                  !consultaAtiva && (
+                  listaCompleta.length === 0 && (
                     <p className="mw-vazio">
                       Nenhum pedido ainda. Envie uma NF-e em XML para criar o primeiro.
                     </p>
@@ -445,16 +422,6 @@ export function MenuWiki({
         })}
       </nav>
 
-      {consultaAtiva && secoesVisiveis.every((s) => s.itens.length === 0) && (
-        <div className="mw-vazio-grupo">
-          <p className="mw-vazio" role="status">
-            Nenhum item corresponde ao filtro.
-          </p>
-          <button type="button" className="rail-btn-sutil" onClick={() => setConsulta('')}>
-            Limpar filtro
-          </button>
-        </div>
-      )}
     </section>
   );
 }

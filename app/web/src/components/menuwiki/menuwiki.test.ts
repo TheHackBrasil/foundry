@@ -6,7 +6,6 @@ import {
   CHAVE_MODO,
   colapsoInicial,
   dicaItem,
-  filtrarSecoes,
   hrefPedido,
   itemPedido,
   itensContatos,
@@ -144,46 +143,9 @@ describe('itensRegras', () => {
   });
 });
 
-describe('filtrarSecoes', () => {
-  const secoes = [
-    {
-      id: 'pedidos' as const,
-      titulo: 'Pedidos',
-      itens: [
-        itemPedido(pedido({ divergencias: 2 }), 'torre'),
-        itemPedido(pedido({ pedidoId: 'p2', emitente: 'Packsul Embalagens' }), 'torre'),
-      ],
-    },
-    {
-      id: 'parceiros' as const,
-      titulo: 'Parceiros',
-      itens: itensContatos([
-        { parte: 'fiscal', nome: 'Escritório Central', canal: 'email', destino: 'f@x.com', fonte: 'manual' },
-      ]),
-    },
-  ];
-
-  it('sem consulta devolve todas as secoes', () => {
-    expect(filtrarSecoes(secoes, '  ')).toHaveLength(2);
-  });
-
-  it('casa por titulo, resumo e texto do selo em qualquer secao', () => {
-    expect(filtrarSecoes(secoes, 'krona')[0]?.itens).toHaveLength(1);
-    expect(filtrarSecoes(secoes, 'fiscal').map((s) => s.id)).toEqual(['parceiros']);
-    // Recorte de conflitos do botao antigo agora vem do texto do selo.
-    const desvios = filtrarSecoes(secoes, 'desvios');
-    expect(desvios).toHaveLength(1);
-    expect(desvios[0]?.itens[0]?.selo?.texto).toBe('2 desvios');
-  });
-
-  it('ignora acento e caixa na consulta', () => {
+describe('normalizarConsulta', () => {
+  it('ignora acento e caixa', () => {
     expect(normalizarConsulta('  Eletrônicos ')).toBe('eletronicos');
-    expect(filtrarSecoes(secoes, 'ELETRONICOS')[0]?.itens).toHaveLength(1);
-  });
-
-  it('secao sem resultado some do indice filtrado', () => {
-    expect(filtrarSecoes(secoes, 'packsul').map((s) => s.id)).toEqual(['pedidos']);
-    expect(filtrarSecoes(secoes, 'xyz')).toHaveLength(0);
   });
 });
 

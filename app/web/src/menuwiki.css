@@ -12,12 +12,13 @@
 }
 
 .mw-cab {
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.625rem;
 }
 
-/* Linha busca + toggle de densidade: a busca cresce e o botao fica na
-   ponta, na mesma pilula sombreada do campo. */
+/* Linha do titulo com o toggle de densidade na ponta. */
 .mw-cab-linha {
   display: flex;
   align-items: center;
@@ -25,37 +26,6 @@
 }
 
 /* Busca local: mesmo pilula sombreada do antigo filtro Todos/Conflitos. */
-.mw-busca {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-.mw-busca svg {
-  position: absolute;
-  inset-inline-start: 0.625rem;
-  width: 0.875rem;
-  height: 0.875rem;
-  color: var(--rail-soft);
-  pointer-events: none;
-}
-.mw-busca input {
-  width: 100%;
-  min-height: var(--ctl-md);
-  padding: 0 0.625rem 0 1.875rem;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--on-rail) 8%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-rail) 14%, transparent);
-  color: var(--on-rail);
-  font-family: var(--font-ui);
-  font-size: var(--fs-meta);
-}
-.mw-busca input::placeholder {
-  color: var(--rail-soft);
-  opacity: 0.85;
-}
 
 /* Toggle compacto/expandido: botao-icone discreto; pressionado sobe um
    degrau de preenchimento, mesma escala de contraste do campo de busca. */
@@ -282,7 +252,6 @@
     outline: 2px solid Highlight;
   }
   .mw-secao-btn,
-  .mw-busca input,
   .mw-modo {
     border: 1px solid ButtonBorder;
   }
