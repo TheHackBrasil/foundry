@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 import type { Caso } from '../../../shared/model.ts';
 import {
   cartoesMetricas,
+  contarOrigens,
+  montarFila,
+  origemInicial,
   formatarDuracaoMs,
   ordenarCasos,
   pct,
@@ -96,5 +99,42 @@ describe('cartoesMetricas', () => {
     expect(cards[0]).toMatchObject({ valor: '40%', ajuda: '4 de 10 pedidos' });
     expect(cards[4]!.valor).toBe('1h');
     expect(cards[5]!.valor).toBe('—');
+  });
+});
+
+describe('fila de trabalho', () => {
+  const c = (id: string, pedidoId: string, status: Caso['status'], abertoEm: string, daSessao: boolean): CasoLista => ({
+    ...caso(id, status, abertoEm),
+    pedidoId,
+    daSessao,
+    divergencia: { tipo: 'contradicao', campo: id.startsWith('peso') ? 'pesoTotal' : 'volumes', fonteA: 'nfe', fonteB: 'cte', valorA: 1, valorB: 2 },
+  }) as unknown as CasoLista;
+  const casos = [
+    c('peso-a', 'PED-A', 'aberto', '2026-11-20T10:00:00Z', true),
+    c('vol-a', 'PED-A', 'contestado', '2026-11-20T09:00:00Z', true),
+    c('peso-b', 'PED-B', 'aberto', '2026-11-26T10:00:00Z', true),
+    c('vol-b', 'PED-B', 'resolvido', '2026-11-26T11:00:00Z', true),
+    c('peso-seed', 'SEED', 'aberto', '2026-11-27T10:00:00Z', false),
+  ];
+
+  it('separa sessão de exemplos, esconde resolvidos e põe o pedido mais recente em cima', () => {
+    const grupos = montarFila(casos, { origem: 'sessao', mostrarResolvidos: false, busca: '' });
+    expect(grupos.map((g) => g.pedidoId)).toEqual(['PED-B', 'PED-A']);
+    expect(grupos[0]!.casos.map((x) => x.id)).toEqual(['peso-b']);
+    expect(grupos[1]!.casos.map((x) => x.id)).toEqual(['vol-a', 'peso-a']);
+    expect(montarFila(casos, { origem: 'exemplos', mostrarResolvidos: false, busca: '' }).map((g) => g.pedidoId)).toEqual(['SEED']);
+  });
+
+  it('mostrar resolvidos e buscar por campo ou pedido, sem acento', () => {
+    expect(montarFila(casos, { origem: 'sessao', mostrarResolvidos: true, busca: '' })[0]!.casos.map((x) => x.id)).toEqual(['peso-b', 'vol-b']);
+    const porCampo = montarFila(casos, { origem: 'sessao', mostrarResolvidos: false, busca: 'peso' });
+    expect(porCampo.flatMap((g) => g.casos.map((x) => x.id))).toEqual(['peso-b', 'peso-a']);
+    expect(montarFila(casos, { origem: 'sessao', mostrarResolvidos: false, busca: 'ped-a VOLUMES' }).flatMap((g) => g.casos.map((x) => x.id))).toEqual(['vol-a']);
+  });
+
+  it('contagem das abas e aba inicial', () => {
+    expect(contarOrigens(casos)).toEqual({ sessao: 3, exemplos: 1 });
+    expect(origemInicial(casos)).toBe('sessao');
+    expect(origemInicial(casos.filter((x) => !x.daSessao))).toBe('exemplos');
   });
 });

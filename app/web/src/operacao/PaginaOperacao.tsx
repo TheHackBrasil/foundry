@@ -6,7 +6,7 @@
 // com o painel de aprovação, a linha do tempo do caso e o botão "Acionar o
 // operador" nos casos de divergência.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { PARTES, type Parte } from '../../../shared/model.ts';
 import { ErroApi } from '../api.ts';
 import {
@@ -41,13 +41,17 @@ import {
   cartoesMetricas,
   classeStatusCaso,
   classeStatusCobranca,
+  contarOrigens,
+  montarFila,
   ordenarCasos,
+  origemInicial,
   podeEnviarCobranca,
   rotuloStatusCaso,
   rotuloStatusCobranca,
   tituloCaso,
   type CasoLista,
   type CobrancaLista,
+  type OrigemFila,
 } from './dominio.ts';
 import { IconeComprovante, IconeEnvelope } from './icones.tsx';
 import type { Metricas } from '../../../shared/model.ts';
@@ -166,10 +170,47 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
     [casos],
   );
 
-  // Seleciona o primeiro caso da fila quando nenhum está aberto.
+  // Fila de trabalho: aba de origem, resolvidos ocultos e busca. A aba
+  // inicial é decidida uma vez, quando os casos chegam.
+  const [origem, setOrigem] = useState<OrigemFila | null>(null);
+  const [mostrarResolvidos, setMostrarResolvidos] = useState(false);
+  const [busca, setBusca] = useState('');
   useEffect(() => {
-    if (fila.length > 0 && !selRef.current) setSel(fila[0]!.id);
-  }, [fila]);
+    if (origem === null && casos.estado === 'ok') setOrigem(origemInicial(casos.dados));
+  }, [origem, casos]);
+  const origemAtual: OrigemFila = origem ?? 'sessao';
+  const contagem = useMemo(() => contarOrigens(fila), [fila]);
+  const grupos = useMemo(
+    () => montarFila(fila, { origem: origemAtual, mostrarResolvidos, busca }),
+    [fila, origemAtual, mostrarResolvidos, busca],
+  );
+  const visiveis = useMemo(() => grupos.flatMap((g) => g.casos), [grupos]);
+  const rolagemRef = useRef<HTMLDivElement>(null);
+
+  // Seleciona o primeiro caso visível quando nenhum está aberto.
+  useEffect(() => {
+    if (visiveis.length > 0 && !selRef.current) setSel(visiveis[0]!.id);
+  }, [visiveis]);
+
+  // Setas, Home e End andam pela fila e já abrem o caso.
+  const navegarFila = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key) || visiveis.length === 0) return;
+      e.preventDefault();
+      const atual = visiveis.findIndex((c) => c.id === selRef.current);
+      const passo = e.key === 'ArrowDown' ? 1 : -1;
+      const i =
+        e.key === 'Home'
+          ? 0
+          : e.key === 'End'
+            ? visiveis.length - 1
+            : Math.min(visiveis.length - 1, Math.max(0, atual + passo));
+      const alvo = visiveis[i]!;
+      setSel(alvo.id);
+      rolagemRef.current?.querySelector<HTMLButtonElement>(`[data-caso-id="${CSS.escape(alvo.id)}"]`)?.focus();
+    },
+    [visiveis],
+  );
 
   const executar = useCallback(
     async (acao: () => Promise<unknown>, aviso: string) => {
@@ -280,50 +321,113 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
 
       <div className="op-grade">
         <section className="op-col" aria-labelledby="op-fila-t">
-          <h2 id="op-fila-t" className="op-col-t">
-            Fila de casos
-            {casos.estado === 'ok' && (
-              <span className="meta num"> {fila.filter((c) => c.status !== 'resolvido').length} em aberto</span>
-            )}
-          </h2>
+          <div className="op-fila-cab">
+            <h2 id="op-fila-t" className="op-col-t">
+              Fila de casos
+            </h2>
+            <div className="op-abas" role="radiogroup" aria-label="Origem dos casos">
+              {(
+                [
+                  ['sessao', 'Sua sessão'],
+                  ['exemplos', 'Exemplos'],
+                ] as const
+              ).map(([valor, rotulo]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  role="radio"
+                  aria-checked={origemAtual === valor}
+                  className="op-aba"
+                  onClick={() => setOrigem(valor)}
+                >
+                  {rotulo}
+                  <span className="op-aba-n num">
+                    {contagem[valor]}
+                    <span className="so-leitor"> em aberto</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="op-fila-ferramentas">
+              <input
+                type="search"
+                className="op-busca"
+                placeholder="Buscar pedido ou campo"
+                aria-label="Buscar na fila por pedido ou campo"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+              />
+              <label className="op-check meta">
+                <input
+                  type="checkbox"
+                  checked={mostrarResolvidos}
+                  onChange={(e) => setMostrarResolvidos(e.target.checked)}
+                />
+                Resolvidos
+              </label>
+            </div>
+            {origemAtual === 'exemplos' && <p className="meta op-fila-nota">Exemplos da seed: só leitura.</p>}
+          </div>
           {casos.estado === 'erro' && <p className="meta">{casos.mensagem}</p>}
-          {casos.estado === 'ok' && fila.length === 0 && (
-            <p className="meta">
-              Nenhuma exceção até aqui. Divergências entre fontes e pendências de
-              tempo abrem casos automaticamente.
+          {casos.estado === 'ok' && visiveis.length === 0 && (
+            <p className="meta op-fila-vazia">
+              {busca.trim()
+                ? 'Nenhum caso com essa busca.'
+                : origemAtual === 'sessao'
+                  ? 'Nenhum caso aberto na sua sessão. Envie documentos: divergências e pendências abrem casos sozinhas.'
+                  : 'Nenhum exemplo aberto.'}
             </p>
           )}
-          <ol className="op-fila">
-            {fila.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  className="op-caso"
-                  data-ativo={sel === c.id ? 'true' : undefined}
-                  aria-current={sel === c.id ? 'true' : undefined}
-                  onClick={() => setSel(c.id)}
-                >
-                  <span className="op-caso-topo">
-                    <span className={classeStatusCaso(c.status)}>{rotuloStatusCaso(c.status)}</span>
-                    {!c.daSessao && <span className="pilula-sutil">exemplo</span>}
-                    {c.daSessao && <span className="pilula-ok">sua sessão</span>}
-                    <time className="meta mono num" dateTime={c.abertoEm}>
-                      {formatarMomento(c.abertoEm)}
-                    </time>
-                  </span>
-                  <span className="op-caso-titulo">{tituloCaso(c)}</span>
-                  <span className="meta mono">{chaveCurta(c.pedidoId)}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
+          {visiveis.length > 0 && (
+            <div
+              ref={rolagemRef}
+              className="op-fila-rolagem"
+              onKeyDown={navegarFila}
+              role="region"
+              aria-label="Casos da fila. Setas para cima e para baixo trocam de caso."
+            >
+              {grupos.map((g) => (
+                <section key={g.pedidoId} className="op-grupo" aria-label={`Pedido ${chaveCurta(g.pedidoId)}`}>
+                  <h3 className="op-grupo-t">
+                    <span className="mono">{chaveCurta(g.pedidoId)}</span>
+                    <span className="meta num">
+                      {g.casos.length} {g.casos.length === 1 ? 'caso' : 'casos'}
+                    </span>
+                  </h3>
+                  <ol className="op-fila">
+                    {g.casos.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          className="op-caso"
+                          data-caso-id={c.id}
+                          data-ativo={sel === c.id ? 'true' : undefined}
+                          aria-current={sel === c.id ? 'true' : undefined}
+                          onClick={() => setSel(c.id)}
+                        >
+                          <span className="op-caso-titulo">{tituloCaso(c)}</span>
+                          <span className="op-caso-topo">
+                            <span className={classeStatusCaso(c.status)}>{rotuloStatusCaso(c.status)}</span>
+                            <time className="meta mono num" dateTime={c.abertoEm}>
+                              {formatarMomento(c.abertoEm)}
+                            </time>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              ))}
+            </div>
+          )}
 
-          <h2 className="op-col-t">
+          <details className="op-cobrancas">
+          <summary className="op-col-t">
             Cobranças de status
             {cobrancas.estado === 'ok' && (
               <span className="meta num"> {cobrancas.dados.length}</span>
             )}
-          </h2>
+          </summary>
           {cobrancas.estado === 'ok' && cobrancas.dados.length === 0 && (
             <p className="meta">
               Quando um pedido fica tempo demais parado, a pendência sugere uma
@@ -389,6 +493,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
               </li>
             ))}
           </ol>
+          </details>
         </section>
 
         <section className="op-col op-detalhe" aria-labelledby="op-detalhe-t">

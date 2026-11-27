@@ -155,3 +155,71 @@ export function cartoesMetricas(m: {
     { rotulo: 'Tempo até resolver', valor: formatarDuracaoMs(m.tempoMedioAteResolverMs), ajuda: 'média' },
   ];
 }
+
+// --- Fila de trabalho (triagem) ---
+// A fila separa a sessão do analista dos exemplos da seed (somente leitura),
+// esconde os resolvidos por padrão, busca por pedido ou campo e agrupa por
+// pedido: um pedido costuma abrir vários casos de uma vez (peso, volumes,
+// status), e o grupo evita repetir a mesma chave em cada linha.
+
+export type OrigemFila = 'sessao' | 'exemplos';
+
+export interface FiltroFila {
+  origem: OrigemFila;
+  mostrarResolvidos: boolean;
+  busca: string;
+}
+
+export interface GrupoFila {
+  pedidoId: string;
+  casos: CasoLista[];
+  maisRecente: string; // abertoEm do caso mais novo do grupo
+}
+
+const normalizar = (s: string): string =>
+  s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+
+const daOrigem = (c: CasoLista, origem: OrigemFila): boolean => (origem === 'sessao' ? c.daSessao === true : c.daSessao !== true);
+
+// Abertos (não resolvidos) por origem: os números das abas.
+export function contarOrigens(casos: readonly CasoLista[]): Record<OrigemFila, number> {
+  const conta = { sessao: 0, exemplos: 0 };
+  for (const c of casos) if (c.status !== 'resolvido') conta[c.daSessao ? 'sessao' : 'exemplos'] += 1;
+  return conta;
+}
+
+// A aba inicial: a sessão quando ela tem caso, senão os exemplos.
+export function origemInicial(casos: readonly CasoLista[]): OrigemFila {
+  return casos.some((c) => c.daSessao) ? 'sessao' : 'exemplos';
+}
+
+// Busca: todas as palavras precisam aparecer no título ou na chave do pedido.
+export function casaBusca(c: CasoLista, busca: string): boolean {
+  const termos = normalizar(busca).split(/\s+/).filter(Boolean);
+  if (termos.length === 0) return true;
+  const alvo = normalizar(`${tituloCaso(c)} ${c.pedidoId}`);
+  return termos.every((t) => alvo.includes(t));
+}
+
+// Grupos do mais recente para o mais antigo; dentro do grupo, o urgente
+// primeiro (contestado, aberto, atribuído, resolvido) e depois o mais novo.
+export function montarFila(casos: readonly CasoLista[], filtro: FiltroFila): GrupoFila[] {
+  const grupos = new Map<string, GrupoFila>();
+  for (const c of casos) {
+    if (!daOrigem(c, filtro.origem)) continue;
+    if (!filtro.mostrarResolvidos && c.status === 'resolvido') continue;
+    if (!casaBusca(c, filtro.busca)) continue;
+    const g = grupos.get(c.pedidoId) ?? { pedidoId: c.pedidoId, casos: [], maisRecente: c.abertoEm };
+    g.casos.push(c);
+    if (c.abertoEm > g.maisRecente) g.maisRecente = c.abertoEm;
+    grupos.set(c.pedidoId, g);
+  }
+  const lista = [...grupos.values()];
+  for (const g of lista) {
+    g.casos.sort((a, b) => ORDEM_STATUS[a.status] - ORDEM_STATUS[b.status] || b.abertoEm.localeCompare(a.abertoEm));
+  }
+  return lista.sort((a, b) => b.maisRecente.localeCompare(a.maisRecente) || a.pedidoId.localeCompare(b.pedidoId));
+}
