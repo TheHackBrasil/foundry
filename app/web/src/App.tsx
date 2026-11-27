@@ -6,6 +6,7 @@ import { Cabecalho } from './components/Cabecalho.tsx';
 import { DrawerAgenda } from './components/DrawerAgenda.tsx';
 import { DrawerAuditoria } from './components/DrawerAuditoria.tsx';
 import { DrawerRevisao } from './components/DrawerRevisao.tsx';
+import { EntradaInsights } from './components/EntradaInsights.tsx';
 import { EnvioArquivos } from './components/EnvioArquivos.tsx';
 import {
   IconeAgenda,
@@ -20,7 +21,7 @@ import { PainelPedido } from './components/PainelPedido.tsx';
 import { PedidoLista } from './components/PedidoLista.tsx';
 import { IconeOperacao } from './operacao/icones.tsx';
 import { PaginaOperacao } from './operacao/PaginaOperacao.tsx';
-import { chaveCurta, rotuloMotivoNotificacao, rotuloParte } from './format.ts';
+import { rotuloMotivoNotificacao, rotuloParte } from './format.ts';
 import { aplicarTema, temaInicial, type Tema } from './tema.ts';
 import { useIndicadorDeslizante } from './useIndicadorDeslizante.ts';
 import { usePresencaAnimada } from './usePresencaAnimada.ts';
@@ -454,95 +455,18 @@ export function App() {
                   aoSelecionar={selecionarAposEnvio}
                 />
               ) : (
-                <section aria-labelledby="vazio-titulo" className="vazio">
-                  <h1 id="vazio-titulo">{vazio ? 'Nada para mostrar ainda' : 'Escolha um pedido'}</h1>
-                  <p className="dica">
-                    Envie uma NF-e, CT-e, planilha ou e-mail. O Forseti compara o que cada fonte
-                    declara, aponta divergências e gera tarefas por setor.
-                  </p>
-                  {listaPedidos.length > 0 && (
-                    <nav aria-label="Pedidos disponíveis" style={{ width: '100%' }}>
-                      <ul
-                        style={{
-                          listStyle: 'none',
-                          margin: '0.25rem 0 0',
-                          padding: 0,
-                          display: 'grid',
-                          gap: '0.375rem',
-                          width: '100%',
-                          maxWidth: '34rem',
-                        }}
-                      >
-                        {listaPedidos.slice(0, 8).map((p) => {
-                          const emitente = p.emitente?.trim() || chaveCurta(p.pedidoId);
-                          const divs = p.divergencias ?? 0;
-                          const selo =
-                            p.status === 'cancelada'
-                              ? 'Cancelada'
-                              : (p.atrasoDias ?? 0) > 0
-                                ? `+${p.atrasoDias}d de atraso`
-                                : divs > 0
-                                  ? `${divs} ${divs === 1 ? 'desvio' : 'desvios'}`
-                                  : 'Consistente';
-                          return (
-                            <li key={p.pedidoId}>
-                              <a
-                                href={`#/pedido/${encodeURIComponent(p.pedidoId)}`}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  gap: '0.75rem',
-                                  padding: '0.6875rem 0.875rem',
-                                  border: '1px solid var(--border)',
-                                  borderRadius: 'var(--r-md)',
-                                  background: 'var(--surface)',
-                                  color: 'var(--text)',
-                                  textDecoration: 'none',
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    fontWeight: 600,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    minWidth: 0,
-                                  }}
-                                >
-                                  {emitente}
-                                </span>
-                                <span
-                                  style={{
-                                    color: 'var(--text2)',
-                                    fontSize: '0.8125rem',
-                                    flexShrink: 0,
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {selo} · …{p.pedidoId.slice(-6)}
-                                </span>
-                              </a>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      {listaPedidos.length > 8 && (
-                        <p className="dica" style={{ fontSize: '0.8125rem', marginTop: '0.375rem' }}>
-                          Mais {listaPedidos.length - 8} pedidos na lista lateral.
-                        </p>
-                      )}
-                    </nav>
-                  )}
-                  <button
-                    type="button"
-                    className="botao vazio-acao"
-                    onClick={() => setEnvioAberto(true)}
-                  >
-                    <IconeMais />
-                    <span>Enviar documento</span>
-                  </button>
-                </section>
+                <EntradaInsights
+                  pedidos={listaPedidos}
+                  vazio={vazio}
+                  aguardando={torre.pedidos.estado === 'carregando'}
+                  pulsoEventoSeq={torre.pulsoEventoSeq}
+                  aoAbrirPedido={(pid, foco) => {
+                    setFocoPendenteTorre(foco ?? null);
+                    torre.irParaTorre(pid);
+                  }}
+                  aoEnviarDocumento={() => setEnvioAberto(true)}
+                  aoAnunciar={torre.anunciar}
+                />
               )}
             </div>
           </main>
