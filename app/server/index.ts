@@ -62,9 +62,11 @@ import { extrairDeclaracaoEmail } from '../operador/agente/extracao.js';
 import { portaEvidenciasDoStore, portasDoServidor, portasWebhookDoStore } from './portas-operador.js';
 import {
   aoFimDaLigacaoRetell,
+  CAMINHO_WEBHOOK_RETELL,
   configRetellDoEnv,
   configWebhookRetell,
   criarCanalLigacaoRetell,
+  sincronizarWebhookRetell,
 } from '../operador/canais/voz/retell.js';
 import { lerRoteiroGuardado } from '../operador/roteiro.js';
 import { registrarRotaWebhook } from '../operador/webhooks.js';
@@ -857,7 +859,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
       MODELO_EXTRACAO_PADRAO,
     );
     await registrarRotaWebhook(app, {
-      caminho: '/api/operador/webhooks/retell',
+      caminho: CAMINHO_WEBHOOK_RETELL,
       config: configWebhookRetell(retell.apiKey),
       portas: portasWebhookDoStore(
         store,
@@ -1189,6 +1191,14 @@ if (ehProcessoPrincipal(import.meta.url, process.argv[1])) {
     app.log.info(`seed: ${r.ingeridos} doc(s) processados, ${r.pulados} arquivo(s) sem efeito`);
   }
   await ligarImap(canal, store);
+  // Producao: a Retell passa a chamar a URL publica deste servidor. No PC,
+  // quem faz isso e o `npm run tunel`.
+  const urlPublica = process.env['URL_PUBLICA']?.trim();
+  const retellBoot = configRetellDoEnv();
+  if (urlPublica && retellBoot) {
+    const r = await sincronizarWebhookRetell(retellBoot, urlPublica);
+    app.log.info(r.ok ? `retell: webhook em ${r.url}` : `retell: webhook nao atualizado (${r.motivo})`);
+  }
   // Tick de pendencias (spec 0011): verifica todos os workspaces a cada
   // PENDENCIA_TICK_MS; so abre 'pendencia_aberta' onde ainda nao existe.
   // Spec 0017, T740: o caso de pendencia aberto num workspace habilitado

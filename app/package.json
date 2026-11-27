@@ -12,6 +12,7 @@
     "dev:all": "npm run dev & npm --prefix web run dev",
     "start": "tsx server/index.ts",
     "seed": "tsx server/seed.ts",
+    "tunel": "tsx server/tunel.ts",
     "test": "vitest run shared server operador && npm --prefix web run test",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json"

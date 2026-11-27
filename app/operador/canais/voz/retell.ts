@@ -135,6 +135,35 @@ export function criarCanalLigacaoRetell(o: OpcoesCanalRetell): AdaptadorCanal {
   };
 }
 
+// --- Endereco do webhook ---
+// A Retell guarda o webhook no agente. Em producao o servidor aponta para a
+// propria URL publica ao subir (URL_PUBLICA); no PC, o comando `npm run tunel`
+// faz o mesmo com o endereco do tunel. Cada ambiente usa o proprio agente
+// (RETELL_AGENT_ID), senao um rouba o webhook do outro.
+export const CAMINHO_WEBHOOK_RETELL = '/api/operador/webhooks/retell';
+
+export async function sincronizarWebhookRetell(
+  config: Pick<ConfigRetell, 'apiKey' | 'agentId'>,
+  urlPublica: string,
+  fetcher: FetchRetell = (url, init) => fetch(url, init),
+): Promise<{ ok: true; url: string } | { ok: false; motivo: string }> {
+  let base: URL;
+  try {
+    base = new URL(urlPublica);
+  } catch {
+    return { ok: false, motivo: 'url_invalida' };
+  }
+  if (base.protocol !== 'https:') return { ok: false, motivo: 'url_sem_https' };
+  const url = new URL(CAMINHO_WEBHOOK_RETELL, base).href;
+  const r = await fetcher(`${URL_API_RETELL}/update-agent/${encodeURIComponent(config.agentId)}`, {
+    method: 'PATCH',
+    headers: { authorization: `Bearer ${config.apiKey}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ webhook_url: url, webhook_events: ['call_ended'] }),
+  }).catch(() => null);
+  if (!r) return { ok: false, motivo: 'falha_rede' };
+  return r.ok ? { ok: true, url } : { ok: false, motivo: `retell_${r.status}` };
+}
+
 // --- Webhook (RF17) ---
 
 const RE_ASSINATURA_RETELL = /^v=(\d{1,13}),d=([0-9a-f]{64})$/i;

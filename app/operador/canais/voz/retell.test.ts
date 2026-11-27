@@ -15,6 +15,7 @@ import {
   criarCanalLigacaoRetell,
   falasDaLigacao,
   pediuOptout,
+  sincronizarWebhookRetell,
 } from './retell.js';
 import { PROMPT_LIGACAO, trechosFaltando, variaveisLigacao } from './roteiro-ligacao.js';
 
@@ -286,5 +287,24 @@ describe('fim da ligacao: evidencia, ledger e revisao', () => {
     await c.efeito({ ...c.ev, corpo: { event: 'call_started', call: { call_id: 'call_abc123' } } });
     expect(c.eventos).toHaveLength(0);
     expect(c.gravadas).toHaveLength(0);
+  });
+});
+
+describe('endereco do webhook', () => {
+  it('aponta o agente para a URL publica, so https', async () => {
+    const chamadas: Array<{ url: string; corpo: unknown }> = [];
+    const r = await sincronizarWebhookRetell({ apiKey: 'k', agentId: 'agent_teste' }, 'https://exemplo.teste/', async (url, init) => {
+      chamadas.push({ url, corpo: JSON.parse(String(init.body)) });
+      return new Response('{}', { status: 200 });
+    });
+    expect(r).toEqual({ ok: true, url: 'https://exemplo.teste/api/operador/webhooks/retell' });
+    expect(chamadas[0]).toEqual({
+      url: 'https://api.retellai.com/update-agent/agent_teste',
+      corpo: { webhook_url: 'https://exemplo.teste/api/operador/webhooks/retell', webhook_events: ['call_ended'] },
+    });
+    expect(await sincronizarWebhookRetell({ apiKey: 'k', agentId: 'a' }, 'http://exemplo.teste', async () => new Response())).toEqual({
+      ok: false,
+      motivo: 'url_sem_https',
+    });
   });
 });
