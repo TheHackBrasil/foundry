@@ -59,6 +59,7 @@ import { assumirCasosPendentes, registrarOperador, type AlvoOperador } from '../
 import { criarCanalEmail } from '../operador/canais/email.js';
 import { criarClienteClaude, MODELO_EXTRACAO_PADRAO } from '../operador/agente/claude.js';
 import { extrairDeclaracaoEmail } from '../operador/agente/extracao.js';
+import { ConfigBackoffice, registrarRotasBackoffice } from './backoffice.js';
 import { portaEvidenciasDoStore, portasDoServidor, portasWebhookDoStore } from './portas-operador.js';
 import {
   aoFimDaLigacaoRetell,
@@ -276,6 +277,13 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   const db = dbInjetado ?? (await createDb());
   const store = new LedgerStore(db, seedWs, seedWs);
   await store.init();
+  // Backoffice (/#/admin): numeros liberados e aprovacao sem senha, no banco
+  // e por cima do env. Le uma vez no boot; muda pela rota de admin.
+  const backoffice = new ConfigBackoffice(
+    (process.env['OPERADOR_DESTINOS_PERMITIDOS'] ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    process.env['OPERADOR_APROVACAO_ABERTA']?.trim() === '1',
+  );
+  await backoffice.carregar(store);
   const canal = new CanalSSE(seedWs, cfg.sse);
   const guarda = new GuardaEspaco(db, limites.bytesBanco, (e) =>
     app.log.error({ err: e }, 'guarda de espaco: falha ao medir o banco'),
@@ -821,11 +829,14 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     (await registrarOperador(app, {
       db,
       seedWs,
-      portas: (base, config) =>
-        portasDoServidor({
+      portas: (base, config) => {
+        // A foto da politica de cada caso (destinosHash) sai da mesma lista
+        // que o efeito confere: a do backoffice.
+        backoffice.aoMudar((e) => Object.assign(config.politica, { destinosPermitidos: e.destinos }));
+        return portasDoServidor({
           raiz: store,
           base,
-          destinosPermitidos: config.politica.destinosPermitidos,
+          destinosPermitidos: () => backoffice.destinos(),
           canais: {
             email: criarCanalEmail({
               raiz: store,
@@ -838,7 +849,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
               ? {
                   ligacao: criarCanalLigacaoRetell({
                     config: retell,
-                    destinosPermitidos: config.politica.destinosPermitidos,
+                    destinosPermitidos: () => backoffice.destinos(),
                     lerRoteiro: async (ws, hash) => {
                       const bruto = await store.paraWorkspace(ws).evidencia(hash);
                       return bruto ? lerRoteiroGuardado(bruto) : null;
@@ -848,7 +859,8 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
               : {}),
           },
           aoEvento: (ev, ws) => canal.evento(ev, ws),
-        }),
+        });
+      },
     }));
   // Fim da ligacao (T762): a Retell avisa por webhook assinado com a chave
   // da API; transcricao e audio viram evidencia e a declaracao vai para a
@@ -889,7 +901,9 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
     token: cfg.operadorAprovadorToken,
     operador,
     limiteEscrita,
+    aprovacaoAberta: () => backoffice.aprovacaoAberta(),
   });
+  registrarRotasBackoffice(app, { store, config: backoffice, senha: cfg.operadorAprovadorToken, limiteEscrita });
 
   // Fila de revisao (RF7/T035): docs sem pedido ou extracao incerta. A sessao
   // le a propria fila e a da seed, mas so decide os proprios itens.

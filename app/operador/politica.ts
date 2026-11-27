@@ -54,6 +54,16 @@ export interface JanelaPolitica {
 
 // Valores vindos de env (RF9), lidos uma vez e gravados no snapshot do
 // operador_assumiu; a politica nunca le env.
+// Curinga de OPERADOR_WORKSPACES para a demo publica: cada visitante ganha
+// um workspace novo, entao listar um a um nao funciona. A seed continua fora
+// (alvoDaConfig). Id vazio nunca vale.
+export const TODOS_WORKSPACES = '*';
+
+export function workspaceNaLista(lista: readonly string[], workspace: string): boolean {
+  if (!workspace.trim()) return false;
+  return lista.includes(TODOS_WORKSPACES) || lista.includes(workspace);
+}
+
 export interface ConfigPolitica {
   workspacesHabilitados: readonly string[]; // OPERADOR_WORKSPACES
   destinosPermitidos: readonly string[]; // OPERADOR_DESTINOS_PERMITIDOS, normalizados antes de comparar
@@ -234,7 +244,7 @@ export function avaliarPolitica(entrada: EntradaPolitica): DecisaoPolitica {
   if (killSwitch.workspaces.includes(acao.workspace)) motivos.push('kill_switch_workspace');
 
   // Workspace habilitado (RF8). Id vazio nunca vale, nem se a lista tiver ''.
-  if (!acao.workspace.trim() || !config.workspacesHabilitados.includes(acao.workspace)) {
+  if (!workspaceNaLista(config.workspacesHabilitados, acao.workspace)) {
     motivos.push('workspace_nao_habilitado');
   }
 

@@ -14,6 +14,7 @@ import {
   type DecisaoPolitica,
   type EntradaPolitica,
   type EstadoKillSwitch,
+  workspaceNaLista,
 } from './politica.js';
 
 // Instantes fixos em UTC. Sao Paulo fica em UTC-3 o ano todo; 26/11/2026 e
@@ -396,5 +397,14 @@ describe('normalizarTelefoneE164', () => {
     ['11+987654321'],
   ])('%j nao vira E.164', (entrada) => {
     expect(normalizarTelefoneE164(entrada)).toBeNull();
+  });
+});
+
+describe('curinga de workspaces (demo publica)', () => {
+  it("'*' habilita qualquer workspace nao vazio; sem curinga vale a lista", () => {
+    expect(workspaceNaLista(['*'], 'ws-qualquer')).toBe(true);
+    expect(workspaceNaLista(['*'], '  ')).toBe(false);
+    expect(workspaceNaLista(['ws-a'], 'ws-b')).toBe(false);
+    expect(workspaceNaLista(['ws-a'], 'ws-a')).toBe(true);
   });
 });

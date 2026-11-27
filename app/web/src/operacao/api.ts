@@ -177,3 +177,29 @@ export const ajustarPlano = (
 
 // US3: abre a escada do operador num caso de divergência. 409 = já acionado.
 export const acionarOperador = (casoId: string): Promise<unknown> => post(`${rotaCaso(casoId)}/acionar`);
+
+// --- Backoffice (/#/admin, spec 0017) ---
+
+export interface ConfigAdmin {
+  destinos: string[];
+  origemDestinos: 'banco' | 'env';
+  aprovacaoAberta: boolean;
+}
+
+const comSenha = (senha: string): Record<string, string> => ({ authorization: `Bearer ${senha}` });
+
+export const lerConfigAdmin = (senha: string): Promise<ConfigAdmin> =>
+  pedirJson('/api/admin/config', { headers: comSenha(senha) });
+
+export const salvarConfigAdmin = (
+  senha: string,
+  mudanca: { destinos?: string[]; aprovacaoAberta?: boolean },
+): Promise<ConfigAdmin> =>
+  pedirJson('/api/admin/config', {
+    method: 'PUT',
+    headers: { ...comSenha(senha), 'content-type': 'application/json' },
+    body: JSON.stringify(mudanca),
+  });
+
+// Público: a tela de aprovação só precisa saber se pede senha.
+export const lerAprovacaoAberta = (): Promise<{ aberta: boolean }> => pedirJson('/api/operador/aprovacao');

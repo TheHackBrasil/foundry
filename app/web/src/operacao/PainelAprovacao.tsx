@@ -44,6 +44,8 @@ export interface PainelAprovacaoProps {
   // Token de aprovador: estado do pai, nunca gravado no navegador.
   token: string;
   aoMudarToken: (token: string) => void;
+  // Backoffice com aprovação aberta (demo): sem campo de senha.
+  semSenha?: boolean;
   somenteLeitura?: boolean;
   // Depois de decidir ou de um 409: o pai recarrega planos e linha do tempo.
   aoRecarregar: () => void;
@@ -179,6 +181,7 @@ export function PainelAprovacao({
   motivo,
   token,
   aoMudarToken,
+  semSenha = false,
   somenteLeitura = false,
   aoRecarregar,
   aoAnunciar,
@@ -213,7 +216,7 @@ export function PainelAprovacao({
   }, [casoId, plano.planoId, plano.versao, plano.hashRoteiro, roteiroInicial]);
 
   const aberto = planoPedeDecisao(plano) && !somenteLeitura;
-  const semToken = token.trim().length === 0;
+  const semToken = !semSenha && token.trim().length === 0;
   const lido = roteiro.estado === 'ok' ? roteiro.roteiro : null;
   const motivoTexto = motivo ?? (lido?.motivo ? rotuloCodigo(lido.motivo) : undefined);
   const podeAjustar = aberto && lido !== null && Object.keys(lido.campos).some((k) => CAMPOS_AJUSTAVEIS.includes(k));
@@ -311,6 +314,7 @@ export function PainelAprovacao({
 
       {aberto && (
         <div className="op-acoes">
+          {!semSenha && (
           <div className="op-acao">
             <label className="meta" htmlFor={tokenId}>
               Credencial de aprovador
@@ -329,6 +333,7 @@ export function PainelAprovacao({
               Fica só na memória desta aba. Recarregar a página apaga o token.
             </p>
           </div>
+          )}
 
           <div className="op-acao-linha">
             <button

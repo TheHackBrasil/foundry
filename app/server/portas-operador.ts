@@ -186,7 +186,8 @@ export async function planoDoStore(raiz: LedgerStore, workspace: string, pedidoI
 export interface OpcoesPortasServidor {
   raiz: LedgerStore; // store raiz, com o seed certo
   base: PortasFluxo; // portas padrao do modulo (ledger do DBOS)
-  destinosPermitidos: readonly string[];
+  // Lista fixa ou lida a cada efeito (backoffice no banco).
+  destinosPermitidos: readonly string[] | (() => readonly string[]);
   canais: PortasFluxo['canais'];
   aoEvento?: (evento: Evento, workspace: string) => void; // repasse ao SSE
   agora?: () => number;
@@ -212,7 +213,7 @@ export function portasDoServidor(o: OpcoesPortasServidor): PortasFluxo {
     killSwitch: () => lerKillSwitchOperador(o.raiz),
     contato: (workspace, parte, canal) => o.raiz.paraWorkspace(workspace).contatoDaParte(parte, canal),
     contadores: (consulta) => contadoresDoStore(o.raiz, consulta),
-    destinosPermitidos: async () => o.destinosPermitidos,
+    destinosPermitidos: async () => (typeof o.destinosPermitidos === 'function' ? o.destinosPermitidos() : o.destinosPermitidos),
     estadoCaso: (workspace, pedidoId, casoId) => estadoCasoDoStore(o.raiz, workspace, pedidoId, casoId),
     planoContato: (workspace, pedidoId, planoId) => planoDoStore(o.raiz, workspace, pedidoId, planoId),
     guardarEvidencia: (workspace, hash, tipo, conteudo) =>

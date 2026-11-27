@@ -196,6 +196,15 @@ CREATE TABLE IF NOT EXISTS operador_controle (
   PRIMARY KEY (escopo, workspace_id)
 );
 
+-- Backoffice do operador (spec 0017): configuracao global editavel pelo
+-- /#/admin (numeros que a IA pode contatar, aprovacao sem senha). Vale por
+-- cima do env; sem linha, vale o env.
+CREATE TABLE IF NOT EXISTS operador_config (
+  chave         TEXT PRIMARY KEY,
+  valor         JSONB NOT NULL,
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Spec 0017, RF18: declaracao de WhatsApp ou ligacao aprovada na revisao
 -- sinaliza o operador. Uma linha por item de revisao; o operador marca como
 -- lida quando o fluxo acorda e rele o ledger.
@@ -867,6 +876,19 @@ export class LedgerStore {
   }
 
   // Kill switch (RF10): lido do banco a cada efeito, nunca do snapshot.
+  async lerConfigOperador(chave: string): Promise<unknown> {
+    const rows = await this.db.query<{ valor: unknown }>(`SELECT valor FROM operador_config WHERE chave = $1`, [chave]);
+    return rows[0]?.valor ?? null;
+  }
+
+  async gravarConfigOperador(chave: string, valor: unknown): Promise<void> {
+    await this.db.query(
+      `INSERT INTO operador_config (chave, valor, atualizado_em) VALUES ($1, $2::jsonb, now())
+       ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, atualizado_em = now()`,
+      [chave, JSON.stringify(valor)],
+    );
+  }
+
   async lerKillSwitch(): Promise<EstadoKillSwitch> {
     const rows = await this.db.query<{ escopo: string; workspace_id: string }>(
       `SELECT escopo, workspace_id FROM operador_controle WHERE acionado ORDER BY workspace_id`,

@@ -23,6 +23,7 @@ import {
   enviarCobranca,
   listarPlanos,
   obterLinhaTempo,
+  lerAprovacaoAberta,
   listarCasos,
   listarCobrancas,
   listarMetricas,
@@ -84,6 +85,8 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   // do navegador. Some ao recarregar a página.
   const [tokenAprovador, setTokenAprovador] = useState('');
   const [acionando, setAcionando] = useState(false);
+  // Backoffice: aprovação sem senha (demo). Relido a cada recarga da página.
+  const [aprovacaoAberta, setAprovacaoAberta] = useState(false);
   const detalheSeq = useRef(0);
   const operadorSeq = useRef(0);
   const selRef = useRef<string | null>(null);
@@ -152,6 +155,12 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   useEffect(() => {
     void recarregar();
   }, [recarregar, pulsoEventoSeq]);
+
+  useEffect(() => {
+    void lerAprovacaoAberta()
+      .then((r) => setAprovacaoAberta(r.aberta))
+      .catch(() => setAprovacaoAberta(false));
+  }, []);
 
   useEffect(() => {
     if (sel) {
@@ -642,6 +651,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                     motivo={motivoDoPlano(pl, itensLinha)}
                     token={tokenAprovador}
                     aoMudarToken={setTokenAprovador}
+                    semSenha={aprovacaoAberta}
                     somenteLeitura={!casoAtual.daSessao}
                     aoRecarregar={recarregarOperador}
                     aoAnunciar={aoAnunciar}

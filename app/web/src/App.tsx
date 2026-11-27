@@ -25,6 +25,7 @@ import { aplicarTema, temaInicial, type Tema } from './tema.ts';
 import { useIndicadorDeslizante } from './useIndicadorDeslizante.ts';
 import { usePresencaAnimada } from './usePresencaAnimada.ts';
 import { useTorre } from './useTorre.ts';
+import { PaginaAdmin } from './operacao/PaginaAdmin.tsx';
 
 export function App() {
   const torre = useTorre();
@@ -33,7 +34,9 @@ export function App() {
   const [rotaOperacao, setRotaOperacao] = useState(() =>
     window.location.hash.startsWith('#/operacao'),
   );
-  const rotaEfetiva = rotaOperacao ? 'operacao' : torre.rota;
+  // #/admin: backoffice do time (spec 0017), fora do menu, só pela URL.
+  const [rotaAdmin, setRotaAdmin] = useState(() => window.location.hash.startsWith('#/admin'));
+  const rotaEfetiva = rotaAdmin ? 'admin' : rotaOperacao ? 'operacao' : torre.rota;
   const [tema, setTema] = useState<Tema>(temaInicial);
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
   const [revisaoAberto, setRevisaoAberto] = useState(false);
@@ -73,7 +76,10 @@ export function App() {
 
   // Mantém a rota #/operacao em sincronia com a barra de endereço.
   useEffect(() => {
-    const aoMudar = () => setRotaOperacao(window.location.hash.startsWith('#/operacao'));
+    const aoMudar = () => {
+      setRotaOperacao(window.location.hash.startsWith('#/operacao'));
+      setRotaAdmin(window.location.hash.startsWith('#/admin'));
+    };
     window.addEventListener('hashchange', aoMudar);
     return () => window.removeEventListener('hashchange', aoMudar);
   }, []);
@@ -391,7 +397,9 @@ export function App() {
 
           <main id="conteudo" tabIndex={-1} data-rota={rotaEfetiva}>
             <div key={rotaEfetiva} className="rota-palco" data-rota={rotaEfetiva}>
-              {rotaOperacao ? (
+              {rotaAdmin ? (
+                <PaginaAdmin />
+              ) : rotaOperacao ? (
                 <PaginaOperacao
                   aoAnunciar={torre.anunciar}
                   aoAbrirNaTorre={torre.irParaTorre}

@@ -77,7 +77,8 @@ export type FetchRetell = (url: string, init: RequestInit) => Promise<Response>;
 
 export interface OpcoesCanalRetell {
   config: ConfigRetell;
-  destinosPermitidos: readonly string[];
+  // Lista fixa ou lida a cada envio (backoffice no banco).
+  destinosPermitidos: readonly string[] | (() => readonly string[]);
   // Roteiro aprovado, lido da evidencia pelo hash do plano.
   lerRoteiro(workspace: string, hashRoteiro: string): Promise<RoteiroPlano | null>;
   fetch?: FetchRetell;
@@ -93,7 +94,10 @@ const RE_CALL_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 export function criarCanalLigacaoRetell(o: OpcoesCanalRetell): AdaptadorCanal {
   const fetcher = o.fetch ?? ((url, init) => fetch(url, init));
-  const permitidos = new Set(o.destinosPermitidos.map((d) => normalizarTelefoneE164(d)).filter((d): d is string => !!d));
+  const permitidos = (): Set<string> => {
+    const lista = typeof o.destinosPermitidos === 'function' ? o.destinosPermitidos() : o.destinosPermitidos;
+    return new Set(lista.map((d) => normalizarTelefoneE164(d)).filter((d): d is string => !!d));
+  };
   return {
     canal: 'ligacao',
     fornecedor: FORNECEDOR_RETELL,
@@ -102,7 +106,7 @@ export function criarCanalLigacaoRetell(o: OpcoesCanalRetell): AdaptadorCanal {
     async enviar(pedido: PedidoEnvio): Promise<RespostaEnvio> {
       if (pedido.canal !== 'ligacao') return { status: 'recusado', motivo: 'canal_incompativel' };
       const destino = normalizarTelefoneE164(pedido.destino);
-      if (!destino || !permitidos.has(destino)) return { status: 'recusado', motivo: 'destino_nao_permitido' };
+      if (!destino || !permitidos().has(destino)) return { status: 'recusado', motivo: 'destino_nao_permitido' };
       if (!pedido.hashRoteiro) return { status: 'recusado', motivo: 'sem_roteiro' };
       const roteiro = await o.lerRoteiro(pedido.workspace, pedido.hashRoteiro);
       if (!roteiro || roteiro.canal !== 'ligacao') return { status: 'recusado', motivo: 'roteiro_indisponivel' };

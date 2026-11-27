@@ -30,6 +30,8 @@ export interface OpcoesRotasOperador {
   canal: CanalSSE;
   seedWs: string;
   token: string | null | undefined; // OPERADOR_APROVADOR_TOKEN
+  // Backoffice: aprovar plano sem senha (demo). O clique continua humano.
+  aprovacaoAberta?: () => boolean;
   operador: AlvoOperador;
   limiteEscrita?: Record<string, unknown>; // config de rate limit das escritas
   retencaoDias?: number;
@@ -162,6 +164,7 @@ export function registrarRotasOperador(app: FastifyInstance, o: OpcoesRotasOpera
   );
 
   const exigirAprovador = (req: FastifyRequest): void => {
+    if (o.aprovacaoAberta?.()) return;
     if (!bearerConfere(req.headers.authorization, o.token)) throw new Recusa(401, 'Credencial de aprovador ausente ou inválida.');
   };
 

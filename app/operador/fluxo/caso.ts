@@ -30,6 +30,7 @@ import {
   avaliarPolitica,
   CANAIS_COM_APROVACAO,
   normalizarTelefoneE164,
+  workspaceNaLista,
   type CanalOperador,
   type ConfigPolitica,
   type ContadoresPolitica,
@@ -196,7 +197,7 @@ export function snapshotPolitica(
   prazos: { emailH: number; whatsappH: number; aprovacaoValidadeMin: number },
 ): SnapshotPolitica {
   return {
-    workspaceHabilitado: workspace.trim() !== '' && config.workspacesHabilitados.includes(workspace),
+    workspaceHabilitado: workspaceNaLista(config.workspacesHabilitados, workspace),
     workspacesHash: hashWorkspaces(config.workspacesHabilitados),
     destinosHash: hashDestinos(config.destinosPermitidos),
     janela: { ...config.janela },

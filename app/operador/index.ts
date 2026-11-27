@@ -23,7 +23,7 @@ import type { Db } from '../server/db.js';
 import { LedgerStore } from '../server/store.js';
 import { criarPortaLedger, FonteLedgerDbos, SCHEMA_DBOS_PADRAO } from './db-dbos.js';
 import { registrarFluxoCaso, snapshotPolitica, type EntradaFluxoCaso, type FluxoCaso, type PortasFluxo } from './fluxo/caso.js';
-import { POLITICA_PADRAO, type ConfigPolitica } from './politica.js';
+import { POLITICA_PADRAO, workspaceNaLista, type ConfigPolitica } from './politica.js';
 
 export const NOME_APP_DBOS = 'foundry-operador';
 const CHAVE_LOCK_PADRAO = 'foundry:operador:lider';
@@ -311,7 +311,7 @@ export interface ModuloOperador extends AlvoOperador {
 // trabalhada pelo operador, mesmo listada por engano (RF4, P-010).
 export function alvoDaConfig(config: ConfigOperador, seedWs: string): Pick<AlvoOperador, 'habilitado' | 'entradaDoCaso'> {
   const habilitado = (workspace: string): boolean =>
-    config.ativo && workspace !== seedWs && config.politica.workspacesHabilitados.includes(workspace);
+    config.ativo && workspace !== seedWs && workspaceNaLista(config.politica.workspacesHabilitados, workspace);
   return {
     habilitado,
     entradaDoCaso: (workspace, caso, gatilho, parte) => ({
