@@ -62,7 +62,9 @@ describe('parsers', () => {
     expect((d.dados['itens'] as unknown[]).length).toBe(2);
     expect(d.campos.pesoTotal).toBe(510);
     expect(d.campos.volumes).toBe(10);
-    expect(d.campos.previsaoEntrega).toBe('2026-01-20');
+    // NF-e nao carrega promessa de entrega: a emissao fica em dados, nao em campos.
+    expect(d.campos.previsaoEntrega).toBeUndefined();
+    expect(d.dados['dataEmissao']).toBe('2026-01-20T10:00:00-03:00');
   });
 
   it('CT-e vincula ao pedido pela chave NF-e', () => {
@@ -157,7 +159,8 @@ describe('ledger + api (PGlite)', () => {
       divergencias: Array<{ campo: string }>;
       tarefas: Array<{ parte: string }>;
     };
-    expect(proj.divergencias.map((d) => d.campo).sort()).toEqual(['pesoTotal', 'status', 'volumes'].sort());
+    // CT-e autorizado nao prova movimento: diverge so no fisico conferido na coleta.
+    expect(proj.divergencias.map((d) => d.campo).sort()).toEqual(['pesoTotal', 'volumes'].sort());
     expect(proj.tarefas.length).toBeGreaterThan(0);
     expect(new Set(proj.tarefas.map((t) => t.parte))).toContain('transportadora');
   });
@@ -183,8 +186,10 @@ describe('ledger + api (PGlite)', () => {
     expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cte', 'cce']);
     expect(proj.divergencias.filter((d) => d.campo === 'previsaoEntrega')).toEqual([]);
     expect(proj.tarefas.filter((t) => t.divergencia.campo === 'previsaoEntrega')).toEqual([]);
-    expect(proj.pedido.campos['previsaoEntrega']).toBe('2026-01-20');
-    expect(proj.pedido.campos['status']).toBe('em_transito');
+    // NF-e e CT-e nao carregam promessa de entrega nem prova de movimento:
+    // sem planilha ou declaracao, o pedido nao tem previsao nenhuma.
+    expect(proj.pedido.campos['previsaoEntrega']).toBeUndefined();
+    expect(proj.pedido.campos['status']).toBe('emitida');
   });
 
   it('evento 110190 do CT-e (insucesso na entrega) nao vira atraso: 422 e nada gravado (R-006)', async () => {
@@ -200,6 +205,14 @@ describe('ledger + api (PGlite)', () => {
   });
 
   it('planilha com data nova gera a divergencia de data e as 5 tarefas, uma por parte', async () => {
+    // A promessa original honesta: a transportadora confirmou 20/01 por
+    // e-mail. A divergencia de data nasce quando a planilha diz outra coisa —
+    // nunca da data de emissao da NF-e, que nao e promessa de entrega.
+    await store.append(CHAVE, 'status_declarado', {
+      fonte: 'email_transportadora',
+      campos: { previsaoEntrega: '2026-01-20' },
+      dados: { origem: 'confirmacao_inicial' },
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/api/ingest',
@@ -210,11 +223,11 @@ describe('ledger + api (PGlite)', () => {
     const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
     // A planilha tambem diverge em peso, volumes e status: filtra pelo campo de data.
     expect(proj.divergencias.filter((d) => d.campo === 'previsaoEntrega')).toEqual([
-      { campo: 'previsaoEntrega', fonteA: 'nfe', fonteB: 'planilha', valorA: '2026-01-20', valorB: '2026-01-25' },
+      { campo: 'previsaoEntrega', fonteA: 'email_transportadora', fonteB: 'planilha', valorA: '2026-01-20', valorB: '2026-01-25' },
     ]);
     const deData = proj.tarefas.filter((t) => t.divergencia.campo === 'previsaoEntrega');
     expect(deData.map((t) => t.parte)).toEqual(['transportadora', 'cd', 'fiscal', 'financeiro', 'fornecedor']);
-    expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cte', 'cce', 'planilha']);
+    expect(proj.versoes.map((v) => v.fonte)).toEqual(['nfe', 'cte', 'cce', 'email_transportadora', 'planilha']);
 
     const fiscal = deData.find((t) => t.parte === 'fiscal')!;
     expect(fiscal.titulo).toBe('Conferir se o atraso exige ação fiscal');
@@ -226,9 +239,8 @@ describe('ledger + api (PGlite)', () => {
   it('detalhes das tarefas saem com data brasileira, status legivel e acentos', async () => {
     const proj = (await app.inject({ method: 'GET', url: `/api/pedidos/${CHAVE}` })).json() as Projecao;
     const detalhes = proj.tarefas.map((t) => t.detalhe);
-    expect(detalhes).toContain('Previsão divergente: NF-e diz 20/01/2026, planilha diz 25/01/2026.');
-    expect(detalhes).toContain('Status divergente: NF-e diz Emitida, CT-e diz Em trânsito.');
-    expect(detalhes).toContain('Status divergente: CT-e diz Em trânsito, planilha diz Atrasada.');
+    expect(detalhes).toContain('Previsão divergente: resposta da transportadora diz 20/01/2026, planilha diz 25/01/2026.');
+    expect(detalhes).toContain('Status divergente: NF-e diz Emitida, planilha diz Atrasada.');
     for (const t of proj.tarefas) {
       expect(t.detalhe).not.toMatch(/\d{4}-\d{2}-\d{2}|\w_\w|\b(nfe|cte|cce)\b/);
     }
@@ -385,6 +397,14 @@ describe('ledger + api (PGlite)', () => {
   });
 
   it('POST /api/simulate devolve tarefas sem gravar', async () => {
+    // A simulacao diverge da previsao declarada por alguma fonte. A cadeia
+    // aqui so tem a NF-e (recomecada no teste de adulteracao) e ela nao
+    // carrega promessa de data: sem uma declaracao, nao ha com o que divergir.
+    await store.append(CHAVE, 'status_declarado', {
+      fonte: 'email_transportadora',
+      campos: { previsaoEntrega: '2026-01-20' },
+      dados: { origem: 'confirmacao_inicial' },
+    });
     const antes = (await store.eventosDoPedido(CHAVE)).length;
     const res = await app.inject({
       method: 'POST',
@@ -495,7 +515,6 @@ describe('CC-e com texto de data nao vira atraso (R-006, D-020)', () => {
     expect(proj.divergencias).toEqual([]);
     expect(proj.tarefas).toEqual([]);
     expect(proj.pedido.campos).toEqual({
-      previsaoEntrega: '2026-01-20',
       pesoTotal: 510,
       volumes: 10,
       status: 'emitida',

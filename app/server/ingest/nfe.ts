@@ -84,7 +84,11 @@ export function parseNFe(xml: string): DocData {
   const campos: CamposObservados = { status: 'emitida' };
   if (pesoBruto > 0) campos.pesoTotal = pesoBruto;
   if (qVol > 0) campos.volumes = qVol;
-  if (dhEmi) campos.previsaoEntrega = dhEmi.slice(0, 10);
+  // A NF-e nao carrega promessa de entrega: dhEmi e a data de emissao do
+  // documento, nao a previsao. Tratar emissao como previsao fazia toda
+  // carga nascer "adiantada" e criava divergencia falsa com a planilha.
+  // Previsao honesta vem da planilha, da cotacao ou da declaracao da
+  // transportadora; a emissao segue registrada em dados.dataEmissao.
 
   return {
     fonte: 'nfe',

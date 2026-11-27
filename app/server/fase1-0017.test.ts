@@ -356,6 +356,9 @@ describe('spec 0017 T716: fechamento deterministico pelo motor (RF5)', () => {
     const store = (await base()).paraWorkspace('ws-t716-b');
     const canal = new CanalSSE();
     await ingerir(store, canal, 'nfe-ok.xml', ler('nfe-ok.xml'));
+    // A previsao honesta vem da planilha (a NF-e nao declara mais data):
+    // sem ela a regra entrega_sem_confirmacao nao tem relogio para disparar.
+    await ingerir(store, canal, 'planilha.csv', Buffer.from(`chave_nf;data_prevista\n${CHAVE};2026-01-25`));
     await verificarWorkspace(store, canal, new Date(), { horasSemAtualizacao: 24 });
     const caso = projetarCasos(await store.eventosDoPedido(CHAVE)).find((k) => k.pendencia?.motivo === 'entrega_sem_confirmacao')!;
     expect(caso).toBeDefined();

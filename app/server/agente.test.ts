@@ -230,9 +230,16 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     sessao = store.paraWorkspace(WS);
     ctx = { sessao, store, seedWs: 'seed' };
 
-    // Pedido 1 da sessao: NF-e + planilha com previsao divergente.
+    // Pedido 1 da sessao: NF-e + promessa da transportadora (20/01) +
+    // planilha com previsao divergente (25/01). A NF-e nao carrega data:
+    // a promessa honesta chega por declaracao.
     const nfe = parseNFe(ler('nfe-ok.xml'));
     await sessao.append(CHAVE, 'nfe', docDataParaPayload(nfe));
+    await sessao.append(CHAVE, 'status_declarado', {
+      fonte: 'email_transportadora',
+      campos: { previsaoEntrega: '2026-01-20' },
+      dados: { origem: 'confirmacao_inicial' },
+    });
     await sessao.append(CHAVE, 'planilha', {
       fonte: 'planilha',
       campos: { previsaoEntrega: '2026-01-25' },
@@ -311,7 +318,9 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     expect(r.ok).toBe(true);
     expect(r.pedidoIdResolvido).toBe(CHAVE);
     const porFonte = r.dados['valoresPorFonte'] as Array<{ fonte: string; campos: Record<string, unknown> }>;
-    expect(porFonte.find((f) => f.fonte === 'nfe')?.campos['previsaoEntrega']).toBe('2026-01-20');
+    // A NF-e nao declara data: a promessa original e da transportadora.
+    expect(porFonte.find((f) => f.fonte === 'nfe')?.campos['previsaoEntrega']).toBeUndefined();
+    expect(porFonte.find((f) => f.fonte === 'email_transportadora')?.campos['previsaoEntrega']).toBe('2026-01-20');
     expect(porFonte.find((f) => f.fonte === 'planilha')?.campos['previsaoEntrega']).toBe('2026-01-25');
     expect((r.dados['divergencias'] as unknown[]).length).toBe(1);
     const porParte = r.dados['tarefasPorParte'] as Record<string, unknown[]>;
@@ -337,7 +346,7 @@ describe('ferramentas do agente sobre PGlite (T311/T312)', () => {
     expect(r.ok).toBe(true);
     expect(r.dados['campo']).toBe('previsaoEntrega');
     const comp = (r.dados['comparacoes'] as Array<{ campo: string; porFonte: Array<{ fonte: string; valor: unknown }> }>)[0]!;
-    expect(comp.porFonte.map((f) => `${f.fonte}:${f.valor}`)).toEqual(['nfe:2026-01-20', 'planilha:2026-01-25']);
+    expect(comp.porFonte.map((f) => `${f.fonte}:${f.valor}`)).toEqual(['email_transportadora:2026-01-20', 'planilha:2026-01-25']);
     expect(r.blocosSugeridos).toEqual(['comparador_conflito', 'matriz_focada', 'linha_tempo_causal']);
   });
 
@@ -475,6 +484,11 @@ describe('motor do agente com LLM sequenciada (T313)', () => {
     sessao = store.paraWorkspace(WS);
     const nfe = parseNFe(ler('nfe-ok.xml'));
     await sessao.append(CHAVE, 'nfe', docDataParaPayload(nfe));
+    await sessao.append(CHAVE, 'status_declarado', {
+      fonte: 'email_transportadora',
+      campos: { previsaoEntrega: '2026-01-20' },
+      dados: { origem: 'confirmacao_inicial' },
+    });
     await sessao.append(CHAVE, 'planilha', {
       fonte: 'planilha',
       campos: { previsaoEntrega: '2026-01-25' },

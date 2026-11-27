@@ -288,9 +288,16 @@ describe('camada ai com PGlite', () => {
     store = r.store;
     await app.ready();
     sessao = store.paraWorkspace(WS);
-    // Pedido da sessao: NF-e + planilha com previsao divergente.
+    // Pedido da sessao: NF-e + promessa declarada pela transportadora
+    // (20/01) + planilha com previsao divergente (25/01). A NF-e nao carrega
+    // data: a divergencia honesta nasce entre declaracao e planilha.
     const nfe = parseNFe(ler('nfe-ok.xml'));
     await sessao.append(CHAVE, 'nfe', docDataParaPayload(nfe));
+    await sessao.append(CHAVE, 'status_declarado', {
+      fonte: 'email_transportadora',
+      campos: { previsaoEntrega: '2026-01-20' },
+      dados: { origem: 'confirmacao_inicial' },
+    });
     await sessao.append(CHAVE, 'planilha', {
       fonte: 'planilha',
       campos: { previsaoEntrega: '2026-01-25' },
@@ -418,8 +425,14 @@ describe('camada ai com PGlite', () => {
     const chaveSeed = '35260123456789000123550010000000011000009999';
     await seedStore.append(chaveSeed, 'nfe', {
       fonte: 'nfe',
-      campos: { previsaoEntrega: '2026-01-20', status: 'emitida' },
+      campos: { status: 'emitida' },
       dados: { emitente: { nome: 'Fornecedor Seed' }, destinatario: { nome: 'CD Seed' } },
+    });
+    // A previsao honesta do pedido seed: declaracao da transportadora.
+    await seedStore.append(chaveSeed, 'status_declarado', {
+      fonte: 'email_transportadora',
+      campos: { previsaoEntrega: '2026-01-20' },
+      dados: { origem: 'confirmacao_inicial' },
     });
     const visitanteVazio = store.paraWorkspace('00000000-0000-4000-8000-00000000eeee');
     const antesSeed = (await seedStore.eventosDoPedido(chaveSeed)).length;
@@ -822,6 +835,11 @@ describe('GenUI v2, mandatos/stream, notificar e lista enriquecida', () => {
     // Pedido na sessao: NF-e + CT-e + CC-e vazia (sem cancelamento) + planilha atrasada.
     const nfe = parseNFe(ler('nfe-ok.xml'));
     await sessao.append(CHAVE, 'nfe', docDataParaPayload(nfe));
+    await sessao.append(CHAVE, 'status_declarado', {
+      fonte: 'email_transportadora',
+      campos: { previsaoEntrega: '2026-01-20' },
+      dados: { origem: 'confirmacao_inicial' },
+    });
     await sessao.append(CHAVE, 'cte', {
       fonte: 'cte',
       campos: { pesoTotal: 520, volumes: 12, status: 'em_transito' },
@@ -1175,7 +1193,9 @@ describe('GenUI v2, mandatos/stream, notificar e lista enriquecida', () => {
       const projKrona = projetar(await seedStore.eventosDoPedido('35260211222333000181550010000048211000004821'));
       expect(projKrona.pedido?.emitente.nome).toBe('Krona Eletrônicos Ind. Ltda');
       expect(projKrona.pedido?.destinatario.nome).toBe('CD Anhanguera Logística SA');
-      expect(projKrona.divergencias.some((d) => d.campo === 'previsaoEntrega')).toBe(true);
+      // Previsao nao diverge mais: era artefato da NF-e usar a data de
+      // emissao como promessa. Divergencias honestas restantes: peso e volumes.
+      expect(projKrona.divergencias.some((d) => d.campo === 'previsaoEntrega')).toBe(false);
       expect(projKrona.divergencias.some((d) => d.campo === 'pesoTotal')).toBe(true);
       expect(projKrona.divergencias.some((d) => d.campo === 'volumes')).toBe(true);
 

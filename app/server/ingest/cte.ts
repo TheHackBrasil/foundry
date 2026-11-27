@@ -74,7 +74,12 @@ export function parseCTe(xml: string): DocData {
 
   const dhEmi = texto(ide['dhEmi']);
 
-  const campos: CamposObservados = { status: 'em_transito' };
+  // CT-e autorizado nao prova movimento: o documento e emitido antes da
+  // prestacao do servico e diz so que o frete foi contratado. Nascer
+  // 'em_transito' criava divergencia falsa de status com a NF-e e com a
+  // planilha. O CT-e contribui peso e volumes conferidos na coleta; o
+  // status operacional so entra por declaracao ou documento de ocorrencia.
+  const campos: CamposObservados = {};
   if (peso !== undefined) campos.pesoTotal = peso;
   if (volumes !== undefined) campos.volumes = volumes;
 
