@@ -44,6 +44,7 @@ import {
   classeStatusCobranca,
   contarOrigens,
   montarFila,
+  nasceuDoOperador,
   ordenarCasos,
   origemInicial,
   podeEnviarCobranca,
@@ -87,6 +88,9 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   const [acionando, setAcionando] = useState(false);
   // Backoffice: aprovação sem senha (demo). Relido a cada recarga da página.
   const [aprovacaoAberta, setAprovacaoAberta] = useState(false);
+  // Recusa do acionamento: aparece embaixo do botão, não só para leitor de tela.
+  const [erroAcionar, setErroAcionar] = useState<string | null>(null);
+  useEffect(() => setErroAcionar(null), [sel]);
   const detalheSeq = useRef(0);
   const operadorSeq = useRef(0);
   const selRef = useRef<string | null>(null);
@@ -273,17 +277,14 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
   const acionar = useCallback(
     async (casoId: string) => {
       setAcionando(true);
+      setErroAcionar(null);
       try {
         await acionarOperador(casoId);
         aoAnunciar('Operador acionado. A escada de contato começa pela parte responsável.');
       } catch (e) {
-        aoAnunciar(
-          e instanceof ErroApi && e.status === 409
-            ? 'O operador já foi acionado neste caso.'
-            : e instanceof ErroApi && e.status === 403
-              ? 'Casos de exemplo são somente leitura. Envie documentos na sua sessão para operar.'
-              : `Não foi possível acionar o operador: ${mensagemDe(e)}`,
-        );
+        const msg = `Não foi possível acionar o operador: ${mensagemDe(e)}`;
+        setErroAcionar(msg);
+        aoAnunciar(msg);
       } finally {
         setAcionando(false);
       }
@@ -619,6 +620,12 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                 {casoAtual.origem === 'divergencia' && casoAtual.daSessao && casoAtual.status !== 'resolvido' && (
                   operadorJaAcionado ? (
                     <p className="meta">O operador já está trabalhando este caso.</p>
+                  ) : nasceuDoOperador(casoAtual) ? (
+                    <p className="meta">
+                      Este caso nasceu da resposta da transportadora a um contato do operador. Para não repetir a
+                      cobrança sobre o que ela acabou de declarar, o operador não abre escada nova aqui: confira a
+                      declaração e resolva com nota, ou acione o operador no caso de origem.
+                    </p>
                   ) : (
                     <div className="op-acao">
                       <button
@@ -634,6 +641,11 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
                         O operador abre a escada de contato para confirmar o valor divergente com a parte
                         responsável. WhatsApp e ligação só saem depois da sua aprovação.
                       </p>
+                      {erroAcionar && (
+                        <p className="aviso-erro" role="alert">
+                          {erroAcionar}
+                        </p>
+                      )}
                     </div>
                   )
                 )}

@@ -6,6 +6,7 @@ import {
   cartoesMetricas,
   contarOrigens,
   montarFila,
+  nasceuDoOperador,
   origemInicial,
   formatarDuracaoMs,
   ordenarCasos,
@@ -136,5 +137,14 @@ describe('fila de trabalho', () => {
     expect(contarOrigens(casos)).toEqual({ sessao: 3, exemplos: 1 });
     expect(origemInicial(casos)).toBe('sessao');
     expect(origemInicial(casos.filter((x) => !x.daSessao))).toBe('exemplos');
+  });
+});
+
+describe('nasceuDoOperador', () => {
+  it('reconhece divergência aberta por resposta a canal do operador', () => {
+    const d = (fonteB: string) => ({ divergencia: { tipo: 'contradicao', campo: 'previsaoEntrega', fonteA: 'planilha', fonteB } }) as never;
+    expect(nasceuDoOperador(d('email_transportadora'))).toBe(true);
+    expect(nasceuDoOperador(d('cte'))).toBe(false);
+    expect(nasceuDoOperador({} as never)).toBe(false);
   });
 });

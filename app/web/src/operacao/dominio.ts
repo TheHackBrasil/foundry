@@ -223,3 +223,13 @@ export function montarFila(casos: readonly CasoLista[], filtro: FiltroFila): Gru
   }
   return lista.sort((a, b) => b.maisRecente.localeCompare(a.maisRecente) || a.pedidoId.localeCompare(b.pedidoId));
 }
+
+// Divergência nascida da resposta a um canal do operador (e-mail, WhatsApp
+// ou ligação): o servidor não abre escada nova nela (invariante 7), então a
+// tela explica em vez de oferecer o botão.
+const FONTES_DO_OPERADOR = new Set(['email_transportadora', 'whatsapp_transportadora', 'ligacao_transportadora']);
+
+export function nasceuDoOperador(c: Pick<Caso, 'divergencia'>): boolean {
+  const d = c.divergencia;
+  return !!d && (FONTES_DO_OPERADOR.has(d.fonteA) || FONTES_DO_OPERADOR.has(d.fonteB));
+}
