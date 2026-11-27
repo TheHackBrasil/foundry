@@ -167,6 +167,10 @@ describe('proximoPassoCaso', () => {
     expect(p).toMatchObject({ acao: 'nenhuma', tom: 'espera' });
     expect(p.texto).toContain('Cobrança por e-mail enviada');
   });
+  it('operador encerrado pede para resolver o caso', () => {
+    const p = proximoPassoCaso(base, { ...ctx, operadorAcionado: true, operadorEncerrou: true });
+    expect(p).toMatchObject({ acao: 'resolver', titulo: 'O operador terminou: decida o caso' });
+  });
   it('declaração esperando revisão pede para abrir a revisão', () => {
     const p = proximoPassoCaso(base, { ...ctx, operadorAcionado: true, revisaoPendente: true });
     expect(p).toMatchObject({ acao: 'abrir_revisao', tom: 'acao' });

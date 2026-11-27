@@ -351,6 +351,7 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, aoAbrirRevisao, pul
         planoPendente: planoPendente ? { canal: planoPendente.canal } : null,
         ultimoRegistro: ultimoOperador ? rotuloItemLinha(ultimoOperador) : null,
         revisaoPendente: pedidosEmRevisao.has(casoDoPasso.pedidoId),
+        operadorEncerrou: itensLinha.some((i) => i.tipo === 'operador_encerrou'),
       })
     : null;
 

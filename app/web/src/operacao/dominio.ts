@@ -256,6 +256,8 @@ export interface ContextoPasso {
   ultimoRegistro: string | null;
   // Declaração da transportadora deste pedido esperando a Revisão.
   revisaoPendente?: boolean;
+  // O operador já encerrou o trabalho neste caso (operador_encerrou).
+  operadorEncerrou?: boolean;
 }
 
 const ROTULO_CANAL_PASSO: Record<string, string> = { whatsapp: 'mandar WhatsApp', ligacao: 'ligar' };
@@ -294,6 +296,16 @@ export function proximoPassoCaso(c: CasoLista, ctx: ContextoPasso): PassoCaso {
       texto: 'O que ela disse já foi lido e está na Revisão. Confira os campos e aprove para gravar no pedido.',
       acao: 'abrir_revisao',
       rotuloAcao: 'Abrir a revisão',
+      tom: 'acao',
+    };
+  }
+  if (ctx.operadorAcionado && ctx.operadorEncerrou) {
+    return {
+      titulo: 'O operador terminou: decida o caso',
+      texto:
+        'Ele já fez os contatos que podia. Veja na linha do tempo o que a transportadora respondeu e resolva com uma nota.',
+      acao: 'resolver',
+      rotuloAcao: 'Resolver com nota',
       tom: 'acao',
     };
   }
