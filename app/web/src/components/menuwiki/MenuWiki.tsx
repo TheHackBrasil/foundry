@@ -2,27 +2,34 @@
 // pedidos, parceiros (agenda), documentos (versoes dos pedidos) e regras
 // (propostas de mapeamento da fila de revisao). Mantem o contrato do antigo
 // PedidoLista: href por rota, aria-current no selecionado, retry no erro e
-// aoSelecionarMobile em todo item navegavel.
+// aoSelecionarMobile em todo item navegavel. O modo compacto (spec 0017,
+// item 40) e o padrao: uma linha por item so com o nome (menu rapido,
+// call 26/11); selo e resumo saem da tela e continuam acessiveis via
+// title/aria-label. O toggle ao lado da busca persiste em CHAVE_MODO.
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Contato, ItemRevisao } from '../../../../shared/model.ts';
 import type { PedidoResumo } from '../../api.ts';
-import { IconeChevron, IconeLupa } from '../icones.tsx';
+import { IconeChevron } from '../icones.tsx';
 import type { Carga, RotaTorre } from '../../useTorre.ts';
 import { buscarContatos, buscarRevisao, buscarVersoesPedido } from './rede.ts';
 import '../../menuwiki.css';
 import {
   CHAVE_COLAPSO,
-  filtrarSecoes,
+  CHAVE_MODO,
+  dicaItem,
   itemPedido,
   itensContatos,
   itensDocumentos,
   itensRegras,
   lerColapso,
-  normalizarConsulta,
+  lerModo,
+  nomeAcessivelItem,
   serializarColapso,
+  serializarModo,
   TITULO_SECAO,
   type Colapso,
   type ItemWiki,
+  type ModoLista,
   type SecaoId,
   type SecaoWiki,
   type SeloWiki,
@@ -64,6 +71,30 @@ function carregarColapso(): Colapso {
   }
 }
 
+function carregarModo(): ModoLista {
+  try {
+    return lerModo(window.localStorage.getItem(CHAVE_MODO));
+  } catch {
+    return lerModo(null);
+  }
+}
+
+// Glifo do modo compacto: quatro tracos densos, uma linha por item. Mesma
+// materia da familia de icones (stroke currentColor sobre grade 16x16).
+function IconeCompacto() {
+  return (
+    <svg viewBox="0 0 16 16" width={16} height={16} aria-hidden="true" focusable={false}>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        d="M3 3.5h10M3 6.5h10M3 9.5h10M3 12.5h10"
+      />
+    </svg>
+  );
+}
+
 export function MenuWiki({
   pedidos,
   selecionado,
@@ -74,8 +105,8 @@ export function MenuWiki({
   aoAbrirRevisao,
 }: MenuWikiProps) {
   const baseId = useId();
-  const [consulta, setConsulta] = useState('');
   const [abertas, setAbertas] = useState<Colapso>(carregarColapso);
+  const [modo, setModo] = useState<ModoLista>(carregarModo);
   const [contatos, setContatos] = useState<Carga<Contato[]>>({ estado: 'carregando' });
   const [revisao, setRevisao] = useState<Carga<ItemRevisao[]>>({ estado: 'carregando' });
   const [docs, setDocs] = useState<Carga<ItemWiki[]>>({ estado: 'carregando' });
@@ -89,6 +120,16 @@ export function MenuWiki({
       // Modo privado ou cota cheia: o colapso vira so estado de memoria.
     }
   }, [abertas]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CHAVE_MODO, serializarModo(modo));
+    } catch {
+      // Mesmo caso do colapso: sem storage, o modo vira so memoria.
+    }
+  }, [modo]);
+
+  const compacto = modo === 'compacto';
 
   // Agenda e fila mudam por ingest e por decisao na revisao: a rebusta segue
   // o mesmo ciclo da lista de pedidos (SSE ja a atualiza). Os GETs passam pelo
@@ -140,25 +181,22 @@ export function MenuWiki({
     [listaCompleta, rota, contatos, docs, revisao],
   );
 
-  const consultaAtiva = normalizarConsulta(consulta) !== '';
   const secoesVisiveis = useMemo(() => {
-    const filtradas = consultaAtiva ? filtrarSecoes(secoesBase, consulta) : secoesBase;
-    const visiveis = filtradas.filter((sec) => {
+    const visiveis = secoesBase.filter((sec) => {
       if (sec.id === 'pedidos') return true;
       const carga = sec.id === 'parceiros' ? contatos : sec.id === 'documentos' ? docs : revisao;
       // Carregando ou com erro a secao aparece (a linha de status vem dentro);
       // vazia de verdade ela some do indice.
-      return consultaAtiva ? sec.itens.length > 0 : carga.estado !== 'ok' || sec.itens.length > 0;
+      return carga.estado !== 'ok' || sec.itens.length > 0;
     });
-    // Mesmo filtrada a secao Pedidos fica: e onde moram o erro e o retry.
     if (pedidos.estado !== 'ok' && !visiveis.some((s) => s.id === 'pedidos')) {
       const base = secoesBase.find((s) => s.id === 'pedidos');
       if (base) visiveis.unshift(base);
     }
     return visiveis;
-  }, [secoesBase, consulta, consultaAtiva, contatos, docs, revisao, pedidos.estado]);
+  }, [secoesBase, contatos, docs, revisao, pedidos.estado]);
 
-  const abertaDocumentos = consultaAtiva || abertas.documentos;
+  const abertaDocumentos = abertas.documentos;
   const secaoDocumentosRef = useRef<HTMLDivElement | null>(null);
   const [documentosVisiveis, setDocumentosVisiveis] = useState(false);
 
@@ -218,32 +256,51 @@ export function MenuWiki({
   const alternar = (id: SecaoId) =>
     setAbertas((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  const corpoItem = (item: ItemWiki) => (
-    <>
-      <span className="mw-item-topo">
-        <span className="mw-item-titulo">{item.titulo}</span>
-        {item.selo && (
-          <span
-            className={`rail-badge num ${item.selo.mono ? 'mono ' : ''}${CLASSE_SELO[item.selo.tom]}`}
-          >
-            {item.selo.texto}
-          </span>
-        )}
-      </span>
-      {item.resumo && <span className="mw-item-sub">{item.resumo}</span>}
-    </>
-  );
+  // Strip da call 26/11: no compacto so o nome sai na tela, sem selo nem
+  // linha de resumo ("tem que ser tipo um menu rapido"). Selo e resumo
+  // continuam no title/aria-label (dicaItem/nomeAcessivelItem) e viram
+  // spans .so-leitor no item estatico (div sem papel), onde aria-label nao
+  // e honrado; nos navegaveis o aria-label vence e nada duplica.
+  const corpoItem = (item: ItemWiki) => {
+    if (compacto) {
+      return (
+        <>
+          <span className="mw-item-titulo">{item.titulo}</span>
+          {item.selo && <span className="so-leitor">{item.selo.texto}</span>}
+          {item.resumo && <span className="so-leitor">{item.resumo}</span>}
+        </>
+      );
+    }
+    return (
+      <>
+        <span className="mw-item-topo">
+          <span className="mw-item-titulo">{item.titulo}</span>
+          {item.selo && (
+            <span
+              className={`rail-badge num ${item.selo.mono ? 'mono ' : ''}${CLASSE_SELO[item.selo.tom]}`}
+            >
+              {item.selo.texto}
+            </span>
+          )}
+        </span>
+        {item.resumo && <span className="mw-item-sub">{item.resumo}</span>}
+      </>
+    );
+  };
 
   const renderItem = (sec: SecaoWiki, item: ItemWiki) => {
     const aoAbrirExtra =
       sec.id === 'parceiros' ? aoAbrirAgenda : sec.id === 'regras' ? aoAbrirRevisao : undefined;
+    const dica = dicaItem(item, compacto);
+    const nome = nomeAcessivelItem(item, compacto);
     return (
       <li key={item.id}>
         {item.href ? (
           <a
             className="mw-item mw-item-link"
             href={item.href}
-            title={item.tituloCompleto}
+            title={dica}
+            aria-label={nome}
             // aria-current so na secao Pedidos: um documento aponta para o
             // mesmo pedido, mas a pagina corrente e o pedido, nao o documento.
             aria-current={
@@ -257,13 +314,14 @@ export function MenuWiki({
           <button
             type="button"
             className="mw-item mw-item-link"
-            title={item.tituloCompleto}
+            title={dica}
+            aria-label={nome}
             onClick={aoAbrirExtra}
           >
             {corpoItem(item)}
           </button>
         ) : (
-          <div className="mw-item" title={item.tituloCompleto}>
+          <div className="mw-item" title={dica}>
             {corpoItem(item)}
           </div>
         )}
@@ -277,19 +335,20 @@ export function MenuWiki({
   };
 
   return (
-    <section className="mw" aria-labelledby={`${baseId}-titulo`}>
+    <section className={compacto ? 'mw mw-compacto' : 'mw'} aria-labelledby={`${baseId}-titulo`}>
       <div className="mw-cab">
         <h2 id={`${baseId}-titulo`}>Índice</h2>
-        <div className="mw-busca">
-          <IconeLupa />
-          <input
-            type="search"
-            value={consulta}
-            onChange={(e) => setConsulta(e.target.value)}
-            placeholder="Filtrar o índice"
-            aria-label="Filtrar o índice"
-            autoComplete="off"
-          />
+        <div className="mw-cab-linha">
+          <button
+            type="button"
+            className="mw-modo"
+            aria-pressed={compacto}
+            aria-label="Lista compacta"
+            title={compacto ? 'Mostrar resumo dos itens' : 'Ocultar resumo dos itens'}
+            onClick={() => setModo(compacto ? 'expandido' : 'compacto')}
+          >
+            <IconeCompacto />
+          </button>
         </div>
       </div>
 
@@ -298,9 +357,8 @@ export function MenuWiki({
           const carga = statusDaSecao(sec);
           const headingId = `${baseId}-h-${sec.id}`;
           const contentId = `${baseId}-c-${sec.id}`;
-          // Durante a busca as secoes abrem para mostrar os resultados; o
-          // colapso gravado volta a valer quando o campo esvazia.
-          const aberta = consultaAtiva ? true : abertas[sec.id];
+          // Pedidos abre a forca enquanto o erro/retry precisa ficar a vista.
+          const aberta = abertas[sec.id] || (sec.id === 'pedidos' && carga.estado === 'erro');
 
           return (
             <section key={sec.id} className="mw-secao" aria-labelledby={headingId}>
@@ -339,8 +397,7 @@ export function MenuWiki({
 
                 {sec.id === 'pedidos' &&
                   carga.estado === 'ok' &&
-                  listaCompleta.length === 0 &&
-                  !consultaAtiva && (
+                  listaCompleta.length === 0 && (
                     <p className="mw-vazio">
                       Nenhum pedido ainda. Envie uma NF-e em XML para criar o primeiro.
                     </p>
@@ -365,16 +422,6 @@ export function MenuWiki({
         })}
       </nav>
 
-      {consultaAtiva && secoesVisiveis.every((s) => s.itens.length === 0) && (
-        <div className="mw-vazio-grupo">
-          <p className="mw-vazio" role="status">
-            Nenhum item corresponde ao filtro.
-          </p>
-          <button type="button" className="rail-btn-sutil" onClick={() => setConsulta('')}>
-            Limpar filtro
-          </button>
-        </div>
-      )}
     </section>
   );
 }

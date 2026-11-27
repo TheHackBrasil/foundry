@@ -1,0 +1,455 @@
+/* Busca universal como command palette + de-slop do header (spec 0017,
+   frente topo). O componente e o CSS novos vivem aqui porque styles.css
+   pertence a outra frente. Importada por BuscaUniversal.tsx, esta folha
+   entra ANTES das globais na cascata (a ordem segue o grafo de modulos,
+   nao main.tsx): regra de de-slop que sobrescreve a base leva .topo pai
+   para vencer por especificidade, nunca por posicao. */
+
+/* ---------- entrega 2: de-slop do header ----------
+   Botoes da topbar entram na regua compacta da casa: 28px (--ctl-sm),
+   tipografia de controle compacto (--fs-meta) e icone no passo do toggle de
+   tema. A pill colorida da Revisao sai: pendencia vira chip de contagem em
+   tinta neutra, nunca roxo. */
+.topo .topo-btn {
+  min-height: var(--ctl-sm);
+  padding: 0 0.625rem;
+  gap: 0.375rem;
+  font-size: var(--fs-meta);
+}
+.topo .topo-btn svg { width: 0.875rem; height: 0.875rem; }
+
+/* Contagem neutra: so aparece quando ha pendencia (o JSX ja garante), chip
+   de uma linha na mesma tinta secundaria dos metadados. */
+.topo .topo-cont {
+  justify-content: center;
+  min-width: 1.125rem;
+  min-height: 1.125rem;
+  padding: 0 0.3125rem;
+  border-radius: var(--r-pill);
+  background: var(--tint-soft);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text2);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- gatilho da paleta na topbar ----------
+   Cara de campo (lupa + rotulo + keycap de atalho), comportamento de
+   botao: um clique e a paleta assume. Sem expansao de foco — o "campo"
+   nao recebe texto, entao a largura e fixa e o hover e o foco usam o mesmo
+   degrau de realce dos demais controles da barra. */
+.busca {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.busca-gatilho {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 11.5rem;
+  min-height: var(--ctl-sm);
+  padding: 0 0.4375rem 0 0.75rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-meta);
+  text-align: start;
+  cursor: pointer;
+  transition: box-shadow var(--dur-micro) ease, background-color var(--dur-micro) ease;
+}
+.busca-gatilho:hover,
+.busca-gatilho:focus-visible {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.busca-gatilho > svg {
+  flex: none;
+  width: 0.8125rem;
+  height: 0.8125rem;
+  color: var(--text2);
+}
+.busca-gatilho-texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Keycaps do atalho global: mesmo desenho de chip neutro do chip de
+   contagem, um por tecla, como nos menus de comando do Supabase. */
+.busca-atalhos {
+  flex: none;
+  display: inline-flex;
+  gap: 0.1875rem;
+}
+.busca-atalhos kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.125rem;
+  min-height: 1.125rem;
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--tint-soft);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+/* ---------- paleta ----------
+   Overlay modal no centro superior, estilo command palette: veu no tom
+   frio dos backdrops da casa, laje de superficie flutuante com raio
+   grande, entrada de largura generosa (42rem) que ja deixa espaco para a
+   coluna de preview rico futura (D-T1). Renderizada em portal no body —
+   dentro de .palco-coluna ela herdaria inert quando gaveta/menu abrem. */
+.paleta-veu {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: min(16vh, 9rem) 1rem 1rem;
+  background: color-mix(in srgb, #091715 52%, transparent);
+  opacity: 0;
+  transition: opacity var(--dur-veil) var(--ease-out);
+}
+.paleta-veu[data-fase='aberto'] { opacity: 1; }
+.paleta-veu[data-fase='saindo'] {
+  opacity: 0;
+  transition: opacity 160ms var(--ease-exit);
+}
+
+.paleta {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(42rem, 100%);
+  max-height: min(30rem, calc(100dvh - 6rem));
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  /* shadow-float ja carrega o anel de 1px da casa — declarar border aqui
+     seria elevacao em dobro (mesmo padrao do .modal-envio). */
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+  overscroll-behavior: contain;
+  opacity: 0;
+  transform: translate3d(0, -10px, 0) scale(0.98);
+}
+.paleta[data-fase='aberto'] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  transition:
+    opacity 190ms var(--ease-out),
+    transform 230ms var(--ease-enter);
+}
+.paleta[data-fase='saindo'] {
+  opacity: 0;
+  transform: translate3d(0, -6px, 0) scale(0.985);
+  transition:
+    opacity 140ms var(--ease-exit),
+    transform 150ms var(--ease-exit);
+}
+
+/* Entrada: icone + input grande + keycap esc. O input e o dono do foco e
+   do aria-activedescendant (combobox APG). */
+.paleta-entrada {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8125rem 1rem;
+  border-bottom: 1px solid var(--hairline);
+}
+.paleta-entrada > svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text2);
+}
+.paleta-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  line-height: 1.5;
+  caret-color: var(--primary);
+}
+.paleta-input::placeholder { color: var(--text2); opacity: 0.8; }
+.paleta-input:focus { outline: none; }
+.paleta-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  width: 0.8125rem;
+  height: 0.8125rem;
+  margin-left: 0.375rem;
+  background-color: var(--text2);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4.5 4.5 7 7m0-7-7 7' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4.5 4.5 7 7m0-7-7 7' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  cursor: pointer;
+}
+
+.paleta-esc {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.25rem;
+  padding: 0 0.375rem;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--tint-soft);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+/* Corpo em grid de colunas: hoje so a lista; o preview rico do item 35
+   entra como segunda coluna (1fr + painel lateral) sem refazer o painel. */
+.paleta-corpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+.paleta-lista {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.5rem;
+  outline: none;
+}
+
+.paleta-grupo {
+  display: grid;
+  gap: 1px;
+  padding: 0.125rem 0;
+}
+.paleta-grupo + .paleta-grupo { border-top: 1px solid var(--hairline); }
+.paleta-grupo-titulo {
+  padding: 0.4375rem 0.75rem 0.25rem;
+  color: var(--text2);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Linha de resultado: chip de icone do tipo + corpo de duas linhas. O chip
+   e o toque de palette premium — mesma materia tint-soft dos keycaps, com
+   o icone na tinta secundaria. */
+.paleta-opcao {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background-color var(--dur-micro) ease;
+}
+.paleta-opcao[data-ativo='true'],
+.paleta-opcao[aria-selected='true'] {
+  background: var(--tint-hover);
+}
+.paleta-opcao-icone {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--r-sm);
+  background: var(--tint-soft);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text2);
+}
+.paleta-opcao-icone svg { width: 0.9375rem; height: 0.9375rem; }
+
+.paleta-opcao-corpo {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.125rem;
+}
+.paleta-opcao-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.paleta-opcao-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: var(--fs-ui);
+  font-weight: 600;
+  line-height: 1.35;
+}
+.paleta-opcao-cod {
+  flex: none;
+  color: var(--text2);
+  font-size: var(--fs-micro);
+}
+.paleta-opcao-sub {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.paleta-opcao-resumo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text2);
+  font-size: var(--fs-meta);
+  line-height: 1.35;
+}
+
+/* Trecho casado: negrito sobre a mesma tinta — o highlight pedido no
+   brief, sem cor gratuita. */
+.paleta-mark {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Selo de estado: mesma funcao do selo do indice lateral, em texto — tom
+   semantico da casa, nunca pill cheia. */
+.paleta-selo {
+  flex: none;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text2);
+}
+.paleta-selo[data-tom='ok'] { color: var(--ok); }
+.paleta-selo[data-tom='warn'] { color: var(--warn); }
+.paleta-selo[data-tom='coord'] { color: var(--change); }
+.paleta-selo[data-tom='erro'] { color: var(--error); }
+
+.paleta-vazio {
+  padding: 1.5rem 0.75rem;
+  color: var(--text2);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+}
+
+/* Rodape de dicas de tecla + contagem: a assinatura de command palette. */
+.paleta-rodape {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--hairline);
+  color: var(--text2);
+  font-size: var(--fs-micro);
+}
+.paleta-dica {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+}
+.paleta-dica kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.125rem;
+  min-height: 1.125rem;
+  padding: 0 0.25rem;
+  border-radius: var(--r-sm);
+  background: var(--tint-soft);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+.paleta-conta {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- responsivo ----------
+   Em toque a regua sobe para 44px como os demais controles do header; os
+   keycaps somem (sem teclado fisico, eles so ocupam barra) e, abaixo de
+   560px, o gatilho colapsa para o botao de lupa. A paleta encosta mais no
+   topo e usa quase toda a largura. */
+@media (max-width: 960px) {
+  .topo .topo-btn { min-height: 2.75rem; }
+  .busca-atalhos { display: none; }
+  .busca-gatilho {
+    width: 6.5rem;
+    min-height: 2.75rem;
+    padding-inline: 0.75rem;
+  }
+  .paleta-veu { padding-top: min(10vh, 5rem); }
+}
+
+@media (max-width: 560px) {
+  .busca-gatilho {
+    width: 2.75rem;
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .busca-gatilho > svg { width: 1rem; height: 1rem; }
+  .busca-gatilho-texto { display: none; }
+  .paleta-veu {
+    padding: 3.5rem 0.75rem 0.75rem;
+  }
+  .paleta { max-height: calc(100dvh - 4.5rem); }
+  /* Sem teclado fisico, keycap de atalho vira ruido — segue as dicas do
+     rodape, que ja somem nesta quebra. */
+  .paleta-dica,
+  .paleta-esc { display: none; }
+}
+
+/* Movimento reduzido: veu e painel viram fade curto, a transicao de estado
+   da linha cai para a duracao cromatica da casa. */
+@media (prefers-reduced-motion: reduce) {
+  .paleta-veu[data-fase='entrando'],
+  .paleta-veu[data-fase='aberto'],
+  .paleta-veu[data-fase='saindo'],
+  .paleta[data-fase='entrando'],
+  .paleta[data-fase='aberto'],
+  .paleta[data-fase='saindo'] {
+    transform: none;
+    transition: opacity 120ms ease;
+  }
+  .busca-gatilho,
+  .paleta-opcao {
+    transition-duration: 120ms;
+  }
+}
+
+@media (forced-colors: active) {
+  .busca-gatilho,
+  .paleta,
+  .paleta-esc,
+  .busca-atalhos kbd,
+  .paleta-dica kbd,
+  .paleta-opcao-icone,
+  .topo-cont {
+    border: 1px solid ButtonBorder;
+  }
+  .paleta-opcao[aria-selected='true'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

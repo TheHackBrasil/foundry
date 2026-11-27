@@ -9,10 +9,10 @@ commitado.
 
 Criados nesta sessão, fora de commit:
 
-- `specs/0017-harness-operador/spec.md` (status `rascunho`)
-- `specs/0017-harness-operador/plan.md`
-- `specs/0017-harness-operador/tasks.md`
-- `specs/0017-harness-operador/checklist.md`
+- `specs/0018-harness-operador/spec.md` (status `rascunho`)
+- `specs/0018-harness-operador/plan.md`
+- `specs/0018-harness-operador/tasks.md`
+- `specs/0018-harness-operador/checklist.md`
 - este arquivo
 
 Editados:

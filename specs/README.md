@@ -23,9 +23,10 @@ imutável (A9).
 | [0014](0014-ux-v2/spec.md) | UX v2: torre em tiling arrastavel, painel de evidencia autonomo, menu wiki e grafo limpo (THE-15 a THE-20) | implementada | 2026-11-24 |
 | [0015](0015-polimento-torre/spec.md) | Polimento da Torre guiado por auditoria multi-persona: motion, layout, performance, vistas e superficie | em execucao | 2026-11-25 |
 | [0016](0016-entrada-insights/spec.md) | Entrada de insights: primeira impressao em segundos com stories computados dos dados reais | em especificacao | 2026-11-26 |
-| [0017](0017-harness-operador/spec.md) | Harness de operações: operador que resolve casos por e-mail, WhatsApp e ligação com aprovação humana | aprovada | 2026-11-26 |
+| [0017](0017-chrome-simples/spec.md) | Chrome simples: toolbar enxuta, menu compacto, seletor com filtro e resize descobrivel | em execucao | 2026-11-26 |
+| [0018](0018-harness-operador/spec.md) | Harness de operações: operador que resolve casos por e-mail, WhatsApp e ligação com aprovação humana | aprovada | 2026-11-26 |
 
-**Próximo número livre:** `0018`
+**Próximo número livre:** `0019`
 
 ## Lacunas conhecidas
 

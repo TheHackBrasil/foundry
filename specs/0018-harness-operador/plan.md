@@ -1,6 +1,6 @@
 # Plano: Spec 0017: harness de operações
 
-**Spec:** `specs/0017-harness-operador/spec.md` · **Data:** 2026-11-26
+**Spec:** `specs/0018-harness-operador/spec.md` · **Data:** 2026-11-26
 
 ## Resumo
 
@@ -83,7 +83,7 @@ app/
   tsconfig.json, vitest.config.ts, package.json, .env.example
 ```
 
-Frentes: `speckit/frentes.json` ainda lista `app/server/`, `app/shared/` ou `app/web/` em `app-core`, `app-infra`, `hardening`, `ai-ingest`, `ai-mandatos`, `app-brand`, `ai-web` e `app-operacao`, e `polish-fluxo` é dona de `app/web/src/format.ts`. A integração confere se estão integradas e encerra também as `v2-*`, `polish-*`, `motion-fisica` e `adapt-generica`. Todas estão integradas na `main`. A integração encerra essas entradas e os worktrees `foundry-wt-app-core`, `foundry-wt-infra` e `foundry-wt-operacao`, atualiza `AGENTS.md:24-25` e `speckit/frentes.md:17-18`, registra a mudança numa decisão e abre a frente `harness` com os arquivos acima listados um a um. Pastas inteiras entram só para `app/operador/` e `specs/0017-harness-operador/`, para não travar a spec 0013.
+Frentes: `speckit/frentes.json` ainda lista `app/server/`, `app/shared/` ou `app/web/` em `app-core`, `app-infra`, `hardening`, `ai-ingest`, `ai-mandatos`, `app-brand`, `ai-web` e `app-operacao`, e `polish-fluxo` é dona de `app/web/src/format.ts`. A integração confere se estão integradas e encerra também as `v2-*`, `polish-*`, `motion-fisica` e `adapt-generica`. Todas estão integradas na `main`. A integração encerra essas entradas e os worktrees `foundry-wt-app-core`, `foundry-wt-infra` e `foundry-wt-operacao`, atualiza `AGENTS.md:24-25` e `speckit/frentes.md:17-18`, registra a mudança numa decisão e abre a frente `harness` com os arquivos acima listados um a um. Pastas inteiras entram só para `app/operador/` e `specs/0018-harness-operador/`, para não travar a spec 0013.
 
 ## Dados e artefatos
 

@@ -2,7 +2,6 @@ import {
   memo,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -40,14 +39,6 @@ import {
   IconeFiscal,
   IconeGalpao,
 } from './icones.tsx';
-
-function movimentoReduzidoAtivo(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-}
 
 // Reset inline do botao de disclosure: as folhas de estilo da torre pertencem
 // a outra frente, entao o toggle recebe so o minimo para parecer o titulo.
@@ -304,11 +295,11 @@ function SetorTarefas({
   corpoId: string;
 }) {
   const [envio, setEnvio] = useState<EstadoEnvio>({ tipo: 'ocioso' });
-  // Disclosure por setor (spec 0015, F6): `aberto` e a intencao (aria-expanded),
-  // `corpoMontado` segura o conteudo durante a animacao de fechamento — a
-  // lista nao desmonta no mesmo commit em que a altura colapsa.
+  // Disclosure por setor (spec 0015, F6): `aberto` e a intencao (aria-expanded);
+  // o corpo fica sempre montado e a altura anima em CSS via data-aberto —
+  // transicao declarativa reverte suave no meio do curso, sem callback que
+  // desmonta a lista atrasado num re-open rapido (glitch medido em 26/11).
   const [aberto, setAberto] = useState(abertoInicial);
-  const [corpoMontado, setCorpoMontado] = useState(abertoInicial);
   const [copiadoContato, setCopiadoContato] = useState(false);
   // Roving no cabecalho do setor (spec 0015, F7): toggle, copiar e acao
   // dividem um unico ponto de Tab; setas horizontais percorrem os tres.
@@ -316,8 +307,6 @@ function SetorTarefas({
   const cabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const resetTimerRef = useRef<number | null>(null);
   const copiaTimerRef = useRef<number | null>(null);
-  const corpoRef = useRef<HTMLDivElement>(null);
-  const abertoAntesRef = useRef(abertoInicial);
 
   useEffect(
     () => () => {
@@ -353,55 +342,11 @@ function SetorTarefas({
   // fechado sem mostra-lo seria um destaque invisivel.
   useEffect(() => {
     if (!setorFocado) return;
-    setCorpoMontado(true);
     setAberto(true);
   }, [setorFocado]);
 
-  // Abertura animada via WAAPI: o corpo ja esta montado quando `aberto` vira
-  // true; medir aqui ainda vale o frame novo (altura real).
-  useLayoutEffect(() => {
-    if (abertoAntesRef.current === aberto) return;
-    abertoAntesRef.current = aberto;
-    const el = corpoRef.current;
-    if (!el || !aberto) return;
-    if (movimentoReduzidoAtivo() || typeof el.animate !== 'function') return;
-    const h = el.scrollHeight;
-    if (h <= 0) return;
-    el.style.overflow = 'hidden';
-    const anim = el.animate(
-      [{ height: '0px', opacity: 0.35 }, { height: `${h}px`, opacity: 1 }],
-      { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
-    );
-    const limpar = () => {
-      el.style.overflow = '';
-    };
-    anim.onfinish = limpar;
-    anim.oncancel = limpar;
-  }, [aberto]);
-
   function alternarAberto() {
-    if (!aberto) {
-      setCorpoMontado(true);
-      setAberto(true);
-      return;
-    }
-    const el = corpoRef.current;
-    const animavel = el !== null && !movimentoReduzidoAtivo() && typeof el.animate === 'function';
-    if (animavel && el) {
-      const h = el.getBoundingClientRect().height;
-      el.style.overflow = 'hidden';
-      const anim = el.animate([{ height: `${h}px` }, { height: '0px' }], {
-        duration: 180,
-        easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-      });
-      const fim = () => setCorpoMontado(false);
-      anim.onfinish = fim;
-      anim.oncancel = fim;
-      setAberto(false);
-      return;
-    }
-    setCorpoMontado(false);
-    setAberto(false);
+    setAberto((v) => !v);
   }
 
   async function dispararAviso() {
@@ -571,36 +516,38 @@ function SetorTarefas({
         </div>
       </div>
 
-      <div ref={corpoRef} id={corpoId} hidden={!corpoMontado}>
-        {envio.tipo === 'erro' && (
-          <div className="tarefa-envio-erro" role="alert">
-            <span className="tarefa-envio-erro-texto">
-              <IconeErro />
-              <span>{envio.mensagem}</span>
-            </span>
-            {envio.abrirAgenda && (
-              <button
-                type="button"
-                className="tarefa-link-config"
-                onClick={() => aoAbrirAgenda(parte)}
-              >
-                Configurar
-              </button>
-            )}
-          </div>
-        )}
+      <div id={corpoId} className="tarefas-corpo" data-aberto={aberto ? 'true' : 'false'}>
+        <div className="tarefas-corpo-in">
+          {envio.tipo === 'erro' && (
+            <div className="tarefa-envio-erro" role="alert">
+              <span className="tarefa-envio-erro-texto">
+                <IconeErro />
+                <span>{envio.mensagem}</span>
+              </span>
+              {envio.abrirAgenda && (
+                <button
+                  type="button"
+                  className="tarefa-link-config"
+                  onClick={() => aoAbrirAgenda(parte)}
+                >
+                  Configurar
+                </button>
+              )}
+            </div>
+          )}
 
-        <ul>
-          {itens.map((g) => (
-            <ItemTarefa
-              key={g.titulo}
-              grupo={g}
-              novas={novas}
-              focoAtivo={focoAtivo}
-              {...(aoFocar ? { aoFocar } : {})}
-            />
-          ))}
-        </ul>
+          <ul>
+            {itens.map((g) => (
+              <ItemTarefa
+                key={g.titulo}
+                grupo={g}
+                novas={novas}
+                focoAtivo={focoAtivo}
+                {...(aoFocar ? { aoFocar } : {})}
+              />
+            ))}
+          </ul>
+        </div>
       </div>
     </section>
   );

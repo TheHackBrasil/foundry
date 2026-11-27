@@ -1,7 +1,7 @@
 # Brief · harness
 
 Escopo: implementar a spec 0017 (harness de operações) pelas tasks de
-`specs/0017-harness-operador/tasks.md`, começando pela fase 0.
+`specs/0018-harness-operador/tasks.md`, começando pela fase 0.
 Paths: os da entrada `harness` em `speckit/frentes.json`.
 Base: branch `feat/0017-harness`, a partir de `ed00fd8`. O usuário pediu
 o trabalho fora da `main` até a integração; o worktree `wt/harness` só

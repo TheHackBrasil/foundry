@@ -680,3 +680,10 @@ fatia fina rodou com contato do time: e-mail real, ligação aprovada e
 atendida, declaração extraída, revisada e gravada, com casos e tarefas
 derivados. A T798 segue aberta porque o WhatsApp ainda não tem canal; a
 escada pula o degrau e registra o motivo.
+
+D-067: na integração, a main já tinha a spec 0017 do chrome simples,
+aberta em paralelo no mesmo dia. Para não mexer no trabalho daquela
+frente, o harness de operações passa a ser a spec 0018
+(`specs/0018-harness-operador/`). Comentários de código, commits e as
+decisões D-063 a D-066 que citam "spec 0017" para o harness se referem
+a esta spec 0018.

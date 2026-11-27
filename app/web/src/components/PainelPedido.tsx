@@ -50,7 +50,6 @@ import { SeloMonolitosShader } from '../shaders/index.ts';
 import '../torre-v2.css';
 import { useIndicadorDeslizante } from '../useIndicadorDeslizante.ts';
 import type { Carga } from '../useTorre.ts';
-import { BarraMandatos } from './BarraMandatos.tsx';
 import {
   IconeCaixa,
   IconeCalendario,
@@ -223,6 +222,7 @@ function Conteudo({
   const [fontesExpandidas, setFontesExpandidas] = useState<ReadonlySet<FonteDocumento>>(new Set());
   const [focoAtivo, setFocoAtivo] = useState<AlvoFocoGenUI | null>(focoInicial ?? null);
   const [modoSimulacao, setModoSimulacao] = useState(false);
+  const [detalhesAbertos, setDetalhesAbertos] = useState(false);
   // Pulso do domino derivado (spec 0015, F3): o seq de eventos SSE soma na
   // chave direto do prop, sem copia em state; pulsos locais (foco, hipotese,
   // mandato) guardam n, a origem do clique e o seq de evento daquele momento
@@ -656,10 +656,6 @@ function Conteudo({
     [],
   );
 
-  const aoPulsoDominoCentral = useCallback(() => {
-    dispararPulsoDomino(CENTRO_DOMINO);
-  }, [dispararPulsoDomino]);
-
   const manifesto = useMemo(() => formatarManifestoItens(dados), [dados]);
   const kpisDivergencia = useMemo(
     () => extrairKpisDivergencia(matriz.linhas),
@@ -1051,7 +1047,16 @@ function Conteudo({
             </div>
           )}
 
-          <div className="painel-meta-linha">
+          <button
+            type="button"
+            className="painel-detalhes-toggle botao-sutil"
+            aria-expanded={detalhesAbertos}
+            aria-controls="painel-meta-detalhes"
+            onClick={() => setDetalhesAbertos((v) => !v)}
+          >
+            {detalhesAbertos ? 'Ocultar detalhes' : 'Ver detalhes'}
+          </button>
+          <div className="painel-meta-linha" id="painel-meta-detalhes" hidden={!detalhesAbertos}>
             <div className="chave-linha">
               <p className="chave mono">
                 NF-e {chaveAgrupada(id)}
@@ -1177,24 +1182,6 @@ function Conteudo({
         )}
       </section>
 
-      <BarraMandatos
-        pedidoId={id}
-        daSessao={daSessao}
-        projecao={dados}
-        contatos={contatos}
-        focoAtivo={focoAtivo}
-        aoFocar={lidarFoco}
-        aoAnunciar={aoAnunciar}
-        aoSelecionar={aoSelecionar}
-        aoAplicarPapel={trocarPerspectiva}
-        aoNotificar={aoNotificar}
-        aoAbrirAgenda={aoAbrirAgenda}
-        aoAbrirAssistente={aoAbrirAssistente}
-        aoGarantirSessao={aoGarantirSessao}
-        aoRecarregarPedido={aoRecarregarPedido}
-        aoSimulacaoAtiva={setModoSimulacao}
-        aoPulsoDomino={aoPulsoDominoCentral}
-      />
 
       <div className="perspectiva-faixa">
         <div

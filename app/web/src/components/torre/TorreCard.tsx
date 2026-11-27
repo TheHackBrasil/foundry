@@ -12,6 +12,10 @@ import type { CardId } from './layout.ts';
 export interface TorreCardHandleProps {
   onPointerDown: (e: PointerEvent<HTMLButtonElement>, id: CardId) => void;
   onKeyDown: (e: KeyboardEvent<HTMLButtonElement>, id: CardId) => void;
+  // Borda direita arrastável (resize de janela): opcional para consumidores
+  // que só usam mover/teclado. A affordance acessível do mesmo mecanismo é o
+  // separator .torre-span no cabeçalho — este handle é aria-hidden.
+  onResizeDown?: (e: PointerEvent<HTMLDivElement>, id: CardId) => void;
 }
 
 interface TorreCardProps {
@@ -49,6 +53,9 @@ export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreC
   ref,
 ) {
   const corpoId = `torre-corpo-${id}`;
+  // O clique cicla com wrap (mesmo cálculo de aoAjustarSpan na grade): o hint
+  // ao lado do Nx mostra esse próximo passo sem precisar clicar nem pairar.
+  const proximoSpan = span >= spanMax ? 1 : span + 1;
   const [entrando, setEntrando] = useState(true);
   // Em voo a peça segue o pointer por transform inline — a keyframe de entrada
   // sai na hora para não disputar a propriedade com o gesto.
@@ -108,9 +115,13 @@ export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreC
                 aria-valuemin={1}
                 aria-valuemax={spanMax}
                 aria-valuetext={`${span} de ${spanMax} colunas`}
-                aria-label={`Largura do card ${titulo}. Setas ajustam entre 1 e ${spanMax} colunas; clique cicla.`}
+                aria-label={`Largura do card ${titulo}. Setas ajustam entre 1 e ${spanMax} colunas; clique leva a ${proximoSpan}.`}
                 aria-keyshortcuts="ArrowLeft ArrowRight Home End"
-                title={`Largura ${span}/${spanMax} — clique para ciclar`}
+                title={
+                  proximoSpan === 1
+                    ? `Largura ${span}/${spanMax} — clique para voltar a 1 coluna`
+                    : `Largura ${span}/${spanMax} — clique para ${proximoSpan} colunas`
+                }
                 onClick={() => aoAjustarSpan(id, span + 1, true)}
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowLeft') { e.preventDefault(); aoAjustarSpan(id, span - 1, false); }
@@ -130,6 +141,19 @@ export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreC
                   />
                 </svg>
                 <span className="torre-span-n">{span}×</span>
+                <span className="torre-span-prox" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden="true" focusable="false">
+                    <path
+                      d="M2.5 8h10M8.8 4.3 12.5 8l-3.7 3.7"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  {proximoSpan}×
+                </span>
               </button>
             )}
             <button
@@ -158,6 +182,16 @@ export const TorreCard = forwardRef<HTMLElement, TorreCardProps>(function TorreC
           </div>
         </div>
       </div>
+      {/* Zona de arraste da largura: filha da section (não da peça) para não
+          voar no arraste de reordenar nem ser clipada pelo overflow da peça.
+          Só existe quando há para onde redimensionar (spanMax > 1). */}
+      {spanMax > 1 && handleProps.onResizeDown && (
+        <div
+          className="torre-resize"
+          aria-hidden="true"
+          onPointerDown={(e) => handleProps.onResizeDown?.(e, id)}
+        />
+      )}
     </section>
   );
 });

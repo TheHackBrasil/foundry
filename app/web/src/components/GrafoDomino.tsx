@@ -475,6 +475,9 @@ export const GrafoDomino = memo(function GrafoDomino({
     if (hoverCampo === a.campo || focoCampo === a.campo || isolamentoEfetivo === a.campo) {
       return 'enfase';
     }
+    // Ativação pelo setor (direita) também acende o fluxo: sem isso o hover
+    // reverso revelava a aresta mas o pulso causal nunca tocava.
+    if (parteReveladora && a.parte === parteReveladora) return 'enfase';
     return 'ativa';
   };
 
