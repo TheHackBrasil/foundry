@@ -57,6 +57,8 @@ import { assuntoECorpo, configCobrancaDoEnv, dentroDaJanela, enviarCobranca } fr
 import { configPendenciaDoEnv, detectarPendencias, iniciarTickPendencias } from './pendencia.js';
 import { assumirCasosPendentes, registrarOperador, type AlvoOperador } from '../operador/index.js';
 import { criarCanalEmail } from '../operador/canais/email.js';
+import { criarClienteClaude, MODELO_EXTRACAO_PADRAO } from '../operador/agente/claude.js';
+import { extrairDeclaracaoEmail } from '../operador/agente/extracao.js';
 import { portasDoServidor } from './portas-operador.js';
 import { registrarRotasOperador } from './rotas-operador.js';
 import { ehProcessoPrincipal } from './processo.js';
@@ -1076,7 +1078,20 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
 // IMAP: polling so liga quando IMAP_HOST esta configurado; canal do
 // operador. Anexo grava no WORKSPACE_SEED compartilhado (store da seed);
 // resposta de cobranca grava no workspace dono da cobranca.
+// Resposta de cobranca lida pelo Claude Haiku (spec 0017, RF18) quando ha
+// ANTHROPIC_API_KEY; sem ela, o extrator antigo do pipeline continua.
+function extratorEmailDoEnv(): ((corpo: string) => ReturnType<typeof extrairDeclaracaoEmail>) | null {
+  const cliente = criarClienteClaude(
+    { apiKey: process.env['ANTHROPIC_API_KEY'], modelo: process.env['OPERADOR_MODELO_EXTRACAO'] },
+    MODELO_EXTRACAO_PADRAO,
+  );
+  if (!cliente.disponibilidade.disponivel) return null;
+  const hoje = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+  return (corpo) => extrairDeclaracaoEmail(cliente, corpo, hoje());
+}
+
 async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
+  const extratorEmail = extratorEmailDoEnv();
   const cfg = imapConfigDoEnv();
   if (!cfg) return;
   iniciarPolling(
@@ -1090,7 +1105,7 @@ async function ligarImap(canal: CanalSSE, store: LedgerStore): Promise<void> {
     // spec 0010: mensagem sem anexo elegivel pode ser resposta de cobranca.
     // Spec 0017, RF27: casa cobranca de qualquer workspace so pelo
     // Message-ID (In-Reply-To ou References) e grava no workspace dono.
-    (raw: Buffer) => responderImap(store, canal, raw),
+    (raw: Buffer) => responderImap(store, canal, raw, extratorEmail ? { extrator: extratorEmail } : {}),
   );
   console.log(`imap: polling em ${cfg.host}:${cfg.port} a cada ${cfg.intervaloMs}ms`);
 }

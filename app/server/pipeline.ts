@@ -249,6 +249,9 @@ const TETO_SEM_DKIM = 0.6;
 export interface ExtracaoDeclarada {
   campos: CamposObservados;
   confianca: number;
+  // O que mais o extrator leu (modelo, local, observacao): vai para os dados
+  // do claim ou do item de revisao, para o analista conferir.
+  dados?: Record<string, unknown>;
 }
 
 async function extrairCamposDeclarados(corpo: string): Promise<ExtracaoDeclarada | null> {
@@ -350,6 +353,7 @@ export async function processarRespostaEml(
   if (cobranca) await store.atualizarCobranca(cobranca.id, { respondida: true });
 
   const dados: Record<string, unknown> = {
+    ...(extraido?.dados ?? {}),
     dkim: dkim.resultado,
     emlHash,
     ...(cab.remetente ? { remetente: cab.remetente } : {}),

@@ -139,7 +139,7 @@ function textoLivre(v: unknown, nomes: readonly string[]): string | undefined | 
 // uma com a forma esperada. Qualquer coisa a mais ou diferente invalida.
 export function validarDeclaracao(
   valor: Record<string, unknown>,
-  opcoes: { nomes?: readonly string[]; alertaInstrucao?: boolean } = {},
+  opcoes: { nomes?: readonly string[]; alertaInstrucao?: boolean; teto?: number } = {},
 ): Validacao<DeclaracaoValidada> {
   const chaves = Object.keys(valor);
   if (chaves.length !== CHAVES_DECLARACAO.length || !CHAVES_DECLARACAO.every((k) => chaves.includes(k))) {
@@ -164,7 +164,7 @@ export function validarDeclaracao(
   if (local === null || observacao === null) return falhaClaude('invalido', 'texto_fora_do_schema');
   const c = valor['confianca'];
   if (typeof c !== 'number' || !Number.isFinite(c)) return falhaClaude('invalido', 'confianca_fora_do_schema');
-  let confianca = Math.min(1, Math.max(0, c), TETO_SEM_ASSINATURA);
+  let confianca = Math.min(1, Math.max(0, c), opcoes.teto ?? TETO_SEM_ASSINATURA);
   if (Object.keys(campos).length === 0) confianca = Math.min(confianca, TETO_SEM_CAMPOS);
   if (opcoes.alertaInstrucao) confianca = Math.min(confianca, TETO_COM_INSTRUCAO);
   return {
@@ -257,5 +257,56 @@ export async function extrairDeclaracao(cliente: ClienteClaude, entrada: Entrada
       confianca: v.valor.confianca,
     },
     ...uso,
+  };
+}
+
+// Resposta de e-mail a cobranca (spec 0010 e 0017, RF18): o mesmo schema e as
+// mesmas regras, no Claude Haiku, no lugar do LLM antigo do pipeline. O teto
+// por assinatura fica com o chamador, que conhece o DKIM (pipeline.ts), entao
+// aqui o teto e 1. Devolve null quando nao ha extracao: o pipeline manda para
+// a revisao com motivo extracao_indisponivel. Nunca lanca.
+export const SISTEMA_EXTRACAO_EMAIL = SISTEMA_EXTRACAO.replace(
+  'uma mensagem de WhatsApp ou a transcrição de uma ligação',
+  'um e-mail em resposta a uma cobrança; ignore o texto citado da mensagem original',
+);
+
+export interface ExtracaoEmail {
+  campos: CamposObservados;
+  confianca: number;
+  dados: { modelo: string; local?: string; observacao?: string; alertaInstrucao?: true };
+}
+
+export async function extrairDeclaracaoEmail(
+  cliente: ClienteClaude,
+  texto: string,
+  hoje: string,
+  opcoes: { nomesConhecidos?: readonly string[]; signal?: AbortSignal } = {},
+): Promise<ExtracaoEmail | null> {
+  if (!cliente.disponibilidade.disponivel || texto.trim() === '' || !dataIsoValida(hoje)) return null;
+  const alertaInstrucao = contemInstrucao(texto);
+  const nomes = opcoes.nomesConhecidos ?? [];
+  const r = await cliente.gerarEstruturado({
+    sistema: SISTEMA_EXTRACAO_EMAIL,
+    tarefa: 'Extraia a declaração da transportadora contida no e-mail abaixo, no formato do schema.',
+    contexto: { fonteDaEvidencia: 'email' satisfies TipoEvidencia, dataDeReferencia: hoje },
+    evidencias: [{ tipo: 'email', texto: texto.slice(0, 8_000) }],
+    nomesConhecidos: nomes,
+    schema: SCHEMA_DECLARACAO,
+    esforco: 'medium',
+    maxTokens: 8_000,
+    ...(opcoes.signal ? { signal: opcoes.signal } : {}),
+  });
+  if (!r.ok) return null;
+  const v = validarDeclaracao(r.valor, { nomes, alertaInstrucao, teto: 1 });
+  if (!v.ok) return null;
+  return {
+    campos: v.valor.campos,
+    confianca: v.valor.confianca,
+    dados: {
+      modelo: r.modelo,
+      ...(v.valor.local ? { local: v.valor.local } : {}),
+      ...(v.valor.observacao ? { observacao: v.valor.observacao } : {}),
+      ...(alertaInstrucao ? { alertaInstrucao: true as const } : {}),
+    },
   };
 }
