@@ -175,7 +175,25 @@ export async function estadoCasoDoStore(raiz: LedgerStore, workspace: string, pe
     for (const sinal of sinais) await s.marcarSinalLido(sinal.id);
     if (sinais.length > 0) declaracao = 'aceita';
   }
-  return { casoFechado, optout, declaracao };
+  return { casoFechado, optout, declaracao, ...fimDaLigacao(eventos, casoId) };
+}
+
+// Ligacao (RF17): o contato so termina quando a ligacao_concluida chega pelo
+// webhook. Enquanto isso o fluxo espera (fimContatoMs null) em vez de
+// encerrar a escada no aceite. Se o aviso nunca chegar, o fluxo segue depois
+// de ESPERA_MAX_LIGACAO_MS contados do aceite. Outro canal: undefined (vale o
+// instante do aceite, como antes).
+export const ESPERA_MAX_LIGACAO_MS = 30 * 60_000;
+
+export function fimDaLigacao(eventos: readonly Evento[], casoId: string, agoraMs: number = Date.now()): { fimContatoMs?: number | null } {
+  const aceites = eventos.filter((e) => e.tipo === 'contato_aceito' && (e.payload as { casoId?: unknown }).casoId === casoId);
+  const ultimo = aceites.at(-1);
+  if (!ultimo || (ultimo.payload as { canal?: unknown }).canal !== 'ligacao') return {};
+  const chave = (ultimo.payload as { chave?: unknown }).chave;
+  const fim = eventos.find((e) => e.tipo === 'ligacao_concluida' && (e.payload as { chave?: unknown }).chave === chave);
+  if (fim) return { fimContatoMs: Date.parse(fim.ts) };
+  const aceitoMs = Date.parse(ultimo.ts);
+  return { fimContatoMs: agoraMs - aceitoMs >= ESPERA_MAX_LIGACAO_MS ? aceitoMs + ESPERA_MAX_LIGACAO_MS : null };
 }
 
 export async function planoDoStore(raiz: LedgerStore, workspace: string, pedidoId: string, planoId: string): Promise<PlanoContatoProjetado | null> {

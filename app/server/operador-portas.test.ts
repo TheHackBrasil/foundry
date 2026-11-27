@@ -28,6 +28,8 @@ import {
   portaEvidenciasDoStore,
   portaMcpDoStore,
   portasWebhookDoStore,
+  ESPERA_MAX_LIGACAO_MS,
+  fimDaLigacao,
 } from './portas-operador.js';
 import { configDoEnv } from './config.js';
 import { CAMINHO_CONTROLE } from './controle.js';
@@ -316,5 +318,29 @@ describe('T731: kill switch global e por workspace', () => {
     const r = await b.app.inject({ method: 'PUT', url: CAMINHO_CONTROLE, payload: { escopo: 'global', acionado: true }, headers: { authorization: 'Bearer qualquer-coisa-123456' } });
     expect(r.statusCode).toBe(401);
     await b.app.close();
+  });
+});
+
+describe('fim da ligacao no estado do caso', () => {
+  const CASO = 'pedido-teste:30';
+  const ev = (seq: number, tipo: string, payload: Record<string, unknown>, ts: string) =>
+    ({ seq, pedidoId: 'pedido-teste', tipo, payload, ts }) as never;
+  const aceito = ev(1, 'contato_aceito', { casoId: CASO, canal: 'ligacao', chave: 'k1' }, '2026-11-27T03:30:00.000Z');
+  const aceitoMs = Date.parse('2026-11-27T03:30:00.000Z');
+
+  it('ligacao aceita sem conclusao: espera (null)', () => {
+    expect(fimDaLigacao([aceito], CASO, aceitoMs + 60_000)).toEqual({ fimContatoMs: null });
+  });
+  it('com ligacao_concluida: o fim e o instante dela', () => {
+    const fim = ev(2, 'ligacao_concluida', { chave: 'k1' }, '2026-11-27T03:33:00.000Z');
+    expect(fimDaLigacao([aceito, fim], CASO, aceitoMs + 60_000)).toEqual({ fimContatoMs: Date.parse('2026-11-27T03:33:00.000Z') });
+  });
+  it('sem aviso por mais de 30 min: segue a partir do limite', () => {
+    expect(fimDaLigacao([aceito], CASO, aceitoMs + ESPERA_MAX_LIGACAO_MS + 1)).toEqual({ fimContatoMs: aceitoMs + ESPERA_MAX_LIGACAO_MS });
+  });
+  it('outro canal ou outro caso: nada muda', () => {
+    const email = ev(1, 'contato_aceito', { casoId: CASO, canal: 'email', chave: 'k0' }, '2026-11-27T03:00:00.000Z');
+    expect(fimDaLigacao([email], CASO)).toEqual({});
+    expect(fimDaLigacao([aceito], 'outro:1')).toEqual({});
   });
 });
