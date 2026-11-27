@@ -62,9 +62,9 @@ pela integração em T700. Tasks marcadas "(integração)" rodam na `main`.
 
 ### US4: ligação
 
-- [ ] T760 (P0) [US4] interface `Discador` com idempotência e consulta por chave, e adaptador do primeiro fornecedor com webhook confirmado (RF15): `app/operador/canais/voz/discador.ts`: teste de contrato; adaptador recusa destino fora da lista; sem credencial degrada declarado
-- [ ] T761 (P0) [US4] roteiro com campos tipados e perguntas fechadas: confirma com quem fala, identificação, aviso de gravação, oferta de pessoa, opt-out, nada de compromisso (RF16): `app/operador/canais/voz/roteiro.ts`: teste confere as frases obrigatórias e recusa evidência copiada para o roteiro
-- [ ] T762 (P0) [US4] fim da ligação: webhook, evidência, extração e revisão; opt-out grava `contato_optout` e para a escada (RF17, RF18): `app/operador/webhooks.ts`, `app/operador/fluxo/caso.ts`: teste ponta a ponta com fixture rotulada
+- [x] T760 (P0) [US4] interface `Discador` com idempotência e consulta por chave, e adaptador do primeiro fornecedor com webhook confirmado (RF15): `app/operador/canais/voz/discador.ts`: teste de contrato; adaptador recusa destino fora da lista; sem credencial degrada declarado
+- [x] T761 (P0) [US4] roteiro com campos tipados e perguntas fechadas: confirma com quem fala, identificação, aviso de gravação, oferta de pessoa, opt-out, nada de compromisso (RF16): `app/operador/canais/voz/roteiro.ts`: teste confere as frases obrigatórias e recusa evidência copiada para o roteiro
+- [x] T762 (P0) [US4] fim da ligação: webhook, evidência, extração e revisão; opt-out grava `contato_optout` e para a escada (RF17, RF18): `app/operador/webhooks.ts`, `app/operador/fluxo/caso.ts`: teste ponta a ponta com fixture rotulada
 - [ ] T763 (P1) [US4] confirmação por escrito depois da ligação; resposta com DKIM aumenta a confiança (RF19): `app/operador/canais/email.ts`: teste da declaração com confiança maior depois da resposta assinada
 
 ### US5: revisão
