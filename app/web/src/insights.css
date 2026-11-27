@@ -1,0 +1,187 @@
+/* Entrada de insights (spec 0016): sequencia "stories" na rota #/ sem
+   pedido. So tokens medidos em evidencias/contraste-v4.md (A6): texto em
+   --text, metadados em --text2, CTA em --primary/--on-primary. */
+
+.insights {
+  max-width: 44rem;
+  display: grid;
+  justify-items: start;
+  gap: 1.5rem;
+  padding-block: 4vh 1rem;
+}
+
+.insights-carga { padding-top: 1.5rem; }
+
+.insights-topo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.insights-progresso {
+  display: flex;
+  flex: 1;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.insights-progresso li { flex: 1; min-width: 0; }
+
+.insights-seg {
+  display: block;
+  width: 100%;
+  /* area util de 24px+: barra de 3px dentro de um polegar generoso */
+  padding: 0.75rem 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.insights-seg-trilho {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+  overflow: hidden;
+}
+
+.insights-seg-barra {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--primary);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.insights-seg[data-feita='true'] .insights-seg-barra { transform: scaleX(1); }
+.insights-seg[data-ativa='true'] .insights-seg-barra {
+  animation: insights-preencher var(--avanco, 7s) linear forwards;
+}
+.insights-seg[data-pausada='true'] .insights-seg-barra {
+  animation-play-state: paused;
+}
+
+@keyframes insights-preencher {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.insights-corpo {
+  display: grid;
+  justify-items: start;
+  gap: 0.625rem;
+  animation: insights-entra 240ms var(--ease-enter) backwards;
+}
+
+@keyframes insights-entra {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.insights-kicker {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+
+.insights-titulo {
+  font: 700 var(--fs-h1)/1.12 var(--font-title);
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.insights-texto {
+  font-size: var(--fs-card-t);
+  line-height: 1.5;
+  color: var(--text2);
+  text-wrap: pretty;
+}
+
+.insights-sim { font-size: var(--fs-meta); }
+
+.insights-acoes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.insights-cta {
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: none;
+}
+
+.insights-nav {
+  display: flex;
+  gap: 0.25rem;
+  margin-inline-start: auto;
+}
+
+.insights-avanco {
+  min-width: var(--ctl-md);
+  padding-inline: 0.5rem;
+}
+
+.insights-flip { display: inline-flex; transform: scaleX(-1); }
+
+.insights-teclas { font-size: var(--fs-meta); }
+
+/* Fallback: classes extraidas dos estilos inline do bloco original de
+   App.tsx (mesma aparencia, mesmos tokens). */
+.vazio-pedidos {
+  display: grid;
+  gap: 0.375rem;
+  width: 100%;
+  max-width: 34rem;
+  margin: 0.25rem 0 0;
+}
+
+.vazio-pedido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6875rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.vazio-pedido-nome {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.vazio-pedido-meta {
+  color: var(--text2);
+  font-size: var(--fs-meta);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.vazio-pedidos-extra { font-size: var(--fs-meta); margin-top: 0.375rem; }
+
+@media (max-width: 640px) {
+  .insights { gap: 1.125rem; padding-block: 2vh 1rem; }
+  .insights-nav { margin-inline-start: 0; width: 100%; justify-content: flex-end; }
+}
+
+/* Movimento reduzido (AC5): sem autoplay nem deslocamento; a troca vira um
+   fade curto, mesma camada 2 do styles.css. A barra ativa fica cheia. */
+@media (prefers-reduced-motion: reduce) {
+  .insights-corpo { animation: fade-simples 120ms ease both; }
+  .insights-seg[data-ativa='true'] .insights-seg-barra {
+    animation: none;
+    transform: scaleX(1);
+  }
+}
