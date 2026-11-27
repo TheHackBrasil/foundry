@@ -34,6 +34,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json tsconfig.json ./
 COPY server/ ./server/
+# Operador da spec 0018 (escada, canais, agente): o servidor importa no boot.
+COPY operador/ ./operador/
 COPY shared/ ./shared/
 COPY seed/ ./seed/
 COPY contracts/abi/ ./contracts/abi/
