@@ -92,9 +92,13 @@ export function PaginaAdmin() {
       {!config ? (
         <form className="op-admin-cartao" onSubmit={(e) => void entrar(e)}>
           <label htmlFor={senhaId} className="op-col-t">
-            Senha de admin
+            Senha do backoffice
           </label>
-          <p className="meta">É o valor de OPERADOR_APROVADOR_TOKEN no servidor. Fica só na memória desta aba.</p>
+          <p className="meta">
+            Ao entrar, você cadastra os números que a IA pode contatar e liga ou desliga a aprovação sem senha. A
+            senha é só do backoffice: aprovar ligação na Operação não pede senha. Ela é o valor de
+            OPERADOR_APROVADOR_TOKEN no servidor e fica só na memória desta aba.
+          </p>
           <div className="op-admin-linha">
             <input
               id={senhaId}
