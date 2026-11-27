@@ -320,14 +320,32 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
       })
     : null;
 
+  // Rolagem suave até o alvo; quem pede menos movimento vai direto.
+  const rolarAte = (alvo: HTMLElement | null, bloco: ScrollLogicalPosition = 'start'): void => {
+    if (!alvo) return;
+    const reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    alvo.scrollIntoView({ behavior: reduzir ? 'auto' : 'smooth', block: bloco });
+  };
+
   const executarPasso = (): void => {
     if (!casoDoPasso || !passo) return;
     if (passo.acao === 'acionar') void acionar(casoDoPasso.id);
     else if (passo.acao === 'ver_plano') {
-      document.getElementById('op-planos')?.scrollIntoView({ block: 'start' });
+      rolarAte(document.getElementById('op-planos'));
     } else if (passo.acao === 'resolver') {
+      const jaAberto = outrasRef.current?.open ?? false;
       if (outrasRef.current) outrasRef.current.open = true;
-      requestAnimationFrame(() => document.getElementById('op-resolucao')?.focus());
+      // Espera o acordeão terminar de abrir (260 ms) para o campo ter altura;
+      // só então rola até ele e foca sem um segundo salto.
+      const reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.setTimeout(
+        () => {
+          const campo = document.getElementById('op-resolucao');
+          rolarAte(campo, 'center');
+          campo?.focus({ preventScroll: true });
+        },
+        jaAberto || reduzir ? 0 : 280,
+      );
     } else if (passo.acao === 'reabrir') void executar(() => reabrirCaso(casoDoPasso.id), 'Caso reaberto.');
   };
 
@@ -719,7 +737,12 @@ export function PaginaOperacao({ aoAnunciar, aoAbrirNaTorre, pulsoEventoSeq = 0 
 
               {casoAtual.daSessao && (
               <details className="op-outras" ref={outrasRef}>
-                <summary className="op-aprovacao-t">Outras ações</summary>
+                <summary className="op-aprovacao-t">
+                  <span className="op-summary-texto">
+                    Outras ações
+                    <span className="meta">Marcar responsável, resolver, link para a transportadora e comprovante</span>
+                  </span>
+                </summary>
               {casoAtual.status !== 'resolvido' && (
                 <div className="op-acoes">
                   {casoAtual.status !== 'atribuido' && (
