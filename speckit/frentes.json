@@ -366,6 +366,13 @@
         "app/.env.example",
         "specs/0018-harness-operador/"
       ]
+    },
+    "insights": {
+      "brief": "specs/0016-entrada-insights/brief-insights.md",
+      "paths": [
+        "app/web/",
+        "specs/0016-entrada-insights/brief-insights.md"
+      ]
     }
   }
 }
