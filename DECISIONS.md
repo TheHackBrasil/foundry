@@ -665,3 +665,18 @@ parte, resposta que não fecha o caso de pendência, IMAP que só casa
 cobranças da seed e possível cobrança nova a cada tick depois de
 respondida ou expirada. Restam cinco perguntas abertas na spec antes do
 status `aprovada`.
+
+## Sessão 25: operador com ligação e backoffice, spec 0017 (27/11)
+
+D-066: integração da frente `harness` na main (26 commits, revisão do diff
+sem segredo nem dado pessoal, guard e prose-evals verdes, 652 testes do
+servidor e 249 da interface). Entra o degrau de ligação pela Retell com
+número próprio da Telnyx (DF-6), a leitura da resposta de e-mail pelo
+Claude (DF-7) e o backoffice em `/#/admin` com números liberados,
+aprovação sem senha da demo, prazos, limites e horário no banco (DF-8).
+A demo pública habilita toda sessão com `OPERADOR_WORKSPACES=*` (DF-9),
+e o webhook da Retell é registrado pelo próprio servidor (DF-10). A
+fatia fina rodou com contato do time: e-mail real, ligação aprovada e
+atendida, declaração extraída, revisada e gravada, com casos e tarefas
+derivados. A T798 segue aberta porque o WhatsApp ainda não tem canal; a
+escada pula o degrau e registra o motivo.
