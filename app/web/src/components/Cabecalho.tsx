@@ -101,6 +101,16 @@ export function Cabecalho({
         </div>
       </div>
 
+      <div className="topo-centro">
+        <BuscaUniversal
+          pedidos={pedidos}
+          contatos={contatos}
+          rota={rota}
+          aoAbrirAgenda={aoAbrirAgenda}
+          aoPerguntarIA={aoAbrirAssistente}
+        />
+      </div>
+
       <div className="topo-acoes">
         <button
           type="button"
@@ -132,14 +142,6 @@ export function Cabecalho({
             </>
           )}
         </a>
-
-        <BuscaUniversal
-          pedidos={pedidos}
-          contatos={contatos}
-          rota={rota}
-          aoAbrirAgenda={aoAbrirAgenda}
-          aoPerguntarIA={aoAbrirAssistente}
-        />
 
         <div className="tema" role="group" aria-label="Tema" data-tema-ativo={tema}>
           <span className="tema-pill" aria-hidden="true" />

@@ -48,16 +48,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  width: 11.5rem;
-  min-height: var(--ctl-sm);
-  padding: 0 0.4375rem 0 0.75rem;
+  width: clamp(15rem, 30vw, 24rem);
+  min-height: 2.25rem;
+  padding: 0 0.5rem 0 0.875rem;
   border: 0;
   border-radius: var(--r-pill);
   background: var(--bg);
   box-shadow: inset 0 0 0 1px var(--border);
   color: var(--text2);
   font-family: var(--font-ui);
-  font-size: var(--fs-meta);
+  font-size: var(--fs-ui);
   text-align: start;
   cursor: pointer;
   transition: box-shadow var(--dur-micro) ease, background-color var(--dur-micro) ease;
@@ -395,8 +395,8 @@
   .topo .topo-btn { min-height: 2.75rem; }
   .busca-atalhos { display: none; }
   .busca-gatilho {
-    width: 6.5rem;
-    min-height: 2.75rem;
+    width: clamp(8rem, 24vw, 14rem);
+    min-height: 2.5rem;
     padding-inline: 0.75rem;
   }
   .paleta-veu { padding-top: min(10vh, 5rem); }

@@ -404,8 +404,17 @@ s { text-decoration-thickness: 1px; }
 
 .topo-esq {
   display: flex;
+  flex: 1 1 0;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
+}
+
+.topo-centro {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
 }
 
@@ -418,9 +427,11 @@ s { text-decoration-thickness: 1px; }
 
 .topo-acoes {
   display: flex;
+  flex: 1 1 0;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
-  flex: none;
+  min-width: 0;
 }
 
 .topo-btn {
