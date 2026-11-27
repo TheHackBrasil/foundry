@@ -59,7 +59,15 @@ import { assumirCasosPendentes, registrarOperador, type AlvoOperador } from '../
 import { criarCanalEmail } from '../operador/canais/email.js';
 import { criarClienteClaude, MODELO_EXTRACAO_PADRAO } from '../operador/agente/claude.js';
 import { extrairDeclaracaoEmail } from '../operador/agente/extracao.js';
-import { portasDoServidor } from './portas-operador.js';
+import { portaEvidenciasDoStore, portasDoServidor, portasWebhookDoStore } from './portas-operador.js';
+import {
+  aoFimDaLigacaoRetell,
+  configRetellDoEnv,
+  configWebhookRetell,
+  criarCanalLigacaoRetell,
+} from '../operador/canais/voz/retell.js';
+import { lerRoteiroGuardado } from '../operador/roteiro.js';
+import { registrarRotaWebhook } from '../operador/webhooks.js';
 import { registrarRotasOperador } from './rotas-operador.js';
 import { ehProcessoPrincipal } from './processo.js';
 import { ErroRequisicao, GuardaEspaco, JanelaFixa, mensagens } from './protecao.js';
@@ -805,6 +813,7 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
   // rotas respondem e o acionamento devolve 503. Portas reais: kill switch
   // lido do banco antes de cada efeito, contadores do ledger, degrau de
   // e-mail sobre a cobranca da spec 0010 e eventos do fluxo no SSE.
+  const retell = opts.operador ? null : configRetellDoEnv();
   const operador: AlvoOperador =
     opts.operador ??
     (await registrarOperador(app, {
@@ -821,10 +830,49 @@ export async function buildServer(dbInjetado?: Db, opts: BuildOpts = {}) {
               expiraHoras: configCobrancaDoEnv().expiraHoras,
               aoEvento: (ev, ws) => canal.evento(ev, ws),
             }),
+            // Ligacao pela Retell (T760): so com RETELL_API_KEY, RETELL_AGENT_ID
+            // e RETELL_FROM_NUMBER; sem eles o degrau e pulado, declarado.
+            ...(retell
+              ? {
+                  ligacao: criarCanalLigacaoRetell({
+                    config: retell,
+                    destinosPermitidos: config.politica.destinosPermitidos,
+                    lerRoteiro: async (ws, hash) => {
+                      const bruto = await store.paraWorkspace(ws).evidencia(hash);
+                      return bruto ? lerRoteiroGuardado(bruto) : null;
+                    },
+                  }),
+                }
+              : {}),
           },
           aoEvento: (ev, ws) => canal.evento(ev, ws),
         }),
     }));
+  // Fim da ligacao (T762): a Retell avisa por webhook assinado com a chave
+  // da API; transcricao e audio viram evidencia e a declaracao vai para a
+  // revisao. A URL publica vem do tunel ou da hospedagem.
+  if (retell) {
+    const clienteExtracao = criarClienteClaude(
+      { apiKey: process.env['ANTHROPIC_API_KEY'], modelo: process.env['OPERADOR_MODELO_EXTRACAO'] },
+      MODELO_EXTRACAO_PADRAO,
+    );
+    await registrarRotaWebhook(app, {
+      caminho: '/api/operador/webhooks/retell',
+      config: configWebhookRetell(retell.apiKey),
+      portas: portasWebhookDoStore(
+        store,
+        aoFimDaLigacaoRetell({
+          raiz: store,
+          evidencias: portaEvidenciasDoStore(store),
+          cliente: clienteExtracao,
+          config: retell,
+          aoEvento: (ev, ws) => canal.evento(ev, ws),
+          acordarPedido: (ws, pedidoId) => operador.fluxo()?.acordarPedido(ws, pedidoId) ?? Promise.resolve(0),
+          log: (msg) => app.log.warn(msg),
+        }),
+      ),
+    });
+  }
   // Declaracao aprovada na revisao acorda o fluxo do pedido (RF18).
   const pararSinais = ouvirSinaisOperador((aviso) => {
     void operador.fluxo()?.acordarPedido(aviso.workspaceId, aviso.pedidoId).catch(() => undefined);

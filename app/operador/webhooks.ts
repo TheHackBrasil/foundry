@@ -44,6 +44,8 @@ export interface ConfigWebhook {
   extrairAssinatura?: (cabecalhos: CabecalhosWebhook) => AssinaturaWebhook;
   // Mensagem assinada; padrao `${timestamp}.${corpo bruto}`.
   montarMensagem?: (timestamp: string, corpoBruto: Buffer) => Buffer;
+  // Timestamp em milissegundos (Retell); padrao em segundos.
+  timestampEmMs?: boolean;
   extrairIds: (corpo: unknown, cabecalhos: CabecalhosWebhook) => IdsWebhook;
 }
 
@@ -91,7 +93,7 @@ export function assinarWebhook(
 }
 
 const HEX_SHA256 = /^(?:sha256=)?([0-9a-f]{64})$/i;
-const TIMESTAMP = /^\d{1,12}$/;
+const TIMESTAMP = /^\d{1,13}$/;
 
 // Assinatura e janela. Compara o HMAC em tempo constante; o tamanho comparado
 // e sempre 32 bytes, entao a checagem de tamanho nao revela nada do segredo.
@@ -113,7 +115,8 @@ export function verificarAssinaturaWebhook(
     return { ok: false, motivo: 'assinatura_invalida' };
   }
   const janela = config.janelaMs ?? JANELA_PADRAO_WEBHOOK_MS;
-  if (!Number.isFinite(agoraMs) || Math.abs(agoraMs - Number(timestamp) * 1000) > janela) {
+  const instanteMs = config.timestampEmMs ? Number(timestamp) : Number(timestamp) * 1000;
+  if (!Number.isFinite(agoraMs) || Math.abs(agoraMs - instanteMs) > janela) {
     return { ok: false, motivo: 'fora_da_janela' };
   }
   return { ok: true };

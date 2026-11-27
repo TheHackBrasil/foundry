@@ -91,6 +91,8 @@ export interface PedidoEnvio {
   casoId: string;
   contatoId: number;
   destino: string; // so atravessa a porta; nunca vai para evento nem checkpoint
+  // WhatsApp e ligacao: o roteiro aprovado, pelo hash da evidencia (RF11).
+  hashRoteiro?: string;
 }
 
 export type RespostaEnvio =
@@ -381,6 +383,7 @@ export function registrarFluxoCaso(portas: PortasFluxo): FluxoCaso {
         casoId: entrada.casoId,
         contatoId: contato.id,
         destino: contato.destino,
+        ...(plano ? { hashRoteiro: plano.hashRoteiro } : {}),
       });
     } catch {
       return consultar('falha_ambigua');
